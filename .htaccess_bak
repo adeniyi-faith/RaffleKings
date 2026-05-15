@@ -1,0 +1,62 @@
+deny from all
+# Turn on the rewrite engine
+RewriteEngine On
+RewriteBase /
+
+# 0. SPECIAL: Map sitemap.xml to sitemap.php
+RewriteRule ^sitemap\.xml$ sitemap.php [L]
+
+# 1. Enable Authorization Header (Fix for JWT)
+RewriteCond %{HTTP:Authorization} ^(.*)
+RewriteRule ^(.*) - [E=HTTP_AUTHORIZATION:%1]
+
+# 2. Custom Error Page for 404
+ErrorDocument 404 /404.php
+
+# 3. External Redirect: If user types .php, remove it (Pretty URLs)
+RewriteCond %{THE_REQUEST} \s/+(.+?)\.php[\s?] [NC]
+RewriteCond %{REQUEST_URI} !^/404\.php$ [NC]
+RewriteCond %{REQUEST_URI} !^/sitemap\.php$ [NC]
+# CRITICAL FIX: Exclude BOTH OneSignal worker files from redirects
+RewriteCond %{REQUEST_URI} !^/OneSignalSDKWorker\.js$ [NC]
+RewriteCond %{REQUEST_URI} !^/OneSignalSDKUpdaterWorker\.js$ [NC]
+RewriteRule ^ /%1 [R=301,L]
+
+# 4. PRIORITY: Internal Rewrite for Valid .php Files
+RewriteCond %{REQUEST_FILENAME} !-d
+RewriteCond %{REQUEST_FILENAME}.php -f
+RewriteRule ^(.+)$ $1.php [L,QSA]
+
+# 6. ROOT REFERRAL REDIRECT: /?ref=username -> register.php
+RewriteCond %{QUERY_STRING} ref=([^&]+) [NC]
+RewriteRule ^$ register.php [L,QSA]
+
+# --- SECURITY HEADERS ---
+<IfModule mod_headers.c>
+    # 1. Force CORS (Helps with Tailwind/Fonts issues)
+    Header set Access-Control-Allow-Origin "*"
+
+    # 2. Disable Caching for Service Workers (Forces browser to update logic)
+    <FilesMatch "(sw\.js|OneSignalSDKWorker\.js|OneSignalSDKUpdaterWorker\.js)">
+        Header set Cache-Control "max-age=0, no-cache, no-store, must-revalidate"
+        Header set Pragma "no-cache"
+        Header set Expires "Wed, 11 Jan 1984 05:00:00 GMT"
+    </FilesMatch>
+
+    # 3. Content Security Policy (CSP)
+    # UPDATED: Changed 'connect-src' to 'https:' to allow ALL external APIs (Fixes blocking issues)
+    Header set Content-Security-Policy "default-src 'self'; \
+    script-src 'self' 'unsafe-inline' 'unsafe-eval' https://cdn.tailwindcss.com https://unpkg.com https://cdn.jsdelivr.net https://www.googletagmanager.com https://static.cloudflareinsights.com https://challenges.cloudflare.com https://cdn.onesignal.com https://onesignal.com https://api.onesignal.com; \
+    worker-src 'self' blob: https://cdn.onesignal.com https://onesignal.com; \
+    style-src 'self' 'unsafe-inline' https://fonts.googleapis.com https://onesignal.com https://cdn.onesignal.com; \
+    font-src 'self' https://fonts.gstatic.com; \
+    img-src 'self' data: https: https://www.transparenttextures.com https://cdn.dribbble.com; \
+    connect-src 'self' https:; \
+    frame-src 'self' https://challenges.cloudflare.com https://onesignal.com"
+
+    Header always set X-Frame-Options "SAMEORIGIN"
+    Header set X-XSS-Protection "1; mode=block"
+    Header set X-Content-Type-Options "nosniff"
+    Header set Referrer-Policy "strict-origin-when-cross-origin"
+    Header set Permissions-Policy "geolocation=(), microphone=(), camera=()"
+</IfModule>

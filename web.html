@@ -1,0 +1,528 @@
+<!DOCTYPE html>
+<html lang="en" class="dark">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>RaffleKings - Desktop Dashboard</title>
+    
+    <!-- Brand Assets / Favicons -->
+    <link rel="apple-touch-icon" href="https://getonlinestudio.com/insights/wp-content/uploads/2026/01/iOS-1-1.png">
+    <link rel="icon" type="image/png" sizes="32x32" href="https://getonlinestudio.com/insights/wp-content/uploads/2026/01/@32-px.png">
+    <link rel="icon" type="image/png" sizes="16x16" href="https://getonlinestudio.com/insights/wp-content/uploads/2026/01/@16-px.png">
+    <link rel="shortcut icon" href="https://getonlinestudio.com/insights/wp-content/uploads/2026/01/@32-px.png">
+
+    <!-- Tech Stack Reasoning Meta Tag -->
+    <meta name="architecture-decision" content="Tech Stack: Tailwind CSS is used for utility-first, highly customized styling that matches the premium fintech-gaming aesthetic without bloated external stylesheets. Vanilla JS handles DOM manipulation (live tickers, toggles, rendering) to ensure zero-dependency, lightning-fast execution. A single-file structure is used for immediate deployment, portability, and instant preview capabilities.">
+
+    <!-- Tailwind CSS (Framework) -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+        tailwind.config = {
+            darkMode: 'class',
+            theme: {
+                extend: {
+                    colors: {
+                        dark: {
+                            bg: '#0f172a',      // slate-900
+                            card: '#1e293b',    // slate-800
+                            border: '#334155',  // slate-700
+                            hover: '#475569'    // slate-600
+                        },
+                        brand: {
+                            primary: '#2563eb', // blue-600
+                            accent: '#10b981',  // emerald-500
+                            gold: '#facc15'     // yellow-400
+                        }
+                    },
+                    fontFamily: {
+                        sans: ['Inter', 'system-ui', 'sans-serif'],
+                    },
+                    animation: {
+                        'shimmer': 'shimmer 2.5s infinite linear',
+                        'float': 'float 6s ease-in-out infinite',
+                        'pulse-slow': 'pulse 3s cubic-bezier(0.4, 0, 0.6, 1) infinite',
+                    },
+                    keyframes: {
+                        shimmer: {
+                            '0%': { transform: 'translateX(-100%)' },
+                            '100%': { transform: 'translateX(100%)' }
+                        },
+                        float: {
+                            '0%, 100%': { transform: 'translateY(0px)' },
+                            '50%': { transform: 'translateY(-10px)' },
+                        }
+                    }
+                }
+            }
+        }
+    </script>
+
+    <!-- Google Fonts -->
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&display=swap" rel="stylesheet">
+    
+    <!-- Lucide Icons -->
+    <script src="https://unpkg.com/lucide@latest"></script>
+
+    <style>
+        body { font-family: 'Inter', sans-serif; }
+        /* Hide scrollbar for Chrome, Safari and Opera */
+        .no-scrollbar::-webkit-scrollbar { display: none; }
+        /* Hide scrollbar for IE, Edge and Firefox */
+        .no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
+        
+        .glass-panel {
+            background: rgba(30, 41, 59, 0.6);
+            backdrop-filter: blur(12px);
+            -webkit-backdrop-filter: blur(12px);
+            border: 1px solid rgba(255, 255, 255, 0.05);
+        }
+        
+        .golden-glow {
+            box-shadow: 0 0 20px rgba(250, 204, 21, 0.15), inset 0 0 20px rgba(250, 204, 21, 0.05);
+        }
+    </style>
+</head>
+<body class="bg-dark-bg text-white h-screen overflow-hidden flex selection:bg-brand-primary selection:text-white">
+
+    <!-- SIDEBAR NAVIGATION (Desktop Specific) -->
+    <aside class="w-72 border-r border-dark-border bg-dark-bg/95 backdrop-blur-xl flex flex-col justify-between z-40 shadow-2xl relative">
+        <!-- Top: Logo & Links -->
+        <div>
+            <!-- Logo -->
+            <div class="h-20 flex items-center px-8 border-b border-dark-border/50">
+                <div class="flex items-center gap-3 cursor-pointer hover:opacity-80 transition-opacity">
+                    <img src="https://getonlinestudio.com/insights/wp-content/uploads/2026/01/App_Icon.png" alt="RaffleKings Logo" class="w-10 h-10 rounded-xl shadow-lg shadow-blue-900/20 object-cover">
+                    <h1 class="font-black text-2xl tracking-tight text-white leading-none">Raffle<span class="text-brand-primary">Kings</span></h1>
+                </div>
+            </div>
+
+            <!-- Nav Links -->
+            <nav class="p-6 space-y-2">
+                <p class="text-[10px] font-bold text-slate-500 uppercase tracking-widest mb-4 px-2">Menu</p>
+                
+                <a href="#" class="flex items-center gap-3 px-4 py-3 bg-brand-primary/10 text-brand-primary rounded-xl font-bold transition-colors border border-brand-primary/20">
+                    <i data-lucide="layout-grid" class="w-5 h-5"></i> Dashboard
+                </a>
+                <a href="#" class="flex items-center gap-3 px-4 py-3 text-slate-400 hover:text-white hover:bg-dark-hover/50 rounded-xl font-medium transition-colors group">
+                    <i data-lucide="ticket" class="w-5 h-5 group-hover:text-emerald-400 transition-colors"></i> Active Draws
+                </a>
+                <a href="#" class="flex items-center gap-3 px-4 py-3 text-slate-400 hover:text-white hover:bg-dark-hover/50 rounded-xl font-medium transition-colors group">
+                    <i data-lucide="trophy" class="w-5 h-5 group-hover:text-brand-gold transition-colors"></i> Winners Circle
+                </a>
+                <a href="#" class="flex items-center gap-3 px-4 py-3 text-slate-400 hover:text-white hover:bg-dark-hover/50 rounded-xl font-medium transition-colors group">
+                    <i data-lucide="wallet" class="w-5 h-5 group-hover:text-blue-400 transition-colors"></i> My Wallet
+                </a>
+            </nav>
+
+            <!-- Mini Promo Banner (Sidebar) -->
+            <div class="px-6 mt-4">
+                <div class="glass-panel rounded-2xl p-4 border border-brand-gold/20 relative overflow-hidden group cursor-pointer hover:bg-dark-card transition-colors">
+                    <div class="absolute top-0 right-0 w-24 h-24 bg-brand-gold/10 rounded-full blur-2xl -translate-y-1/2 translate-x-1/2"></div>
+                    <h4 class="text-sm font-bold text-white mb-1 flex items-center gap-2">
+                        <i data-lucide="zap" class="w-4 h-4 text-brand-gold fill-current"></i> Daily 100
+                    </h4>
+                    <p class="text-xs text-slate-400 leading-relaxed mb-3">Micro tickets. Massive payouts. Draws every 24hrs.</p>
+                    <button class="text-[10px] uppercase tracking-widest font-black text-brand-gold flex items-center gap-1 group-hover:gap-2 transition-all">
+                        Play Now <i data-lucide="arrow-right" class="w-3 h-3"></i>
+                    </button>
+                </div>
+            </div>
+        </div>
+
+        <!-- Bottom: User Profile -->
+        <div class="p-6 border-t border-dark-border/50">
+            <div class="flex items-center gap-3 glass-panel p-3 rounded-xl hover:bg-dark-card cursor-pointer transition-colors border border-transparent hover:border-dark-border">
+                <img src="https://api.dicebear.com/9.x/adventurer/svg?seed=KingDavid&backgroundColor=1e293b" alt="User" class="w-10 h-10 rounded-lg border border-slate-600 bg-dark-bg">
+                <div class="flex-1 min-w-0">
+                    <p class="text-sm font-bold text-white truncate">@KingDavid</p>
+                    <p class="text-xs text-emerald-400 font-medium truncate flex items-center gap-1">
+                        <span class="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse"></span> Online
+                    </p>
+                </div>
+                <i data-lucide="settings" class="w-4 h-4 text-slate-400"></i>
+            </div>
+        </div>
+    </aside>
+
+    <!-- MAIN CONTENT AREA -->
+    <main class="flex-1 flex flex-col h-screen overflow-hidden relative">
+        
+        <!-- Ambient Background Glows -->
+        <div class="absolute top-0 left-1/4 w-96 h-96 bg-brand-primary/10 rounded-full blur-3xl pointer-events-none"></div>
+        <div class="absolute bottom-0 right-1/4 w-[500px] h-[500px] bg-emerald-900/10 rounded-full blur-[100px] pointer-events-none"></div>
+
+        <!-- Desktop Top Navigation -->
+        <header class="h-20 flex items-center justify-between px-10 border-b border-dark-border/30 bg-dark-bg/80 backdrop-blur-md z-30 flex-shrink-0">
+            
+            <!-- Global Search -->
+            <div class="relative w-96 group">
+                <i data-lucide="search" class="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-500 group-focus-within:text-brand-primary transition-colors"></i>
+                <input type="text" placeholder="Search raffles, prizes, or winners..." 
+                       class="w-full bg-dark-card border border-dark-border text-sm text-white rounded-full pl-11 pr-4 py-2.5 focus:outline-none focus:ring-2 focus:ring-brand-primary/50 focus:border-brand-primary transition-all placeholder-slate-500 shadow-inner">
+            </div>
+
+            <!-- Right Actions -->
+            <div class="flex items-center gap-6">
+                
+                <!-- Live Ticker (Desktop Header Version) -->
+                <div class="hidden xl:flex items-center gap-2 bg-dark-card/50 border border-dark-border rounded-full px-4 py-1.5 min-w-[300px] h-10 overflow-hidden relative">
+                    <div class="w-2 h-2 bg-emerald-500 rounded-full animate-pulse shadow-[0_0_8px_rgba(16,185,129,0.8)]"></div>
+                    <div id="desktop-ticker" class="text-xs font-medium text-slate-300 truncate w-full transition-all duration-300 transform translate-y-0 opacity-100">
+                        Loading live updates...
+                    </div>
+                </div>
+
+                <!-- Notifications -->
+                <button class="relative p-2 text-slate-400 hover:text-white transition-colors">
+                    <i data-lucide="bell" class="w-5 h-5"></i>
+                    <span class="absolute top-1 right-1 w-2.5 h-2.5 bg-red-500 border-2 border-dark-bg rounded-full"></span>
+                </button>
+
+                <!-- Wallet Widget -->
+                <div onclick="toggleWallet()" class="glass-panel flex items-center gap-3 px-5 py-2.5 rounded-full cursor-pointer hover:bg-dark-hover/50 transition-all border border-dark-border group shadow-lg">
+                    <div class="w-6 h-6 rounded-full bg-brand-primary/20 flex items-center justify-center text-brand-primary group-hover:scale-110 transition-transform">
+                        <i data-lucide="wallet" class="w-3.5 h-3.5"></i>
+                    </div>
+                    <div>
+                        <p class="text-[9px] text-slate-400 font-bold uppercase tracking-wider leading-none mb-0.5">Balance</p>
+                        <p class="text-sm font-black text-white leading-none tracking-tight flex items-center gap-2">
+                            <span id="wallet-amount" data-val="₦ 1,450,000">₦ 1,450,000</span>
+                            <i data-lucide="eye" id="wallet-eye" class="w-3 h-3 text-slate-500"></i>
+                        </p>
+                    </div>
+                    <div class="ml-2 pl-3 border-l border-dark-border">
+                        <button class="w-6 h-6 bg-white text-black rounded-full flex items-center justify-center hover:bg-slate-200 transition-colors" title="Top Up">
+                            <i data-lucide="plus" class="w-4 h-4"></i>
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </header>
+
+        <!-- Scrollable Dashboard Content -->
+        <div class="flex-1 overflow-y-auto no-scrollbar pb-32">
+            <div class="max-w-[1600px] mx-auto w-full px-10 py-8">
+
+                <!-- HERO SECTION -->
+                <section class="relative bg-gradient-to-r from-emerald-800 via-emerald-600 to-teal-900 rounded-[2rem] p-12 overflow-hidden shadow-2xl shadow-emerald-900/20 mb-10 flex items-center border border-emerald-500/30">
+                    <!-- Glass Texture Overlay -->
+                    <div class="absolute inset-0 opacity-20 bg-[url('data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSI4IiBoZWlnaHQ9IjgiPgo8cmVjdCB3aWR0aD0iOCIgaGVpZ2h0PSI4IiBmaWxsPSIjZmZmIiBmaWxsLW9wYWNpdHk9IjAuMDUiLz4KPHBhdGggZD0iTTAgMGw4IDhaTTAgOGw4LThabTAtNGg4em00LTR2OHoiIHN0cm9rZT0iI2ZmZiIHN0cm9rZS1vcGFjaXR5PSIwLjEiIHN0cm9rZS13aWR0aD0iMC41Ii8+Cjwvc3ZnPg==')]"></div>
+                    
+                    <div class="relative z-10 max-w-2xl">
+                        <div class="inline-flex items-center gap-2 bg-brand-gold text-yellow-950 text-xs font-black px-3 py-1.5 rounded-md mb-6 shadow-lg shadow-brand-gold/20 uppercase tracking-widest animate-pulse-slow">
+                            <i data-lucide="flame" class="w-4 h-4 fill-current"></i> Live Payouts Active
+                        </div>
+                        <h2 class="text-5xl lg:text-6xl font-black text-white leading-tight mb-4 tracking-tight drop-shadow-md">
+                            Win Cash Daily.<br>No Waiting Around.
+                        </h2>
+                        <p class="text-lg text-emerald-100 font-medium mb-8 max-w-xl opacity-90">
+                            Join thousands of Nigerians winning instant cash prizes. Secure your tickets now before the daily draws close.
+                        </p>
+                        <div class="flex items-center gap-4">
+                            <button class="bg-white text-emerald-900 px-8 py-4 rounded-xl font-black text-sm hover:bg-slate-50 hover:-translate-y-1 transition-all shadow-xl shadow-black/20 flex items-center gap-2">
+                                Play For Cash <i data-lucide="arrow-right" class="w-4 h-4"></i>
+                            </button>
+                            <button class="bg-emerald-900/40 backdrop-blur-md border border-emerald-400/30 text-white px-8 py-4 rounded-xl font-bold text-sm hover:bg-emerald-900/60 transition-colors">
+                                View Recent Winners
+                            </button>
+                        </div>
+                    </div>
+
+                    <!-- Hero Floating Assets (Desktop Specific Styling) -->
+                    <div class="absolute right-10 top-1/2 -translate-y-1/2 w-1/3 h-full pointer-events-none hidden lg:block">
+                        <div class="relative w-full h-full flex items-center justify-center">
+                            <div class="absolute w-64 h-64 bg-brand-gold/30 rounded-full blur-[80px]"></div>
+                            <!-- Simulated 3D Elements -->
+                            <i data-lucide="banknote" class="absolute w-32 h-32 text-emerald-300 drop-shadow-2xl transform -rotate-12 -translate-x-20 -translate-y-10 animate-float" style="animation-delay: 0s;"></i>
+                            <i data-lucide="coins" class="absolute w-40 h-40 text-brand-gold drop-shadow-2xl fill-current animate-float" style="animation-delay: 1.5s;"></i>
+                            <i data-lucide="ticket" class="absolute w-24 h-24 text-white drop-shadow-2xl transform rotate-12 translate-x-24 translate-y-16 animate-float" style="animation-delay: 3s;"></i>
+                        </div>
+                    </div>
+                </section>
+
+                <!-- DESKTOP GRID LAYOUT (Main Categories) -->
+                <div class="flex items-end justify-between mb-6">
+                    <div>
+                        <h3 class="text-2xl font-black text-white tracking-tight flex items-center gap-3">
+                            Action Center 
+                            <span class="bg-blue-500/20 text-blue-400 text-[10px] px-2 py-1 rounded-md uppercase tracking-wider border border-blue-500/30">Live</span>
+                        </h3>
+                        <p class="text-sm text-slate-400 mt-1">Choose your category and secure your spot.</p>
+                    </div>
+                    <div class="flex gap-2">
+                        <button class="w-10 h-10 rounded-full bg-dark-card border border-dark-border flex items-center justify-center text-slate-400 hover:text-white hover:border-slate-500 transition-colors">
+                            <i data-lucide="chevron-left" class="w-5 h-5"></i>
+                        </button>
+                        <button class="w-10 h-10 rounded-full bg-dark-card border border-dark-border flex items-center justify-center text-slate-400 hover:text-white hover:border-slate-500 transition-colors">
+                            <i data-lucide="chevron-right" class="w-5 h-5"></i>
+                        </button>
+                    </div>
+                </div>
+
+                <div class="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-6 mb-12">
+                    
+                    <!-- Cash Draw Card -->
+                    <div class="bg-dark-card border border-brand-primary/30 rounded-2xl p-6 relative overflow-hidden group cursor-pointer hover:-translate-y-1 hover:shadow-2xl hover:shadow-brand-primary/20 transition-all flex flex-col justify-between h-[280px]">
+                        <div class="absolute inset-0 bg-gradient-to-br from-brand-primary/10 to-transparent"></div>
+                        <div class="relative z-10 flex justify-between items-start">
+                            <div class="w-14 h-14 rounded-2xl bg-brand-primary/20 text-brand-primary flex items-center justify-center shadow-inner border border-brand-primary/20 group-hover:scale-110 transition-transform">
+                                <i data-lucide="banknote" class="w-7 h-7"></i>
+                            </div>
+                            <span class="bg-brand-primary text-white text-[10px] font-bold px-3 py-1 rounded-full uppercase tracking-wider shadow-sm">Featured</span>
+                        </div>
+                        <div class="relative z-10">
+                            <h4 class="text-2xl font-black text-white mb-2 leading-none">Cash Draws</h4>
+                            <p class="text-sm text-slate-400 font-medium mb-6 line-clamp-2">Direct bank transfers. Win up to ₦500k instantly when the bar fills.</p>
+                            <div class="flex items-center justify-between border-t border-dark-border/50 pt-4">
+                                <span class="text-sm font-bold text-white">From ₦500</span>
+                                <button class="w-8 h-8 rounded-full bg-white text-black flex items-center justify-center group-hover:bg-brand-primary group-hover:text-white transition-colors">
+                                    <i data-lucide="arrow-up-right" class="w-4 h-4"></i>
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Daily 100 Card -->
+                    <div class="bg-dark-card border border-brand-gold/30 rounded-2xl p-6 relative overflow-hidden group cursor-pointer hover:-translate-y-1 hover:shadow-2xl hover:shadow-brand-gold/20 transition-all flex flex-col justify-between h-[280px]">
+                        <div class="absolute inset-0 bg-gradient-to-br from-brand-gold/10 to-transparent"></div>
+                        <div class="relative z-10 flex justify-between items-start">
+                            <div class="w-14 h-14 rounded-2xl bg-brand-gold/20 text-brand-gold flex items-center justify-center shadow-inner border border-brand-gold/20 group-hover:scale-110 transition-transform">
+                                <i data-lucide="zap" class="w-7 h-7 fill-current"></i>
+                            </div>
+                            <span class="bg-dark-bg text-brand-gold border border-brand-gold/30 text-[10px] font-bold px-3 py-1 rounded-full uppercase tracking-wider shadow-sm flex items-center gap-1">
+                                <span class="w-1.5 h-1.5 rounded-full bg-brand-gold animate-pulse"></span> Fast
+                            </span>
+                        </div>
+                        <div class="relative z-10">
+                            <h4 class="text-2xl font-black text-white mb-2 leading-none">Daily 100</h4>
+                            <p class="text-sm text-slate-400 font-medium mb-6 line-clamp-2">Micro entries. High frequency. Quick payouts every 24 hours.</p>
+                            <div class="flex items-center justify-between border-t border-dark-border/50 pt-4">
+                                <span class="text-sm font-bold text-brand-gold">₦100 - ₦200</span>
+                                <button class="w-8 h-8 rounded-full bg-white text-black flex items-center justify-center group-hover:bg-brand-gold group-hover:text-black transition-colors">
+                                    <i data-lucide="arrow-up-right" class="w-4 h-4"></i>
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Gadgets (Locked) -->
+                    <div class="bg-dark-card border border-dark-border rounded-2xl p-6 relative overflow-hidden flex flex-col justify-between h-[280px] opacity-60 grayscale-[0.5] cursor-not-allowed">
+                        <div class="absolute inset-0 bg-[url('https://www.transparenttextures.com/patterns/diagonal-stripes.png')] opacity-10"></div>
+                        <div class="absolute inset-0 z-20 flex items-center justify-center backdrop-blur-[2px]">
+                            <span class="bg-dark-bg text-white border border-slate-600 text-xs font-bold px-4 py-2 rounded-lg shadow-2xl transform -rotate-12 uppercase tracking-widest flex items-center gap-2">
+                                <i data-lucide="lock" class="w-4 h-4"></i> Coming Soon
+                            </span>
+                        </div>
+                        <div class="relative z-10 flex justify-between items-start">
+                            <div class="w-14 h-14 rounded-2xl bg-purple-500/20 text-purple-400 flex items-center justify-center border border-purple-500/20">
+                                <i data-lucide="smartphone" class="w-7 h-7"></i>
+                            </div>
+                        </div>
+                        <div class="relative z-10">
+                            <h4 class="text-2xl font-black text-white mb-2 leading-none">Gadgets</h4>
+                            <p class="text-sm text-slate-400 font-medium mb-6">Latest iPhones, Samsung Ultras, and MacBooks.</p>
+                            <div class="flex items-center justify-between border-t border-dark-border/50 pt-4">
+                                <span class="text-sm font-bold text-slate-500">TBA</span>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Cars (Locked) -->
+                    <div class="bg-dark-card border border-dark-border rounded-2xl p-6 relative overflow-hidden flex flex-col justify-between h-[280px] opacity-60 grayscale-[0.5] cursor-not-allowed">
+                        <div class="absolute inset-0 z-20 flex items-center justify-center backdrop-blur-[2px]">
+                            <span class="bg-dark-bg text-white border border-slate-600 text-xs font-bold px-4 py-2 rounded-lg shadow-2xl transform rotate-6 uppercase tracking-widest flex items-center gap-2">
+                                <i data-lucide="lock" class="w-4 h-4"></i> Coming Soon
+                            </span>
+                        </div>
+                        <div class="relative z-10 flex justify-between items-start">
+                            <div class="w-14 h-14 rounded-2xl bg-red-500/20 text-red-400 flex items-center justify-center border border-red-500/20">
+                                <i data-lucide="car-front" class="w-7 h-7"></i>
+                            </div>
+                        </div>
+                        <div class="relative z-10">
+                            <h4 class="text-2xl font-black text-white mb-2 leading-none">Auto Club</h4>
+                            <p class="text-sm text-slate-400 font-medium mb-6">Drive away in style. Premium cars and SUVs up for grabs.</p>
+                            <div class="flex items-center justify-between border-t border-dark-border/50 pt-4">
+                                <span class="text-sm font-bold text-slate-500">TBA</span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- TRENDING RAFFLES GRID -->
+                <div class="mb-6 border-t border-dark-border pt-10">
+                    <h3 class="text-2xl font-black text-white tracking-tight mb-6">Trending Now 🔥</h3>
+                    
+                    <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6" id="trending-grid">
+                        <!-- Content rendered by JS to emulate PHP output -->
+                    </div>
+                </div>
+
+            </div>
+        </div>
+        
+        <!-- STICKY PROMO BANNER (Desktop Bottom Right) -->
+        <div id="promo-banner" class="absolute bottom-8 right-8 w-96 bg-gradient-to-r from-red-700 to-red-600 rounded-2xl shadow-[0_10px_40px_rgba(220,38,38,0.4)] border border-red-400 p-5 transform translate-y-[150%] transition-transform duration-700 ease-out z-50">
+            <!-- Shimmer -->
+            <div class="absolute inset-0 bg-gradient-to-r from-transparent via-white/20 to-transparent skew-x-12 translate-x-[-150%] animate-[shimmer_2s_infinite] pointer-events-none rounded-2xl"></div>
+            
+            <button onclick="closePromo()" class="absolute top-2 right-2 text-white/60 hover:text-white transition-colors">
+                <i data-lucide="x" class="w-4 h-4"></i>
+            </button>
+
+            <div class="flex items-center gap-4 relative z-10">
+                <div class="w-14 h-14 bg-brand-gold rounded-full flex flex-col items-center justify-center shadow-lg shadow-red-900/50 border-2 border-yellow-200 animate-bounce flex-shrink-0">
+                    <span class="text-red-900 font-black text-sm leading-none">₦300</span>
+                    <span class="text-red-900 font-bold text-[9px] leading-none">OFF</span>
+                </div>
+                <div>
+                    <div class="flex items-center gap-2 mb-1">
+                        <h4 class="font-black text-base italic uppercase tracking-wider text-white drop-shadow-sm leading-none">Secret Bonus</h4>
+                        <span class="bg-black/30 border border-white/20 text-[10px] px-2 py-0.5 rounded text-white font-mono font-bold" id="promo-timer">10:00</span>
+                    </div>
+                    <p class="text-xs text-red-100 font-medium leading-tight">Discount applied to your next entry. Don't let it expire!</p>
+                </div>
+            </div>
+        </div>
+
+    </main>
+
+    <script>
+        // 1. Initialize Icons
+        lucide.createIcons();
+
+        // 2. Mock Data generation (Emulating the PHP SSR data for Desktop Grid)
+        const mockRaffles = [
+            { id: 1, title: 'Weekend Mega Jackpot', prize: '₦500,000 Cash', price: 1000, sold: 450, total: 1000, type: 'cash' },
+            { id: 2, title: 'Midnight Fast Draw', prize: '₦50,000 Cash', price: 200, sold: 220, total: 250, type: 'micro' },
+            { id: 3, title: 'Student Support Fund', prize: '₦100,000 Cash', price: 500, sold: 120, total: 500, type: 'cash' }
+        ];
+
+        // Render Trending Grid
+        const gridEl = document.getElementById('trending-grid');
+        let html = '';
+        
+        mockRaffles.forEach(r => {
+            const progress = (r.sold / r.total) * 100;
+            const isMicro = r.type === 'micro';
+            
+            // Adaptive styling based on raffle type
+            const accentColor = isMicro ? 'text-brand-gold' : 'text-brand-primary';
+            const bgBadge = isMicro ? 'bg-brand-gold text-black' : 'bg-brand-primary text-white';
+            const btnClass = isMicro ? 'bg-brand-gold text-black hover:bg-yellow-500' : 'bg-white text-dark-bg hover:bg-slate-200';
+            const icon = isMicro ? 'zap' : 'banknote';
+            
+            html += `
+                <div class="glass-panel rounded-2xl p-6 border border-dark-border relative overflow-hidden group hover:border-slate-600 transition-colors cursor-pointer flex flex-col">
+                    <div class="flex justify-between items-start mb-6">
+                        <div class="w-12 h-12 rounded-xl bg-dark-card border border-dark-border flex items-center justify-center group-hover:scale-110 transition-transform shadow-md">
+                            <i data-lucide="${icon}" class="w-6 h-6 ${accentColor} ${isMicro ? 'fill-current' : ''}"></i>
+                        </div>
+                        <div class="${bgBadge} text-[10px] font-bold px-3 py-1 rounded-full uppercase tracking-wider shadow-sm">
+                            ${isMicro ? 'Daily Drop' : 'Trending'}
+                        </div>
+                    </div>
+                    
+                    <p class="text-[10px] text-slate-400 font-bold uppercase tracking-wider mb-1">Win</p>
+                    <h4 class="text-xl font-black text-white mb-2 leading-tight">${r.prize}</h4>
+                    <p class="text-sm font-medium text-slate-300 mb-6 truncate">${r.title}</p>
+                    
+                    <div class="mt-auto">
+                        <div class="flex justify-between text-xs font-bold text-slate-400 mb-2">
+                            <span>${r.sold} Sold</span>
+                            <span>${r.total - r.sold} Left</span>
+                        </div>
+                        <div class="w-full bg-dark-bg rounded-full h-2.5 mb-6 border border-dark-border/50 overflow-hidden">
+                            <div class="${isMicro ? 'bg-brand-gold' : 'bg-brand-primary'} h-full rounded-full relative" style="width: ${progress}%">
+                                <div class="absolute inset-0 bg-gradient-to-r from-transparent via-white/30 to-transparent w-full -translate-x-full animate-[shimmer_2s_infinite]"></div>
+                            </div>
+                        </div>
+                        
+                        <div class="flex items-center justify-between">
+                            <div>
+                                <p class="text-[10px] text-slate-500 font-bold uppercase tracking-wider">Entry Price</p>
+                                <p class="text-xl font-black text-white tracking-tight">₦${r.price.toLocaleString()}</p>
+                            </div>
+                            <button class="${btnClass} px-6 py-2.5 rounded-xl text-sm font-bold shadow-lg transition-transform active:scale-95 flex items-center gap-2">
+                                Play Now
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            `;
+        });
+        
+        gridEl.innerHTML = html;
+        lucide.createIcons(); // Re-init icons for dynamic content
+
+        // 3. Desktop Live Ticker Logic
+        const users = ['Kotansibe', 'KingDavid', 'NaijaBoy', 'Olamide_24', 'CryptoLord', 'Bella_O', 'Tobi_Tech'];
+        const prizes = ['₦50,000', '₦10,000', '₦5,000', '10 Tickets', '50 Tickets'];
+        const tickerEl = document.getElementById('desktop-ticker');
+        
+        setInterval(() => {
+            tickerEl.classList.remove('opacity-100', 'translate-y-0');
+            tickerEl.classList.add('opacity-0', '-translate-y-2');
+            
+            setTimeout(() => {
+                const user = users[Math.floor(Math.random() * users.length)];
+                const isWin = Math.random() > 0.5;
+                const amt = prizes[Math.floor(Math.random() * prizes.length)];
+                
+                if (isWin) {
+                    tickerEl.innerHTML = `🏆 <span class="text-white font-bold">@${user}</span> just withdrew <span class="text-emerald-400 font-bold">${amt}</span>`;
+                } else {
+                    tickerEl.innerHTML = `🎟️ <span class="text-white font-bold">@${user}</span> bought <span class="text-brand-primary font-bold">${amt}</span>`;
+                }
+                
+                tickerEl.classList.remove('opacity-0', '-translate-y-2');
+                tickerEl.classList.add('opacity-100', 'translate-y-0');
+            }, 300);
+        }, 4000);
+
+        // 4. Wallet Toggle Logic
+        let isWalletVisible = true;
+        function toggleWallet() {
+            const el = document.getElementById('wallet-amount');
+            const eye = document.getElementById('wallet-eye');
+            isWalletVisible = !isWalletVisible;
+            
+            if (isWalletVisible) {
+                el.innerText = el.getAttribute('data-val');
+                eye.setAttribute('data-lucide', 'eye');
+            } else {
+                el.innerText = '****';
+                eye.setAttribute('data-lucide', 'eye-off');
+            }
+            lucide.createIcons();
+        }
+
+        // 5. Promo Banner Logic (Slide in after 3 seconds)
+        setTimeout(() => {
+            const banner = document.getElementById('promo-banner');
+            banner.classList.remove('translate-y-[150%]');
+            banner.classList.add('translate-y-0');
+            
+            // Simple Timer
+            let time = 600; // 10 mins
+            const timerEl = document.getElementById('promo-timer');
+            const interval = setInterval(() => {
+                time--;
+                if(time <= 0) {
+                    clearInterval(interval);
+                    closePromo();
+                }
+                const m = Math.floor(time / 60).toString().padStart(2, '0');
+                const s = (time % 60).toString().padStart(2, '0');
+                timerEl.innerText = `${m}:${s}`;
+            }, 1000);
+        }, 3000);
+
+        function closePromo() {
+            const banner = document.getElementById('promo-banner');
+            banner.classList.remove('translate-y-0');
+            banner.classList.add('translate-y-[150%]');
+        }
+    </script>
+</body>
+</html>

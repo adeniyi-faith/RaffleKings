@@ -1,0 +1,28 @@
+# Ignore WP Core and static folders
+wp/wp-admin/
+wp/wp-includes/
+wp/wp-content/themes/
+wp/wp-content/uploads/
+wp/wp-content/backuply/
+
+# Handle Plugins: Ignore all, but keep 
+Wordfence
+wp/wp-content/plugins/*
+!wp/wp-content/plugins/wordfence/
+
+# Keep your custom logic in mu-plugins
+!wp/wp-content/mu-plugins/
+
+# Ignore WP root system files
+wp/*.php
+wp/*.txt
+wp/*.html
+wp/*.xml
+wp/*.zip
+wp/*.json
+
+# Sensitive and temporary files
+config.php
+wp/wp-config.php
+error_log
+.DS_Store
