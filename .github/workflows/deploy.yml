@@ -1,0 +1,22 @@
+name: Deploy RaffleKings
+
+on:
+  push:
+    branches:
+      - main
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - name: SSH into cPanel and Pull
+        uses: appleboy/ssh-action@master
+        with:
+          host: ${{ secrets.CPANEL_HOST }}
+          username: ${{ secrets.CPANEL_USERNAME }}
+          password: ${{ secrets.CPANEL_PASSWORD }}
+          port: 21098
+          script: |
+            cd 
+/home2/worldin6/public_html/rafflekings.com.ng
+            git pull origin main
