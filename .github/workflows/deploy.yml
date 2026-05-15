@@ -15,7 +15,7 @@ jobs:
           host: ${{ secrets.CPANEL_HOST }}
           username: ${{ secrets.CPANEL_USERNAME }}
           password: ${{ secrets.CPANEL_PASSWORD }}
-          port: 21098
+          port: 22
           script: |
             cd /home2/worldin6/public_html/rafflekings.com.ng
             git pull origin main
