@@ -32,7 +32,7 @@
         window.rkSyncTurnstileToken = function(form) {
             const hiddenInput = form ? form.querySelector('[data-rk-turnstile-token]') : null;
             const cloudflareInput = form ? form.querySelector('input[name="cf-turnstile-response"]') : null;
-            let token = (hiddenInput && hiddenInput.value) || window.rkTurnstileToken || (cloudflareInput && cloudflareInput.value) || '';
+            let token = (cloudflareInput && cloudflareInput.value) || (hiddenInput && hiddenInput.value) || window.rkTurnstileToken || '';
 
             if (!token && window.turnstile && typeof window.turnstile.getResponse === 'function') {
                 try { token = window.turnstile.getResponse() || ''; } catch (e) { token = ''; }
