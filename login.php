@@ -9,7 +9,7 @@ require_once(__DIR__ . '/wp/wp-load.php');
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['action'] === 'login') {
     ob_clean(); // Discard any buffered warnings/notices from wp-load
     header('Content-Type: application/json');
-    
+
     $username = sanitize_user($_POST['username'] ?? '');
     $password = $_POST['password'] ?? '';
 
@@ -26,9 +26,14 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
 
     if (is_wp_error($user)) {
         echo json_encode(['success' => false, 'message' => strip_tags($user->get_error_message())]);
+    } elseif (function_exists('rk_check_user_status') && is_wp_error($status = rk_check_user_status($user->ID, 'general'))) {
+        wp_logout();
+        echo json_encode(['success' => false, 'message' => $status->get_error_message(), 'code' => $status->get_error_code()]);
     } else {
         echo json_encode([
             'success' => true,
+            'redirect' => function_exists('rk_auth_safe_return_url') ? rk_auth_safe_return_url('index.php') : 'index.php',
+            'auth' => function_exists('rk_auth_cookie_params') ? rk_auth_cookie_params() : ['logged_in' => true, 'user_id' => $user->ID],
             'user' => ['email' => $user->user_email, 'name' => $user->display_name]
         ]);
     }
@@ -41,13 +46,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
     <title>Login - Resume Mission</title>
-    
+
     <!-- PWA & Mobile Meta Tags -->
     <meta name="theme-color" content="#ffffff">
     <meta name="mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
     <meta name="apple-mobile-web-app-title" content="RaffleKings">
-    
+
     <!-- Tailwind CSS -->
     <script src="https://cdn.tailwindcss.com"></script>
     <script>
@@ -66,7 +71,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
             }
         }
     </script>
-    
+
     <!-- Lucide Icons -->
     <script src="https://unpkg.com/lucide@latest"></script>
 
@@ -90,7 +95,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
 <body class="bg-gray-50 flex items-center justify-center min-h-[100dvh] px-4 safe-top safe-bottom">
 
     <div class="w-full max-w-sm">
-        
+
         <!-- Header -->
         <div class="text-center mb-8">
             <div class="w-16 h-16 bg-white shadow-lg rounded-2xl flex items-center justify-center mx-auto mb-6 transform rotate-3">
@@ -103,7 +108,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
         <!-- Login Form -->
         <div class="bg-white rounded-3xl shadow-xl shadow-gray-200/50 p-8 border border-white">
             <form id="login-form" onsubmit="handleLogin(event)" class="space-y-5">
-                
+
                 <!-- Error Message Container -->
                 <div id="error-msg" class="hidden bg-red-50 text-red-600 p-3 rounded-lg text-xs font-bold text-center border border-red-100 flex items-center justify-center gap-2">
                     <i data-lucide="alert-circle" class="w-4 h-4"></i>
@@ -127,7 +132,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
                             <i data-lucide="lock" class="h-5 w-5 text-gray-300"></i>
                         </div>
                         <input type="password" id="login-password" name="password" placeholder="••••••••" class="w-full bg-gray-50 border border-gray-100 text-gray-900 rounded-xl pl-11 pr-12 py-3.5 outline-none focus:bg-white focus:ring-2 focus:ring-app-primary/20 focus:border-app-primary/50 transition-all font-medium placeholder-gray-400" required>
-                        
+
                         <!-- Toggle Button -->
                         <button type="button" onclick="togglePassword('login-password', 'eye-icon-login')" class="absolute right-4 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 focus:outline-none">
                             <i data-lucide="eye" id="eye-icon-login" class="w-5 h-5"></i>
@@ -148,7 +153,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
         <!-- Footer -->
         <div class="text-center mt-8">
             <p class="text-sm text-gray-500">
-                Don't have an identity yet? 
+                Don't have an identity yet?
                 <!-- Dynamic Register Link -->
                 <a href="register.php" id="register-link" class="font-bold text-app-primary hover:underline">Create One</a>
             </p>
@@ -161,7 +166,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
         // Check for Redirect param on load
         document.addEventListener('DOMContentLoaded', () => {
             const urlParams = new URLSearchParams(window.location.search);
-            
+
             // Handle Redirect Param
             const redirect = urlParams.get('redirect');
             if (redirect === 'cart') {
@@ -181,12 +186,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
 
         async function handleLogin(e) {
             e.preventDefault();
-            
+
             const btn = document.getElementById('login-btn');
             const errorDiv = document.getElementById('error-msg');
             const errorText = document.getElementById('error-text');
             const originalText = btn.innerHTML;
-            
+
             // Reset UI
             errorDiv.classList.add('hidden');
             btn.disabled = true;
@@ -195,17 +200,17 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
 
             // 1. Get the form data natively
             const formData = new FormData(document.getElementById('login-form'));
-            
+
             // 2. Append our action
-            formData.append('action', 'login'); 
+            formData.append('action', 'login');
 
             try {
-                // 3. SEND DATA DIRECTLY TO THIS EXACT PAGE 
+                // 3. SEND DATA DIRECTLY TO THIS EXACT PAGE
                 const response = await fetch(window.location.href.split('?')[0], {
                     method: 'POST',
                     body: formData
                 });
-                
+
                 // Rate Limit Handling
                 if (response.status === 429) {
                     throw new Error("Too many login attempts. Please wait 1 minute.");
@@ -213,10 +218,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
 
                 const result = await response.json();
 
-                // 🚀 NEW: Check for result.success instead of result.token!
-                // The router handles setting the WP Auth Cookie automatically.
+                    // WordPress auth cookies are set server-side; check the success flag.
                 if (response.ok && result.success) {
-                    
+
                     // Session Cleanup
                     const keysToRemove = ['user_display_name', 'user_avatar_url', 'walletBalance', 'earningsBalance'];
                     keysToRemove.forEach(k => localStorage.removeItem(k));
@@ -230,7 +234,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
                     // --- REDIRECT LOGIC ---
                     const urlParams = new URLSearchParams(window.location.search);
                     const redirect = urlParams.get('redirect');
-                    
+
                     if (redirect === 'cart') {
                         // Check if specific checkout data exists
                         if(localStorage.getItem('pendingCheckout')) {
@@ -257,8 +261,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
                             window.location.href = 'cart.php';
                         }
                     } else {
-                        // Redirect to main index/dashboard
-                        window.location.href = 'index.php';
+                        window.location.href = result.redirect || 'index.php';
                     }
 
                 } else {
@@ -268,9 +271,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
             } catch (error) {
                 // Sanitize Error Message
                 const safeMsg = error.message.replace(/<[^>]*>?/gm, '');
-                errorText.innerText = safeMsg; 
+                errorText.innerText = safeMsg;
                 errorDiv.classList.remove('hidden');
-                
+
                 btn.disabled = false;
                 btn.innerHTML = originalText;
                 lucide.createIcons();

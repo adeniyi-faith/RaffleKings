@@ -4,22 +4,22 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
     <title>Join RaffleKings - Registration</title>
-    
+
     <!-- PWA & Mobile Meta Tags -->
     <meta name="theme-color" content="#ffffff">
     <meta name="mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
     <meta name="apple-mobile-web-app-title" content="RaffleKings">
-    
+
     <!-- PWA Manifest Link -->
     <link rel="manifest" href="manifest.json">
-    
+
     <!-- Icons -->
     <link rel="apple-touch-icon" href="https://getonlinestudio.com/insights/wp-content/uploads/2026/01/iOS-1-1.png">
     <link rel="icon" type="image/png" sizes="32x32" href="https://getonlinestudio.com/insights/wp-content/uploads/2026/01/@32-px.png">
     <link rel="icon" type="image/png" sizes="16x16" href="https://getonlinestudio.com/insights/wp-content/uploads/2026/01/@16-px.png">
     <link rel="shortcut icon" href="https://getonlinestudio.com/insights/wp-content/uploads/2026/01/App_Icon.png">
-    
+
     <!-- Cloudflare Turnstile -->
     <script src="https://challenges.cloudflare.com/turnstile/v0/api.js" async defer></script>
 
@@ -41,7 +41,7 @@
             }
         }
     </script>
-    
+
     <!-- Lucide Icons -->
     <script src="https://unpkg.com/lucide@latest"></script>
 
@@ -52,13 +52,6 @@
     <script src="config.js?v=<?php echo time(); ?>"></script>
     <script src="watchdog.js"></script>
     <script src="analytics.js"></script>
-
-    <!-- Auth Guard -->
-    <script>
-        if(localStorage.getItem('token')) {
-            window.location.href = 'index.php';
-        }
-    </script>
 
     <style>
         * { -webkit-tap-highlight-color: transparent; }
@@ -86,10 +79,10 @@
     <!-- Main Content -->
     <!-- Changed overflow-hidden to overflow-y-auto to prevent clipping on small screens -->
     <main class="flex-1 overflow-y-auto relative w-full max-w-md mx-auto no-scrollbar">
-        
+
         <!-- Changed h-full to min-h-full to allow expansion -->
         <form id="reg-form" class="min-h-full flex flex-col">
-            
+
             <!-- Hidden Referrer -->
             <input type="hidden" name="referrer" id="input-referrer" value="">
 
@@ -98,13 +91,13 @@
                 <!-- STEP 1: Identity -->
                 <!-- Added py-10 for vertical safe space -->
                 <div class="slide flex flex-col justify-center py-10">
-                    
+
                     <div class="text-center mb-6">
                         <div class="w-12 h-12 bg-blue-100 text-blue-600 rounded-2xl flex items-center justify-center mx-auto mb-3">
                             <i data-lucide="user-plus" class="w-6 h-6"></i>
                         </div>
                         <h1 class="text-xl font-extrabold text-gray-900 mb-1">Create Identity</h1>
-                        
+
                         <p id="ref-welcome" class="text-xs text-gray-500 hidden">
                             Invited by <span class="font-bold text-app-primary" id="ref-name">...</span>
                         </p>
@@ -115,7 +108,7 @@
                     <div class="bg-gray-900 rounded-2xl p-4 mb-6 relative overflow-hidden shadow-xl border border-gray-800 group">
                         <!-- Glow Effect -->
                         <div class="absolute -top-10 -right-10 w-32 h-32 bg-yellow-500/20 rounded-full blur-3xl group-hover:bg-yellow-500/30 transition-all duration-1000"></div>
-                        
+
                         <div class="flex items-center justify-between relative z-10">
                             <div class="flex items-center gap-3">
                                 <div class="bg-gray-800 p-2.5 rounded-xl border border-gray-700 shadow-inner">
@@ -129,7 +122,7 @@
                                 </div>
                             </div>
                         </div>
-                        
+
                         <!-- CTA Strip -->
                         <div class="mt-3 pt-3 border-t border-gray-800 flex items-center justify-between">
                             <div class="flex items-center gap-1.5">
@@ -183,7 +176,7 @@
                         <h1 class="text-2xl font-extrabold text-gray-900 mb-2">Community Pledge</h1>
                         <p class="text-sm text-gray-500">Please accept our terms to join.</p>
                     </div>
-                    
+
                     <div class="bg-white border-2 border-gray-100 rounded-2xl p-5 shadow-sm mb-4 relative overflow-hidden">
                         <div class="absolute top-0 left-0 w-1 h-full bg-app-primary"></div>
                         <h3 class="font-bold text-gray-900 text-sm uppercase tracking-wide mb-3 flex items-center gap-2"><i data-lucide="scroll" class="w-4 h-4 text-app-primary"></i> Our Promise</h3>
@@ -193,7 +186,7 @@
                             <li class="flex items-start gap-3 text-xs text-gray-600"><div class="w-5 h-5 rounded-full bg-green-50 text-green-600 flex items-center justify-center flex-shrink-0 mt-0.5">3</div><span>Prizes are paid <strong>Directly</strong> to verified bank accounts.</span></li>
                         </ul>
                     </div>
-                    
+
                     <!-- Term Checkbox (Reduced Spacing) -->
                     <label class="flex items-center gap-3 bg-gray-50 p-4 rounded-xl border border-gray-200 cursor-pointer mb-4 transition-colors hover:bg-gray-100 active:scale-[0.98]">
                         <div class="relative flex items-center">
@@ -201,7 +194,7 @@
                             <i data-lucide="check" class="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 w-4 h-4 text-white opacity-0 peer-checked:opacity-100 pointer-events-none"></i>
                         </div>
                         <span class="text-sm font-bold text-gray-700">
-                            I Agree & Accept Terms 
+                            I Agree & Accept Terms
                             <a href="/toc.php" target="_blank" class="text-app-primary text-xs underline ml-1 font-medium">(Read Full ToC)</a>
                         </span>
                     </label>
@@ -258,9 +251,9 @@
 
         // Slider Logic
         let currentStep = 1;
-        const totalSteps = 2; 
+        const totalSteps = 2;
         const slider = document.getElementById('slider');
-        
+
         function updateProgress() {
             const percentage = Math.round((currentStep / totalSteps) * 100);
             document.getElementById('progress-bar').style.width = percentage + '%';
@@ -277,7 +270,7 @@
 
         const checkbox = document.getElementById('pledge-check');
         const finishBtn = document.getElementById('finish-btn');
-        
+
         if(checkbox) {
             checkbox.addEventListener('change', () => {
                 if(checkbox.checked) {
@@ -292,7 +285,7 @@
 
         async function handleRegistration(e) {
             e.preventDefault();
-            
+
             const originalText = finishBtn.innerHTML;
             finishBtn.disabled = true;
             finishBtn.innerHTML = '<span class="animate-spin mr-2"><i data-lucide="loader-2" class="w-4 h-4"></i></span> Setting up...';
@@ -309,17 +302,17 @@
             try {
                 // Step 1: Register
                 const response = await fetch(API_CONFIG.REGISTER, { method: 'POST', body: formData });
-                
+
                 if (response.status === 429) {
                     throw new Error("Too many attempts. Please wait 5 minutes.");
                 }
 
                 const data = await response.json();
-                
+
                 if (response.ok) {
                     // Step 2: Auto-Login (Simplified & Direct)
                     finishBtn.innerHTML = '<span class="animate-spin mr-2"><i data-lucide="loader-2" class="w-4 h-4"></i></span> Logging in...';
-                    
+
                     // Simple 1-second delay for DB propagation, then single login attempt
                     await new Promise(r => setTimeout(r, 1000));
 
@@ -327,28 +320,23 @@
                         const loginRes = await fetch(API_CONFIG.LOGIN, {
                             method: 'POST',
                             headers: { 'Content-Type': 'application/json' },
-                            body: JSON.stringify({ 
-                                username: formData.get('username'), 
-                                password: formData.get('password') 
+                            body: JSON.stringify({
+                                username: formData.get('username'),
+                                password: formData.get('password')
                             })
                         });
 
                         if (loginRes.ok) {
                             const result = await loginRes.json();
-                            if (result.token) {
-                                // Clear old data
+                            if (result.success) {
                                 ['user_display_name', 'user_avatar_url', 'walletBalance', 'earningsBalance'].forEach(k => localStorage.removeItem(k));
-                                
-                                // Set new data
-                                localStorage.setItem('token', result.token);
-                                localStorage.setItem('user_email', result.user_email);
-                                localStorage.setItem('user_nicename', result.user_nicename);
-                                localStorage.setItem('user_display_name', result.user_display_name);
-                                
-                                // Success! Go to profile completion
+                                if (result.user) {
+                                    localStorage.setItem('user_email', result.user.email || '');
+                                    localStorage.setItem('user_display_name', result.user.name || '');
+                                }
+                                localStorage.removeItem('token');
                                 window.location.href = 'complete-profile.php';
                             } else {
-                                // Token missing? Redirect to login
                                 window.location.href = 'login.php';
                             }
                         } else {
