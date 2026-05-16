@@ -1,4 +1,4 @@
-<?php 
+<?php
 // raffles.php - Main Browsing Page
 // Includes Temu-style Golden Box Logic & Red Sticky Footer
 
@@ -14,23 +14,23 @@ require_once(__DIR__ . '/wp/wp-load.php');
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['action'] === 'apply_discount') {
     ob_clean();
     header('Content-Type: application/json');
-    
+
     if (!is_user_logged_in()) {
         echo json_encode(['success' => false, 'message' => 'Unauthorized. Please log in.']);
         exit;
     }
 
-    // Pass the request directly to the internal REST API logic
+    // Backend-only/local execution: call the existing discount handler directly.
     $request = new WP_REST_Request('POST', '/raffle/v1/cart/apply-discount');
-    $response = rest_do_request($request);
-    
-    if ($response->is_error()) {
+    $response = rk_apply_recovery_discount($request);
+
+    if (is_wp_error($response)) {
         echo json_encode([
-            'success' => false, 
-            'message' => $response->as_error()->get_error_message()
+            'success' => false,
+            'message' => $response->get_error_message()
         ]);
     } else {
-        echo json_encode($response->get_data());
+        echo json_encode($response instanceof WP_REST_Response ? $response->get_data() : $response);
     }
     exit;
 }
@@ -39,18 +39,25 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
 // 2. PRE-LOAD RAFFLES (SSR)
 // ==========================================
 $initial_raffles = [];
-$request = new WP_REST_Request('GET', '/wp/v2/raffle');
-$request->set_query_params(['per_page' => 100, '_embed' => 1]); // Ask for 100 and embed taxonomies
-$response = rest_do_request($request);
-
-if (!$response->is_error()) {
-    // To ensure the '_embed' parameter works identically to an HTTP fetch, 
-    // we use response_to_data() with the embed flag set to true.
-    $server = rest_get_server();
-    $initial_raffles = $server->response_to_data($response, true); 
+$raffle_posts = get_posts([
+    'post_type' => 'raffle',
+    'post_status' => 'publish',
+    'posts_per_page' => 100,
+    'orderby' => 'date',
+    'order' => 'DESC',
+]);
+foreach ($raffle_posts as $raffle_post) {
+    $initial_raffles[] = [
+        'id' => $raffle_post->ID,
+        'title' => ['rendered' => get_the_title($raffle_post)],
+        'content' => ['rendered' => apply_filters('the_content', $raffle_post->post_content)],
+        'excerpt' => ['rendered' => get_the_excerpt($raffle_post)],
+        'featured_media_url' => get_the_post_thumbnail_url($raffle_post, 'large') ?: '',
+        'raffle_meta' => function_exists('rk_get_raffle_meta') ? rk_get_raffle_meta(['id' => $raffle_post->ID]) : [],
+    ];
 }
 
-include 'header.php'; 
+include 'header.php';
 ?>
 
 <!-- Load Lucide Icons (Vanilla) -->
@@ -62,7 +69,7 @@ include 'header.php';
     .no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
     .hidden { display: none !important; }
     .pb-safe { padding-bottom: env(safe-area-inset-bottom); }
-    
+
     /* Golden Shimmer Animation */
     @keyframes golden-shimmer {
         0% { transform: translateX(-100%); }
@@ -71,7 +78,7 @@ include 'header.php';
     .animate-shimmer {
         animation: golden-shimmer 2.5s infinite;
     }
-    
+
     /* Timer Pulse */
     @keyframes soft-pulse {
         0%, 100% { opacity: 1; }
@@ -82,7 +89,7 @@ include 'header.php';
 
 <!-- Main Container (ID for Scroll Tracking) -->
 <div id="main-scroll-container" class="flex-1 overflow-y-auto no-scrollbar pb-32 bg-gray-50 dark:bg-dark-bg relative transition-colors duration-200 h-full">
-    
+
     <!-- Header (Sticky) -->
     <div class="bg-white dark:bg-dark-bg/95 backdrop-blur-md px-5 pt-4 pb-3 sticky top-0 z-40 border-b border-gray-100 dark:border-gray-800 shadow-sm transition-colors duration-200">
         <!-- Back Arrow & Title Row -->
@@ -92,11 +99,11 @@ include 'header.php';
             </a>
             <h2 class="text-xl font-bold text-gray-900 dark:text-white">Active Raffles</h2>
         </div>
-        
+
         <div class="relative mb-3">
             <i data-lucide="search" class="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400 dark:text-gray-500"></i>
-            <input type="text" id="search-input" 
-                   placeholder="Search prizes..." 
+            <input type="text" id="search-input"
+                   placeholder="Search prizes..."
                    class="w-full bg-gray-100 dark:bg-dark-card text-sm text-gray-800 dark:text-white rounded-xl pl-10 pr-4 py-2.5 border-none focus:ring-2 focus:ring-green-500/50 outline-none transition-colors placeholder-gray-400 dark:placeholder-gray-600">
         </div>
 
@@ -117,13 +124,13 @@ include 'header.php';
     <div id="golden-hero-box" onclick="app.applyDiscount()" class="hidden mx-5 mt-4 relative overflow-hidden rounded-2xl bg-gradient-to-r from-yellow-400 via-orange-300 to-yellow-500 shadow-xl shadow-orange-500/20 transform transition-all hover:scale-[1.01] border-2 border-yellow-200/50 cursor-pointer active:scale-[0.99]">
         <!-- Shimmer Effect -->
         <div class="absolute inset-0 bg-gradient-to-r from-transparent via-white/40 to-transparent w-full -translate-x-full animate-shimmer z-10 pointer-events-none"></div>
-        
+
         <div class="relative z-20 p-6 flex items-center justify-between">
-            <div class="flex-1 pointer-events-none"> 
+            <div class="flex-1 pointer-events-none">
                 <div class="flex items-center gap-2 mb-2">
                     <span class="bg-black text-yellow-400 text-[10px] font-black px-2 py-0.5 rounded uppercase tracking-wider shadow-sm">Golden Offer</span>
                     <span class="text-red-900 bg-white/30 backdrop-blur-md text-[10px] font-bold flex items-center gap-1.5 px-2.5 py-0.5 rounded-full border border-white/20 timer-pulse">
-                        <i data-lucide="timer" class="w-3 h-3"></i> 
+                        <i data-lucide="timer" class="w-3 h-3"></i>
                         <span class="font-mono tracking-wide" id="hero-timer">30:00</span>
                     </span>
                 </div>
@@ -141,7 +148,7 @@ include 'header.php';
             </button>
         </div>
     </div>
-    
+
     <!-- Hot Picks / Ending Soon Horizontal Scroller -->
     <div id="hot-picks-section" class="pl-5 mt-6 mb-2 hidden">
         <div class="flex items-center gap-2 mb-2 pr-5">
@@ -186,10 +193,10 @@ include 'header.php';
 <!-- ========================================== -->
 <div id="promo-sticky-footer" class="fixed bottom-0 left-0 w-full z-[60] hidden transition-transform duration-500 translate-y-full">
     <div class="bg-gradient-to-r from-red-700 to-red-600 text-white p-3 pb-safe shadow-[0_-5px_25px_rgba(220,38,38,0.5)] border-t border-red-500 relative overflow-hidden backdrop-blur-xl">
-        
+
         <!-- Dynamic Shine (Temu Style) -->
         <div class="absolute inset-0 bg-gradient-to-r from-transparent via-white/20 to-transparent skew-x-12 translate-x-[-150%] animate-[shimmer_2s_infinite]"></div>
-        
+
         <div class="flex items-center justify-between max-w-lg mx-auto relative z-10">
              <!-- Left: Bouncing Coin & Text -->
             <div class="flex items-center gap-3">
@@ -233,13 +240,13 @@ const app = {
     viewingCount: 12,
     goldenBoxTimer: null,
     promoFooterInterval: null,
-    isApplyingDiscount: false, 
-    
+    isApplyingDiscount: false,
+
     init: function() {
         console.log('Raffle App Init');
         this.cacheDOM();
         this.bindEvents();
-        
+
         // 🚀 INSTANT LOAD: Use SSR data immediately
         if (ssrRaffles && ssrRaffles.length > 0) {
             this.allRaffles = ssrRaffles;
@@ -248,8 +255,8 @@ const app = {
         } else {
             this.fetchRaffles(); // Fallback if SSR fails
         }
-        
-        this.initGoldenBox(); 
+
+        this.initGoldenBox();
         this.initPromoFooter(); // Check for Red Banner
     },
 
@@ -304,11 +311,11 @@ const app = {
     initPromoFooter: function() {
         const isActive = localStorage.getItem('rk_promo_active');
         const expiry = localStorage.getItem('rk_promo_expiry');
-        
+
         if (isActive && expiry && parseInt(expiry) > Date.now()) {
             console.log("Promo Active - Showing Footer");
             this.dom.promoFooter.classList.remove('hidden');
-            
+
             // Adjust scroll padding so banner doesn't cover last item
             this.dom.mainScroll.classList.remove('pb-32');
             this.dom.mainScroll.classList.add('pb-48');
@@ -320,17 +327,17 @@ const app = {
             setTimeout(() => {
                 this.dom.promoFooter.classList.remove('translate-y-full');
             }, 100);
-            
+
             // Countdown Loop
             this.promoFooterInterval = setInterval(() => {
                 const now = Date.now();
                 const diff = parseInt(expiry) - now;
-                
+
                 if (diff <= 0) {
                     this.hidePromoFooter();
                     return;
                 }
-                
+
                 const m = Math.floor((diff % (1000 * 60 * 60)) / (1000 * 60));
                 const s = Math.floor((diff % (1000 * 60)) / 1000);
                 this.dom.promoTimer.innerText = `${m}:${s < 10 ? '0'+s : s}`;
@@ -343,7 +350,7 @@ const app = {
         this.dom.promoFooter.classList.add('translate-y-full');
         localStorage.removeItem('rk_promo_active');
         localStorage.removeItem('rk_promo_expiry');
-        
+
         // Reset Layout
         setTimeout(() => {
             this.dom.promoFooter.classList.add('hidden');
@@ -356,36 +363,36 @@ const app = {
     // --- GOLDEN BOX LOGIC ---
     initGoldenBox: function() {
         const cartSession = this.getCartSession();
-        
+
         if (!cartSession || !cartSession.cart || cartSession.cart.length === 0) return;
 
         const cartTotal = parseFloat(cartSession.total || 0);
         const hasDiscountAlready = cartSession.discount_applied === true;
-        
+
         if (cartTotal >= 1000 && !hasDiscountAlready && !this.hasRecentPurchase()) {
             this.dom.goldenHero.classList.remove('hidden');
-            
+
             const savings = Math.ceil(cartTotal * 0.10);
             const discountedTotal = cartTotal - savings;
 
             if (this.dom.heroOldPrice) this.dom.heroOldPrice.innerText = '₦' + cartTotal.toLocaleString();
             if (this.dom.heroNewPrice) this.dom.heroNewPrice.innerText = '₦' + discountedTotal.toLocaleString();
-            
+
             if (this.dom.heroSavingText) {
                 const ticketCount = cartSession.ticket_count || 'pending';
                 this.dom.heroSavingText.innerText = `Wait! Your order for ${ticketCount} tickets is pending.`;
             }
-            
+
             const DURATION = 30 * 60 * 1000; // 30 Minutes
             let startTime = localStorage.getItem('rk_golden_start_ts');
-            
+
             if (!startTime) {
                 startTime = Date.now();
                 localStorage.setItem('rk_golden_start_ts', startTime);
             }
-            
+
             const elapsed = Date.now() - parseInt(startTime);
-            
+
             if (elapsed >= DURATION) {
                 this.hideGoldenBox();
                 return;
@@ -425,7 +432,7 @@ const app = {
             const s = (remaining % 60).toString().padStart(2, '0');
             if (this.dom.heroTimer) this.dom.heroTimer.innerText = `${m}:${s}`;
         };
-        tick(); 
+        tick();
         this.goldenBoxTimer = setInterval(tick, 1000);
     },
 
@@ -459,18 +466,19 @@ const app = {
         const originalHTML = btn ? btn.innerHTML : '';
         if(btn) btn.innerHTML = `<div class="flex items-center justify-center w-full h-full"><i data-lucide="loader-2" class="w-5 h-5 animate-spin text-white"></i></div>`;
         if (typeof lucide !== 'undefined') lucide.createIcons();
-        
+
         try {
             // 🚀 NEW: Pointing to Local PHP Proxy instead of External API
             const fd = new FormData();
             fd.append('action', 'apply_discount');
-            
+
             const res = await fetch(window.location.href.split('?')[0], {
                 method: 'POST',
                 body: fd
             });
-            const data = await res.json();
-            
+            const rafflePayload = await res.json();
+            const data = rafflePayload && Object.prototype.hasOwnProperty.call(rafflePayload, 'data') ? rafflePayload.data : rafflePayload;
+
             if (data.success) {
                 const cart = this.getCartSession();
                 let redirectUrl = 'checkout.php?discount_applied=true';
@@ -484,7 +492,7 @@ const app = {
 
                     if (cart.cart && cart.cart.length > 0) {
                         const item = cart.cart[cart.cart.length - 1];
-                        const raffleId = cart.raffle_id || item.raffle_id; 
+                        const raffleId = cart.raffle_id || item.raffle_id;
                         const tickets = cart.ticket_count;
                         const numbers = item.numbers ? item.numbers.join(',') : '';
                         redirectUrl += `&raffle_id=${raffleId}&tickets=${tickets}&numbers=${numbers}`;
@@ -529,14 +537,14 @@ const app = {
         this.dom.empty.classList.add('hidden');
         this.dom.hotSection.classList.add('hidden');
 
-        const baseUrl = (typeof WORDPRESS_URL !== 'undefined') ? WORDPRESS_URL : 'https://api.rafflekings.com.ng';
-        const endpoint = `${baseUrl}/wp-json/wp/v2/raffle?_embed&per_page=100&t=${Date.now()}`;
+        const endpoint = (typeof API_CONFIG !== 'undefined' && API_CONFIG.RAFFLES) ? `${API_CONFIG.RAFFLES}&t=${Date.now()}` : `ajax-router.php?action=get_raffles&t=${Date.now()}`;
 
         try {
             const res = await fetch(endpoint);
             if (!res.ok) throw new Error('API Error');
-            const data = await res.json();
-            
+            const payload = await res.json();
+            const data = payload && Object.prototype.hasOwnProperty.call(payload, 'data') ? payload.data : payload;
+
             if (Array.isArray(data)) {
                 this.allRaffles = data;
                 this.render();
@@ -603,7 +611,7 @@ const app = {
         }
 
         this.dom.loading.classList.add('hidden');
-        
+
         if (filtered.length === 0) {
             this.dom.empty.classList.remove('hidden');
             this.dom.grid.classList.add('hidden');
@@ -616,10 +624,10 @@ const app = {
         lucide.createIcons();
     },
 
-    getMeta: function(r) { 
-        return r.raffle_meta || {}; 
+    getMeta: function(r) {
+        return r.raffle_meta || {};
     },
-    
+
     buildCard: function(r) {
         const meta = this.getMeta(r);
         const title = r.title.rendered;
@@ -627,7 +635,7 @@ const app = {
         const sold = meta.sold || 0;
         const remaining = meta.remaining || 0;
         const progress = meta.progress || 0;
-        
+
         const priceVal = parseFloat(meta.price || 0);
         const price = meta.price ? '₦' + priceVal.toLocaleString() : 'Free';
         const tagline = meta.tagline || 'Exclusive Draw';
@@ -641,7 +649,7 @@ const app = {
                 expDate.setHours(23, 59, 59, 999);
                 const now = new Date();
                 const diffDays = Math.ceil(Math.abs(expDate - now) / (1000 * 60 * 60 * 24));
-                
+
                 if (now > expDate) {
                     badgeHtml = `<span class="bg-black/20 text-white text-[10px] px-2.5 py-1 rounded-full font-bold flex items-center gap-1 backdrop-blur-sm"><i data-lucide="x-circle" class="w-3 h-3"></i> Closed</span>`;
                 } else if (diffDays <= 1) {
@@ -715,7 +723,7 @@ const app = {
         <div onclick="window.location.href='raffle-details.php?id=${r.id}'" class="bg-gradient-to-br from-green-600 to-emerald-900 rounded-3xl p-6 shadow-xl shadow-green-900/20 relative overflow-hidden group cursor-pointer transform transition-all duration-300 hover:scale-[1.02] hover:shadow-2xl hover:shadow-green-900/30">
             <div class="absolute top-0 right-0 w-40 h-40 bg-white/10 rounded-full blur-3xl -translate-y-1/2 translate-x-1/2 group-hover:bg-white/15 transition-colors"></div>
             <div class="absolute bottom-0 left-0 w-32 h-32 bg-black/10 rounded-full blur-2xl translate-y-1/2 -translate-x-1/2"></div>
-            
+
             <div class="flex justify-between items-start mb-5 relative z-10">
                 <div class="bg-white/10 backdrop-blur-md w-14 h-14 rounded-2xl border border-white/10 flex items-center justify-center shadow-lg group-hover:scale-105 transition-transform">
                     <i data-lucide="${icon}" class="w-7 h-7 text-white"></i>

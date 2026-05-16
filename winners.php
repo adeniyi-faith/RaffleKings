@@ -13,17 +13,16 @@
             },
 
             async fetchWinners() {
-                const baseUrl = (typeof WORDPRESS_URL !== 'undefined') ? WORDPRESS_URL : 'https://api.rafflekings.com.ng';
-                const endpoint = (typeof API_CONFIG !== 'undefined' && API_CONFIG.HALL_OF_FAME) ? API_CONFIG.HALL_OF_FAME : `${baseUrl}/wp-json/raffle/v1/hall-of-fame`;
+                const endpoint = (typeof API_CONFIG !== 'undefined' && API_CONFIG.HALL_OF_FAME) ? API_CONFIG.HALL_OF_FAME : 'ajax-router.php?action=hall_of_fame';
 
                 try {
                     const res = await fetch(endpoint);
                     if (res.ok) {
                         const data = await res.json();
-                        
+
                         let allWinners = [];
-                        
-                        // Merge featured and recent if the API separates them, 
+
+                        // Merge featured and recent if the API separates them,
                         // so we can apply our own sorting/grouping logic frontend side if needed.
                         if(data.featured) allWinners = allWinners.concat(data.featured);
                         if(data.recent) allWinners = allWinners.concat(data.recent);
@@ -35,7 +34,7 @@
                         // Rest -> Recent (Vertical List)
                         this.featuredWinners = allWinners.slice(0, 5);
                         this.recentWinners = allWinners.slice(5);
-                        
+
                         this.totalWinners = data.total_count || allWinners.length;
                     }
                 } catch (e) {
@@ -54,7 +53,7 @@
                     const clean = str.replace(/[^\d.]/g, '');
                     return parseFloat(clean) || 0;
                 }
-                return 0; 
+                return 0;
             },
 
             // Helper to clean prize strings
@@ -74,12 +73,12 @@
                 });
 
                 if (clean.includes(':')) clean = clean.split(':')[1].trim();
-                
+
                 if (clean.includes('₦')) {
                     const match = clean.match(/₦[\d,.]+/);
                     if (match) return match[0];
                 }
-                
+
                 // If it's a raw number, format it
                 if (!isNaN(parseFloat(clean)) && isFinite(clean)) {
                      return '₦' + Number(clean).toLocaleString();
@@ -97,8 +96,8 @@
     <!-- Sticky Header -->
     <div class="bg-white dark:bg-dark-bg/95 dark:border-dark-border px-5 pt-4 pb-4 shadow-sm border-b border-gray-100 sticky top-0 z-30 flex items-center justify-between backdrop-blur-md transition-colors duration-200">
         <h2 class="text-xl font-bold text-gray-900 dark:text-white">Hall of Fame 🏆</h2>
-        <span class="text-xs font-medium text-gray-500 dark:text-gray-400 bg-gray-100 dark:bg-dark-card px-2 py-1 rounded-full border border-gray-200 dark:border-gray-700" 
-              x-show="!isLoading" 
+        <span class="text-xs font-medium text-gray-500 dark:text-gray-400 bg-gray-100 dark:bg-dark-card px-2 py-1 rounded-full border border-gray-200 dark:border-gray-700"
+              x-show="!isLoading"
               x-text="totalWinners + ' Winners'"
               x-transition></span>
     </div>
@@ -143,7 +142,7 @@
         <!-- 2. Featured Winners (Horizontal Scroll) -->
         <div x-show="!isLoading && featuredWinners.length > 0" class="space-y-4" x-cloak>
             <h3 class="text-xs font-bold text-gray-400 dark:text-gray-500 uppercase tracking-wider pl-1">Big Winners</h3>
-            
+
             <div class="flex gap-4 overflow-x-auto no-scrollbar pb-2 -mx-5 px-5">
                 <template x-for="winner in featuredWinners" :key="winner.ticket">
                     <div class="min-w-[260px] bg-white dark:bg-dark-card rounded-2xl p-4 border border-gray-100 dark:border-gray-800 shadow-sm relative overflow-hidden transition-colors duration-200">
@@ -151,19 +150,19 @@
                         <div class="absolute top-0 right-0 bg-yellow-400 text-yellow-900 text-[10px] font-bold px-3 py-1 rounded-bl-xl shadow-sm">
                             <span x-text="cleanPrize(winner.prize)"></span>
                         </div>
-                        
+
                         <div class="flex flex-col items-center text-center mt-2">
                             <div class="w-16 h-16 rounded-full p-1 border-2 border-yellow-400 mb-3 relative">
-                                <img :src="winner.avatar || `https://api.dicebear.com/7.x/initials/svg?seed=${winner.name}`" 
+                                <img :src="winner.avatar || `https://api.dicebear.com/7.x/initials/svg?seed=${winner.name}`"
                                      class="w-full h-full rounded-full object-cover bg-gray-100 dark:bg-gray-700">
                                 <div class="absolute -bottom-1 -right-1 bg-white dark:bg-dark-card rounded-full p-1 shadow-sm border border-gray-100 dark:border-gray-700">
                                     <i data-lucide="crown" class="w-3 h-3 text-yellow-500 fill-current"></i>
                                 </div>
                             </div>
-                            
+
                             <h4 class="font-bold text-gray-900 dark:text-white text-sm" x-text="winner.name"></h4>
                             <p class="text-[10px] text-gray-500 dark:text-gray-400 mb-3" x-text="winner.state"></p>
-                            
+
                             <!-- Ticket & Hash Display -->
                             <div class="w-full bg-gray-50 dark:bg-dark-bg rounded-lg py-2 border border-gray-100 dark:border-gray-800">
                                 <p class="text-[9px] text-gray-400 uppercase font-bold mb-0.5">Winning Ticket</p>
@@ -180,21 +179,21 @@
         <!-- 3. Recent Winners List -->
         <div x-show="!isLoading && recentWinners.length > 0" class="space-y-3" x-cloak>
             <h3 class="text-xs font-bold text-gray-400 dark:text-gray-500 uppercase tracking-wider pl-1 mt-2">Recent Wins</h3>
-            
+
             <template x-for="winner in recentWinners" :key="winner.ticket">
                 <div class="bg-white dark:bg-dark-card p-3 rounded-xl border border-gray-100 dark:border-gray-800 flex items-center gap-3 shadow-sm transition-colors duration-200">
                     <!-- Avatar -->
-                    <img :src="winner.avatar || `https://api.dicebear.com/7.x/initials/svg?seed=${winner.name}`" 
+                    <img :src="winner.avatar || `https://api.dicebear.com/7.x/initials/svg?seed=${winner.name}`"
                          class="w-10 h-10 rounded-full object-cover bg-gray-50 dark:bg-gray-700 shrink-0">
-                    
+
                     <div class="flex-1 min-w-0">
                         <!-- Top Row: Name + Ticket Badge -->
                         <div class="flex justify-between items-center mb-1">
                             <h4 class="text-sm font-bold text-gray-900 dark:text-white truncate pr-2" x-text="winner.name"></h4>
-                            <span class="font-mono text-[10px] font-bold bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-300 px-2 py-0.5 rounded border border-gray-200 dark:border-gray-600 shrink-0 whitespace-nowrap" 
+                            <span class="font-mono text-[10px] font-bold bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-300 px-2 py-0.5 rounded border border-gray-200 dark:border-gray-600 shrink-0 whitespace-nowrap"
                                   x-text="'#' + winner.ticket"></span>
                         </div>
-                        
+
                         <!-- Bottom Row: Prize + Hash + Time -->
                         <div class="flex justify-between items-center">
                             <p class="text-xs text-green-600 dark:text-green-400 font-medium flex items-center gap-1">
@@ -230,7 +229,7 @@
         background-size: 200% 200%;
         animation: gradient-x 3s ease infinite;
     }
-    
+
     @keyframes shine {
         100% { left: 125%; }
     }
@@ -243,7 +242,7 @@
         position: absolute;
         background: linear-gradient(to right, rgba(255,255,255,0) 0%, rgba(255,255,255,0.3) 50%, rgba(255,255,255,0) 100%);
     }
-    
+
     [x-cloak] { display: none !important; }
 </style>
 

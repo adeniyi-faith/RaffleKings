@@ -19,37 +19,35 @@ $user_id = get_current_user_id();
 // 2. LOCAL PROXY: INTERCEPT SAVE & DELETE ACTIONS
 if (isset($_GET['action'])) {
     header('Content-Type: application/json');
-    
+
     // Handle Save Account (POST)
     if ($_SERVER['REQUEST_METHOD'] === 'POST' && $_GET['action'] === 'save_account') {
         $body = json_decode(file_get_contents('php://input'), true);
-        
-        $request = new WP_REST_Request('POST', '/raffle/v1/bank-accounts');
+
+        $request = new WP_REST_Request('POST', '/rk/local-bank-accounts');
         if ($body) {
-            foreach ($body as $key => $value) {
-                $request->set_param($key, $value);
-            }
+            $request->set_body_params($body);
         }
-        
-        $response = rest_do_request($request);
-        if ($response->is_error()) {
-            echo json_encode(['success' => false, 'message' => $response->as_error()->get_error_message()]);
+
+        $response = rk_save_bank_account($request);
+        if (is_wp_error($response)) {
+            echo json_encode(['success' => false, 'message' => $response->get_error_message()]);
         } else {
-            echo json_encode($response->get_data());
+            echo json_encode($response instanceof WP_REST_Response ? $response->get_data() : $response);
         }
         exit;
     }
-    
+
     // Handle Delete Account (DELETE)
     if ($_SERVER['REQUEST_METHOD'] === 'DELETE' && $_GET['action'] === 'delete_account') {
-        $request = new WP_REST_Request('DELETE', '/raffle/v1/bank-accounts');
+        $request = new WP_REST_Request('DELETE', '/rk/local-bank-accounts');
         $request->set_query_params(['id' => sanitize_text_field($_GET['id'])]);
-        
-        $response = rest_do_request($request);
-        if ($response->is_error()) {
-            echo json_encode(['success' => false, 'message' => $response->as_error()->get_error_message()]);
+
+        $response = rk_delete_bank_account($request);
+        if (is_wp_error($response)) {
+            echo json_encode(['success' => false, 'message' => $response->get_error_message()]);
         } else {
-            echo json_encode($response->get_data());
+            echo json_encode($response instanceof WP_REST_Response ? $response->get_data() : $response);
         }
         exit;
     }
@@ -61,7 +59,7 @@ if (empty($bank_accounts) || !is_array($bank_accounts)) {
     $bank_accounts = [];
 }
 
-include 'header.php'; 
+include 'header.php';
 ?>
 
 <!-- Scrollable Content Area -->
@@ -80,7 +78,7 @@ include 'header.php';
 
     <!-- 1. Saved Accounts List (SSR Rendered) -->
     <section class="p-5 space-y-4" id="accounts-list">
-        
+
         <?php if (empty($bank_accounts)): ?>
             <!-- Empty State -->
             <div id="empty-state" class="flex flex-col items-center justify-center py-10 text-center">
@@ -92,17 +90,17 @@ include 'header.php';
             </div>
         <?php else: ?>
             <!-- Loop through native meta data -->
-            <?php foreach ($bank_accounts as $acc): 
+            <?php foreach ($bank_accounts as $acc):
                 $initial = strtoupper(substr($acc['bank_name'], 0, 2));
                 $is_primary = !empty($acc['is_primary']);
                 $borderClass = $is_primary ? 'border-green-200 dark:border-green-900/50 ring-1 ring-green-100 dark:ring-green-900/30' : 'border-gray-200 dark:border-gray-700';
             ?>
                 <div class="account-item bg-white dark:bg-dark-card <?= $borderClass ?> p-4 rounded-xl flex items-center justify-between shadow-sm relative overflow-hidden group transition-colors duration-200">
-                    
+
                     <?php if ($is_primary): ?>
                         <div class="absolute top-0 left-0 bg-green-500 text-white text-[9px] font-bold px-2 py-0.5 rounded-br-lg">PRIMARY</div>
                     <?php endif; ?>
-                    
+
                     <div class="flex items-center gap-4 <?= $is_primary ? 'mt-2' : '' ?>">
                         <div class="w-10 h-10 rounded-full flex items-center justify-center font-bold text-xs border bg-gray-50 dark:bg-gray-800 text-gray-600 dark:text-gray-300 border-gray-100 dark:border-gray-700 transition-colors">
                             <?= esc_html($initial) ?>
@@ -146,7 +144,7 @@ include 'header.php';
 <div id="bank-overlay" onclick="closeAddBankSheet()" class="fixed inset-0 bg-black/60 z-50 hidden transition-opacity opacity-0 backdrop-blur-sm"></div>
 
 <div id="bank-sheet" class="fixed bottom-0 left-0 w-full bg-white dark:bg-dark-card rounded-t-3xl z-50 transform translate-y-full transition-transform duration-300 ease-out sm:max-w-md sm:left-1/2 sm:-translate-x-1/2 safe-bottom shadow-2xl h-[70vh] flex flex-col border-t dark:border-dark-border">
-    
+
     <div class="w-full flex justify-center pt-3 pb-1 flex-shrink-0" onclick="closeAddBankSheet()">
         <div class="w-12 h-1.5 bg-gray-200 dark:bg-gray-700 rounded-full"></div>
     </div>
@@ -156,7 +154,7 @@ include 'header.php';
 
         <!-- Form with UNIQUE IDs to prevent DOM conflicts -->
         <div class="space-y-5">
-            
+
             <!-- Bank Name Input -->
             <div>
                 <label class="text-xs font-bold text-gray-500 dark:text-gray-400 uppercase tracking-wide block mb-2">Bank Name</label>
@@ -194,7 +192,7 @@ include 'header.php';
 
     async function saveAccount() {
         const saveBtn = document.getElementById('rk-save-bank-btn');
-        
+
         // Fetch fresh elements inside the function execution to prevent stale/duplicate grabs
         const bankName = document.getElementById('rk-new-bank-name').value.trim();
         const accNum = document.getElementById('rk-new-acc-num').value.trim();
@@ -220,11 +218,11 @@ include 'header.php';
                     account_name: accName
                 })
             });
-            
+
             const data = await res.json();
             if (res.ok && data.success) {
                 // Instantly reload to trigger our zero-latency SSR
-                window.location.reload(); 
+                window.location.reload();
             } else {
                 alert(data.message || "Failed to save.");
             }
@@ -238,7 +236,7 @@ include 'header.php';
 
     async function deleteAccount(id) {
         if(!confirm("Are you sure you want to remove this account?")) return;
-        
+
         try {
             // Tunnel DELETE request locally
             const res = await fetch(window.location.pathname + '?action=delete_account&id=' + encodeURIComponent(id), {
@@ -250,8 +248,8 @@ include 'header.php';
             } else {
                 alert("Failed to delete.");
             }
-        } catch (e) { 
-            alert("Network error."); 
+        } catch (e) {
+            alert("Network error.");
         }
     }
 

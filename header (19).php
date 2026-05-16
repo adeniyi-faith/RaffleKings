@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
-    
+
     <!-- SEO & Social Media Metadata -->
     <title>RaffleKings - The ultimate community raffle platform</title>
     <meta name="description" content="Join RaffleKings, the ultimate community raffle platform. Participate in daily and weekly draws, win cash prizes, and enjoy secure, instant payouts.">
@@ -23,7 +23,7 @@
     <meta property="twitter:title" content="RaffleKings - Win Big Daily & Weekly">
     <meta property="twitter:description" content="The ultimate community raffle platform. Secure tickets, instant verification, and massive payouts. Play now!">
     <meta property="twitter:image" content="https://getonlinestudio.com/insights/wp-content/uploads/2026/01/iOS-1-1.png">
-    
+
     <!-- PWA & Mobile Meta Tags -->
     <meta name="theme-color" content="#ffffff">
     <meta name="mobile-web-app-capable" content="yes">
@@ -31,7 +31,7 @@
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
     <meta name="apple-mobile-web-app-title" content="RaffleKings">
     <link rel="manifest" href="manifest.json">
-    
+
     <!-- UPDATED: Brand Assets / Favicons -->
     <link rel="apple-touch-icon" href="https://getonlinestudio.com/insights/wp-content/uploads/2026/01/iOS-1-1.png">
     <link rel="icon" type="image/png" sizes="32x32" href="https://getonlinestudio.com/insights/wp-content/uploads/2026/01/@32-px.png">
@@ -43,7 +43,7 @@
         // 1. Check if user manually selected a theme previously.
         // 2. If NOT, check their device system preference (prefers-color-scheme).
         // 3. Apply the result.
-        
+
         function applyTheme() {
             // Check LocalStorage
             const localTheme = localStorage.getItem('theme');
@@ -58,7 +58,7 @@
                 document.querySelector('meta[name="theme-color"]').setAttribute('content', '#ffffff');
             }
         }
-        
+
         applyTheme();
 
         // Optional: Listen for system changes if no manual override is set
@@ -77,23 +77,23 @@
       gtag('js', new Date());
       gtag('config', 'G-XMBB4JFPQ1');
     </script>
-    
+
     <script src="analytics-tracker.js" data-cfasync="false"></script>
-    
+
     <!-- Tailwind CSS -->
     <script src="https://cdn.tailwindcss.com" data-cfasync="false"></script>
     <script data-cfasync="false">
         tailwind.config = {
-            darkMode: 'class', 
+            darkMode: 'class',
             theme: {
                 extend: {
                     colors: {
                         'app-primary': '#2563eb',
                         'app-secondary': '#1e40af',
                         'app-bg': '#f8fafc',
-                        'dark-bg': '#0f172a',    
-                        'dark-card': '#1e293b',  
-                        'dark-border': '#334155' 
+                        'dark-bg': '#0f172a',
+                        'dark-card': '#1e293b',
+                        'dark-border': '#334155'
                     },
                     fontFamily: {
                         sans: ['Inter', 'sans-serif'],
@@ -102,20 +102,20 @@
             }
         }
     </script>
-    
+
     <!-- Lucide Icons -->
     <script src="https://unpkg.com/lucide@latest" data-cfasync="false"></script>
 
     <!-- Google Fonts -->
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
-    
+
     <!-- Alpine.js -->
     <script src="https://cdn.jsdelivr.net/npm/alpinejs@3.x.x/dist/cdn.min.js" defer data-cfasync="false"></script>
 
     <!-- Configuration -->
-    <script src="config.js" data-cfasync="false"></script> 
+    <script src="config.js" data-cfasync="false"></script>
     <script src="watchdog.js" defer data-cfasync="false"></script>
- 
+
 
     <!-- Service Worker -->
     <script data-cfasync="false">
@@ -162,7 +162,7 @@
     <!-- Top Navigation Bar -->
     <header class="bg-white dark:bg-dark-bg/95 dark:border-dark-border px-5 pb-3 flex justify-between items-center shadow-sm dark:shadow-none border-b border-transparent dark:border-gray-800 z-30 sticky top-0 flex-shrink-0 backdrop-blur-md"
             style="padding-top: calc(env(safe-area-inset-top) + 0.75rem);">
-        
+
         <!-- BRAND LOGO LINK -->
         <a href="index.php" class="flex items-center gap-2 active:scale-95 transition-transform">
             <!-- UPDATED: Brand Icon (Removed shadow-sm) -->
@@ -190,7 +190,7 @@
     <!-- *** ONSITE NOTIFICATION SYSTEM (OPTIMIZED FOR DARK MODE) *** -->
     <div x-data="siteNotifications()" x-cloak class="relative z-50">
         <template x-for="note in activeNotices" :key="note.id">
-            
+
             <div x-show="note.show"
                  x-transition:enter="transition ease-out duration-300"
                  x-transition:enter-start="opacity-0 translate-y-[-20px]"
@@ -203,25 +203,25 @@
                     'top-[80px]': note.location === 'toast_top',
                     'bottom-24': note.location === 'toast_bottom',
                     'fixed top-0 left-0 w-full p-3 z-[9999] text-center shadow-md backdrop-blur-sm': note.location === 'banner',
-                    
+
                     'bg-white text-gray-800': true,
-                    
+
                     /* INFO: Blue */
                     'border-blue-500 bg-blue-50 dark:bg-blue-900/80 dark:border-blue-400 dark:text-blue-50': note.type === 'info',
-                    
+
                     /* SUCCESS: Green */
                     'border-green-500 bg-green-50 dark:bg-green-900/80 dark:border-green-400 dark:text-green-50': note.type === 'success',
-                    
+
                     /* WARNING: Orange */
                     'border-orange-500 bg-orange-50 dark:bg-orange-900/80 dark:border-orange-400 dark:text-orange-50': note.type === 'warning',
-                    
+
                     /* DANGER: Red */
                     'border-red-500 bg-red-50 dark:bg-red-900/80 dark:border-red-400 dark:text-red-50': note.type === 'danger',
-                    
+
                     /* PROMO: Purple */
                     'border-purple-500 bg-purple-50 dark:bg-purple-900/80 dark:border-purple-400 dark:text-purple-50': note.type === 'promo'
                  }">
-                 
+
                  <div class="flex items-start justify-between gap-3">
                     <div class="flex-1">
                         <template x-if="note.title">
@@ -229,7 +229,7 @@
                         </template>
                         <p class="text-xs leading-relaxed opacity-95" x-text="note.message"></p>
                     </div>
-                    
+
                     <!-- Close Button -->
                     <button @click="close(note.id)" class="text-gray-400 hover:text-gray-600 dark:text-white/50 dark:hover:text-white transition-colors">
                         <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path></svg>
@@ -250,7 +250,7 @@
                 activeNotices: [],
                 async init() {
                     try {
-                        const res = await fetch(`${WORDPRESS_URL}/wp-json/raffle/v1/site-notices`);
+                        const res = await fetch(((typeof API_CONFIG !== 'undefined' && API_CONFIG.SITE_NOTICES) ? API_CONFIG.SITE_NOTICES : 'ajax-router.php?action=site_notices'));
                         const notices = await res.json();
                         if (!Array.isArray(notices)) return;
 
@@ -264,7 +264,7 @@
                         this.activeNotices.forEach(n => {
                             if (n.dismiss_sec > 0) {
                                 let timeLeft = n.dismiss_sec * 1000;
-                                const interval = 100; 
+                                const interval = 100;
                                 n.timer = setInterval(() => {
                                     timeLeft -= interval;
                                     n.progress = (timeLeft / (n.dismiss_sec * 1000)) * 100;
@@ -312,13 +312,13 @@
             const storedUser = localStorage.getItem('user_nicename') || 'Guest';
             const storedBal = localStorage.getItem('walletBalance');
             const storedAvatar = localStorage.getItem('user_avatar_url');
-            let isBalanceVisible = localStorage.getItem('balanceVisible') !== 'false'; 
+            let isBalanceVisible = localStorage.getItem('balanceVisible') !== 'false';
 
             // Smart Format Helper for large balances
             function formatWalletAmount(amount) {
                 const val = parseFloat(amount);
                 if (isNaN(val)) return '₦ 0.00';
-                
+
                 // > 1M: Use Compact (1.2M)
                 if (val >= 1000000) {
                     return '₦ ' + new Intl.NumberFormat('en-US', {
@@ -326,7 +326,7 @@
                         maximumFractionDigits: 1
                     }).format(val);
                 }
-                
+
                 // > 1k: Remove decimals (1,000)
                 if (val >= 1000) {
                       return '₦ ' + val.toLocaleString('en-US', { minimumFractionDigits: 0, maximumFractionDigits: 0 });
@@ -340,12 +340,12 @@
                 const el = document.getElementById('balance-amount');
                 const eyeEl = document.getElementById('balance-eye');
                 const formatted = formatWalletAmount(storedBal);
-                
+
                 el.setAttribute('data-value', formatted);
-                if (isBalanceVisible) { el.innerText = formatted; } 
+                if (isBalanceVisible) { el.innerText = formatted; }
                 else { el.innerText = '****'; eyeEl.setAttribute('data-lucide', 'eye-off'); }
             }
-            
+
             if(storedAvatar && storedAvatar !== 'undefined' && storedAvatar !== 'null') {
                 document.getElementById('header-avatar').src = storedAvatar;
             } else {
@@ -374,10 +374,10 @@
                         if(balRes.ok) {
                             const balData = await balRes.json();
                             const formattedBal = formatWalletAmount(balData.wallet);
-                            
+
                             const el = document.getElementById('balance-amount');
                             el.setAttribute('data-value', formattedBal);
-                            
+
                             if (isBalanceVisible) { el.innerText = formattedBal; }
                             localStorage.setItem('walletBalance', balData.wallet);
                             localStorage.setItem('earningsBalance', balData.earnings);
@@ -385,7 +385,7 @@
                     }
                 } catch(e) { console.log('Header sync error', e); }
             }
-            
+
             window.addEventListener('load', () => {
                 syncHeaderData();
                 if(typeof lucide !== 'undefined') lucide.createIcons();

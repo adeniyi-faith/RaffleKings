@@ -4,7 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
     <title>Secure Checkout | RaffleKings</title>
-    
+
     <!-- PWA & Mobile Meta Tags -->
     <meta name="theme-color" content="#ffffff">
     <meta name="mobile-web-app-capable" content="yes">
@@ -16,15 +16,15 @@
     <script src="https://cdn.tailwindcss.com"></script>
     <script>
         tailwind.config = {
-            darkMode: 'class', 
+            darkMode: 'class',
             theme: {
                 extend: {
                     colors: {
-                        'app-primary': '#2563eb', 
+                        'app-primary': '#2563eb',
                         'app-bg': '#f8fafc',
-                        'dark-bg': '#0f172a',        
-                        'dark-card': '#1e293b',        
-                        'dark-border': '#334155'      
+                        'dark-bg': '#0f172a',
+                        'dark-card': '#1e293b',
+                        'dark-border': '#334155'
                     },
                     fontFamily: { sans: ['Inter', 'sans-serif'] },
                     animation: { 'splash-bounce': 'splash-bounce 0.6s cubic-bezier(0.175, 0.885, 0.32, 1.275) forwards' },
@@ -33,12 +33,12 @@
             }
         }
     </script>
-    
+
     <!-- Lucide Icons & Fonts -->
     <script src="https://unpkg.com/lucide@latest"></script>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
     <!-- Configuration -->
-    <script src="config.js"></script> 
+    <script src="config.js"></script>
 
     <style>
         * { -webkit-tap-highlight-color: transparent; }
@@ -76,12 +76,12 @@
     <!-- Scrollable Content Area -->
     <main class="flex-1 overflow-y-auto no-scrollbar pb-36 relative transition-colors duration-200 w-full">
         <div class="px-5 pt-6">
-            
+
             <!-- ⭐ CELEBRATION BANNER (Integrated from Marketing UI) ⭐ -->
             <div id="celebration-banner" class="hidden mb-6 bg-gradient-to-r from-green-600 to-emerald-600 text-white rounded-xl p-4 shadow-lg relative overflow-hidden transform transition-all duration-500 hover:scale-[1.01]">
                 <!-- Decorative Blur -->
                 <div class="absolute -right-4 -top-4 w-20 h-20 bg-white/20 rounded-full blur-xl"></div>
-                
+
                 <div class="relative z-10 flex items-center gap-3">
                     <div class="bg-white/20 p-2.5 rounded-full backdrop-blur-sm shadow-inner">
                         <span class="text-xl">🏆</span>
@@ -99,12 +99,12 @@
             <!-- 2. Order Summary Card -->
             <div class="bg-white dark:bg-dark-card p-5 rounded-2xl shadow-sm border border-gray-100 dark:border-gray-800 mb-6 transition-colors duration-200">
                 <h3 class="text-xs font-bold text-gray-400 dark:text-gray-500 uppercase tracking-wider mb-4 border-b border-gray-50 dark:border-gray-700 pb-2">Order Summary</h3>
-                
+
                 <div class="flex justify-between items-start mb-4">
                     <div>
                         <h4 class="font-bold text-gray-900 dark:text-white text-lg">Ticket Purchase</h4>
                         <p class="text-xs text-gray-500 dark:text-gray-400 mt-1"><span id="ticket-qty">--</span> Tickets Bundle</p>
-                        
+
                         <!-- Discount Badge (Integrated) -->
                         <div id="discount-badge" class="hidden mt-2 inline-flex items-center gap-1 bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-400 px-2 py-1 rounded text-[10px] font-bold uppercase">
                             <i data-lucide="tag" class="w-3 h-3"></i> <span id="discount-text"></span>
@@ -126,7 +126,7 @@
             <h3 class="text-sm font-bold text-gray-900 dark:text-white mb-3 px-1">Select Payment Method</h3>
 
             <div class="space-y-4">
-                
+
                 <!-- Wallet -->
                 <div id="wallet-option" onclick="selectWallet()" class="bg-white dark:bg-dark-card border border-gray-200 dark:border-gray-700 rounded-xl p-4 transition-all relative overflow-hidden cursor-pointer active:scale-[0.98]">
                     <div class="flex items-center gap-4 relative z-10">
@@ -199,7 +199,7 @@
                             <div class="bg-gray-50 dark:bg-dark-bg p-4 rounded-xl border border-gray-200 dark:border-gray-700 mb-4 relative">
                                 <p class="text-[10px] text-gray-400 dark:text-gray-500 uppercase mb-1 font-bold">Bank Name</p>
                                 <p class="text-sm font-bold text-gray-800 dark:text-gray-200 mb-3" id="bank-name">Kuda MFB</p>
-                                
+
                                 <p class="text-[10px] text-gray-400 dark:text-gray-500 uppercase mb-1 font-bold">Account Number</p>
                                 <div class="flex items-center gap-2">
                                     <p class="text-xl font-mono font-bold text-gray-900 dark:text-white tracking-wider" id="account-number">300 325 9510 </p>
@@ -237,7 +237,7 @@
                         </div>
                     </div>
                 </div>
-                
+
                 <div id="bank-disabled-msg" class="hidden bg-gray-50 dark:bg-dark-card/50 border border-gray-100 dark:border-gray-800 rounded-xl p-4 text-center">
                     <div class="w-10 h-10 rounded-full bg-gray-100 dark:bg-gray-800 mx-auto flex items-center justify-center mb-2">
                         <i data-lucide="landmark" class="w-5 h-5 text-gray-300 dark:text-gray-600"></i>
@@ -284,7 +284,7 @@
                 <h3 class="text-lg font-bold text-gray-900 dark:text-white">Move Funds</h3>
                 <button onclick="closeConvertModal()" class="text-gray-400"><i data-lucide="x" class="w-5 h-5"></i></button>
             </div>
-            
+
             <p class="text-sm text-gray-600 dark:text-gray-400 mb-4">
                 You need <span id="convert-needed" class="font-bold text-gray-900 dark:text-white">...</span> more in your spending wallet. Move it from your winnings?
             </p>
@@ -384,11 +384,11 @@
         const numbersRaw = urlParams.get('numbers') || '';
         const numbers = numbersRaw ? numbersRaw.split(',') : [];
         const raffleId = urlParams.get('raffle_id') || 0;
-        let amount = 0; 
+        let amount = 0;
 
         // 2. Render Initial State
         document.getElementById('ticket-qty').innerText = tickets;
-        document.getElementById('total-amount').innerText = 'Validating...'; 
+        document.getElementById('total-amount').innerText = 'Validating...';
         document.getElementById('sticky-total').innerText = '...';
 
         const numbersContainer = document.getElementById('numbers-display');
@@ -405,7 +405,7 @@
 
         // 4. Wallet Data
         let walletBal = parseFloat(localStorage.getItem('walletBalance')) || 0;
-        let earningsBal = parseFloat(localStorage.getItem('earningsBalance')) || 0; 
+        let earningsBal = parseFloat(localStorage.getItem('earningsBalance')) || 0;
 
         const walletBalanceEl = document.getElementById('wallet-balance');
         const earningsBalanceEl = document.getElementById('earnings-balance');
@@ -414,7 +414,7 @@
         if(earningsBalanceEl) earningsBalanceEl.innerText = '₦' + earningsBal.toLocaleString();
 
         let selectedMethod = null;
-        let currentOrderId = ''; 
+        let currentOrderId = '';
         const walletOption = document.getElementById('wallet-option');
         const earningsOption = document.getElementById('earnings-option');
         const bankOption = document.getElementById('bank-option');
@@ -430,7 +430,7 @@
         function calculateDiscountedPrice(qty, uPrice) {
             const originalPrice = qty * uPrice;
             let multiplier = 1.0;
-            
+
             // 1. Structural Discount (Applied First)
             if (uPrice <= 200) {
                 if (qty >= 2) multiplier = 0.90;
@@ -440,20 +440,20 @@
             }
 
             // 2. Golden Box Logic (Compound Discount)
-            const hasGoldenDiscount = urlParams.get('discount_applied') === 'true' || 
+            const hasGoldenDiscount = urlParams.get('discount_applied') === 'true' ||
                                       (localStorage.getItem('rk_cart_session') && localStorage.getItem('rk_cart_session').includes('"discount_applied":true'));
 
             if (hasGoldenDiscount) {
                 // Calculate intermediate price (Post-Structure, Pre-Golden) for savings display
                 // Note: removed rounding to 10 here too
                 const structPrice = Math.ceil(originalPrice * multiplier);
-                
+
                 // Apply Compounding 10%
                 multiplier = multiplier * 0.90;
-                
+
                 // Final Price (No rounding to 10)
                 const finalPrice = Math.ceil(originalPrice * multiplier);
-                
+
                 // Calculate ONLY the Golden Savings (Structure Price - Final Price)
                 const goldenSavings = structPrice - finalPrice;
 
@@ -474,14 +474,14 @@
 
         document.addEventListener('DOMContentLoaded', async () => {
             const token = localStorage.getItem('token');
-            if (tickets > 0 || true) initExitIntent(); 
+            if (tickets > 0 || true) initExitIntent();
 
             await verifyRealPrice();
-            fetchUpsellIds(); 
+            fetchUpsellIds();
 
             try {
-                const baseUrl = (typeof WORDPRESS_URL !== 'undefined') ? WORDPRESS_URL : 'https://api.rafflekings.com.ng';
-                const res = await fetch(`${baseUrl}/wp-json/raffle/v1/settings`);
+                const settingsUrl = (typeof API_CONFIG !== 'undefined' && API_CONFIG.SETTINGS) ? API_CONFIG.SETTINGS : 'ajax-router.php?action=get_settings';
+                const res = await fetch(settingsUrl);
                 if(res.ok) {
                     const settings = await res.json();
                     if(settings.account_number && settings.account_number !== "0000000000") {
@@ -493,8 +493,8 @@
             } catch(e) { console.error("Error fetching bank settings", e); }
 
             try {
-                const baseUrl = (typeof WORDPRESS_URL !== 'undefined') ? WORDPRESS_URL : 'https://api.rafflekings.com.ng';
-                const res = await fetch(`${baseUrl}/wp-json/raffle/v1/balance`, {
+                const balanceUrl = (typeof API_CONFIG !== 'undefined' && API_CONFIG.BALANCE) ? API_CONFIG.BALANCE : 'ajax-router.php?action=get_balance';
+                const res = await fetch(balanceUrl, {
                         headers: { 'Authorization': `Bearer ${token}` }
                 });
                 if(res.ok) {
@@ -511,9 +511,8 @@
         });
 
         async function verifyRealPrice() {
-            const baseUrl = (typeof WORDPRESS_URL !== 'undefined') ? WORDPRESS_URL : 'https://api.rafflekings.com.ng';
             try {
-                const res = await fetch(`${baseUrl}/wp-json/wp/v2/raffle/${raffleId}`);
+                const res = await fetch(`ajax-router.php?action=get_raffle&id=${encodeURIComponent(raffleId)}`);
                 if (!res.ok) throw new Error("Invalid Raffle");
                 const data = await res.json();
                 const pricePerTicket = parseFloat(data.raffle_meta.price);
@@ -527,14 +526,14 @@
                 const title = data.title.rendered || '';
                 // Matches logic from raffles.php to get grand prize
                 const potentialWin = meta.grand_prize || title || '₦500,000';
-                
+
                 const exitEl = document.getElementById('exit-potential');
                 if(exitEl) exitEl.innerText = potentialWin;
                 // -----------------------------------------------
 
                 document.getElementById('total-amount').innerText = '₦' + amount.toLocaleString();
                 document.getElementById('sticky-total').innerText = '₦' + amount.toLocaleString();
-                
+
                 if (savings > 0) {
                     const pct = Math.round((1 - prices.multiplier) * 100);
                     document.getElementById('discount-badge').classList.remove('hidden');
@@ -554,11 +553,11 @@
 
         async function fetchUpsellIds() {
              try {
-                const baseUrl = (typeof WORDPRESS_URL !== 'undefined') ? WORDPRESS_URL : 'https://api.rafflekings.com.ng';
-                const res = await fetch(`${baseUrl}/wp-json/wp/v2/raffle?per_page=20&status=publish`);
+                const res = await fetch('ajax-router.php?action=get_raffles&per_page=20');
                 if(!res.ok) return;
-                const raffles = await res.json();
-                
+                const rafflesPayload = await res.json();
+                const raffles = rafflesPayload && Object.prototype.hasOwnProperty.call(rafflesPayload, 'data') ? rafflesPayload.data : rafflesPayload;
+
                 const weekly = raffles.find(r => {
                     const p = parseFloat(r.raffle_meta?.price || 0);
                     const t = r.title.rendered.toLowerCase();
@@ -566,7 +565,7 @@
                     if(isSoldOut) return false;
                     return (p >= 500) || t.includes('weekly') || t.includes('jackpot');
                 });
-                
+
                 const daily = raffles.find(r => {
                     const p = parseFloat(r.raffle_meta?.price || 0);
                     const t = r.title.rendered.toLowerCase();
@@ -582,14 +581,13 @@
 
         // Updated Sync Function with LocalStorage backup for Golden Box
         async function syncCheckoutToBackend(token) {
-            const baseUrl = (typeof WORDPRESS_URL !== 'undefined') ? WORDPRESS_URL : 'https://api.rafflekings.com.ng';
-            const cartItem = { 
-                id: 'checkout_session', 
-                name: `${tickets} Tickets`, 
-                price: amount, 
-                numbers: numbers 
+            const cartItem = {
+                id: 'checkout_session',
+                name: `${tickets} Tickets`,
+                price: amount,
+                numbers: numbers
             };
-            
+
             // Save to localStorage for Golden Box trigger
             const cartSession = {
                 cart: [cartItem],
@@ -599,21 +597,21 @@
                 discount_applied: urlParams.get('discount_applied') === 'true',
                 created_at: Date.now()
             };
-            
+
             localStorage.setItem('rk_cart_session', JSON.stringify(cartSession));
-            
+
             // Also sync to backend
             try {
-                await fetch(`${baseUrl}/wp-json/raffle/v1/cart/sync`, {
+                await fetch((typeof API_CONFIG !== 'undefined' && API_CONFIG.CART_SYNC) ? API_CONFIG.CART_SYNC : 'ajax-router.php?action=cart_sync', {
                     method: 'POST',
-                    headers: { 
-                        'Content-Type': 'application/json', 
-                        'Authorization': 'Bearer ' + token 
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Authorization': 'Bearer ' + token
                     },
                     body: JSON.stringify({ cart: [cartItem], total: amount })
                 });
-            } catch (e) { 
-                console.error("Sync failed", e); 
+            } catch (e) {
+                console.error("Sync failed", e);
             }
         }
 
@@ -622,7 +620,7 @@
             document.getElementById('wallet-topup-msg').classList.add('hidden');
             document.getElementById('wallet-convert-msg').classList.add('hidden');
             if(document.getElementById('earnings-warning')) document.getElementById('earnings-warning').classList.add('hidden');
-            
+
             walletOption.classList.remove('bg-red-50', 'dark:bg-red-900/20', 'border-red-200', 'dark:border-red-900');
             if(earningsOption) earningsOption.classList.remove('bg-red-50', 'dark:bg-red-900/20', 'border-red-200', 'dark:border-red-900');
 
@@ -654,7 +652,7 @@
         }
 
         function openConvertModal(e) {
-            e.stopPropagation(); 
+            e.stopPropagation();
             const deficit = amount - walletBal;
             document.getElementById('convert-needed').innerText = '₦' + deficit.toLocaleString();
             document.getElementById('convert-available').innerText = '₦' + earningsBal.toLocaleString();
@@ -672,17 +670,15 @@
             btn.disabled = true;
 
             const token = localStorage.getItem('token');
-            const baseUrl = (typeof WORDPRESS_URL !== 'undefined') ? WORDPRESS_URL : 'https://api.rafflekings.com.ng';
-            
             try {
-                const res = await fetch(`${baseUrl}/wp-json/raffle/v1/transfer`, {
+                const res = await fetch((typeof API_CONFIG !== 'undefined' && API_CONFIG.TRANSFER) ? API_CONFIG.TRANSFER : 'ajax-router.php?action=transfer', {
                     method: 'POST',
                     headers: { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' },
                     body: JSON.stringify({ amount: deficit })
                 });
-                
+
                 const result = await res.json();
-                
+
                 if (result.success) {
                     walletBal = walletBal + deficit;
                     earningsBal = earningsBal - deficit;
@@ -813,22 +809,21 @@
             processingModal.classList.remove('hidden');
 
             const token = localStorage.getItem('token');
-            const baseUrl = (typeof WORDPRESS_URL !== 'undefined') ? WORDPRESS_URL : 'https://api.rafflekings.com.ng';
-            const ENDPOINT = `${baseUrl}/wp-json/raffle/v1/payment`;
+            const ENDPOINT = (typeof API_CONFIG !== 'undefined' && API_CONFIG.PAYMENT) ? API_CONFIG.PAYMENT : 'ajax-router.php?action=payment';
 
             const formData = new FormData();
             formData.append('amount', amount);
             formData.append('raffle_id', raffleId);
-            formData.append('numbers', numbersRaw); 
+            formData.append('numbers', numbersRaw);
 
             // *** GOLDEN BOX FLAG ***
-            const hasGoldenDiscount = urlParams.get('discount_applied') === 'true' || 
+            const hasGoldenDiscount = urlParams.get('discount_applied') === 'true' ||
                                       (localStorage.getItem('rk_cart_session') && localStorage.getItem('rk_cart_session').includes('"discount_applied":true'));
-            
+
             formData.append('is_golden_box', hasGoldenDiscount);
 
             if (selectedMethod === 'wallet') {
-                formData.append('type', 'wallet_payment'); 
+                formData.append('type', 'wallet_payment');
                 try {
                     const response = await fetch(ENDPOINT, {
                         method: 'POST',
@@ -840,11 +835,11 @@
 
                     if (result.success) {
                         localStorage.setItem('walletBalance', result.new_balance);
-                        
+
                         // Clear cart session on successful payment
                         localStorage.removeItem('rk_cart_session');
                         localStorage.setItem('rk_last_purchase_time', Date.now());
-                        
+
                         showSuccess("Ticket Generated", "Paid via Wallet", "check");
                     } else {
                         alert("Payment Failed: " + (result.message || 'Unknown error'));
@@ -857,7 +852,7 @@
             }
 
             if (selectedMethod === 'earnings') {
-                formData.append('type', 'earnings_payment'); 
+                formData.append('type', 'earnings_payment');
                 try {
                     const response = await fetch(ENDPOINT, {
                         method: 'POST',
@@ -869,7 +864,7 @@
 
                     if (result.success) {
                         localStorage.setItem('earningsBalance', result.new_balance);
-                        
+
                         // Clear cart session on successful payment
                         localStorage.removeItem('rk_cart_session');
                         localStorage.setItem('rk_last_purchase_time', Date.now());
@@ -889,7 +884,7 @@
             if (fileInput.files.length === 0) return;
 
             formData.append('proof', fileInput.files[0]);
-            formData.append('type', 'ticket_purchase'); 
+            formData.append('type', 'ticket_purchase');
             formData.append('order_id', currentOrderId);
 
             try {
@@ -898,7 +893,7 @@
                     headers: { 'Authorization': `Bearer ${token}` },
                     body: formData
                 });
-                
+
                 const result = await response.json();
                 processingModal.classList.add('hidden');
 
@@ -924,10 +919,10 @@
         function showSuccess(title, msg, iconName = 'check') {
             const successModal = document.getElementById('success-modal');
             const successContent = document.getElementById('success-content');
-            
+
             document.getElementById('success-title').innerText = title;
             document.getElementById('success-msg').innerText = msg;
-            
+
             const iconElement = document.getElementById('success-icon');
             const iconBg = document.getElementById('icon-bg');
             const ring1 = document.getElementById('splash-ring-1');
@@ -969,7 +964,7 @@
                 upsellBody.innerText = "You have the Daily Ticket. But the Weekly Jackpot is massive. Secure your spot now!";
                 upsellBtn.className = "w-full py-2.5 rounded-xl font-bold text-xs shadow-lg flex items-center justify-center gap-2 active:scale-95 transition-transform bg-gradient-to-r from-purple-600 to-indigo-600 text-white shadow-purple-500/30";
                 upsellBtn.innerHTML = `Get Weekly Ticket <i data-lucide="star" class="w-3 h-3"></i>`;
-                upsellBtn.href = weeklyRaffleId ? `raffle-details.php?id=${weeklyRaffleId}` : "raffles.php"; 
+                upsellBtn.href = weeklyRaffleId ? `raffle-details.php?id=${weeklyRaffleId}` : "raffles.php";
             } else {
                 upsellBox.classList.remove('hidden');
                 upsellBadge.className = "absolute -top-3 left-1/2 -translate-x-1/2 px-3 py-1 rounded-full text-[9px] font-black uppercase tracking-widest shadow-sm bg-red-500 text-white";
@@ -978,9 +973,9 @@
                 upsellBody.innerText = "The Weekly draw is far away. Play the Daily Draw for instant results tonight!";
                 upsellBtn.className = "w-full py-2.5 rounded-xl font-bold text-xs shadow-lg flex items-center justify-center gap-2 active:scale-95 transition-transform bg-gradient-to-r from-red-500 to-orange-500 text-white shadow-orange-500/30";
                 upsellBtn.innerHTML = `Play Daily Draw <i data-lucide="zap" class="w-3 h-3"></i>`;
-                upsellBtn.href = dailyRaffleId ? `raffle-details.php?id=${dailyRaffleId}` : "raffles.php"; 
+                upsellBtn.href = dailyRaffleId ? `raffle-details.php?id=${dailyRaffleId}` : "raffles.php";
             }
-            
+
             lucide.createIcons();
 
             successModal.classList.remove('hidden');
@@ -1021,24 +1016,24 @@
                     showExitModal();
                     setTimeout(() => {
                         window.history.pushState({ trap: true }, "", window.location.href);
-                    }, 0); 
+                    }, 0);
                 }
             });
 
             let touchStartY = 0;
             let touchStartX = 0;
-            
+
             document.addEventListener('touchstart', (e) => {
                 touchStartY = e.touches[0].clientY;
                 touchStartX = e.touches[0].clientX;
             }, { passive: true });
-            
+
             document.addEventListener('touchmove', (e) => {
                 const touchY = e.touches[0].clientY;
                 const touchX = e.touches[0].clientX;
                 const deltaY = touchY - touchStartY;
                 const deltaX = touchX - touchStartX;
-                
+
                 if (touchStartX < 50 && deltaX > 100 && Math.abs(deltaY) < 50 && !exitModalShown) {
                     showExitModal();
                 }
@@ -1048,7 +1043,7 @@
         function showExitModal() {
             if (!document.getElementById('success-modal').classList.contains('hidden')) return;
             if (exitModalShown || sessionStorage.getItem('rk_exit_shown')) return;
-            
+
             exitModalShown = true;
             sessionStorage.setItem('rk_exit_shown', 'true');
 
@@ -1081,10 +1076,10 @@
             setTimeout(() => {
                 modal.classList.add('hidden', 'pointer-events-none');
             }, 300);
-            
+
             if (forceLeave) {
                 sessionStorage.removeItem('rk_exit_shown');
-                window.history.back(); 
+                window.history.back();
                 setTimeout(() => { window.location.href = 'raffles.php'; }, 100);
             }
         }

@@ -19,20 +19,20 @@ $user_id = get_current_user_id();
 // 2. LOCAL PROXY: INTERCEPT PAYMENT SUBMISSION
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_GET['action']) && $_GET['action'] === 'process_payment') {
     header('Content-Type: application/json');
-    
-    // Construct a mocked REST request to utilize the existing robust AI logic in api-financials.php
-    // Since we rely on WP cookies, get_current_user_id() inside the API function will work perfectly.
+
+    // Backend-only/local execution: call the existing payment handler directly.
     $request = new WP_REST_Request('POST', '/raffle/v1/payment');
     $request->set_body_params($_POST);
     $request->set_file_params($_FILES);
-    
-    $response = rest_do_request($request);
-    
-    if ($response->is_error()) {
-        $error = $response->as_error();
-        echo json_encode(['success' => false, 'message' => $error->get_error_message()]);
-    } else {
+
+    $response = rk_handle_payment_ai($request);
+
+    if (is_wp_error($response)) {
+        echo json_encode(['success' => false, 'message' => $response->get_error_message()]);
+    } elseif ($response instanceof WP_REST_Response) {
         echo json_encode($response->get_data());
+    } else {
+        echo json_encode($response);
     }
     exit;
 }
@@ -44,7 +44,7 @@ $account_number = get_option('rk_account_number', 'Not Set');
 $account_name = get_option('rk_account_name', 'Raffle Kings');
 $order_id = 'ORD-' . mt_rand(10000, 99999); // Generate Order ID server-side
 
-include 'header.php'; 
+include 'header.php';
 ?>
 
 <!-- Scrollable Content Area -->
@@ -58,7 +58,7 @@ include 'header.php';
             </a>
             <h2 class="text-xl font-bold text-gray-900 dark:text-white">Top Up Wallet</h2>
         </div>
-        
+
         <div class="flex justify-between items-center pl-1">
             <p class="text-xs text-gray-500 dark:text-gray-400">Fund your account via Bank Transfer.</p>
             <span class="text-xs font-bold text-app-primary bg-blue-50 dark:bg-blue-900/30 dark:text-blue-300 px-2 py-1 rounded">
@@ -94,7 +94,7 @@ include 'header.php';
                         <i data-lucide="copy" class="w-3 h-3"></i>
                     </button>
                 </div>
-                
+
                 <h1 class="text-3xl font-mono font-bold text-app-primary dark:text-blue-400 tracking-widest">
                     <?= esc_html($account_number) ?>
                 </h1>
@@ -127,11 +127,11 @@ include 'header.php';
             <h3 class="font-bold text-gray-900 dark:text-white mb-2 flex items-center gap-2">
                 <i data-lucide="shield-check" class="w-5 h-5 text-green-500"></i> Payment Verification
             </h3>
-            
+
             <p class="text-sm text-gray-500 dark:text-gray-400 mb-6 leading-relaxed">
                 After making the transfer, please enter the amount paid and upload your transaction receipt below to complete your top up.
             </p>
-            
+
             <!-- Amount Input -->
             <div class="mb-4">
                 <div class="flex justify-between mb-1">
@@ -147,9 +147,9 @@ include 'header.php';
             <!-- Receipt Upload -->
             <div class="mb-6">
                 <label class="text-xs text-gray-500 dark:text-gray-400 font-medium uppercase tracking-wider block mb-1">Upload Receipt</label>
-                <input type="file" id="proof-file" accept="image/jpeg, image/png, image/webp" class="block w-full text-sm text-gray-500 dark:text-gray-400 
-                file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 
-                file:text-xs file:font-semibold file:bg-blue-50 file:text-blue-700 
+                <input type="file" id="proof-file" accept="image/jpeg, image/png, image/webp" class="block w-full text-sm text-gray-500 dark:text-gray-400
+                file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0
+                file:text-xs file:font-semibold file:bg-blue-50 file:text-blue-700
                 dark:file:bg-blue-900/30 dark:file:text-blue-300
                 hover:file:bg-blue-100 dark:hover:file:bg-blue-900/50 cursor-pointer"/>
             </div>
@@ -160,7 +160,7 @@ include 'header.php';
             </button>
         </div>
     </section>
-    
+
     <!-- Processing Modal -->
     <div id="processing-modal" class="fixed inset-0 bg-black/80 z-[60] hidden flex items-center justify-center backdrop-blur-sm p-5">
         <div class="bg-white dark:bg-dark-card rounded-3xl p-8 w-full max-w-sm text-center border dark:border-dark-border">
@@ -195,7 +195,7 @@ include 'header.php';
     async function processPayment() {
         const amount = document.getElementById('amount-paid').value;
         const fileInput = document.getElementById('proof-file');
-        
+
         if (!amount || fileInput.files.length === 0) {
             alert("Please fill all fields and upload a receipt.");
             return;
@@ -221,7 +221,7 @@ include 'header.php';
                 // Note: No Bearer token needed anymore. Native WP cookies handle the auth automatically.
                 body: formData
             });
-            
+
             const result = await response.json();
             document.getElementById('processing-modal').classList.add('hidden');
 
@@ -230,7 +230,7 @@ include 'header.php';
                 alert("Success: " + result.message);
                 window.location.href = 'index.php';
             } else {
-                alert("Notice: " + (result.message || "Could not verify.")); 
+                alert("Notice: " + (result.message || "Could not verify."));
                 if (result.status === 'manual_review') {
                     window.location.href = 'index.php'; // Still redirect if it just went to manual queue
                 }

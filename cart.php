@@ -72,7 +72,7 @@
             <span class="text-2xl font-bold text-gray-900" id="total-amount">₦0</span>
         </div>
     </div>
-    
+
     <button onclick="goToCheckout()" class="w-full bg-app-primary text-white py-4 rounded-xl font-bold text-sm shadow-lg shadow-blue-500/30 active:scale-[0.98] transition-transform flex items-center justify-center gap-2">
         Secure My Tickets <i data-lucide="lock" class="w-4 h-4"></i>
     </button>
@@ -86,7 +86,7 @@
     function renderCart() {
         // 1. Get Cart
         cart = JSON.parse(localStorage.getItem('cart')) || [];
-        
+
         const container = document.getElementById('cart-items-container');
         const emptyState = document.getElementById('empty-state');
         const footer = document.getElementById('checkout-footer');
@@ -120,15 +120,15 @@
 
             const div = document.createElement('div');
             div.className = "bg-white rounded-2xl p-4 shadow-sm border border-gray-100 relative overflow-hidden group";
-            
+
             // Build numbers HTML
-            const numbersHtml = item.numbers.map(n => 
+            const numbersHtml = item.numbers.map(n =>
                 `<span class="bg-gray-100 text-gray-600 text-[10px] font-bold px-1.5 py-0.5 rounded border border-gray-200">${n}</span>`
             ).join('');
 
             div.innerHTML = `
                 <div class="absolute top-0 left-0 bg-green-500 w-1 h-full"></div>
-                
+
                 <div class="flex justify-between items-start mb-3 pl-2">
                     <div>
                         <span class="bg-blue-50 text-blue-600 text-[10px] font-bold px-2 py-0.5 rounded mb-1 inline-block">Raffle Entry</span>
@@ -156,10 +156,10 @@
 
         // 4. Update Total
         totalEl.innerText = '₦' + grandTotal.toLocaleString();
-        
+
         // 5. Sync to Backend (Abandonment Tracking)
         syncCartToBackend(cart, grandTotal);
-        
+
         lucide.createIcons();
     }
 
@@ -177,7 +177,7 @@
         if (!token) return;
 
         try {
-            await fetch(`${WORDPRESS_URL}/wp-json/raffle/v1/cart/sync`, {
+            await fetch((typeof API_CONFIG !== 'undefined' && API_CONFIG.CART_SYNC) ? API_CONFIG.CART_SYNC : 'ajax-router.php?action=cart_sync', {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',
@@ -225,7 +225,7 @@
         // Aggregate Cart for Single Checkout
         const totalAmount = cart.reduce((sum, item) => sum + parseFloat(item.price), 0);
         const totalTickets = cart.reduce((sum, item) => sum + item.numbers.length, 0);
-        
+
         // Flatten numbers for checkout logic (assuming single raffle checkout mostly)
         // If multi-raffle, your backend logic must handle parsing cart array.
         // For now, we send the first raffle ID and flatten numbers.

@@ -5,31 +5,38 @@ define('RK_FRONTEND_APP', true);
 define('WP_USE_THEMES', false);
 require_once(__DIR__ . '/wp/wp-load.php');
 
+function rk_frontend_format_raffle($raffle_post) {
+    return [
+        'id' => $raffle_post->ID,
+        'title' => ['rendered' => get_the_title($raffle_post)],
+        'content' => ['rendered' => apply_filters('the_content', $raffle_post->post_content)],
+        'excerpt' => ['rendered' => get_the_excerpt($raffle_post)],
+        'featured_media_url' => get_the_post_thumbnail_url($raffle_post, 'large') ?: '',
+        'raffle_meta' => function_exists('rk_get_raffle_meta') ? rk_get_raffle_meta(['id' => $raffle_post->ID]) : [],
+    ];
+}
+
 // ==========================================
-// 1. MINI API: Local Proxy for background refresh
+// 1. MINI API: Local same-origin background refresh
 // ==========================================
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['action'] === 'get_raffles') {
     ob_clean();
     header('Content-Type: application/json');
-    $request = new WP_REST_Request('GET', '/wp/v2/raffle');
-    $request->set_query_params(['per_page' => 20]);
-    $response = rest_do_request($request);
-    
-    echo json_encode($response->is_error() ? [] : $response->get_data());
+    $posts = get_posts(['post_type' => 'raffle', 'post_status' => 'publish', 'posts_per_page' => 20]);
+    echo wp_json_encode(array_map('rk_frontend_format_raffle', $posts));
     exit;
 }
 
 // ==========================================
 // 2. PRE-LOAD TRENDING RAFFLES (SSR)
 // ==========================================
-$initial_raffles = [];
-$request = new WP_REST_Request('GET', '/wp/v2/raffle');
-$request->set_query_params(['per_page' => 20]);
-$response = rest_do_request($request);
-
-if (!$response->is_error()) {
-    $initial_raffles = $response->get_data();
-}
+$initial_raffles = array_map('rk_frontend_format_raffle', get_posts([
+    'post_type' => 'raffle',
+    'post_status' => 'publish',
+    'posts_per_page' => 20,
+    'orderby' => 'date',
+    'order' => 'DESC',
+]));
 ?>
 
 <?php include 'header.php'; ?>
@@ -40,7 +47,7 @@ if (!$response->is_error()) {
     <!-- 1. Enhanced Hero Carousel -->
     <section class="mt-4 px-5">
         <div id="hero-carousel" class="flex overflow-x-auto snap-x snap-mandatory gap-4 no-scrollbar rounded-2xl pb-4">
-            
+
             <!-- Card 1: Cash Jackpot (Primary Focus - ACTIVE) -->
             <div class="min-w-full snap-center bg-gradient-to-br from-green-700 via-green-600 to-emerald-800 rounded-2xl p-6 text-white relative overflow-hidden shadow-xl shadow-green-900/30 h-48 flex items-center group">
                 <div class="absolute inset-0 bg-[url('https://www.transparenttextures.com/patterns/cubes.png')] opacity-10"></div>
@@ -68,7 +75,7 @@ if (!$response->is_error()) {
                     <span class="bg-yellow-500/20 text-yellow-300 text-[10px] font-bold px-2 py-1 rounded mb-2 inline-block border border-yellow-500/50 uppercase tracking-wide">Premium Access</span>
                     <h2 class="text-2xl font-black leading-tight mb-1 text-transparent bg-clip-text bg-gradient-to-r from-yellow-200 via-yellow-400 to-yellow-200">Executive VIP</h2>
                     <p class="text-xs text-gray-400 mb-4 max-w-[70%]">Exclusive high-stakes draws for the elite. Only 100 spots.</p>
-                    
+
                     <button disabled class="bg-gray-800/80 backdrop-blur border border-gray-700 text-gray-400 px-6 py-3 rounded-xl text-sm font-bold inline-flex items-center gap-2 cursor-not-allowed">
                         Coming Soon <i data-lucide="lock" class="w-4 h-4"></i>
                     </button>
@@ -84,7 +91,7 @@ if (!$response->is_error()) {
                     <span class="bg-white/20 text-white text-[10px] font-bold px-2 py-1 rounded mb-2 inline-block border border-white/20 uppercase">Dream Ride</span>
                     <h2 class="text-2xl font-bold leading-tight mb-1">Win a Brand New Car</h2>
                     <p class="text-xs text-red-100 mb-4 max-w-[80%]">Drive away in style. The ultimate grand prize awaits.</p>
-                    
+
                      <button disabled class="bg-white/20 backdrop-blur text-white/80 px-6 py-3 rounded-xl text-sm font-bold inline-flex items-center gap-2 cursor-not-allowed border border-white/10">
                         Coming Soon <i data-lucide="clock" class="w-4 h-4"></i>
                     </button>
@@ -95,7 +102,7 @@ if (!$response->is_error()) {
             </div>
 
         </div>
-        
+
         <!-- Pagination Dots -->
         <div class="flex justify-center gap-1.5 -mt-2 mb-2" id="carousel-dots">
             <div class="w-1.5 h-1.5 rounded-full bg-app-primary transition-all duration-300 w-4"></div>
@@ -122,13 +129,13 @@ if (!$response->is_error()) {
             <h3 class="text-base font-extrabold text-gray-900 dark:text-white tracking-tight">Play & Win</h3>
             <span class="text-[10px] bg-blue-50 dark:bg-blue-900/30 text-blue-600 dark:text-blue-300 px-2 py-1 rounded-full font-bold">Updated Today</span>
         </div>
-        
+
         <div class="grid grid-cols-2 gap-4">
-            
+
             <!-- Cash Draw (Featured & Active) -->
             <a href="raffles.php" class="col-span-2 bg-gradient-to-r from-blue-600 to-blue-700 dark:from-blue-700 dark:to-blue-900 p-5 rounded-2xl shadow-lg shadow-blue-500/20 dark:shadow-blue-900/20 relative overflow-hidden group active:scale-[0.99] transition-transform border border-blue-500/30">
                 <div class="absolute right-0 top-0 w-32 h-32 bg-white/10 rounded-full blur-2xl -translate-y-1/2 translate-x-1/2"></div>
-                
+
                 <div class="flex items-center justify-between relative z-10">
                     <div>
                         <div class="flex items-center gap-2 mb-1">
@@ -208,7 +215,7 @@ if (!$response->is_error()) {
             </div>
             <a href="raffles.php" class="text-xs text-blue-600 dark:text-blue-400 font-bold bg-blue-50 dark:bg-blue-900/30 px-2 py-1 rounded hover:bg-blue-100 dark:hover:bg-blue-900/50 transition-colors">See All</a>
         </div>
-        
+
         <div class="flex overflow-x-auto px-5 gap-4 pb-4 no-scrollbar" id="trending-container">
             <!-- Loading Skeleton (Will be overwritten instantly by SSR) -->
             <div class="min-w-[280px] bg-white dark:bg-dark-card rounded-2xl p-4 shadow-sm border border-gray-100 dark:border-gray-800 animate-pulse h-40">
@@ -230,10 +237,10 @@ if (!$response->is_error()) {
 
     document.addEventListener('DOMContentLoaded', () => {
         lucide.createIcons();
-        
+
         // --- 1. Start Ticker ---
         initLiveTicker();
-        
+
         // --- 2. Load Data Instantly ---
         if (ssrRaffles && ssrRaffles.length > 0) {
             renderTrending(ssrRaffles);
@@ -257,15 +264,15 @@ if (!$response->is_error()) {
 
         // Custom User List & Messages
         const users = [
-            'Kotansibe', 'Abayhormy', 'DrOchellePaul1', 'kinzazo', 'MrPaul2', 'excellencyabia1', 'baysdam1', 'rago', 
-            'Sangoamadioha1', 'toutlemonde', 'MGDIMA4', 'encryptjay', 'stevebent', 'Figger', 'philsbaba', 'incogni2o', 
-            'Gavrelino123', 'Choice2332', 'illicit', 'MaxW11', 'logbosere', 'Judemarco31', 'XtraFortunes', 'Nigeriaismine', 
-            'Precious201010', 'emmatex2020', 'waistbead', 'Truth234', 'AbahChukwuka', 'TBIZZY', 'sango147', 'tesuto1', 
-            'DallasMike77', 'Obalgwe1', 'krayzieklay', 'pook', 'heybeebugatty', 'acekid109', 'drignet', 'RodgersAkpafu', 
-            'NaijaRoyalty', 'moralex', 'Toyade888', 'Jamesbook', 'izzou', 'Medulah', 'Odukes', 'hotspec', 'EBUBS', 
-            'Emmyjb', 'Abbasumaru', 'GaskiyaTV', 'Biggy505', 'Focusmind', 'Tigerguy', 'Broadmind', 'frickyt', 'Nosalucho008', 
-            'favoured247', 'Alliswell248', 'AirBay', 'amarudeen', 'Olamide24909', 'Otunbakay', 'phadul', 'Fineyemo', 
-            'collarfreak', 'alanto', 'DeepSight', 'ODDavid', 'Lapyte', 'banjul01', '1VOIZ', 'saturnjay', 'JomasisTech', 
+            'Kotansibe', 'Abayhormy', 'DrOchellePaul1', 'kinzazo', 'MrPaul2', 'excellencyabia1', 'baysdam1', 'rago',
+            'Sangoamadioha1', 'toutlemonde', 'MGDIMA4', 'encryptjay', 'stevebent', 'Figger', 'philsbaba', 'incogni2o',
+            'Gavrelino123', 'Choice2332', 'illicit', 'MaxW11', 'logbosere', 'Judemarco31', 'XtraFortunes', 'Nigeriaismine',
+            'Precious201010', 'emmatex2020', 'waistbead', 'Truth234', 'AbahChukwuka', 'TBIZZY', 'sango147', 'tesuto1',
+            'DallasMike77', 'Obalgwe1', 'krayzieklay', 'pook', 'heybeebugatty', 'acekid109', 'drignet', 'RodgersAkpafu',
+            'NaijaRoyalty', 'moralex', 'Toyade888', 'Jamesbook', 'izzou', 'Medulah', 'Odukes', 'hotspec', 'EBUBS',
+            'Emmyjb', 'Abbasumaru', 'GaskiyaTV', 'Biggy505', 'Focusmind', 'Tigerguy', 'Broadmind', 'frickyt', 'Nosalucho008',
+            'favoured247', 'Alliswell248', 'AirBay', 'amarudeen', 'Olamide24909', 'Otunbakay', 'phadul', 'Fineyemo',
+            'collarfreak', 'alanto', 'DeepSight', 'ODDavid', 'Lapyte', 'banjul01', '1VOIZ', 'saturnjay', 'JomasisTech',
             'celeb10', 'oluwaseyi0', 'Damlesky', 'wildrose21', 'tctrills'
         ];
 
@@ -276,10 +283,10 @@ if (!$response->is_error()) {
         // Generate updates
         const ticketCounts = [2, 3, 5, 5, 10, 10, 15, 20, 50];
         for(let i=0; i<40; i++) updates.push(`🎟️ <span class="text-white font-bold">@${rand(users)}</span> bought <span class="text-green-300 font-bold">${rand(ticketCounts)} tickets</span>!`);
-        
+
         const withdrawalAmounts = [5000, 10000, 15000, 20000, 25000, 50000];
         for(let i=0; i<10; i++) updates.push(`💸 <span class="text-yellow-300 font-bold">@${rand(users)}</span> withdrew <span class="text-white font-bold">${formatMoney(rand(withdrawalAmounts))}</span>`);
-        
+
         const topupAmounts = [1000, 2000, 5000, 10000, 50000];
         for(let i=0; i<5; i++) updates.push(`🚀 <span class="text-blue-300 font-bold">@${rand(users)}</span> topped up <span class="text-white font-bold">${formatMoney(rand(topupAmounts))}</span>`);
 
@@ -291,14 +298,14 @@ if (!$response->is_error()) {
         setInterval(() => {
             tickerEl.style.opacity = '0';
             tickerEl.style.transform = 'translateY(10px)';
-            
+
             setTimeout(() => {
                 index = (index + 1) % updates.length;
                 tickerEl.innerHTML = updates[index];
                 tickerEl.style.opacity = '1';
                 tickerEl.style.transform = 'translateY(0)';
             }, 300);
-        }, 3500); 
+        }, 3500);
     }
 
     // --- 2. FETCH & RENDER TRENDING (UPDATED FOR LOCAL PROXY) ---
@@ -307,12 +314,12 @@ if (!$response->is_error()) {
             // 🚀 NEW: Pointing to local Proxy instead of full URL
             const formData = new FormData();
             formData.append('action', 'get_raffles');
-            
+
             const response = await fetch(window.location.href.split('?')[0], {
                 method: 'POST',
                 body: formData
             });
-            
+
             if (!response.ok) throw new Error('Failed to load');
             const raffles = await response.json();
             renderTrending(raffles);
@@ -326,7 +333,7 @@ if (!$response->is_error()) {
     function renderTrending(raffles) {
         const container = document.getElementById('trending-container');
         if (!container) return;
-        container.innerHTML = ''; 
+        container.innerHTML = '';
 
         const activeRaffles = raffles.filter(r => {
             const meta = r.raffle_meta || {};
@@ -346,17 +353,17 @@ if (!$response->is_error()) {
             const sold = meta.sold || 0;
             const max = meta.max || 1000;
             const progress = meta.progress || 0;
-            
+
             let icon, bgClass, btnClass, badgeText, badgeClass;
 
             // --- VISUAL HIERARCHY LOGIC ---
             if (rawPrice <= 200) {
                 // DAILY DROP (High Voltage)
                 icon = 'zap';
-                bgClass = 'bg-yellow-400 text-black'; 
-                btnClass = 'bg-yellow-400 text-black hover:bg-yellow-500 shadow-yellow-500/20'; 
+                bgClass = 'bg-yellow-400 text-black';
+                btnClass = 'bg-yellow-400 text-black hover:bg-yellow-500 shadow-yellow-500/20';
                 badgeText = 'DAILY DROP';
-                badgeClass = 'bg-black text-yellow-400 border border-yellow-500/30 shadow-lg'; 
+                badgeClass = 'bg-black text-yellow-400 border border-yellow-500/30 shadow-lg';
             } else {
                 // WEEKLY DRAW (Professional)
                 const titleLower = raffle.title.rendered.toLowerCase();
@@ -368,10 +375,10 @@ if (!$response->is_error()) {
                     icon = 'banknote';
                 }
 
-                bgClass = 'bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-300'; 
-                btnClass = 'bg-gray-900 dark:bg-white text-white dark:text-black hover:opacity-90'; 
+                bgClass = 'bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-300';
+                btnClass = 'bg-gray-900 dark:bg-white text-white dark:text-black hover:opacity-90';
                 badgeText = 'WEEKLY DRAW';
-                badgeClass = 'bg-blue-50 dark:bg-blue-900/30 text-blue-600 dark:text-blue-300 border border-blue-100 dark:border-blue-800'; 
+                badgeClass = 'bg-blue-50 dark:bg-blue-900/30 text-blue-600 dark:text-blue-300 border border-blue-100 dark:border-blue-800';
             }
 
             const card = document.createElement('div');
@@ -382,38 +389,38 @@ if (!$response->is_error()) {
             card.innerHTML = `
                 <!-- Badge -->
                 <div class="absolute top-0 right-0 ${badgeClass} text-[9px] px-3 py-1 rounded-bl-xl font-bold z-10 uppercase tracking-widest shadow-sm">${badgeText}</div>
-                
+
                 <div class="flex items-start justify-between mb-4">
                     <!-- Icon -->
                     <div class="w-12 h-12 rounded-2xl ${bgClass} flex items-center justify-center shadow-sm">
                         <i data-lucide="${icon}" class="w-6 h-6"></i>
                     </div>
                     <!-- Prize Info -->
-                    <div class="text-right mt-1"> 
+                    <div class="text-right mt-1">
                         <p class="text-[10px] text-gray-400 font-bold uppercase tracking-wider">Grand Prize</p>
                         <p class="text-sm font-black text-gray-900 dark:text-white truncate max-w-[120px]">${meta.grand_prize || 'Cash Prize'}</p>
                     </div>
                 </div>
-                
+
                 <h3 class="font-bold text-gray-800 dark:text-gray-200 mb-2 text-base leading-tight truncate">${raffle.title.rendered}</h3>
-                
+
                 <!-- Progress Bar -->
                 <div class="w-full bg-gray-100 dark:bg-gray-700 rounded-full h-2 mb-2">
                     <div class="${rawPrice <= 200 ? 'bg-yellow-400' : 'bg-app-primary'} h-2 rounded-full transition-all duration-1000" style="width: ${progress}%"></div>
                 </div>
-                
+
                 <div class="flex justify-between items-center mb-4 text-[11px] font-medium text-gray-500 dark:text-gray-400">
                     <span>${sold} sold</span>
                     <span>${max - sold} remaining</span>
                 </div>
-                
+
                 <button class="w-full ${btnClass} py-3 rounded-xl text-xs font-bold flex items-center justify-center gap-2 shadow-sm active:scale-95 transition-transform">
                     Play @ ${price} <i data-lucide="chevron-right" class="w-4 h-4"></i>
                 </button>
             `;
             container.appendChild(card);
         });
-        
+
         lucide.createIcons();
     }
 
@@ -428,11 +435,11 @@ if (!$response->is_error()) {
             const scrollPosition = carousel.scrollLeft;
             const width = carousel.offsetWidth;
             const index = Math.round(scrollPosition / width);
-            
+
             for (let i = 0; i < dots.length; i++) {
                 if (i === index) {
                     dots[i].classList.remove('bg-gray-300', 'dark:bg-gray-700');
-                    dots[i].classList.add('bg-app-primary', 'w-6'); 
+                    dots[i].classList.add('bg-app-primary', 'w-6');
                 } else {
                     dots[i].classList.remove('bg-app-primary', 'w-6');
                     dots[i].classList.add('bg-gray-300', 'dark:bg-gray-700', 'w-1.5');
@@ -445,16 +452,16 @@ if (!$response->is_error()) {
             const width = carousel.offsetWidth;
             const maxScroll = carousel.scrollWidth - width;
             let nextScroll = carousel.scrollLeft + width;
-            
+
             if (nextScroll > maxScroll) {
-                nextScroll = 0; 
+                nextScroll = 0;
             }
-            
+
             carousel.scrollTo({ left: nextScroll, behavior: 'smooth' });
         }
 
         if(carousel) {
-            scrollInterval = setInterval(autoScroll, 5000); 
+            scrollInterval = setInterval(autoScroll, 5000);
             carousel.addEventListener('touchstart', () => clearInterval(scrollInterval));
             carousel.addEventListener('scroll', updateDots);
         }
