@@ -21,9 +21,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'OPTIONS') {
 
 $raw_body = file_get_contents('php://input');
 $body_data = json_decode($raw_body, true);
-if (!is_array($body_data)) {
-    $body_data = $_POST ?: [];
-}
+$body_data = is_array($body_data) ? $body_data : [];
+
+// Merge $_POST and $_REQUEST to ensure multipart FormData fields are preserved
+$body_data = array_merge($_REQUEST, $_POST, $body_data);
 
 $action = sanitize_key($body_data['action'] ?? $_GET['action'] ?? '');
 
@@ -104,6 +105,19 @@ function rk_ajax_request($method = 'POST', $route = '/rk/local') {
     $request->set_query_params(array_merge($_GET, $params));
     $request->set_body_params($params);
     $request->set_file_params($_FILES);
+
+    // Explicitly set all merged parameters
+    foreach ($params as $key => $value) {
+        $request->set_param($key, $value);
+    }
+
+    // Specifically forward turnstile tokens to ensure auth handler receives them
+    $turnstile_token = $params['cf-turnstile-response'] ?? $params['turnstile_token'] ?? '';
+    if ($turnstile_token) {
+        $request->set_param('cf-turnstile-response', $turnstile_token);
+        $request->set_param('turnstile_token', $turnstile_token);
+    }
+
     $request->set_header('Content-Type', 'application/json');
     $request->set_body($raw_body ?: wp_json_encode($params));
 
