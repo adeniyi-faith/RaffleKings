@@ -12,9 +12,9 @@ if ( ! defined( 'ABSPATH' ) ) {
     exit;
 }
 
-// TURNSTILE KEYS
+// TURNSTILE SITE KEY ONLY. Secret keys must be provided by wp-config.php,
+// the RK_TURNSTILE_SECRET_KEY environment variable, or the rk_turnstile_secret_key option.
 if (!defined('RK_TURNSTILE_SITE_KEY')) define('RK_TURNSTILE_SITE_KEY', '0x4AAAAAACMsPBMFl2oCJQvS');
-if (!defined('RK_TURNSTILE_SECRET_KEY')) define('RK_TURNSTILE_SECRET_KEY', '0x4AAAAAACMsPLXmVbqXABx2BqmPpuZwtQA');
 
 // *** CRITICAL FIX FOR HEADERLESS SITES: CORS HANDLER ***
 add_action('init', function() {
@@ -29,7 +29,7 @@ add_action('init', function() {
     }
 
     if ($_SERVER['REQUEST_METHOD'] == 'OPTIONS') {
-        if (isset($_SERVER['HTTP_ACCESS_CONTROL_REQUEST_METHOD'])) header("Access-Control-Allow-Methods: GET, POST, OPTIONS, PUT, DELETE");          
+        if (isset($_SERVER['HTTP_ACCESS_CONTROL_REQUEST_METHOD'])) header("Access-Control-Allow-Methods: GET, POST, OPTIONS, PUT, DELETE");
         if (isset($_SERVER['HTTP_ACCESS_CONTROL_REQUEST_HEADERS'])) header("Access-Control-Allow-Headers: {$_SERVER['HTTP_ACCESS_CONTROL_REQUEST_HEADERS']}");
         status_header(200); exit();
     }
@@ -44,7 +44,7 @@ require_once __DIR__ . '/api-gamification.php';
 // 3. API INIT (Router)
 add_action('rest_api_init', function () {
     $ns = 'raffle/v1'; // Namespace shortcut
-    
+
     // --- PUBLIC ROUTES (No Auth Required) ---
 
     // Hall of Fame
@@ -53,25 +53,25 @@ add_action('rest_api_init', function () {
         'callback' => 'rk_get_hall_of_fame',
         'permission_callback' => '__return_true'
     ]);
-    
+
     // Site Settings (Bank Info & Keys)
     register_rest_route('raffle/v1', '/settings', [
-        'methods' => 'GET', 
-        'callback' => function(){ 
+        'methods' => 'GET',
+        'callback' => function(){
             return [
-                'bank_name' => get_option('rk_bank_name'), 
-                'account_number' => get_option('rk_account_number'), 
+                'bank_name' => get_option('rk_bank_name'),
+                'account_number' => get_option('rk_account_number'),
                 'account_name' => get_option('rk_account_name'),
                 'turnstile_site_key' => defined('RK_TURNSTILE_SITE_KEY') ? RK_TURNSTILE_SITE_KEY : ''
-            ]; 
-        }, 
+            ];
+        },
         'permission_callback' => '__return_true'
     ]);
 
     // Registration (Public)
     register_rest_route('lottery/v1', '/register', [
-        'methods' => 'POST', 
-        'callback' => 'rk_handle_new_registration', 
+        'methods' => 'POST',
+        'callback' => 'rk_handle_new_registration',
         'permission_callback' => '__return_true'
     ]);
 
@@ -85,6 +85,18 @@ add_action('rest_api_init', function () {
     register_rest_route('raffle/v1', '/auth/reset-password', [
         'methods' => 'POST',
         'callback' => 'rk_handle_reset_password',
+        'permission_callback' => '__return_true'
+    ]);
+
+    register_rest_route('raffle/v1', '/auth/verify-reset-code', [
+        'methods' => 'POST',
+        'callback' => 'rk_handle_verify_reset_code',
+        'permission_callback' => '__return_true'
+    ]);
+
+    register_rest_route('raffle/v1', '/auth/resend-reset-code', [
+        'methods' => 'POST',
+        'callback' => 'rk_handle_forgot_password',
         'permission_callback' => '__return_true'
     ]);
 
@@ -111,22 +123,22 @@ add_action('rest_api_init', function () {
 
     // Draw Results (Public)
     register_rest_route('raffle/v1', '/draw/results', [
-        'methods' => 'GET', 
-        'callback' => 'rk_get_draw_results', 
+        'methods' => 'GET',
+        'callback' => 'rk_get_draw_results',
         'permission_callback' => '__return_true'
     ]);
 
     // Live Comments (Read Publicly)
     register_rest_route('raffle/v1', '/live/comments', [
-        'methods' => 'GET', 
-        'callback' => 'rk_get_live_comments', 
+        'methods' => 'GET',
+        'callback' => 'rk_get_live_comments',
         'permission_callback' => '__return_true'
     ]);
 
     // System Logs (Open for client-side error reporting)
     register_rest_route('raffle/v1', '/system/log', [
-        'methods' => ['POST', 'OPTIONS'], 
-        'callback' => 'rk_handle_system_log', 
+        'methods' => ['POST', 'OPTIONS'],
+        'callback' => 'rk_handle_system_log',
         'permission_callback' => function(){ return true; }
     ]);
 
@@ -139,99 +151,99 @@ add_action('rest_api_init', function () {
         'callback' => 'rk_get_balance',
         'permission_callback' => function() { return is_user_logged_in(); }
     ]);
-    
+
     // Profile Management
     register_rest_route('raffle/v1', '/profile', [
-        'methods' => ['GET','POST'], 
-        'callback' => 'rk_handle_profile_request', 
+        'methods' => ['GET','POST'],
+        'callback' => 'rk_handle_profile_request',
         'permission_callback' => function() { return is_user_logged_in(); }
     ]);
 
     // Bank Accounts
     register_rest_route('raffle/v1', '/bank-accounts', [
-        'methods' => 'GET', 
-        'callback' => 'rk_get_bank_accounts', 
+        'methods' => 'GET',
+        'callback' => 'rk_get_bank_accounts',
         'permission_callback' => function() { return is_user_logged_in(); }
     ]);
     register_rest_route('raffle/v1', '/bank-accounts', [
-        'methods' => 'POST', 
-        'callback' => 'rk_save_bank_account', 
+        'methods' => 'POST',
+        'callback' => 'rk_save_bank_account',
         'permission_callback' => function() { return is_user_logged_in(); }
     ]);
     register_rest_route('raffle/v1', '/bank-accounts', [
-        'methods' => 'DELETE', 
-        'callback' => 'rk_delete_bank_account', 
+        'methods' => 'DELETE',
+        'callback' => 'rk_delete_bank_account',
         'permission_callback' => function() { return is_user_logged_in(); }
     ]);
 
     // Push Device Registration
     register_rest_route('raffle/v1', '/save-device', [
-        'methods' => 'POST', 
-        'callback' => 'rk_save_push_device', 
+        'methods' => 'POST',
+        'callback' => 'rk_save_push_device',
         'permission_callback' => function() { return is_user_logged_in(); }
     ]);
 
     // Financials: Payment, Transfer, Withdraw
     register_rest_route('raffle/v1', '/payment', [
-        'methods' => 'POST', 
-        'callback' => 'rk_handle_payment_ai', 
+        'methods' => 'POST',
+        'callback' => 'rk_handle_payment_ai',
         'permission_callback' => function() { return is_user_logged_in(); }
     ]);
     register_rest_route('raffle/v1', '/transfer', [
-        'methods' => 'POST', 
-        'callback' => 'rk_handle_transfer', 
+        'methods' => 'POST',
+        'callback' => 'rk_handle_transfer',
         'permission_callback' => function() { return is_user_logged_in(); }
     ]);
     register_rest_route('raffle/v1', '/withdraw', [
-        'methods' => 'POST', 
-        'callback' => 'rk_handle_withdrawal', 
+        'methods' => 'POST',
+        'callback' => 'rk_handle_withdrawal',
         'permission_callback' => function() { return is_user_logged_in(); }
     ]);
     register_rest_route('raffle/v1', '/transactions', [
-        'methods' => 'GET', 
-        'callback' => 'rk_get_user_transactions', 
+        'methods' => 'GET',
+        'callback' => 'rk_get_user_transactions',
         'permission_callback' => function() { return is_user_logged_in(); }
     ]);
 
     // Cart & Tickets
     register_rest_route('raffle/v1', '/cart/sync', [
-        'methods' => 'POST', 
-        'callback' => 'rk_handle_cart_sync', 
+        'methods' => 'POST',
+        'callback' => 'rk_handle_cart_sync',
         'permission_callback' => function() { return is_user_logged_in(); }
     ]);
-    
+
     // *** NEW: APPLY DISCOUNT ENDPOINT ***
     register_rest_route('raffle/v1', '/cart/apply-discount', [
-        'methods' => 'POST', 
-        'callback' => 'rk_apply_recovery_discount', 
+        'methods' => 'POST',
+        'callback' => 'rk_apply_recovery_discount',
         'permission_callback' => function() { return is_user_logged_in(); }
     ]);
 
     register_rest_route('raffle/v1', '/tickets', [
-        'methods' => 'GET', 
-        'callback' => 'rk_get_user_tickets', 
+        'methods' => 'GET',
+        'callback' => 'rk_get_user_tickets',
         'permission_callback' => function() { return is_user_logged_in(); }
     ]);
 
     // Rewards & Gamification
     register_rest_route('raffle/v1', '/claim-daily', [
-        'methods' => 'POST', 
-        'callback' => 'rk_handle_daily_claim', 
+        'methods' => 'POST',
+        'callback' => 'rk_handle_daily_claim',
         'permission_callback' => function() { return is_user_logged_in(); }
     ]);
     register_rest_route('raffle/v1', '/rewards-state', [
-        'methods' => 'GET', 
-        'callback' => 'rk_get_rewards_state', 
+        'methods' => 'GET',
+        'callback' => 'rk_get_rewards_state',
         'permission_callback' => function() { return is_user_logged_in(); }
     ]);
     register_rest_route('raffle/v1', '/claim-task', [
-        'methods' => 'POST', 
-        'callback' => 'rk_handle_task_claim', 
+        'methods' => 'POST',
+        'callback' => 'rk_handle_task_claim',
         'permission_callback' => function() { return is_user_logged_in(); }
     ]);
     register_rest_route('raffle/v1', '/referral-stats', [
-        'methods' => 'GET', 
-        'callback' => 'rk_get_referral_stats', 
+        'methods' => 'GET',
+        'callback' => 'rk_get_referral_stats',
         'permission_callback' => function() { return is_user_logged_in(); }
     ]);
     register_rest_route('raffle/v1', '/ack-welcome', [
@@ -242,33 +254,33 @@ add_action('rest_api_init', function () {
 
     // Live Chat (Posting)
     register_rest_route('raffle/v1', '/live/comment', [
-        'methods' => 'POST', 
-        'callback' => 'rk_post_live_comment', 
+        'methods' => 'POST',
+        'callback' => 'rk_post_live_comment',
         'permission_callback' => function() { return is_user_logged_in(); }
     ]);
 
     // Spin & Win
     register_rest_route('raffle/v1', '/spin-wheel', [
-        'methods' => 'POST', 
-        'callback' => 'rk_execute_spin_logic', 
+        'methods' => 'POST',
+        'callback' => 'rk_execute_spin_logic',
         'permission_callback' => function() { return is_user_logged_in(); }
     ]);
     register_rest_route('raffle/v1', '/redeem-points', [
-        'methods' => 'POST', 
-        'callback' => 'rk_handle_redeem_points', 
+        'methods' => 'POST',
+        'callback' => 'rk_handle_redeem_points',
         'permission_callback' => function() { return is_user_logged_in(); }
     ]);
 
     // --- ADMIN ROUTES (Manage Options Required) ---
-    
+
     register_rest_route('raffle/v1', '/draw/run', [
-        'methods' => 'POST', 
-        'callback' => 'rk_run_raffle_draw', 
+        'methods' => 'POST',
+        'callback' => 'rk_run_raffle_draw',
         'permission_callback' => function() { return current_user_can('manage_options'); }
     ]);
     register_rest_route('raffle/v1', '/admin/credit-winner', [
-        'methods' => 'POST', 
-        'callback' => 'rk_credit_raffle_winner', 
+        'methods' => 'POST',
+        'callback' => 'rk_credit_raffle_winner',
         'permission_callback' => function() { return current_user_can('manage_options'); }
     ]);
     register_rest_route('raffle/v1', '/admin/toggle-winner', [
@@ -277,14 +289,14 @@ add_action('rest_api_init', function () {
         'permission_callback' => function() { return current_user_can('manage_options'); }
     ]);
     register_rest_route('raffle/v1', '/admin/revoke-transaction', [
-        'methods' => 'POST', 
-        'callback' => 'rk_revoke_transaction', 
+        'methods' => 'POST',
+        'callback' => 'rk_revoke_transaction',
         'permission_callback' => function() { return current_user_can('manage_options'); }
     ]);
 
     // ADMIN DIGEST TRIGGER (Manual)
     register_rest_route('raffle/v1', '/admin/trigger-digest', [
-        'methods' => 'GET', 
+        'methods' => 'GET',
         'callback' => function() {
             if (function_exists('rk_send_admin_template_digest')) {
                 rk_send_admin_template_digest();
@@ -292,10 +304,10 @@ add_action('rest_api_init', function () {
             }
             return new WP_REST_Response(['success' => false, 'message' => 'Function missing'], 500);
         },
-        'permission_callback' => function($request) { 
+        'permission_callback' => function($request) {
             $secret = $request->get_param('secret');
             if ($secret === 'rk_admin_digest') return true;
-            return current_user_can('manage_options'); 
+            return current_user_can('manage_options');
         }
     ]);
 
@@ -305,14 +317,14 @@ add_action('rest_api_init', function () {
         'methods' => ['GET', 'POST'],
         'callback' => function($request) {
             $email = $request->get_param('email');
-            
+
             if (!is_email($email)) {
                 return new WP_REST_Response(['success' => false, 'message' => 'Invalid email address provided.'], 400);
             }
-            
+
             // Check sending method
             $method = defined('FLUENTMAIL_SENDINBLUE_API_KEY') ? 'Brevo API (Direct)' : 'WP Mail (Standard)';
-            
+
             $subject = "🧪 Test from RaffleKings: " . date('H:i:s');
             $body = "
                 <h2>It Works! 🚀</h2>
@@ -321,7 +333,7 @@ add_action('rest_api_init', function () {
                 <p><strong>Time:</strong> " . date('Y-m-d H:i:s') . "</p>
             ";
             $msg = rk_get_email_html("System Test", $body);
-            
+
             // Force send
             if (function_exists('rk_send_email')) {
                 $sent = rk_send_email($email, $subject, $msg);
@@ -329,7 +341,7 @@ add_action('rest_api_init', function () {
                 $headers = array('Content-Type: text/html; charset=UTF-8');
                 $sent = wp_mail($email, $subject, $msg, $headers);
             }
-            
+
             return [
                 'success' => $sent,
                 'message' => $sent ? "Email sent to $email via $method" : "Failed to send email. Check error logs.",
@@ -349,10 +361,10 @@ add_action('rest_api_init', function () {
                            "⏰ Time: " . date('Y-m-d H:i:s') . "\n" .
                            "🌍 Server: " . $_SERVER['SERVER_NAME'] . "\n" .
                            "👤 Tested by: " . wp_get_current_user()->user_login;
-            
+
             // NOTE: rk_send_telegram_alert is defined in api-system.php
             $result = rk_send_telegram_alert($test_message);
-            
+
             return [
                 'success' => $result,
                 'message' => $result ? 'Message sent! Check your Telegram.' : 'Failed. Check error logs at /wp-content/debug.log',
@@ -361,7 +373,7 @@ add_action('rest_api_init', function () {
                 'chat_ids_set' => defined('RK_TELEGRAM_ADMIN_IDS') && !empty(RK_TELEGRAM_ADMIN_IDS)
             ];
         },
-        'permission_callback' => function() { 
+        'permission_callback' => function() {
             return current_user_can('manage_options');
         }
     ]);
@@ -372,9 +384,9 @@ add_action('rest_api_init', function () {
     register_rest_route($ns, '/debug/test-push', [
         'methods' => 'POST',
         'callback' => 'rk_manual_push_test',
-        'permission_callback' => function() { 
+        'permission_callback' => function() {
             // MODIFIED: Allow ANY logged-in user to test their own notifications
-            return is_user_logged_in(); 
+            return is_user_logged_in();
         }
     ]);
 
@@ -408,7 +420,7 @@ if (!function_exists('rk_apply_recovery_discount')) {
             return new WP_REST_Response(['success' => false, 'message' => 'Invalid or expired coupon code.'], 404);
         }
 
-        // Save the discount to user meta. 
+        // Save the discount to user meta.
         // NOTE: Your 'rk_handle_cart_sync' function should check this meta key to apply the math.
         update_user_meta($user_id, 'rk_active_cart_discount', [
             'code' => $code,
@@ -417,7 +429,7 @@ if (!function_exists('rk_apply_recovery_discount')) {
         ]);
 
         return new WP_REST_Response([
-            'success' => true, 
+            'success' => true,
             'message' => 'Discount applied: ' . $valid_codes[$code]['desc'],
             'discount' => $valid_codes[$code]
         ], 200);
@@ -436,7 +448,7 @@ function rk_manual_push_test($request) {
     $player_id = get_user_meta($user_id, 'rk_onesignal_id', true);
     if (!$player_id) {
         return new WP_REST_Response([
-            'success' => false, 
+            'success' => false,
             'message' => 'Your account is not subscribed to notifications yet. Go to Rewards page first.'
         ], 400);
     }
@@ -455,11 +467,11 @@ function rk_manual_push_test($request) {
         // Test the Dynamic Engine
         $user_data = get_userdata($user_id);
         $name = $user_data->display_name;
-        
+
         // This function is in cron-system.php, verify it's loaded
         if (function_exists('rk_get_random_clickbait_template')) {
             $template = rk_get_random_clickbait_template($user_data); // UPDATED: Pass User Object
-            
+
             if ($template) {
                 // Map 'subject' to 'title' and strip HTML from body
                 $title = "[TEST] " . $template['subject'];
@@ -480,7 +492,7 @@ function rk_manual_push_test($request) {
     if (function_exists('rk_send_push_notification_direct')) {
         rk_send_push_notification_direct($player_id, $title, $body);
         return new WP_REST_Response([
-            'success' => true, 
+            'success' => true,
             'message' => 'Notification Sent!',
             'content' => ['title' => $title, 'body' => $body]
         ], 200);

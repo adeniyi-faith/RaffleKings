@@ -190,10 +190,22 @@ function rk_ajax_login() {
         return new WP_Error('login_failed', wp_strip_all_tags($user->get_error_message()), ['status' => 401]);
     }
 
+    if (function_exists('rk_check_user_status')) {
+        $status = rk_check_user_status($user->ID, 'general');
+        if (is_wp_error($status)) {
+            wp_logout();
+            return $status;
+        }
+    }
+
+    $next = function_exists('rk_auth_safe_return_url') ? rk_auth_safe_return_url('index.php') : 'index.php';
+
     return [
         'success' => true,
         'message' => 'Login successful',
         'token' => wp_create_nonce('rk_ajax_session'),
+        'redirect' => $next,
+        'auth' => function_exists('rk_auth_cookie_params') ? rk_auth_cookie_params() : ['logged_in' => true, 'user_id' => $user->ID],
         'user' => [
             'id' => $user->ID,
             'name' => $user->display_name,
@@ -208,6 +220,8 @@ $routes = [
     'logout' => ['public' => true, 'method' => 'POST', 'callback' => function() { wp_logout(); return ['success' => true, 'message' => 'Logged out successfully']; }],
     'forgot_password' => ['public' => true, 'method' => 'POST', 'callback' => fn() => rk_handle_forgot_password(rk_ajax_request('POST', '/raffle/v1/auth/forgot-password'))],
     'reset_password' => ['public' => true, 'method' => 'POST', 'callback' => fn() => rk_handle_reset_password(rk_ajax_request('POST', '/raffle/v1/auth/reset-password'))],
+    'verify_reset_code' => ['public' => true, 'method' => 'POST', 'callback' => fn() => rk_handle_verify_reset_code(rk_ajax_request('POST', '/raffle/v1/auth/reset-password'))],
+    'resend_reset_code' => ['public' => true, 'method' => 'POST', 'callback' => fn() => rk_handle_forgot_password(rk_ajax_request('POST', '/raffle/v1/auth/forgot-password'))],
     'get_settings' => ['public' => true, 'method' => 'GET', 'callback' => 'rk_ajax_site_settings'],
     'get_raffles' => ['public' => true, 'method' => 'GET', 'callback' => 'rk_ajax_get_raffles'],
     'get_raffle' => ['public' => true, 'method' => 'GET', 'callback' => 'rk_ajax_get_raffle'],

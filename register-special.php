@@ -354,13 +354,14 @@
 
                 if (loginRes.status === 429) throw new Error("Login limit reached.");
                 const loginData = await loginRes.json();
-                if (!loginRes.ok || !loginData.token) throw new Error("Auto-login failed. Please login manually.");
+                if (!loginRes.ok || !loginData.success) throw new Error("Auto-login failed. Please login manually.");
 
-                // C. Clean & Save
-                ['user_display_name', 'user_avatar_url', 'walletBalance', 'earningsBalance'].forEach(k => localStorage.removeItem(k));
-                localStorage.setItem('token', loginData.token);
-                localStorage.setItem('user_email', loginData.user_email);
-                localStorage.setItem('user_nicename', loginData.user_nicename);
+                // C. Clean & Save privileged session state; WordPress auth cookies are authoritative.
+                ['token', 'user_display_name', 'user_avatar_url', 'walletBalance', 'earningsBalance'].forEach(k => localStorage.removeItem(k));
+                if (loginData.user) {
+                    localStorage.setItem('user_email', loginData.user.email || '');
+                    localStorage.setItem('user_display_name', loginData.user.name || '');
+                }
 
                 // D. Save Pending Checkout
                 const checkoutData = {
