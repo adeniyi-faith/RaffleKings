@@ -217,7 +217,13 @@ function rk_handle_new_registration($request) {
     $email = sanitize_email($params['email'] ?? '');
     $password = (string) ($params['password'] ?? '');
     $state = isset($params['state']) ? sanitize_text_field($params['state']) : '';
-    $turnstile_token = sanitize_text_field($params['cf-turnstile-response'] ?? $params['turnstile_token'] ?? '');
+    $turnstile_token = '';
+    foreach (['cf-turnstile-response', 'turnstile_token'] as $turnstile_field) {
+        if (!empty($params[$turnstile_field])) {
+            $turnstile_token = sanitize_text_field($params[$turnstile_field]);
+            break;
+        }
+    }
 
     $turnstile = rk_verify_turnstile_token($turnstile_token, $_SERVER['REMOTE_ADDR'] ?? '');
     if (is_wp_error($turnstile)) return $turnstile;
