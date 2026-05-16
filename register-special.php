@@ -15,6 +15,33 @@
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 
     <!-- Cloudflare Turnstile -->
+    <script>
+        window.rkTurnstileToken = '';
+        window.rkTurnstileCallback = function(token) {
+            window.rkTurnstileToken = token || '';
+            document.querySelectorAll('[data-rk-turnstile-token]').forEach((input) => {
+                input.value = window.rkTurnstileToken;
+            });
+        };
+        window.rkTurnstileExpired = function() {
+            window.rkTurnstileToken = '';
+            document.querySelectorAll('[data-rk-turnstile-token]').forEach((input) => {
+                input.value = '';
+            });
+        };
+        window.rkSyncTurnstileToken = function(form) {
+            const hiddenInput = form ? form.querySelector('[data-rk-turnstile-token]') : null;
+            const cloudflareInput = form ? form.querySelector('input[name="cf-turnstile-response"]') : null;
+            let token = (hiddenInput && hiddenInput.value) || window.rkTurnstileToken || (cloudflareInput && cloudflareInput.value) || '';
+
+            if (!token && window.turnstile && typeof window.turnstile.getResponse === 'function') {
+                try { token = window.turnstile.getResponse() || ''; } catch (e) { token = ''; }
+            }
+
+            if (hiddenInput) hiddenInput.value = token;
+            return token;
+        };
+    </script>
     <script src="https://challenges.cloudflare.com/turnstile/v0/api.js" async defer></script>
 
     <!-- DARK MODE INIT -->
@@ -151,6 +178,7 @@
 
             <form id="quick-reg-form" onsubmit="handleQuickReg(event)" class="space-y-4">
                 <input type="hidden" name="referrer" id="input-referrer">
+                <input type="hidden" name="turnstile_token" id="input-turnstile-token" data-rk-turnstile-token value="">
 
                 <div>
                     <label class="block text-[10px] font-bold text-gray-400 dark:text-gray-500 uppercase tracking-wider mb-1">Username</label>
@@ -174,7 +202,7 @@
 
                 <!-- Cloudflare Turnstile -->
                 <div class="flex justify-center py-1">
-                    <div class="cf-turnstile" data-sitekey="0x4AAAAAACMsPBMFl2oCJQvS" data-theme="auto"></div>
+                    <div class="cf-turnstile" data-sitekey="0x4AAAAAACMsPBMFl2oCJQvS" data-theme="auto" data-callback="rkTurnstileCallback" data-expired-callback="rkTurnstileExpired" data-error-callback="rkTurnstileExpired"></div>
                 </div>
 
                 <div class="pt-2">
@@ -332,7 +360,16 @@
             lucide.createIcons();
 
             const form = document.getElementById('quick-reg-form');
+            const turnstileToken = window.rkSyncTurnstileToken ? window.rkSyncTurnstileToken(form) : '';
+            if (!turnstileToken) {
+                alert('Please wait for the security challenge to finish, then try again.');
+                btn.disabled = false;
+                btn.innerHTML = originalContent;
+                lucide.createIcons();
+                return;
+            }
             const formData = new FormData(form);
+            formData.set('turnstile_token', turnstileToken);
 
             try {
                 // A. Register User
