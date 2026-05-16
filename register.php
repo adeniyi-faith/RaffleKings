@@ -21,33 +21,6 @@
     <link rel="shortcut icon" href="https://getonlinestudio.com/insights/wp-content/uploads/2026/01/App_Icon.png">
 
     <!-- Cloudflare Turnstile -->
-    <script>
-        window.rkTurnstileToken = '';
-        window.rkTurnstileCallback = function(token) {
-            window.rkTurnstileToken = token || '';
-            document.querySelectorAll('[data-rk-turnstile-token]').forEach((input) => {
-                input.value = window.rkTurnstileToken;
-            });
-        };
-        window.rkTurnstileExpired = function() {
-            window.rkTurnstileToken = '';
-            document.querySelectorAll('[data-rk-turnstile-token]').forEach((input) => {
-                input.value = '';
-            });
-        };
-        window.rkSyncTurnstileToken = function(form) {
-            const hiddenInput = form ? form.querySelector('[data-rk-turnstile-token]') : null;
-            const cloudflareInput = form ? form.querySelector('input[name="cf-turnstile-response"]') : null;
-            let token = (hiddenInput && hiddenInput.value) || window.rkTurnstileToken || (cloudflareInput && cloudflareInput.value) || '';
-
-            if (!token && window.turnstile && typeof window.turnstile.getResponse === 'function') {
-                try { token = window.turnstile.getResponse() || ''; } catch (e) { token = ''; }
-            }
-
-            if (hiddenInput) hiddenInput.value = token;
-            return token;
-        };
-    </script>
     <script src="https://challenges.cloudflare.com/turnstile/v0/api.js" async defer></script>
 
     <!-- Tailwind CSS -->
@@ -112,7 +85,6 @@
 
             <!-- Hidden Referrer -->
             <input type="hidden" name="referrer" id="input-referrer" value="">
-            <input type="hidden" name="turnstile_token" id="input-turnstile-token" data-rk-turnstile-token value="">
 
             <div class="slider-container h-full" id="slider">
 
@@ -229,7 +201,7 @@
 
                     <!-- Turnstile Widget -->
                     <div class="mb-4 flex justify-center">
-                        <div class="cf-turnstile" data-sitekey="0x4AAAAAACMsPBMFl2oCJQvS" data-callback="rkTurnstileCallback" data-expired-callback="rkTurnstileExpired" data-error-callback="rkTurnstileExpired"></div>
+                        <div class="cf-turnstile" data-sitekey="0x4AAAAAACMsPBMFl2oCJQvS"></div>
                     </div>
 
                     <!-- Buttons Lifted -->
@@ -320,16 +292,7 @@
             lucide.createIcons();
 
             const form = document.getElementById('reg-form');
-            const turnstileToken = window.rkSyncTurnstileToken ? window.rkSyncTurnstileToken(form) : '';
-            if (!turnstileToken) {
-                alert('Please wait for the security challenge to finish, then try again.');
-                finishBtn.disabled = false;
-                finishBtn.innerHTML = originalText;
-                lucide.createIcons();
-                return;
-            }
             const formData = new FormData(form);
-            formData.set('turnstile_token', turnstileToken);
 
             const storedReferrer = localStorage.getItem('rk_referrer_code');
             if (storedReferrer) {
