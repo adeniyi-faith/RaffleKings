@@ -1,4 +1,4 @@
-<?php 
+<?php
 // raffle-details.php - Individual Raffle Page
 // Includes SSR Data Fetching & Local Financial Proxies
 
@@ -14,7 +14,7 @@ require_once(__DIR__ . '/wp/wp-load.php');
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
     ob_clean();
     header('Content-Type: application/json');
-    
+
     if (!is_user_logged_in()) {
         echo json_encode(['success' => false, 'message' => 'Unauthorized. Please log in.']);
         exit;
@@ -51,10 +51,10 @@ if ($raffle_id > 0) {
     $request = new WP_REST_Request('GET', "/wp/v2/raffle/{$raffle_id}");
     $request->set_query_params(['_embed' => 1]);
     $response = rest_do_request($request);
-    
+
     if (!$response->is_error()) {
         $server = rest_get_server();
-        $raffle_data = $server->response_to_data($response, true); 
+        $raffle_data = $server->response_to_data($response, true);
     }
 }
 
@@ -69,7 +69,7 @@ if ($is_logged_in) {
     $earnings_bal = (float) get_user_meta($uid, 'earnings_balance', true);
 }
 
-include 'header.php'; 
+include 'header.php';
 ?>
 
 <!-- Scrollable Content Area -->
@@ -116,7 +116,7 @@ include 'header.php';
         <div id="detail-promo-timer" class="hidden px-5 pt-4 pb-0 animate-fade-in-down">
              <div class="bg-gradient-to-r from-red-700 to-red-600 rounded-2xl p-4 shadow-xl shadow-red-500/20 text-white relative overflow-hidden border border-red-500/50">
                 <div class="absolute inset-0 bg-white/10 skew-x-12 -translate-x-full animate-[shimmer_3s_infinite]"></div>
-                
+
                 <div class="flex items-center justify-between relative z-10">
                     <div class="flex-1 pr-2">
                         <div class="flex items-center gap-2 mb-1">
@@ -130,13 +130,13 @@ include 'header.php';
                             Don't settle for 1 ticket. Use your bonus on the <strong>Whale Tier (5+ Tix)</strong> for <span class="text-yellow-300 font-bold underline">massive discounts</span> & 5x better odds!
                         </p>
                     </div>
-                    
+
                     <div class="text-center bg-black/20 rounded-xl p-2 backdrop-blur-sm border border-white/10 min-w-[70px]">
                         <p class="text-[8px] uppercase text-red-200 font-bold mb-0.5">Offer Ends</p>
                         <span class="font-mono text-xl font-bold tracking-tight text-white" id="detail-timer-display">00:00</span>
                     </div>
                 </div>
-                
+
                 <div class="relative z-10 bg-red-900/40 -mx-4 -mb-4 mt-3 px-4 py-2 flex justify-between items-center text-[10px]">
                     <span class="text-red-200 font-medium">Buying 10 tickets?</span>
                     <span class="text-yellow-300 font-bold flex items-center gap-1">
@@ -150,7 +150,7 @@ include 'header.php';
         <section class="p-5 pb-2">
             <div id="hero-card" class="bg-gradient-to-br from-green-600 to-emerald-800 rounded-3xl p-6 text-white shadow-xl shadow-green-900/20 relative overflow-hidden text-center transition-all duration-500">
                 <div class="absolute top-0 right-0 w-40 h-40 bg-white/10 rounded-full blur-3xl -translate-y-1/2 translate-x-1/2"></div>
-                
+
                 <div class="flex justify-center items-center gap-2 mb-3">
                     <span id="status-badge" class="bg-yellow-400 text-green-900 text-[10px] font-bold px-3 py-1 rounded-full shadow-sm animate-pulse">
                         LIVE POOL ACTIVE
@@ -162,7 +162,7 @@ include 'header.php';
 
                 <p class="text-green-100 text-xs font-medium uppercase tracking-wide mb-1" id="prize-label">Grand Prize</p>
                 <h1 class="text-3xl font-extrabold tracking-tight mb-2 leading-tight" id="hero-price">...</h1>
-                
+
                 <div id="bonus-indicator" class="inline-flex items-center gap-1.5 bg-green-900/30 border border-green-400/30 px-3 py-1.5 rounded-lg mb-6 backdrop-blur-sm">
                     <i data-lucide="trending-up" class="w-3 h-3 text-green-300"></i>
                     <span class="text-xs text-green-100">More Tickets = <span class="font-bold text-white">More Wins</span></span>
@@ -182,7 +182,7 @@ include 'header.php';
         <section class="px-5 py-4">
             <div class="bg-white dark:bg-dark-card rounded-2xl border border-gray-100 dark:border-gray-800 p-5 shadow-sm space-y-5 transition-colors duration-200">
                 <h3 class="text-sm font-bold text-gray-900 dark:text-white border-b border-gray-100 dark:border-gray-700 pb-3" id="prizes-title">What You Can Win</h3>
-                
+
                 <div class="flex items-center gap-4">
                     <div class="w-10 h-10 rounded-full bg-yellow-100 dark:bg-yellow-900/30 flex items-center justify-center text-yellow-600 dark:text-yellow-500 border border-yellow-200 dark:border-yellow-700/50 shadow-sm flex-shrink-0">
                         <i data-lucide="trophy" class="w-5 h-5"></i>
@@ -210,7 +210,7 @@ include 'header.php';
                 Select Ticket Bundle
                 <span class="text-[10px] text-green-600 bg-green-100 dark:bg-green-900/30 dark:text-green-400 px-2 py-0.5 rounded-full">Discounts Active</span>
             </h3>
-            
+
             <div class="space-y-3">
                 <div onclick="selectTicketOption(1)" id="opt-1" class="border border-gray-200 dark:border-gray-800 bg-white dark:bg-dark-card p-4 rounded-xl cursor-pointer transition-all hover:border-blue-200 dark:hover:border-blue-700 group">
                     <div class="flex justify-between items-center">
@@ -313,8 +313,8 @@ include 'header.php';
                         <label class="text-[10px] text-indigo-300 uppercase font-bold tracking-wider mb-1.5 block">Enter Quantity (11 - 50)</label>
                         <div class="flex items-center gap-3">
                             <div class="relative flex-1">
-                                <input type="number" id="custom-qty-input" 
-                                    class="w-full bg-indigo-900/50 border border-indigo-700 text-white rounded-lg py-2.5 px-3 focus:outline-none focus:border-yellow-400 font-mono font-bold text-lg placeholder-indigo-500/50" 
+                                <input type="number" id="custom-qty-input"
+                                    class="w-full bg-indigo-900/50 border border-indigo-700 text-white rounded-lg py-2.5 px-3 focus:outline-none focus:border-yellow-400 font-mono font-bold text-lg placeholder-indigo-500/50"
                                     placeholder="50" min="11" max="50" oninput="handleBulkInput(this.value)" onclick="event.stopPropagation()">
                                 <span class="absolute right-3 top-1/2 -translate-y-1/2 text-xs text-indigo-400 font-bold">Tickets</span>
                             </div>
@@ -427,23 +427,23 @@ include 'header.php';
 </div>
 
 <script>
-    // 🚀 INJECT SSR DATA 
+    // 🚀 INJECT SSR DATA
     const ssrRaffleId = <?php echo json_encode($raffle_id); ?>;
     const ssrRaffleData = <?php echo json_encode($raffle_data); ?>;
     const isLoggedIn = <?php echo $is_logged_in ? 'true' : 'false'; ?>;
     let walletBal = <?php echo $wallet_bal; ?>;
     let earningsBal = <?php echo $earnings_bal; ?>;
-    
+
     let maxTickets = 1000;
-    let currentQty = 0; 
+    let currentQty = 0;
     let currentPrice = 0;
-    let unitPrice = 0; 
+    let unitPrice = 0;
     let isBulkMode = false;
     let raffleData = null;
     let countdownInterval;
 
     const DISCOUNT_TIERS = { 1: 1.0, 2: 0.75, 3: 0.65, 5: 0.60, 10: 0.55 };
-    const BULK_DISCOUNT = 0.50; 
+    const BULK_DISCOUNT = 0.50;
 
     const bulkInputContainer = document.getElementById('bulk-input-container');
     const bulkQtyInput = document.getElementById('custom-qty-input');
@@ -472,17 +472,17 @@ include 'header.php';
             raffleData = ssrRaffleData;
             renderRaffleDetails();
         } else {
-            fetchRaffleDetails(); 
+            fetchRaffleDetails();
         }
 
-        initDetailTimer(); 
+        initDetailTimer();
     });
 
     // 🚀 HTTP FALLBACK: Grabs exact data if SSR proxy failed
     async function fetchRaffleDetails() {
-        const baseUrl = (typeof WORDPRESS_URL !== 'undefined') ? WORDPRESS_URL : 'https://api.rafflekings.com.ng';
+        const baseUrl = (typeof WORDPRESS_URL !== 'undefined') ? WORDPRESS_URL : '';
         try {
-            const res = await fetch(`${baseUrl}/wp-json/wp/v2/raffle/${ssrRaffleId}?_embed`);
+            const res = await fetch(`ajax-router.php?action=get_raffle_by_id&id=${ssrRaffleId}&_embed=1`);
             if(!res.ok) throw new Error("Failed to load");
             raffleData = await res.json();
             renderRaffleDetails();
@@ -491,7 +491,7 @@ include 'header.php';
             alert("Error loading raffle details. Please try again.");
         }
     }
-    
+
     function initDetailTimer() {
         const isActive = localStorage.getItem('rk_promo_active');
         const expiry = localStorage.getItem('rk_promo_expiry');
@@ -519,7 +519,7 @@ include 'header.php';
 
     function renderRaffleDetails() {
         const meta = raffleData.raffle_meta || raffleData.meta || raffleData.acf || {};
-        
+
         // 🚀 BULLETPROOF EXTRACTOR
         const getMetaVal = (key, fallback) => {
             let val = meta[key];
@@ -536,7 +536,7 @@ include 'header.php';
         const isSoldOut = (rawSoldOut == '1' || rawSoldOut == true || rawSoldOut === 'true');
 
         document.getElementById('raffle-title').innerText = raffleData.title?.rendered || 'Raffle Details';
-        
+
         // 🚀 DYNAMIC GRAND PRIZE: Uses dynamic fallback if exact custom field is empty
         const titleText = raffleData.title?.rendered || 'Grand Prize';
         const grandPrize = getMetaVal('grand_prize', titleText);
@@ -547,8 +547,8 @@ include 'header.php';
 
         // 🚀 BUG 2 FIX: BULLETPROOF PRIZE LIST PARSER FOR REPEATERS
         const prizeContainer = document.getElementById('prize-list-container');
-        prizeContainer.innerHTML = ''; 
-        
+        prizeContainer.innerHTML = '';
+
         let rawPrizes = meta.prize_list || (raffleData.acf ? raffleData.acf.prize_list : null);
         if (!rawPrizes && meta.prize_list !== '') {
             let p = meta.prize_list;
@@ -556,9 +556,9 @@ include 'header.php';
         }
 
         let formattedPrizes = [];
-        
+
         if (typeof rawPrizes === 'string') {
-            formattedPrizes = rawPrizes.split(/[\r\n,]+/); 
+            formattedPrizes = rawPrizes.split(/[\r\n,]+/);
         } else if (Array.isArray(rawPrizes)) {
             if (rawPrizes.length === 1 && typeof rawPrizes[0] === 'string' && rawPrizes[0].includes('\n')) {
                 formattedPrizes = rawPrizes[0].split(/[\r\n,]+/);
@@ -566,7 +566,7 @@ include 'header.php';
                 formattedPrizes = rawPrizes;
             }
         }
-        
+
         // Safely extract string text even if WordPress returns nested objects (like ACF Repeaters)
         formattedPrizes = formattedPrizes.map(p => {
             if (typeof p === 'object' && p !== null) {
@@ -578,12 +578,12 @@ include 'header.php';
             }
             return String(p).trim();
         }).filter(p => p !== '');
-        
+
         if (formattedPrizes.length > 0) {
             formattedPrizes.forEach(prizeStr => {
                 let tierName = "Bonus";
                 let tierDesc = prizeStr;
-                
+
                 if(prizeStr.includes(':')) {
                     const parts = prizeStr.split(':');
                     tierName = parts[0].trim();
@@ -628,10 +628,10 @@ include 'header.php';
             statusBadge.className = "bg-red-600 text-white text-[10px] font-bold px-3 py-1 rounded-full shadow-sm";
             statusBadge.innerText = "RAFFLE CLOSED";
             document.getElementById('hero-progress').style.width = '100%';
-            prizesTitle.innerText = "Prizes for this Draw"; 
-            marketingText.classList.add('hidden'); 
-            document.getElementById('bonus-indicator').classList.add('hidden'); 
-            document.getElementById('detail-promo-timer').classList.add('hidden'); 
+            prizesTitle.innerText = "Prizes for this Draw";
+            marketingText.classList.add('hidden');
+            document.getElementById('bonus-indicator').classList.add('hidden');
+            document.getElementById('detail-promo-timer').classList.add('hidden');
             ticketSection.classList.add('hidden');
             soldOutSection.classList.remove('hidden');
             footerCta.classList.add('hidden');
@@ -647,7 +647,7 @@ include 'header.php';
         let multiplier = 1.0;
 
         if (uPrice <= 200) {
-            if (qty >= 2) multiplier = 0.90; 
+            if (qty >= 2) multiplier = 0.90;
         } else {
             if (DISCOUNT_TIERS[qty]) multiplier = DISCOUNT_TIERS[qty];
             else if (qty > 10) multiplier = BULK_DISCOUNT;
@@ -680,7 +680,7 @@ include 'header.php';
                 if(saveEl && qty === 3) {
                     const saved = prices.original - prices.discounted;
                     if(saved > 0) saveEl.innerText = `Save ₦${saved.toLocaleString()}!`;
-                    else saveEl.innerText = 'Standard Rate'; 
+                    else saveEl.innerText = 'Standard Rate';
                 }
             }
         });
@@ -744,7 +744,7 @@ include 'header.php';
         [1, 2, 3, 5, 10].forEach(id => {
             const el = document.getElementById(`opt-${id}`);
             const circle = el.querySelector('.selection-circle');
-            
+
             if(id === 3) {
                 el.className = "border-2 border-yellow-400 bg-yellow-50/50 dark:bg-yellow-900/20 p-4 rounded-xl cursor-pointer relative transition-all shadow-sm";
             } else if (id === 5) {
@@ -753,7 +753,7 @@ include 'header.php';
                 el.className = "border border-gray-200 dark:border-gray-800 bg-white dark:bg-dark-card p-4 rounded-xl cursor-pointer transition-all hover:border-blue-200 dark:hover:border-blue-700 group";
             }
             circle.className = "w-5 h-5 rounded-full border border-gray-300 dark:border-gray-600 ml-auto mt-1 flex items-center justify-center selection-circle";
-            circle.innerHTML = ''; 
+            circle.innerHTML = '';
         });
 
         const activeEl = document.getElementById(`opt-${qty}`);
@@ -793,16 +793,16 @@ include 'header.php';
         bulkCard.classList.add('ring-2', 'ring-indigo-400');
         bulkInputContainer.classList.remove('hidden');
         isBulkMode = true;
-        
+
         setTimeout(() => bulkQtyInput.focus(), 100);
-        
+
         if(bulkQtyInput.value) handleBulkInput(bulkQtyInput.value);
         else {
             currentQty = 0;
             currentPrice = 0;
             updateFooter();
         }
-        
+
         footerCta.classList.remove('hidden');
     }
 
@@ -810,11 +810,11 @@ include 'header.php';
         let qty = parseInt(val);
         if(!qty || qty < 0) qty = 0;
         if(qty > 50) { qty = 50; bulkQtyInput.value = 50; }
-        
+
         currentQty = qty;
         const prices = calculateDiscountedPrice(qty, unitPrice);
         currentPrice = prices.discounted;
-        
+
         if(qty > 10) {
             document.getElementById('bulk-savings-badge').classList.remove('hidden');
             const saved = prices.original - prices.discounted;
@@ -822,7 +822,7 @@ include 'header.php';
         } else {
             document.getElementById('bulk-savings-badge').classList.add('hidden');
         }
-        
+
         updateFooter();
     }
 
@@ -856,7 +856,7 @@ include 'header.php';
 
         checkFundsAndProceed();
     }
-    
+
     function checkFundsAndProceed() {
         if(!isLoggedIn) {
             goToNumberSelection();
@@ -869,7 +869,7 @@ include 'header.php';
             goToNumberSelection();
             return;
         }
-        
+
         const deficit = cost - walletBal;
         if (earningsBal >= deficit) {
             document.getElementById('convert-needed').innerText = '₦' + deficit.toLocaleString();
@@ -889,9 +889,9 @@ include 'header.php';
 
     function declineUpsell() {
         upsellModal.classList.add('hidden');
-        setTimeout(() => checkFundsAndProceed(), 200); 
+        setTimeout(() => checkFundsAndProceed(), 200);
     }
-    
+
     async function executeTransferAndProceed() {
         const deficit = currentPrice - walletBal;
         const btn = document.getElementById('confirm-convert-btn');
@@ -910,7 +910,7 @@ include 'header.php';
             const postUrl = window.location.href.split('?')[0] + '?id=' + ssrRaffleId;
             const res = await fetch(postUrl, { method: 'POST', body: fd });
             const result = await res.json();
-            
+
             if (result.success) {
                 walletBal += deficit;
                 earningsBal -= deficit;
@@ -937,8 +937,8 @@ include 'header.php';
             raffleId: ssrRaffleId,
             raffleTitle: raffleData.title.rendered,
             qty: currentQty,
-            pricePerTicket: unitPrice, 
-            totalPrice: currentPrice, 
+            pricePerTicket: unitPrice,
+            totalPrice: currentPrice,
             maxPool: maxTickets
         };
         localStorage.setItem('currentRaffleSelection', JSON.stringify(selectionData));
@@ -956,15 +956,15 @@ include 'header.php';
         const originalHTML = btn ? btn.innerHTML : '';
         if(btn) btn.innerHTML = `<div class="flex items-center justify-center w-full h-full"><i data-lucide="loader-2" class="w-5 h-5 animate-spin text-white"></i></div>`;
         if (typeof lucide !== 'undefined') lucide.createIcons();
-        
+
         try {
             const fd = new FormData();
             fd.append('action', 'apply_discount');
-            
+
             const postUrl = window.location.href.split('?')[0] + '?id=' + ssrRaffleId;
             const res = await fetch(postUrl, { method: 'POST', body: fd });
             const data = await res.json();
-            
+
             if (data.success) {
                 const rawCart = localStorage.getItem('rk_cart_session');
                 const cart = rawCart ? JSON.parse(rawCart) : null;
@@ -979,7 +979,7 @@ include 'header.php';
 
                     if (cart.cart && cart.cart.length > 0) {
                         const item = cart.cart[cart.cart.length - 1];
-                        const rId = cart.raffle_id || item.raffle_id; 
+                        const rId = cart.raffle_id || item.raffle_id;
                         const tickets = cart.ticket_count;
                         const numbers = item.numbers ? item.numbers.join(',') : '';
                         redirectUrl += `&raffle_id=${rId}&tickets=${tickets}&numbers=${numbers}`;

@@ -4,10 +4,10 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
     <title>Pick Your Numbers - RaffleKings</title>
-    
+
     <!-- Tailwind CSS -->
     <script src="https://cdn.tailwindcss.com"></script>
-    
+
     <!-- Lucide Icons -->
     <script src="https://unpkg.com/lucide@latest"></script>
 
@@ -16,7 +16,7 @@
 
     <!-- Config (Inlined for Preview) -->
     <script>
-        const WORDPRESS_URL = "https://api.rafflekings.com.ng"; 
+        const WORDPRESS_URL = "";
         const APP_SETTINGS = {
             CURRENCY_SYMBOL: '₦',
         };
@@ -37,13 +37,13 @@
         tailwind.config = {
             darkMode: 'class',
             theme: {
-                extend: { 
-                    colors: { 
+                extend: {
+                    colors: {
                         app: { primary: '#2563EB', primaryDark: '#1d4ed8' },
                         'dark-bg': '#0f172a',
                         'dark-card': '#1e293b',
                         'dark-border': '#334155'
-                    } 
+                    }
                 }
             }
         }
@@ -55,7 +55,7 @@
         .safe-bottom { padding-bottom: env(safe-area-inset-bottom); }
         .no-scrollbar::-webkit-scrollbar { display: none; }
         .no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
-        
+
         /* Taken Number Style */
         .taken-number {
             background-color: #FEF2F2 !important; /* red-50 */
@@ -65,14 +65,14 @@
             position: relative;
             overflow: hidden;
         }
-        
+
         /* Dark mode overrides for taken numbers */
         .dark .taken-number {
             background-color: #450a0a !important; /* red-950 */
             color: #f87171 !important; /* red-400 */
             border-color: #7f1d1d !important; /* red-900 */
         }
-        
+
         .taken-number::after {
             content: 'SOLD';
             position: absolute;
@@ -144,7 +144,7 @@
                 }
             </script>
         </div>
-        
+
         <div class="grid grid-cols-5 gap-2 p-3 pb-32 max-w-lg mx-auto hidden" id="number-grid"></div>
     </div>
 
@@ -178,7 +178,7 @@
                 You need <span id="needed-amt" class="font-bold text-gray-900 dark:text-white">...</span> to play.<br>
                 Don't miss this draw!
             </p>
-            
+
             <div class="bg-gray-50 dark:bg-dark-bg p-3 rounded-xl mb-6 flex justify-between items-center">
                 <span class="text-xs text-gray-500">Your Wallet:</span>
                 <span class="font-bold text-gray-900 dark:text-white" id="current-bal">₦0.00</span>
@@ -196,11 +196,11 @@
         let selectedNumbers = [];
         let targetQty = 0;
         let maxPool = 1000;
-        let takenNumbers = []; 
+        let takenNumbers = [];
 
         document.addEventListener('DOMContentLoaded', async () => {
             lucide.createIcons();
-            
+
             try {
                 const stored = localStorage.getItem('currentRaffleSelection');
                 if (!stored) {
@@ -224,7 +224,7 @@
 
             targetQty = parseInt(selection.qty) || 1;
             maxPool = parseInt(selection.maxPool) || 1000;
-            
+
             document.getElementById('raffle-name').innerText = selection.raffleTitle || 'Raffle';
             document.getElementById('qty-target').innerText = targetQty;
             document.getElementById('footer-total').innerText = '₦' + (parseFloat(selection.totalPrice) || 0).toLocaleString();
@@ -233,7 +233,7 @@
             checkWalletStatus();
 
             await fetchTakenNumbers(selection.raffleId);
-            
+
             // --- PERSISTENCE: Restore previous selection if page refreshed ---
             const pending = localStorage.getItem('pendingCheckout');
             if (pending) {
@@ -242,16 +242,16 @@
                     if (pData.raffle_id == selection.raffleId && pData.qty == targetQty && pData.numbers) {
                         const savedNums = pData.numbers.split(',').map(Number);
                         selectedNumbers = savedNums.filter(n => !takenNumbers.includes(n));
-                        
+
                         if(selectedNumbers.length < savedNums.length) {
                              showToast("Some of your numbers were just sold!");
                         }
                     }
                 } catch(e) { console.error("Restore failed", e); }
             }
-            
+
             generateGrid();
-            updateState(); 
+            updateState();
         });
 
         // *** THE TRAP LOGIC ***
@@ -266,7 +266,7 @@
             const totalAvailable = wallet + earnings;
             const required = parseFloat(selection.totalPrice) || 0;
             const qty = parseInt(selection.qty) || 1;
-            
+
             // Calculate unit price to check for micro-raffles
             // We use pricePerTicket if available, otherwise derive it
             const unitPrice = selection.pricePerTicket || (required / qty);
@@ -276,10 +276,10 @@
                 // User is broke. TRAP THEM.
                 document.getElementById('needed-amt').innerText = '₦' + required.toLocaleString();
                 document.getElementById('current-bal').innerText = '₦' + totalAvailable.toLocaleString();
-                
+
                 const modal = document.getElementById('fund-modal');
                 const content = document.getElementById('fund-modal-content');
-                
+
                 modal.classList.remove('hidden');
                 // Animation frame
                 setTimeout(() => {
@@ -293,7 +293,7 @@
         async function fetchTakenNumbers(raffleId) {
             try {
                 // *** REAL FETCH FIRST ***
-                const res = await fetch(`${WORDPRESS_URL}/wp-json/wp/v2/raffle/${raffleId}?_embed`);
+                const res = await fetch(`ajax-router.php?action=get_raffle_by_id&id=${raffleId}&_embed=1`);
                 if(res.ok) {
                     const data = await res.json();
                     if(data.raffle_meta && data.raffle_meta.taken_numbers) {
@@ -304,11 +304,11 @@
             } catch(e) {
                 console.warn("Real fetch failed or unavailable, checking fallback...", e);
             }
-            
+
             // *** FALLBACK ***
             if (takenNumbers.length === 0) {
                  console.log("Using preview mock for taken numbers");
-                 takenNumbers = [5, 12, 45, 88, 102]; 
+                 takenNumbers = [5, 12, 45, 88, 102];
             }
         }
 
@@ -316,21 +316,21 @@
             const grid = document.getElementById('number-grid');
             const skeleton = document.getElementById('loading-skeleton');
             let html = '';
-            
+
             // Button styles
             const baseClass = "h-12 w-full rounded-xl bg-gray-50 dark:bg-dark-card border border-gray-200 dark:border-dark-border text-sm font-bold text-gray-500 dark:text-gray-400 flex items-center justify-center transition-all active:scale-90 hover:bg-gray-100 dark:hover:bg-gray-800 select-none relative";
             const selectedClass = "h-12 w-full rounded-xl bg-yellow-400 border-yellow-500 text-gray-900 text-lg font-bold flex items-center justify-center shadow-lg shadow-yellow-200/50 transform scale-105 transition-all ring-2 ring-offset-1 ring-yellow-400 select-none relative";
-            
+
             for (let i = 1; i <= maxPool; i++) {
                 const isTaken = takenNumbers.includes(i);
                 const isSelected = selectedNumbers.includes(i);
                 const takenClass = isTaken ? 'taken-number' : '';
                 const initialClass = isSelected ? selectedClass : (baseClass + ' ' + takenClass);
                 const clickAction = isTaken ? `showToast('Number ${i} is already sold!')` : `toggleNumber(${i}, this)`;
-                
+
                 html += `<button onclick="${clickAction}" id="btn-${i}" class="${initialClass}">${i}</button>`;
             }
-            
+
             grid.innerHTML = html;
             skeleton.classList.add('hidden');
             grid.classList.remove('hidden');
@@ -361,7 +361,7 @@
 
         function quickPick() {
             if (navigator.vibrate) navigator.vibrate(10);
-            
+
             const selectedClass = "h-12 w-full rounded-xl bg-yellow-400 border-yellow-500 text-gray-900 text-lg font-bold flex items-center justify-center shadow-lg shadow-yellow-200/50 transform scale-105 transition-all ring-2 ring-offset-1 ring-yellow-400 select-none relative";
 
             const needed = targetQty - selectedNumbers.length;
@@ -379,10 +379,10 @@
                 const j = Math.floor(Math.random() * (i + 1));
                 [availablePool[i], availablePool[j]] = [availablePool[j], availablePool[i]];
             }
-            
+
             const toAdd = targetQty - selectedNumbers.length;
             if(availablePool.length < toAdd) { showToast("Not enough tickets left!"); return; }
-            
+
             const newPicks = availablePool.slice(0, toAdd);
             selectedNumbers = [...selectedNumbers, ...newPicks];
 
@@ -413,7 +413,7 @@
             const remaining = targetQty - count;
             const actionBar = document.getElementById('action-bar');
             const unselectBtn = document.getElementById('unselect-btn');
-            
+
             if (count > 0) unselectBtn.classList.remove('opacity-0', 'pointer-events-none');
             else unselectBtn.classList.add('opacity-0', 'pointer-events-none');
 
@@ -442,7 +442,7 @@
             btn.innerHTML = '<i data-lucide="loader-2" class="w-4 h-4 animate-spin"></i> Processing...';
             btn.disabled = true;
             lucide.createIcons();
-            
+
             const numbersStr = selectedNumbers.join(',');
             const isLoggedIn = localStorage.getItem('token');
 
@@ -451,17 +451,17 @@
                 tickets: targetQty,
                 numbers: numbersStr,
                 raffle_id: selection.raffleId,
-                raffleId: selection.raffleId, 
+                raffleId: selection.raffleId,
                 price: selection.totalPrice,
                 qty: targetQty
             };
             localStorage.setItem('pendingCheckout', JSON.stringify(checkoutData));
-            
+
             setTimeout(() => {
                 if (isLoggedIn) {
                     window.location.href = `checkout.php?amount=${selection.totalPrice}&tickets=${targetQty}&numbers=${numbersStr}&raffle_id=${selection.raffleId}`;
                 } else {
-                    window.location.href = `register-special.php?amount=${selection.totalPrice}&tickets=${targetQty}&numbers=${numbersStr}&raffle_id=${selection.raffleId}`; 
+                    window.location.href = `register-special.php?amount=${selection.totalPrice}&tickets=${targetQty}&numbers=${numbersStr}&raffle_id=${selection.raffleId}`;
                 }
             }, 500);
         }

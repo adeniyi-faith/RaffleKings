@@ -10,7 +10,7 @@ require_once(__DIR__ . '/wp/wp-load.php');
 // Bypasses HTTP and executes your existing endpoints natively
 // ==========================================
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
-    ob_clean(); 
+    ob_clean();
     header('Content-Type: application/json');
 
     if (!is_user_logged_in()) {
@@ -20,7 +20,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
 
     $action = $_POST['action'];
     $route = '';
-    
+
     // Map actions to your existing REST routes
     if ($action === 'get_state') $route = '/raffle/v1/rewards-state';
     elseif ($action === 'claim_daily') $route = '/raffle/v1/claim-daily';
@@ -34,15 +34,27 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
         if ($action === 'get_state') {
             $request = new WP_REST_Request('GET', $route);
         }
-        
+
         // Pass standard form data or decoded JSON to the internal request
         $request->set_body_params($_POST);
-        
-        $response = rest_do_request($request);
-        
+
+        if ($action === 'get_state') {
+            $response = rk_get_rewards_state($request);
+        } elseif ($action === 'claim_daily') {
+            $response = rk_handle_daily_claim($request);
+        } elseif ($action === 'claim_task') {
+            $response = rk_handle_task_claim($request);
+        } elseif ($action === 'redeem_points') {
+            $response = rk_handle_redeem_points($request);
+        } elseif ($action === 'save_device') {
+            $response = rk_save_push_device($request);
+        } else {
+            $response = new WP_Error('invalid_action', 'Action mapping failed');
+        }
+
         if ($response->is_error()) {
             echo json_encode([
-                'success' => false, 
+                'success' => false,
                 'message' => $response->as_error()->get_error_message(),
                 'code' => $response->as_error()->get_error_code()
             ]);
@@ -58,9 +70,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
 // ==========================================
 $rk_is_logged_in = is_user_logged_in();
 $initial_state = [
-    'points' => 0, 
-    'completed_tasks' => [], 
-    'streak' => 1, 
+    'points' => 0,
+    'completed_tasks' => [],
+    'streak' => 1,
     'is_claimed_today' => false,
     'server_time' => current_time('mysql')
 ];
@@ -68,7 +80,7 @@ $initial_state = [
 if ($rk_is_logged_in) {
     // Fetch state internally to inject straight into HTML
     $state_request = new WP_REST_Request('GET', '/raffle/v1/rewards-state');
-    $state_response = rest_do_request($state_request);
+    $state_response = rk_get_rewards_state($state_request);
     if (!$state_response->is_error()) {
         $initial_state = $state_response->get_data();
     }
@@ -85,17 +97,17 @@ $start_points = (int)($initial_state['points'] ?? 0);
     <!-- Hero Section -->
     <div class="bg-blue-900 dark:bg-blue-950 px-5 pt-4 pb-16 relative overflow-hidden transition-colors duration-200" id="hero-section">
         <div class="absolute top-0 right-0 w-64 h-64 bg-white/5 rounded-full blur-3xl -translate-y-1/2 translate-x-1/2"></div>
-        
+
         <div class="relative z-10 flex justify-between items-center mb-6">
             <div>
                 <h2 class="text-xl font-bold text-white">Rewards</h2>
                 <!-- Active Server Time State -->
                 <p id="state-user" class="text-xs text-blue-200 flex items-center gap-1">
-                    <i data-lucide="clock" class="w-3 h-3"></i> 
+                    <i data-lucide="clock" class="w-3 h-3"></i>
                     <span id="countdown" class="font-mono font-bold text-white">--:--:--</span>
                 </p>
             </div>
-            
+
             <!-- 🚀 SSR Rendered Points Badge -->
             <div class="bg-white/10 backdrop-blur-md border border-white/20 px-3 py-1.5 rounded-full flex items-center gap-2">
                 <i data-lucide="coins" class="w-4 h-4 text-yellow-400 fill-current"></i>
@@ -108,7 +120,7 @@ $start_points = (int)($initial_state['points'] ?? 0);
     </div>
 
     <div class="px-5 -mt-6 relative z-20 space-y-5">
-        
+
         <!-- 1. REDEEM CARD -->
         <div class="bg-white dark:bg-dark-card rounded-2xl p-5 shadow-sm border border-gray-100 dark:border-gray-800 flex items-center justify-between transition-colors duration-200">
             <div>
@@ -126,7 +138,7 @@ $start_points = (int)($initial_state['points'] ?? 0);
             <div class="absolute inset-0 bg-white/5 z-10"></div>
             <div class="bg-white/10 backdrop-blur-sm rounded-xl p-4 flex items-center justify-between relative overflow-hidden">
                 <div class="absolute right-0 top-0 w-32 h-32 bg-white/10 rounded-full blur-2xl -translate-y-1/2 translate-x-1/2"></div>
-                
+
                 <div class="relative z-10 flex items-center gap-4">
                     <div class="w-12 h-12 bg-white/20 rounded-full flex items-center justify-center shadow-md backdrop-blur-md">
                         <span class="text-2xl">🎰</span>
@@ -136,7 +148,7 @@ $start_points = (int)($initial_state['points'] ?? 0);
                         <p class="text-xs text-purple-100">Spin daily to win free points!</p>
                     </div>
                 </div>
-                
+
                 <div class="relative z-20 bg-black/30 backdrop-blur-md border border-white/20 px-3 py-1.5 rounded-full flex items-center gap-1.5">
                      <i data-lucide="lock" class="w-3 h-3 text-white/80"></i>
                      <span class="text-[10px] font-bold text-white uppercase tracking-wider whitespace-nowrap">Soon</span>
@@ -148,7 +160,7 @@ $start_points = (int)($initial_state['points'] ?? 0);
         <div class="block bg-gradient-to-br from-orange-500 to-red-600 dark:from-orange-700 dark:to-red-800 rounded-2xl p-5 text-white shadow-lg shadow-orange-500/20 relative overflow-hidden cursor-not-allowed grayscale-[0.2]">
             <div class="absolute inset-0 bg-white/5 z-10"></div>
             <div class="absolute -bottom-4 -right-4 w-24 h-24 bg-white/10 rounded-full blur-xl"></div>
-            
+
             <div class="flex justify-between items-center relative z-20">
                 <div>
                     <div class="flex items-center gap-2 mb-1">
@@ -190,7 +202,7 @@ $start_points = (int)($initial_state['points'] ?? 0);
 <!-- CUSTOM PUSH NOTIFICATION MODAL -->
 <div id="push-prompt-modal" class="fixed inset-0 bg-blue-900/90 dark:bg-black/90 z-[70] hidden flex items-end sm:items-center justify-center backdrop-blur-md p-4 transition-all duration-300 opacity-0 pointer-events-none">
     <div class="bg-white dark:bg-dark-card rounded-t-3xl sm:rounded-3xl w-full max-w-sm overflow-hidden relative transform translate-y-10 transition-transform duration-300 border border-gray-100 dark:border-gray-800">
-        
+
         <!-- Header Image/Icon -->
         <div class="bg-blue-600 dark:bg-blue-800 h-32 relative flex items-center justify-center overflow-hidden">
             <div class="absolute inset-0 bg-[url('https://cdn.dribbble.com/users/1770290/screenshots/6157573/media/1d50c766e927c62243d54024345f8664.gif')] bg-cover bg-center opacity-30 mix-blend-overlay"></div>
@@ -204,7 +216,7 @@ $start_points = (int)($initial_state['points'] ?? 0);
             <p class="text-sm text-gray-500 dark:text-gray-400 leading-relaxed mb-6">
                 Get notified instantly when you win the <span class="text-blue-600 dark:text-blue-400 font-bold">Jackpot</span> or when your Daily Rewards are ready.
             </p>
-            
+
             <div class="space-y-3">
                 <button onclick="confirmPushPermission()" class="w-full bg-blue-600 dark:bg-blue-700 text-white py-3.5 rounded-xl font-bold shadow-lg shadow-blue-200 dark:shadow-none active:scale-95 transition-transform flex items-center justify-center gap-2 hover:bg-blue-700 dark:hover:bg-blue-600">
                     Enable Notifications
@@ -214,7 +226,7 @@ $start_points = (int)($initial_state['points'] ?? 0);
                     Maybe Later
                 </button>
             </div>
-            
+
             <p class="text-[10px] text-gray-400 dark:text-gray-600 mt-4 flex items-center justify-center gap-1">
                 <i data-lucide="shield-check" class="w-3 h-3"></i> 100% Spam Free. No annoyance.
             </p>
@@ -229,8 +241,8 @@ $start_points = (int)($initial_state['points'] ?? 0);
   window.OneSignalDeferred.push(async function(OneSignal) {
     await OneSignal.init({
       appId: "d3fdc8be-e8fa-485e-8426-1b5157307f44",
-      notifyButton: { enable: false }, 
-      allowLocalhostAsSecureOrigin: true 
+      notifyButton: { enable: false },
+      allowLocalhostAsSecureOrigin: true
     });
   });
 </script>
@@ -239,8 +251,8 @@ $start_points = (int)($initial_state['points'] ?? 0);
     // 🚀 NEW: State is injected instantly via PHP SSR
     const isLoggedIn = <?php echo $rk_is_logged_in ? 'true' : 'false'; ?>;
     let userState = <?php echo json_encode($initial_state); ?>;
-    let serverOffset = 0; 
-    let currentTaskId = null; 
+    let serverOffset = 0;
+    let currentTaskId = null;
     let pendingClaim = false;
 
     document.addEventListener('DOMContentLoaded', () => {
@@ -252,8 +264,8 @@ $start_points = (int)($initial_state['points'] ?? 0);
     async function initRewards(isRefresh = true) {
         if (!isLoggedIn) {
             document.getElementById('display-points').innerHTML = '<a href="login.php" class="underline text-yellow-300">Log in</a>';
-            renderStreak(1, false); 
-            renderTasks([]); 
+            renderStreak(1, false);
+            renderTasks([]);
             return;
         }
 
@@ -266,7 +278,7 @@ $start_points = (int)($initial_state['points'] ?? 0);
                 userState = await res.json();
             } catch(e) { console.error("Rewards Refresh Error:", e); }
         }
-        
+
         applyState(userState);
     }
 
@@ -274,13 +286,13 @@ $start_points = (int)($initial_state['points'] ?? 0);
         if (data.server_time) {
             const serverTime = new Date(data.server_time).getTime();
             const clientTime = new Date().getTime();
-            serverOffset = serverTime - clientTime; 
+            serverOffset = serverTime - clientTime;
         }
 
         const pts = parseInt(data.points) || 0;
         document.getElementById('display-points').innerText = `${pts} Pts`;
         document.getElementById('wallet-value').innerText = `₦${(pts / 10).toFixed(2)}`;
-        
+
         renderStreak(data.streak, data.is_claimed_today);
         renderTasks(Array.isArray(data.completed_tasks) ? data.completed_tasks : []);
         startServerTimer();
@@ -291,7 +303,7 @@ $start_points = (int)($initial_state['points'] ?? 0);
         const container = document.getElementById('days-container');
         if(!container) return;
         container.innerHTML = '';
-        
+
         const rewards = [50, 70, 100, 150, 200, 300, 1000];
 
         for (let i = 1; i <= 7; i++) {
@@ -302,7 +314,7 @@ $start_points = (int)($initial_state['points'] ?? 0);
             let bg = 'bg-white/10 border-white/20 text-blue-200';
             let content = `<span class="text-[10px]">+${rewards[i-1]}</span>`;
             let clickAction = '';
-            
+
             if (status === 'past' || status === 'claimed') {
                 bg = 'bg-green-500 border-green-400 text-white';
                 content = '<i data-lucide="check" class="w-4 h-4"></i>';
@@ -342,7 +354,7 @@ $start_points = (int)($initial_state['points'] ?? 0);
 
         tasks.forEach(t => {
             const isDone = completed.includes(t.id) && !t.isRecurring;
-            if (isDone) return; 
+            if (isDone) return;
 
             hasVisibleTasks = true;
             let handler = '';
@@ -403,7 +415,7 @@ $start_points = (int)($initial_state['points'] ?? 0);
     }
 
     function closePushModal() {
-        pendingClaim = false; 
+        pendingClaim = false;
         const m = document.getElementById('push-prompt-modal');
         m.querySelector('div.transform').classList.add('translate-y-10');
         m.classList.add('opacity-0', 'pointer-events-none');
@@ -417,7 +429,7 @@ $start_points = (int)($initial_state['points'] ?? 0);
         }
         if (typeof OneSignalDeferred === 'undefined') return;
 
-        closePushModal(); 
+        closePushModal();
 
         window.OneSignalDeferred.push(async function(OneSignal) {
             try {
@@ -454,7 +466,7 @@ $start_points = (int)($initial_state['points'] ?? 0);
 
     async function claimDaily() {
         if(!isLoggedIn) { window.location.href = 'login.php'; return; }
-        const btn = document.querySelector('.animate-bounce'); 
+        const btn = document.querySelector('.animate-bounce');
         if(btn) {
             btn.classList.remove('animate-bounce', 'bg-yellow-400');
             btn.classList.add('bg-gray-300', 'cursor-wait');
@@ -465,13 +477,13 @@ $start_points = (int)($initial_state['points'] ?? 0);
             fd.append('action', 'claim_daily');
             const res = await fetch(window.location.href.split('?')[0], { method: 'POST', body: fd });
             const data = await res.json();
-            
+
             if(data.success) {
                 showModal('Daily Reward!', `You claimed +${data.points_added} Points`);
-                initRewards(); 
+                initRewards();
             } else {
                 alert(data.message);
-                initRewards(); 
+                initRewards();
             }
         } catch(e) { alert("Error claiming daily reward."); initRewards(); }
     }
@@ -482,7 +494,7 @@ $start_points = (int)($initial_state['points'] ?? 0);
         if (isShare) {
             const siteLink = "https://rafflekings.com.ng";
             const text = `🔥 *STOP SCROLLING!* \n\nI found a legit way to win daily cash prizes and rewards! 💰\n\n✅ Instant Payouts\n✅ 100% Free to Join\n✅ Daily Giveaways\n\nDon't miss out on this opportunity. Check it out here 👇\n${siteLink}`;
-            
+
             if (navigator.share) {
                 navigator.share({ title: 'Raffle Kings', text: text })
                     .then(() => setTimeout(() => processTaskClaim(taskId), 3000))
@@ -494,7 +506,7 @@ $start_points = (int)($initial_state['points'] ?? 0);
             }
         } else if(url) {
             window.open(url, '_blank');
-            setTimeout(() => processTaskClaim(taskId), 5000); 
+            setTimeout(() => processTaskClaim(taskId), 5000);
         } else {
             processTaskClaim(taskId);
         }
@@ -506,10 +518,10 @@ $start_points = (int)($initial_state['points'] ?? 0);
             const fd = new FormData();
             fd.append('action', 'claim_task');
             fd.append('task_id', taskId);
-            
+
             const res = await fetch(window.location.href.split('?')[0], { method: 'POST', body: fd });
             const data = await res.json();
-            
+
             if(data.success) {
                 showModal('Task Complete!', `+${data.points_added} Points added.`);
                 initRewards();
@@ -527,10 +539,10 @@ $start_points = (int)($initial_state['points'] ?? 0);
         try {
             const fd = new FormData();
             fd.append('action', 'redeem_points');
-            
+
             const res = await fetch(window.location.href.split('?')[0], { method: 'POST', body: fd });
             const data = await res.json();
-            
+
             if(data.success) {
                 showModal('Redeemed!', `₦${data.wallet_added} added to your Wallet.`);
                 if (typeof refreshBalance === 'function') refreshBalance(); // Update Header Native Bal
@@ -545,7 +557,7 @@ $start_points = (int)($initial_state['points'] ?? 0);
     function startServerTimer() {
         const el = document.getElementById('countdown');
         if(!el) return;
-        
+
         function update() {
             const now = new Date(Date.now() + serverOffset);
             const reset = new Date(now);
@@ -567,7 +579,7 @@ $start_points = (int)($initial_state['points'] ?? 0);
         m.classList.remove('hidden', 'opacity-0', 'pointer-events-none');
         m.classList.add('opacity-100', 'pointer-events-auto');
     }
-    
+
     window.closeModal = function() {
         const m = document.getElementById('reward-modal');
         m.classList.add('opacity-0', 'pointer-events-none');

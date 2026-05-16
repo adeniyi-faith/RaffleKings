@@ -4,7 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
     <title>Secure Your Numbers - RaffleKings</title>
-    
+
     <!-- *** SECURITY PATCH: META TAGS *** -->
     <meta name="referrer" content="strict-origin-when-cross-origin">
     <meta http-equiv="X-Content-Type-Options" content="nosniff">
@@ -13,7 +13,7 @@
     <meta name="theme-color" content="#ffffff">
     <meta name="mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-    
+
     <!-- Cloudflare Turnstile -->
     <script src="https://challenges.cloudflare.com/turnstile/v0/api.js" async defer></script>
 
@@ -44,8 +44,8 @@
                         'app-primary': '#2563eb',
                         'app-secondary': '#1e40af',
                         'app-bg': '#f8fafc',
-                        'dark-bg': '#0f172a',      
-                        'dark-card': '#1e293b',    
+                        'dark-bg': '#0f172a',
+                        'dark-card': '#1e293b',
                         'dark-border': '#334155'
                     },
                     fontFamily: {
@@ -58,7 +58,7 @@
             }
         }
     </script>
-    
+
     <!-- Lucide Icons -->
     <script src="https://unpkg.com/lucide@latest"></script>
 
@@ -67,7 +67,7 @@
 
     <!-- *** SECURITY PATCH: CENTRALIZED CONFIG WITH CACHE BUSTING *** -->
     <script src="config.js?v=<?php echo time(); ?>"></script>
-    
+
     <!-- *** SYSTEM SCRIPTS *** -->
     <script src="watchdog.js"></script>
     <script src="analytics.js"></script>
@@ -98,11 +98,11 @@
     </div>
 
     <div class="w-full max-w-md mt-16 mb-8">
-        
+
         <!-- 1. The Hook: Visual Confirmation -->
         <div class="bg-white dark:bg-dark-card rounded-3xl p-6 shadow-xl shadow-blue-900/5 dark:shadow-black/20 mb-6 border border-white dark:border-gray-800 relative overflow-hidden transition-colors duration-200">
             <div class="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-blue-400 to-blue-600"></div>
-            
+
             <div class="text-center mb-5">
                 <div class="w-12 h-12 bg-green-100 dark:bg-green-900/30 text-green-600 dark:text-green-400 rounded-full flex items-center justify-center mx-auto mb-3 shadow-sm border border-green-200 dark:border-green-800">
                     <i data-lucide="check" class="w-6 h-6 stroke-[3]"></i>
@@ -151,7 +151,7 @@
 
             <form id="quick-reg-form" onsubmit="handleQuickReg(event)" class="space-y-4">
                 <input type="hidden" name="referrer" id="input-referrer">
-                
+
                 <div>
                     <label class="block text-[10px] font-bold text-gray-400 dark:text-gray-500 uppercase tracking-wider mb-1">Username</label>
                     <input type="text" name="username" placeholder="Pick a winning name" class="w-full bg-gray-50 dark:bg-dark-bg border border-gray-200 dark:border-gray-700 rounded-xl px-4 py-3.5 outline-none focus:ring-2 focus:ring-app-primary/20 focus:border-app-primary text-gray-800 dark:text-white font-bold transition-all placeholder-gray-400 dark:placeholder-gray-600" required>
@@ -200,12 +200,12 @@
         let tickets = parseInt(urlParams.get('tickets')) || 0;
         const numsRaw = urlParams.get('numbers') || '';
         const raffleId = urlParams.get('raffle_id') || '0';
-        
-        let verifiedAmount = 0; 
+
+        let verifiedAmount = 0;
 
         // 2. Hydrate Initial UI
         document.getElementById('ticket-count').innerText = tickets;
-        
+
         const container = document.getElementById('numbers-container');
         if (numsRaw) {
             numsRaw.split(',').forEach(num => {
@@ -218,7 +218,7 @@
 
         // 3. Discount Logic Configuration
         const DISCOUNT_TIERS = {
-            1: 1.0,  
+            1: 1.0,
             2: 0.75, // 25% OFF
             3: 0.65, // 35% OFF
             5: 0.60, // 40% OFF
@@ -232,7 +232,7 @@
             let multiplier = 1.0;
 
             if (uPrice <= 200) {
-                if (qty >= 2) multiplier = 0.90; 
+                if (qty >= 2) multiplier = 0.90;
             } else {
                 if (DISCOUNT_TIERS[qty]) multiplier = DISCOUNT_TIERS[qty];
                 else if (qty > 10) multiplier = BULK_DISCOUNT;
@@ -246,18 +246,18 @@
         async function verifyRealPrice() {
             const el = document.getElementById('total-val');
             try {
-                const baseUrl = (typeof WORDPRESS_URL !== 'undefined') ? WORDPRESS_URL : 'https://api.rafflekings.com.ng';
-                const res = await fetch(`${baseUrl}/wp-json/wp/v2/raffle/${raffleId}`);
+                const baseUrl = (typeof WORDPRESS_URL !== 'undefined') ? WORDPRESS_URL : '';
+                const res = await fetch(`ajax-router.php?action=get_raffle_by_id&id=${raffleId}`);
                 if (!res.ok) throw new Error("Invalid Raffle ID");
-                
+
                 const data = await res.json();
                 const pricePerTicket = parseFloat(data.raffle_meta.price);
                 const prices = calculateDiscountedPrice(tickets, pricePerTicket);
                 verifiedAmount = prices.discounted;
-                
+
                 el.classList.remove('animate-pulse');
                 el.innerText = '₦' + verifiedAmount.toLocaleString();
-                
+
             } catch(e) {
                 console.error("Security Check Failed", e);
                 el.innerText = 'Error';
@@ -282,15 +282,15 @@
         if (promoActive && promoExpiry) {
             const now = Date.now();
             const exp = parseInt(promoExpiry);
-            
+
             if (exp > now) {
                 isPromo = true;
                 // Calculate real difference
                 timeLeft = Math.floor((exp - now) / 1000);
-                
+
                 // Update styling for Promo
                 bannerEl.className = "fixed top-0 left-0 w-full bg-red-600 text-white text-xs font-bold text-center py-3 px-4 shadow-md z-50 flex items-center justify-center gap-2";
-                
+
                 // Update Text structure to remove span nesting issues
                 bannerEl.innerHTML = `<i data-lucide="timer" class="w-3.5 h-3.5 animate-pulse text-white"></i> <span>₦300 Bonus Expires in <span id="timer" class="font-mono text-yellow-300 font-black text-sm">...</span></span>`;
             }
@@ -305,7 +305,7 @@
                 displayEl.innerText = "00:00";
                 return;
             }
-            
+
             timeLeft--;
             const m = Math.floor(timeLeft / 60).toString().padStart(2, '0');
             const s = (timeLeft % 60).toString().padStart(2, '0');
@@ -319,7 +319,7 @@
         // 8. Handle Registration
         async function handleQuickReg(e) {
             e.preventDefault();
-            
+
             if (verifiedAmount === 0 && tickets > 0) {
                 alert("Please wait for price verification.");
                 return;
@@ -327,7 +327,7 @@
 
             const btn = document.getElementById('submit-btn');
             const originalContent = btn.innerHTML;
-            
+
             btn.disabled = true;
             btn.innerHTML = '<i data-lucide="loader-2" class="w-4 h-4 animate-spin mr-2"></i> Creating Account...';
             lucide.createIcons();
@@ -338,7 +338,7 @@
             try {
                 // A. Register User
                 const regRes = await fetch(API_CONFIG.REGISTER, { method: 'POST', body: formData });
-                
+
                 if (regRes.status === 429) throw new Error("Too many attempts. Please wait.");
                 const regData = await regRes.json();
                 if (!regRes.ok) throw new Error(regData.message || "Registration failed");
@@ -347,12 +347,12 @@
                 const loginRes = await fetch(API_CONFIG.LOGIN, {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ 
-                        username: formData.get('username'), 
-                        password: formData.get('password') 
+                    body: JSON.stringify({
+                        username: formData.get('username'),
+                        password: formData.get('password')
                     })
                 });
-                
+
                 if (loginRes.status === 429) throw new Error("Login limit reached.");
                 const loginData = await loginRes.json();
                 if (!loginRes.ok || !loginData.token) throw new Error("Auto-login failed. Please login manually.");
@@ -362,10 +362,10 @@
                 localStorage.setItem('token', loginData.token);
                 localStorage.setItem('user_email', loginData.user_email);
                 localStorage.setItem('user_nicename', loginData.user_nicename);
-                
+
                 // D. Save Pending Checkout
                 const checkoutData = {
-                    amount: verifiedAmount, 
+                    amount: verifiedAmount,
                     qty: tickets,
                     numbers: numsRaw.split(','),
                     price: verifiedAmount,
@@ -379,7 +379,7 @@
             } catch (err) {
                 const safeMsg = err.message.replace(/<[^>]*>?/gm, '');
                 alert(safeMsg);
-                
+
                 btn.disabled = false;
                 btn.innerHTML = originalContent;
                 lucide.createIcons();

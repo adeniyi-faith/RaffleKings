@@ -39,20 +39,20 @@
     </div>
 
     <div class="px-5 pt-6">
-        
+
         <!-- 2. Hero Section (The Hook) -->
         <div class="bg-gradient-to-br from-indigo-600 to-purple-700 rounded-3xl p-6 text-center text-white relative overflow-hidden shadow-xl shadow-indigo-500/20 mb-6">
             <div class="absolute top-0 right-0 w-32 h-32 bg-white/10 rounded-full blur-3xl -translate-y-1/2 translate-x-1/2"></div>
-            
+
             <div class="w-14 h-14 bg-white/20 backdrop-blur-md rounded-2xl flex items-center justify-center mx-auto mb-4 border border-white/20">
                 <i data-lucide="users" class="w-7 h-7 text-white"></i>
             </div>
-            
+
             <h1 class="text-3xl font-extrabold mb-2">Earn 70%</h1>
             <p class="text-indigo-100 text-sm leading-relaxed mb-4">
                 Get <span class="font-bold text-white">70% commission</span> on the first deposit of everyone you refer!
             </p>
-            
+
             <!-- Referral Link Box -->
             <div class="bg-white/10 rounded-xl p-3 border border-white/10 flex items-center justify-between gap-3">
                 <p class="font-mono text-sm text-white/90 truncate w-full text-left" id="ref-link">
@@ -66,7 +66,7 @@
 
         <!-- 3. Stats Grid -->
         <h3 class="text-sm font-bold text-gray-900 mb-3 px-1">Performance</h3>
-        
+
         <!-- SKELETON GRID (Visible while loading) -->
         <div id="skeleton-stats" class="grid grid-cols-3 gap-3 mb-6">
             <div class="bg-white p-3 rounded-2xl border border-gray-100 shadow-sm flex flex-col items-center h-24 justify-center"><div class="skeleton h-3 w-10 rounded mb-2"></div><div class="skeleton h-6 w-12 rounded"></div></div>
@@ -115,7 +115,7 @@
     // 1. Safe Constants Setup
     const rawName = localStorage.getItem('user_nicename') || localStorage.getItem('user_display_name') || 'user';
     const frontendBase = (typeof FRONTEND_URL !== 'undefined') ? FRONTEND_URL : "https://rafflekings.com.ng";
-    
+
     // *** FIX: Sanitize Username for Social Media Links ***
     // 1. Remove ALL spaces (e.g., "Mr Faith" -> "MrFaith")
     // 2. Encode URI Component (Handles emojis or other weird chars)
@@ -124,7 +124,7 @@
 
     // Points directly to REGISTER page so tracking script runs immediately on the form
     const refLink = `${frontendBase}/register?ref=${safeRefCode}`;
-    
+
     document.addEventListener('DOMContentLoaded', () => {
         document.getElementById('ref-link').innerText = refLink;
         fetchReferralStats();
@@ -135,27 +135,27 @@
         if(!token) return;
 
         // SYNERGY: Use Centralized Config
-        const endpoint = (typeof API_CONFIG !== 'undefined' && API_CONFIG.REFERRAL_STATS) 
-                         ? API_CONFIG.REFERRAL_STATS 
-                         : "https://api.rafflekings.com.ng/wp-json/raffle/v1/referral-stats";
+        const endpoint = (typeof API_CONFIG !== 'undefined' && API_CONFIG.REFERRAL_STATS)
+                         ? API_CONFIG.REFERRAL_STATS
+                         : "ajax-router.php?action=referral_stats";
 
         try {
             const response = await fetch(endpoint, {
                 headers: { 'Authorization': `Bearer ${token}` }
             });
-            
+
             if(response.ok) {
                 const data = await response.json();
-                
+
                 // Hide Skeleton / Show Real Stats
                 document.getElementById('skeleton-stats').classList.add('hidden');
                 document.getElementById('real-stats').classList.remove('hidden');
-                
+
                 // Animate Numbers
                 document.getElementById('stat-clicks').innerText = data.clicks || 0;
                 document.getElementById('stat-signups').innerText = data.signups || 0;
                 document.getElementById('stat-earnings').innerText = '₦' + (data.earnings || 0).toLocaleString();
-                
+
                 renderHistory(data.history || []);
             } else {
                 console.error("API Error:", response.status);
@@ -169,7 +169,7 @@
     function renderHistory(data) {
         const list = document.getElementById('referral-list');
         list.innerHTML = ''; // Clear skeletons
-        
+
         if(data.length === 0) {
             list.innerHTML = `
                 <div class="text-center py-8">
@@ -223,7 +223,7 @@
         lucide.createIcons();
         setTimeout(() => {
             btn.innerHTML = originalHTML;
-            btn.className = originalClass; 
+            btn.className = originalClass;
             lucide.createIcons();
         }, 2000);
     }

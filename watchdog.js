@@ -8,12 +8,12 @@
     'use strict';
 
     // 1. CONFIGURATION
-    let ENDPOINT = 'https://api.rafflekings.com.ng/wp-json/raffle/v1/system/log';
-    
+    let ENDPOINT = (typeof API_CONFIG !== 'undefined' && API_CONFIG.SYSTEM_LOG) ? API_CONFIG.SYSTEM_LOG : 'ajax-router.php?action=system_log';
+
     if (typeof API_CONFIG !== 'undefined' && API_CONFIG.SYSTEM_LOG) {
         ENDPOINT = API_CONFIG.SYSTEM_LOG;
     }
-    
+
     // 2. USER ID HELPER
     function getUserId() {
         try {
@@ -31,7 +31,7 @@
     // 3. THE REPORTER
     function reportIncident(type, message, file, line) {
         // Prevent infinite loops
-        if (message && typeof message === 'string' && message.includes('system/log')) return; 
+        if (message && typeof message === 'string' && message.includes('system/log')) return;
 
         const payload = {
             user_id: getUserId(),
@@ -42,15 +42,15 @@
             timestamp: new Date().toISOString()
         };
 
-        // Use fetch with keepalive. 
+        // Use fetch with keepalive.
         // CRITICAL FIX: Do NOT send X-WP-Nonce. This allows unauthenticated logging.
         fetch(ENDPOINT, {
             method: 'POST',
-            headers: { 
+            headers: {
                 'Content-Type': 'application/json'
             },
             body: JSON.stringify(payload),
-            keepalive: true, 
+            keepalive: true,
         })
         .then(response => {
             if (!response.ok) {
@@ -70,13 +70,13 @@
     // A. Javascript Crash Listener
     window.onerror = function(msg, url, lineNo, columnNo, error) {
         const stringMsg = msg ? msg.toString() : 'Unknown Error';
-        
-        if (stringMsg.indexOf('Script error') > -1) return; 
+
+        if (stringMsg.indexOf('Script error') > -1) return;
         if (stringMsg.includes('ResizeObserver loop')) return;
 
         console.log("🚨 Crash Detected: Reporting to System Pulse...");
         reportIncident('JS Crash', stringMsg, url, lineNo);
-        return false; 
+        return false;
     };
 
     // B. Promise Rejection Listener
@@ -86,7 +86,7 @@
             if (event.reason.message) reason = event.reason.message;
             else reason = event.reason.toString();
         }
-        
+
         if (reason.includes('AbortError')) return;
 
         console.log("🚨 API Fail Detected: Reporting to System Pulse...");

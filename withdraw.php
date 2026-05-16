@@ -19,18 +19,18 @@ $user_id = get_current_user_id();
 // 2. LOCAL PROXY: INTERCEPT WITHDRAWAL SUBMISSION
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_GET['action']) && $_GET['action'] === 'process_withdrawal') {
     header('Content-Type: application/json');
-    
+
     // Parse the JSON body sent by the JS fetch request
     $body = json_decode(file_get_contents('php://input'), true);
-    
+
     // Construct a mocked REST request to tunnel into api-financials.php
     $request = new WP_REST_Request('POST', '/raffle/v1/withdraw');
     if ($body) {
         $request->set_body_params($body);
     }
-    
-    $response = rest_do_request($request);
-    
+
+    $response = rk_handle_withdrawal($request);
+
     if ($response->is_error()) {
         $error = $response->as_error();
         echo json_encode(['success' => false, 'message' => $error->get_error_message(), 'code' => $error->get_error_code()]);
@@ -62,7 +62,7 @@ if (!$primary_account && count($bank_accounts) > 0) {
     $primary_account = $bank_accounts[0];
 }
 
-include 'header.php'; 
+include 'header.php';
 ?>
 
 <!-- Scrollable Content Area -->
@@ -85,12 +85,12 @@ include 'header.php';
     <section class="p-5 pb-2">
         <div class="bg-gradient-to-br from-yellow-500 to-orange-600 rounded-2xl p-5 text-white shadow-lg relative overflow-hidden">
             <div class="absolute right-0 top-0 w-24 h-24 bg-white/10 rounded-full blur-2xl translate-x-1/2 -translate-y-1/2"></div>
-            
+
             <p class="text-xs text-yellow-100 font-medium mb-1">Withdrawable Earnings</p>
             <h1 class="text-3xl font-bold tracking-tight mb-4" id="display-earnings">
                 ₦<?= number_format($earnings_balance) ?>
             </h1>
-            
+
             <div class="flex items-center gap-2 text-[10px] text-yellow-100 bg-white/10 w-fit px-2 py-1 rounded-lg">
                 <i data-lucide="info" class="w-3 h-3"></i>
                 <span>Minimum withdrawal: ₦2,000</span>
@@ -100,21 +100,21 @@ include 'header.php';
 
     <!-- 2. Withdrawal Form -->
     <section class="px-5 py-4">
-        
+
         <!-- Destination Account (SSR Loaded) -->
         <div class="mb-6">
             <div class="flex justify-between items-center mb-2">
                 <label class="text-xs font-bold text-gray-500 dark:text-gray-400 uppercase tracking-wide">Destination Account</label>
                 <a href="bank-details.php" class="text-xs text-app-primary font-bold hover:text-blue-400 transition-colors">Manage</a>
             </div>
-            
+
             <div id="account-select-container">
                 <?php if (!$primary_account): ?>
                     <!-- No Accounts Found -->
                     <a href="bank-details.php" class="block w-full border-2 border-dashed border-gray-300 dark:border-gray-700 rounded-xl p-4 text-center text-gray-400 dark:text-gray-500 text-sm font-bold hover:border-app-primary hover:text-app-primary dark:hover:border-app-primary dark:hover:text-app-primary transition-colors bg-gray-50 dark:bg-gray-800/50">
                         + Add Bank Account
                     </a>
-                <?php else: 
+                <?php else:
                     $initial = strtoupper(substr($primary_account['bank_name'], 0, 2));
                 ?>
                     <!-- Primary Account SSR Rendered -->
@@ -133,7 +133,7 @@ include 'header.php';
                     </div>
                 <?php endif; ?>
             </div>
-            
+
             <!-- Hidden input stores the SSR ID for JS payload -->
             <input type="hidden" id="selected-account-id" value="<?= $primary_account ? esc_attr($primary_account['id']) : '' ?>">
         </div>
@@ -146,7 +146,7 @@ include 'header.php';
                 <input type="number" id="withdraw-amount" class="w-full bg-white dark:bg-dark-card border border-gray-200 dark:border-gray-700 rounded-xl pl-8 pr-16 py-4 text-xl font-bold text-gray-900 dark:text-white outline-none focus:ring-2 focus:ring-app-primary/20 focus:border-app-primary dark:focus:border-app-primary transition-all placeholder:text-gray-300 dark:placeholder:text-gray-600" placeholder="0.00">
                 <button onclick="setMaxAmount()" class="absolute right-4 top-1/2 -translate-y-1/2 text-[10px] font-bold bg-gray-100 dark:bg-gray-700 text-gray-500 dark:text-gray-300 px-2 py-1 rounded hover:bg-gray-200 dark:hover:bg-gray-600 transition-colors">MAX</button>
             </div>
-            
+
             <div class="flex gap-2 mt-3 overflow-x-auto no-scrollbar">
                 <button onclick="setAmount(2000)" class="px-3 py-1.5 rounded-lg border border-gray-200 dark:border-gray-700 text-gray-500 dark:text-gray-400 text-xs font-medium hover:border-app-primary hover:text-app-primary dark:hover:text-app-primary dark:hover:border-app-primary transition-colors bg-white dark:bg-dark-card">₦2,000</button>
                 <button onclick="setAmount(5000)" class="px-3 py-1.5 rounded-lg border border-gray-200 dark:border-gray-700 text-gray-500 dark:text-gray-400 text-xs font-medium hover:border-app-primary hover:text-app-primary dark:hover:text-app-primary dark:hover:border-app-primary transition-colors bg-white dark:bg-dark-card">₦5,000</button>
@@ -157,7 +157,7 @@ include 'header.php';
         <button onclick="processWithdrawal(false)" id="withdraw-btn" <?= !$primary_account ? 'disabled' : '' ?> class="w-full bg-app-primary text-white py-4 rounded-xl font-bold shadow-lg shadow-blue-500/30 active:scale-[0.98] transition-transform flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed disabled:shadow-none">
             Withdraw Funds <i data-lucide="arrow-right" class="w-4 h-4"></i>
         </button>
-        
+
         <div class="flex justify-center items-center gap-1.5 mt-4 text-[10px] text-gray-400 dark:text-gray-500">
             <i data-lucide="lock" class="w-3 h-3"></i>
             <span>Encrypted & Secure Payment</span>
@@ -185,9 +185,9 @@ include 'header.php';
             <div class="w-16 h-16 bg-red-100 dark:bg-red-900/20 rounded-full flex items-center justify-center mx-auto mb-4">
                 <i data-lucide="lock" class="w-8 h-8 text-red-600 dark:text-red-500"></i>
             </div>
-            
+
             <h2 class="text-lg font-bold text-gray-900 dark:text-white mb-2">Account Verification Required</h2>
-            
+
             <div class="text-left bg-gray-50 dark:bg-gray-800/50 p-4 rounded-xl mb-6 border border-gray-100 dark:border-gray-800">
                 <p class="text-gray-600 dark:text-gray-300 text-xs leading-relaxed mb-3">
                     To ensure user authenticity and securely process your withdrawal, a total lifetime deposit of <span class="font-bold text-gray-900 dark:text-white">₦1,000</span> is required.
@@ -204,12 +204,12 @@ include 'header.php';
             <a href="topup.php" class="w-full bg-app-primary text-white py-3.5 rounded-xl font-bold block shadow-lg shadow-blue-500/20 active:scale-95 transition-transform hover:bg-blue-700 mb-3">
                 Fund ₦1,000 Now
             </a>
-            
+
             <!-- Option 2: Pay from Winnings (Triggers Confirmation) -->
             <button onclick="openDeductModal()" id="pay-fee-btn" class="w-full bg-white dark:bg-transparent border border-gray-200 dark:border-gray-700 text-gray-600 dark:text-gray-300 py-3.5 rounded-xl font-bold block hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors">
                 Pay ₦1,000 from Balance
             </button>
-            
+
             <button onclick="document.getElementById('verify-modal').classList.add('hidden')" class="mt-4 text-xs text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 font-medium">
                 Close
             </button>
@@ -222,9 +222,9 @@ include 'header.php';
             <div class="w-16 h-16 bg-orange-100 dark:bg-orange-900/20 rounded-full flex items-center justify-center mx-auto mb-4">
                 <i data-lucide="alert-triangle" class="w-8 h-8 text-orange-600 dark:text-orange-500"></i>
             </div>
-            
+
             <h2 class="text-lg font-bold text-gray-900 dark:text-white mb-2">Confirm Deduction</h2>
-            
+
             <p class="text-sm text-gray-600 dark:text-gray-300 mb-6 leading-relaxed">
                 Are you sure? We will deduct <span class="font-bold text-gray-900 dark:text-white">₦1,000</span> from your winnings balance to verify your account history. <br><br>
                 <span class="text-xs text-gray-400 italic">This fee will be credited to your spending wallet.</span>
@@ -233,7 +233,7 @@ include 'header.php';
             <button onclick="processWithdrawal(true)" id="confirm-deduct-btn" class="w-full bg-orange-600 text-white py-3.5 rounded-xl font-bold block shadow-lg shadow-orange-500/20 active:scale-95 transition-transform hover:bg-orange-700 mb-3">
                 Yes, Deduct & Proceed
             </button>
-            
+
             <button onclick="closeDeductModal()" class="w-full bg-transparent border border-gray-200 dark:border-gray-700 text-gray-600 dark:text-gray-400 py-3.5 rounded-xl font-bold hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors">
                 Cancel
             </button>
@@ -247,7 +247,7 @@ include 'header.php';
     const withdrawBtn = document.getElementById('withdraw-btn');
     const selectedAccountId = document.getElementById('selected-account-id');
     const confirmDeductBtn = document.getElementById('confirm-deduct-btn');
-    
+
     // Inject exact earnings balance securely from PHP into JS logic
     let currentEarnings = <?= $earnings_balance ?>;
 
@@ -269,7 +269,7 @@ include 'header.php';
         document.getElementById('verify-modal').classList.add('hidden');
         document.getElementById('deduct-confirm-modal').classList.remove('hidden');
     }
-    
+
     function closeDeductModal() {
         document.getElementById('deduct-confirm-modal').classList.add('hidden');
         document.getElementById('verify-modal').classList.remove('hidden');
@@ -279,7 +279,7 @@ include 'header.php';
         const amount = parseFloat(amountInput.value);
         const accountId = selectedAccountId.value;
         const btn = authorize ? confirmDeductBtn : withdrawBtn;
-        
+
         // Validation
         if (!amount || amount < 2000) {
             alert("Minimum withdrawal is ₦2,000");
@@ -301,7 +301,7 @@ include 'header.php';
             <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
         </svg> Processing...`;
         btn.disabled = true;
-        
+
         const payload = { amount: amount, account_id: accountId };
         if (authorize) payload.authorize_deduction = true;
 
@@ -320,11 +320,11 @@ include 'header.php';
                 // Hide Modals if open
                 document.getElementById('deduct-confirm-modal').classList.add('hidden');
                 document.getElementById('verify-modal').classList.add('hidden');
-                
+
                 // Update Local Balance (No longer heavily relying on localStorage, but kept for UI sync)
                 currentEarnings = data.new_earnings;
                 document.getElementById('display-earnings').innerText = '₦' + currentEarnings.toLocaleString();
-                
+
                 // --- DYNAMIC MODAL CONTENT ---
                 if (authorize) {
                     const payout = amount - 1000;
@@ -334,22 +334,22 @@ include 'header.php';
                     document.getElementById('success-title').innerText = "Request Submitted";
                     document.getElementById('success-message').innerHTML = `Your <span class="font-bold text-gray-900 dark:text-white">₦${amount.toLocaleString()}</span> withdrawal is being processed. Funds usually arrive within 24 hours.`;
                 }
-                
+
                 // Show Success Modal
                 document.getElementById('success-modal').classList.remove('hidden');
                 setTimeout(() => {
                     document.getElementById('modal-content').classList.remove('scale-90', 'opacity-0');
                     document.getElementById('modal-content').classList.add('scale-100', 'opacity-100');
                 }, 10);
-            
+
             // *** HANDLE SPECIFIC ERROR: DEPOSIT LIMIT / LOCKED ***
             } else if (data.code === 'withdrawal_locked' || data.code === 'deposit_limit') {
                 document.getElementById('verify-modal').classList.remove('hidden');
-            
+
             // *** GENERIC ERROR ***
             } else {
                 alert(data.message || "Withdrawal Failed");
-                if(authorize) closeDeductModal(); 
+                if(authorize) closeDeductModal();
             }
 
         } catch (e) {
