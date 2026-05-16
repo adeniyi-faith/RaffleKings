@@ -10,7 +10,7 @@ ob_start();
 
 // 1. NATIVE AUTHENTICATION
 if (!is_user_logged_in()) {
-    header('Location: login.php');
+    header('Location: ' . (function_exists('rk_login_url_with_return') ? rk_login_url_with_return() : 'login.php'));
     exit;
 }
 

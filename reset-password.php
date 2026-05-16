@@ -4,7 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
     <title>Reset Password - RaffleKings</title>
-    
+
     <script src="https://cdn.tailwindcss.com"></script>
     <script>
         tailwind.config = {
@@ -56,9 +56,13 @@
                     </div>
                 </div>
 
+                <button type="button" id="verify-btn" onclick="verifyCode()" class="w-full bg-blue-50 text-app-primary py-3 rounded-xl font-bold active:scale-[0.98] transition-transform flex items-center justify-center gap-2">
+                    Verify Code <i data-lucide="shield-check" class="w-4 h-4"></i>
+                </button>
                 <button type="submit" id="submit-btn" class="w-full bg-gray-900 text-white py-4 rounded-xl font-bold shadow-lg shadow-gray-900/20 active:scale-[0.98] transition-transform flex items-center justify-center gap-2">
                     Update Password <i data-lucide="check-circle" class="w-4 h-4"></i>
                 </button>
+                <button type="button" onclick="resendCode()" class="w-full text-xs font-bold text-gray-500 hover:text-app-primary">Resend code</button>
             </form>
         </div>
     </div>
@@ -88,11 +92,35 @@
             lucide.createIcons();
         }
 
+        function showState(kind, text) {
+            const msg = document.getElementById('status-msg');
+            const colors = kind === 'success' ? 'bg-green-50 text-green-600' : kind === 'warning' ? 'bg-yellow-50 text-yellow-700' : 'bg-red-50 text-red-600';
+            msg.className = colors + ' p-3 rounded-lg text-xs font-bold text-center block mb-4';
+            msg.innerText = text;
+        }
+
+        async function verifyCode() {
+            const formData = new FormData(document.getElementById('reset-form'));
+            const data = Object.fromEntries(formData.entries());
+            data.mode = 'verify-code';
+            const res = await fetch(API_CONFIG.RESET_PASSWORD, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(data) });
+            const result = await res.json();
+            if (result.success) showState('success', result.message || 'Code verified.');
+            else showState(result.code === 'expired_code' ? 'warning' : 'error', result.message || 'Invalid code.');
+        }
+
+        async function resendCode() {
+            const email = document.getElementById('email_hidden').value;
+            const res = await fetch(API_CONFIG.FORGOT_PASSWORD, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ email, mode: 'resend' }) });
+            const result = await res.json();
+            showState(result.success ? 'success' : 'error', result.message || 'Could not resend code.');
+        }
+
         async function handleReset(e) {
             e.preventDefault();
             const btn = document.getElementById('submit-btn');
             const msg = document.getElementById('status-msg');
-            
+
             // Get form data
             const formData = new FormData(document.getElementById('reset-form'));
             const data = Object.fromEntries(formData.entries());
@@ -110,15 +138,13 @@
                 const result = await res.json();
 
                 if (result.success) {
-                    msg.className = 'bg-green-50 text-green-600 p-3 rounded-lg text-xs font-bold text-center block mb-4';
-                    msg.innerText = result.message;
+                    showState('success', result.message);
                     setTimeout(() => { window.location.href = 'login.php'; }, 2000);
                 } else {
                     throw new Error(result.message || 'Update failed');
                 }
             } catch (err) {
-                msg.className = 'bg-red-50 text-red-600 p-3 rounded-lg text-xs font-bold text-center block mb-4';
-                msg.innerText = err.message;
+                showState(err.message && err.message.includes('expired') ? 'warning' : 'error', err.message);
                 btn.disabled = false;
                 btn.innerHTML = 'Update Password <i data-lucide="check-circle" class="w-4 h-4"></i>';
                 lucide.createIcons();

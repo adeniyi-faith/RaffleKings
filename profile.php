@@ -27,6 +27,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
         }
 
         $user_id = get_current_user_id();
+        if (function_exists('rk_check_user_status') && is_wp_error($status = rk_check_user_status($user_id, 'transfer'))) {
+            echo json_encode(['success' => false, 'message' => $status->get_error_message(), 'code' => $status->get_error_code()]);
+            exit;
+        }
         $amount = floatval($_POST['amount'] ?? 0);
         $earnings = floatval(get_user_meta($user_id, 'earnings_balance', true));
         $wallet = floatval(get_user_meta($user_id, 'wallet_balance', true));
@@ -102,15 +106,15 @@ if ($p_is_logged_in) {
             state: <?php echo json_encode($p_state); ?>,
             wallet: <?php echo isset($rk_wallet) ? $rk_wallet : 0; ?>,
             earnings: <?php echo $p_earnings; ?>,
-            
+
             // Theme State
             isDark: false,
-            
+
             // Modal States
             transferModal: false,
             transferAmount: '',
             isTransferring: false,
-            
+
             // Install App State
             deferredPrompt: null,
             canInstall: false,
@@ -118,20 +122,20 @@ if ($p_is_logged_in) {
             initProfile() {
                 // Initialize Theme
                 this.isDark = document.documentElement.classList.contains('dark');
-                
+
                 // Initialize PWA Install Listener
                 window.addEventListener('beforeinstallprompt', (e) => {
                     e.preventDefault();
                     this.deferredPrompt = e;
                     this.canInstall = true;
                 });
-                
+
                 // Notice: We completely deleted fetchUserData() and fetchBalance() here!
                 // The data is instantly available on load via the SSR injection above.
-                
+
                 this.$nextTick(() => { if (typeof lucide !== 'undefined') lucide.createIcons(); });
             },
-            
+
             toggleTheme() {
                 this.isDark = !this.isDark;
                 if (this.isDark) {
@@ -144,7 +148,7 @@ if ($p_is_logged_in) {
                     document.querySelector('meta[name="theme-color"]').setAttribute('content', '#ffffff');
                 }
             },
-            
+
             handleInstallClick() {
                 if (this.canInstall && this.deferredPrompt) {
                     this.deferredPrompt.prompt();
@@ -156,7 +160,7 @@ if ($p_is_logged_in) {
                     const modal = document.getElementById('ios-install-modal');
                     const panel = document.getElementById('ios-modal-panel');
                     const backdrop = document.getElementById('ios-backdrop');
-                    
+
                     if(modal && panel && backdrop) {
                         modal.classList.remove('hidden');
                         setTimeout(() => {
@@ -175,7 +179,7 @@ if ($p_is_logged_in) {
                     const formData = new FormData();
                     formData.append('action', 'logout');
                     await fetch(window.location.href.split('?')[0], { method: 'POST', body: formData });
-                    
+
                     localStorage.clear();
                     sessionStorage.clear();
                     window.location.href = 'login.php';
@@ -199,7 +203,7 @@ if ($p_is_logged_in) {
                 }
 
                 this.isTransferring = true;
-                
+
                 // 🚀 NEW: Native form data submission to the top of this file
                 const formData = new FormData();
                 formData.append('action', 'transfer');
@@ -210,16 +214,16 @@ if ($p_is_logged_in) {
                         method: 'POST',
                         body: formData
                     });
-                    
+
                     const result = await res.json();
 
                     if (result.success) {
                         this.wallet = result.new_wallet;
                         this.earnings = result.new_earnings;
-                        
+
                         // Tell the header to update itself instantly without a page reload
-                        if (typeof refreshBalance === 'function') refreshBalance(); 
-                        
+                        if (typeof refreshBalance === 'function') refreshBalance();
+
                         this.transferModal = false;
                         alert("Transfer Successful!");
                     } else {
@@ -269,9 +273,9 @@ if ($p_is_logged_in) {
         <div class="relative z-10 flex flex-col items-center text-center">
             <!-- Avatar Circle -->
             <div class="w-24 h-24 rounded-full border-4 border-white/20 shadow-xl overflow-hidden mb-3 relative group bg-blue-700 dark:bg-blue-800">
-                <img :src="avatar" alt="Profile" class="w-full h-full object-cover" 
+                <img :src="avatar" alt="Profile" class="w-full h-full object-cover"
                      onerror="this.src='https://api.dicebear.com/7.x/initials/svg?seed=Guest'">
-                
+
                 <!-- Edit Overlay -->
                 <a href="edit-profile.php" class="absolute bottom-0 left-0 right-0 h-1/3 bg-black/50 backdrop-blur-sm flex items-center justify-center text-white hover:bg-black/70 transition-colors">
                     <i data-lucide="camera" class="w-4 h-4"></i>
@@ -310,7 +314,7 @@ if ($p_is_logged_in) {
         <!-- WALLET CARDS (If Logged In) -->
         <template x-if="isLoggedIn">
             <div class="space-y-4">
-                
+
                 <!-- Spending Wallet (White Card) -->
                 <div class="bg-white dark:bg-dark-card rounded-2xl shadow-lg border border-gray-100 dark:border-gray-800 p-5 relative overflow-hidden transition-colors duration-200">
                     <div class="flex justify-between items-start mb-2">
@@ -324,7 +328,7 @@ if ($p_is_logged_in) {
                             <i data-lucide="credit-card" class="w-4 h-4"></i>
                         </div>
                     </div>
-                    
+
                     <a href="topup.php" class="w-full bg-blue-600 text-white py-3 rounded-xl text-sm font-bold flex items-center justify-center gap-2 active:scale-95 transition-transform shadow-md shadow-blue-200 dark:shadow-none mt-2 hover:bg-blue-700">
                         <i data-lucide="plus-circle" class="w-4 h-4"></i> Fund Wallet
                     </a>
@@ -333,7 +337,7 @@ if ($p_is_logged_in) {
                 <!-- Earnings Wallet (Gradient Card) -->
                 <div class="bg-gradient-to-br from-yellow-500 to-orange-600 dark:from-yellow-600 dark:to-orange-700 rounded-2xl shadow-lg p-5 text-white relative overflow-hidden">
                     <div class="absolute -right-6 -top-6 w-24 h-24 bg-white/20 rounded-full blur-2xl pointer-events-none"></div>
-                    
+
                     <div class="flex justify-between items-start mb-2 relative z-10">
                         <div>
                             <p class="text-[10px] text-yellow-100 uppercase font-bold tracking-wider flex items-center gap-1">
@@ -350,7 +354,7 @@ if ($p_is_logged_in) {
                         <button @click="openTransfer()" class="flex-1 bg-white/20 backdrop-blur-md border border-white/30 text-white py-2.5 rounded-xl text-xs font-bold flex items-center justify-center gap-2 active:scale-95 transition-transform hover:bg-white/30">
                             <i data-lucide="refresh-cw" class="w-3 h-3"></i> Transfer
                         </button>
-                        
+
                         <a href="withdraw.php" class="flex-1 bg-white text-orange-600 py-2.5 rounded-xl text-xs font-bold flex items-center justify-center gap-2 active:scale-95 transition-transform shadow-sm hover:bg-orange-50">
                             <i data-lucide="arrow-up-right" class="w-3 h-3"></i> Withdraw
                         </a>
@@ -363,12 +367,12 @@ if ($p_is_logged_in) {
 
     <!-- MENU ACTIONS -->
     <div class="px-5 mt-8 space-y-6 pb-6">
-        
+
         <!-- Community Group (NEW) -->
         <div>
             <h3 class="text-xs font-bold text-gray-400 dark:text-gray-500 uppercase tracking-wider pl-1 mb-2">Community & Updates</h3>
             <div class="bg-white dark:bg-dark-card rounded-xl shadow-sm border border-gray-100 dark:border-gray-800 overflow-hidden transition-colors duration-200">
-                
+
                 <a href="https://whatsapp.com/channel/0029Vb7sAt50gcfPYyO5jj2Z" target="_blank" class="flex items-center justify-between p-4 border-b border-gray-50 dark:border-gray-800 active:bg-green-50 dark:active:bg-green-900/10 hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors group">
                     <div class="flex items-center gap-3">
                         <div class="w-8 h-8 rounded-full bg-green-100 dark:bg-green-900/30 flex items-center justify-center text-green-600 dark:text-green-400 relative">
@@ -391,7 +395,7 @@ if ($p_is_logged_in) {
         <div>
             <h3 class="text-xs font-bold text-gray-400 dark:text-gray-500 uppercase tracking-wider pl-1 mb-2">Activity</h3>
             <div class="bg-white dark:bg-dark-card rounded-xl shadow-sm border border-gray-100 dark:border-gray-800 overflow-hidden transition-colors duration-200">
-                
+
                 <a href="my-tickets.php" class="flex items-center justify-between p-4 border-b border-gray-50 dark:border-gray-800 active:bg-gray-50 dark:active:bg-gray-800 hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors group">
                     <div class="flex items-center gap-3">
                         <div class="w-8 h-8 rounded-full bg-green-50 dark:bg-green-900/30 flex items-center justify-center text-green-600 dark:text-green-400">
@@ -422,7 +426,7 @@ if ($p_is_logged_in) {
         <div x-show="isLoggedIn" x-cloak>
             <h3 class="text-xs font-bold text-gray-400 dark:text-gray-500 uppercase tracking-wider pl-1 mb-2">Account</h3>
             <div class="bg-white dark:bg-dark-card rounded-xl shadow-sm border border-gray-100 dark:border-gray-800 overflow-hidden transition-colors duration-200">
-                
+
                 <a href="edit-profile.php" class="flex items-center justify-between p-4 border-b border-gray-50 dark:border-gray-800 active:bg-gray-50 dark:active:bg-gray-800 hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors group">
                     <div class="flex items-center gap-3">
                         <div class="w-8 h-8 rounded-full bg-blue-50 dark:bg-blue-900/30 flex items-center justify-center text-blue-600 dark:text-blue-400">
@@ -456,7 +460,7 @@ if ($p_is_logged_in) {
         <div>
             <h3 class="text-xs font-bold text-gray-400 dark:text-gray-500 uppercase tracking-wider pl-1 mb-2">System</h3>
             <div class="bg-white dark:bg-dark-card rounded-xl shadow-sm border border-gray-100 dark:border-gray-800 overflow-hidden transition-colors duration-200">
-                
+
                 <!-- DARK MODE TOGGLE (NEW) -->
                 <button @click="toggleTheme()" class="w-full flex items-center justify-between p-4 border-b border-gray-50 dark:border-gray-800 active:bg-gray-50 dark:active:bg-gray-800 hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors group">
                     <div class="flex items-center gap-3">
@@ -518,7 +522,7 @@ if ($p_is_logged_in) {
         <div>
             <h3 class="text-xs font-bold text-gray-400 dark:text-gray-500 uppercase tracking-wider pl-1 mb-2">Legal & Support</h3>
             <div class="bg-white dark:bg-dark-card rounded-xl shadow-sm border border-gray-100 dark:border-gray-800 overflow-hidden transition-colors duration-200">
-                
+
                 <a href="toc.php" class="flex items-center justify-between p-4 border-b border-gray-50 dark:border-gray-800 active:bg-gray-50 dark:active:bg-gray-800 hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors group">
                     <div class="flex items-center gap-3">
                         <div class="w-8 h-8 rounded-full bg-gray-50 dark:bg-gray-700/50 flex items-center justify-center text-gray-500 dark:text-gray-400">
@@ -572,7 +576,7 @@ if ($p_is_logged_in) {
     </div>
 
     <!-- TRANSFER MODAL (Styled) -->
-    <div x-show="transferModal" 
+    <div x-show="transferModal"
          x-transition:enter="transition ease-out duration-200"
          x-transition:enter-start="opacity-0 scale-95"
          x-transition:enter-end="opacity-100 scale-100"
@@ -580,7 +584,7 @@ if ($p_is_logged_in) {
          x-transition:leave-start="opacity-100 scale-100"
          x-transition:leave-end="opacity-0 scale-95"
          class="fixed inset-0 bg-black/60 z-50 flex items-center justify-center backdrop-blur-sm p-5" x-cloak>
-         
+
         <div @click.outside="transferModal = false" class="bg-white dark:bg-dark-card rounded-2xl p-6 w-full max-w-sm relative shadow-2xl transition-colors duration-200">
             <button @click="transferModal = false" class="absolute top-4 right-4 text-gray-400 hover:text-gray-600 dark:hover:text-gray-200 p-1 bg-gray-100 dark:bg-gray-700 rounded-full transition-colors">
                 <i data-lucide="x" class="w-4 h-4"></i>
@@ -590,13 +594,13 @@ if ($p_is_logged_in) {
             <p class="text-xs text-gray-500 dark:text-gray-400 mb-6 leading-relaxed">
                 Transfer funds from your Winnings balance to your Spending Wallet.
             </p>
-            
+
             <div class="mb-6 bg-gray-50 dark:bg-gray-900 p-4 rounded-xl border border-gray-100 dark:border-gray-700">
                 <label class="text-[10px] font-bold text-gray-400 dark:text-gray-500 uppercase tracking-wide">Amount to Transfer</label>
                 <div class="flex items-center border-b-2 border-gray-200 dark:border-gray-700 py-2 focus-within:border-blue-600 transition-colors mt-1">
                     <span class="text-gray-400 dark:text-gray-500 font-bold mr-2 text-xl">₦</span>
-                    <input type="number" x-model="transferAmount" 
-                           class="w-full text-2xl font-black text-gray-900 dark:text-white outline-none bg-transparent placeholder-gray-300 dark:placeholder-gray-600" 
+                    <input type="number" x-model="transferAmount"
+                           class="w-full text-2xl font-black text-gray-900 dark:text-white outline-none bg-transparent placeholder-gray-300 dark:placeholder-gray-600"
                            placeholder="0.00">
                     <button @click="transferAmount = earnings" class="text-xs font-bold text-blue-600 dark:text-blue-400 bg-blue-50 dark:bg-blue-900/30 px-2 py-1 rounded hover:bg-blue-100 dark:hover:bg-blue-900/50 transition-colors">MAX</button>
                 </div>
@@ -606,7 +610,7 @@ if ($p_is_logged_in) {
                 </p>
             </div>
 
-            <button @click="processTransfer()" 
+            <button @click="processTransfer()"
                     :disabled="isTransferring"
                     class="w-full py-3.5 rounded-xl text-white font-bold text-sm shadow-lg shadow-blue-200 dark:shadow-none flex items-center justify-center gap-2 active:scale-95 transition-all"
                     :class="isTransferring ? 'bg-blue-400 cursor-wait' : 'bg-blue-600 hover:bg-blue-700'">
