@@ -10,7 +10,7 @@ ob_start();
 
 // 1. NATIVE AUTHENTICATION
 if (!is_user_logged_in()) {
-    header('Location: login.php');
+    header('Location: ' . (function_exists('rk_login_url_with_return') ? rk_login_url_with_return() : 'login.php'));
     exit;
 }
 
@@ -72,7 +72,7 @@ include 'header.php';
         </button>
         <div>
             <h2 class="text-xl font-bold text-gray-900 dark:text-white">Bank Accounts</h2>
-            <p class="text-xs text-gray-500 dark:text-gray-400">Manage accounts for withdrawals.</p>
+            <p class="text-xs text-gray-500 dark:text-gray-400">Manage up to two Nigerian bank accounts for withdrawals.</p>
         </div>
     </div>
 
@@ -175,6 +175,8 @@ include 'header.php';
 
         </div>
 
+        <p class="mt-5 text-xs text-gray-500 dark:text-gray-400">Account number must be exactly 10 digits. Names should match your bank record.</p>
+
         <button id="rk-save-bank-btn" onclick="saveAccount()" class="w-full mt-8 bg-app-primary text-white py-3.5 rounded-xl font-bold shadow-lg shadow-blue-500/30 active:scale-[0.98] transition-all flex items-center justify-center gap-2">
             Save Account
         </button>
@@ -199,7 +201,19 @@ include 'header.php';
         const accName = document.getElementById('rk-new-acc-name').value.trim();
 
         if(!bankName || !accNum || !accName) {
-            alert("Please fill in all details.");
+            alert("Please fill in bank name, account number, and account name.");
+            return;
+        }
+        if(!/^\d{10}$/.test(accNum)) {
+            alert("Nigerian account numbers must be exactly 10 digits.");
+            return;
+        }
+        if(bankName.length < 2 || !/^[A-Za-z0-9 .&'-]{2,80}$/.test(bankName)) {
+            alert("Enter a valid Nigerian bank name.");
+            return;
+        }
+        if(!/^[A-Za-z .'-]{3,80}$/.test(accName)) {
+            alert("Enter the account name as it appears at the bank.");
             return;
         }
 
