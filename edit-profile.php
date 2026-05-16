@@ -10,7 +10,7 @@ require_once(__DIR__ . '/wp/wp-load.php');
 
 // 1. AUTH GUARD - Banish the uninvited
 if (!is_user_logged_in()) {
-    header('Location: profile.php');
+    header('Location: ' . (function_exists('rk_login_url_with_return') ? rk_login_url_with_return() : 'login.php'));
     exit;
 }
 
@@ -94,7 +94,7 @@ $saved_avatar = get_user_meta($user_id, 'profile_pic_url', true);
 $ssr_avatar   = $saved_avatar ? $saved_avatar : 'https://api.dicebear.com/7.x/initials/svg?seed=' . urlencode($ssr_display_name);
 
 // Now we may present the visual interface
-include 'header.php'; 
+include 'header.php';
 ?>
 
 <!-- No more rudimentary localStorage auth guards needed here; PHP handles the door -->
@@ -121,7 +121,7 @@ include 'header.php';
             initForm() {
                 // Initialize icons gracefully
                 this.$nextTick(() => { if (typeof lucide !== 'undefined') lucide.createIcons(); });
-                // Note: The fetchRemoteProfile() call has been banished! 
+                // Note: The fetchRemoteProfile() call has been banished!
                 // The data is already here, perfectly composed.
             },
 
@@ -138,7 +138,7 @@ include 'header.php';
             async saveProfile() {
                 this.isSaving = true;
                 this.message = '';
-                
+
                 const formData = new FormData();
                 // Add our Local Proxy action
                 formData.append('action', 'update_profile');
@@ -146,7 +146,7 @@ include 'header.php';
                 Object.keys(this.form).forEach(key => {
                     if(key !== 'avatar' && this.form[key]) formData.append(key, this.form[key]);
                 });
-                
+
                 if (this.imageFile) formData.append('profile_image', this.imageFile);
 
                 try {
@@ -155,19 +155,19 @@ include 'header.php';
                         method: 'POST',
                         body: formData
                     });
-                    
+
                     const data = await res.json();
 
                     if(res.ok && data.success) {
                         this.isError = false;
                         this.message = data.message;
-                        
+
                         // Update cache merely for the benefit of other legacy pages
                         this.updateCache({
                             ...this.form,
                             avatar: data.avatar || this.form.avatar
                         });
-                        
+
                         setTimeout(() => window.location.href = 'profile.php', 1000);
                     } else {
                         throw new Error(data.message || 'An unfortunate error occurred whilst updating.');
@@ -179,7 +179,7 @@ include 'header.php';
                     this.isSaving = false;
                 }
             },
-            
+
             updateCache(data) {
                 if(data.first_name) localStorage.setItem('user_first_name', data.first_name);
                 if(data.last_name) localStorage.setItem('user_last_name', data.last_name);
@@ -199,11 +199,11 @@ include 'header.php';
 <style>
     /* Prevent FOUC */
     [x-cloak] { display: none !important; }
-    
+
     /* Utility */
     .no-scrollbar::-webkit-scrollbar { display: none; }
     .no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
-    
+
     /* Safe Area Spacing for iOS */
     .safe-pb { padding-bottom: env(safe-area-inset-bottom); }
 </style>
@@ -221,9 +221,9 @@ include 'header.php';
 
     <div class="px-5 pt-6 safe-pb">
         <form @submit.prevent="saveProfile" class="space-y-6">
-            
+
             <!-- Dynamic Message Box -->
-            <div x-show="message" x-transition 
+            <div x-show="message" x-transition
                  :class="isError ? 'bg-red-50 dark:bg-red-900/20 text-red-600 dark:text-red-400 border border-red-100 dark:border-red-900' : 'bg-green-50 dark:bg-green-900/20 text-green-600 dark:text-green-400 border border-green-100 dark:border-green-900'"
                  class="p-3 rounded-xl text-sm font-medium text-center"
                  x-text="message" x-cloak>
@@ -246,7 +246,7 @@ include 'header.php';
             <!-- Personal Info -->
             <div class="bg-white dark:bg-dark-card p-5 rounded-2xl shadow-sm border border-gray-100 dark:border-gray-800 space-y-5 transition-colors duration-200">
                 <h2 class="text-xs font-bold text-gray-400 dark:text-gray-500 uppercase tracking-wider mb-2 border-b border-gray-50 dark:border-gray-700 pb-2">Personal Details</h2>
-                
+
                 <div class="grid grid-cols-2 gap-4">
                     <div>
                         <label class="block text-xs font-bold text-gray-500 dark:text-gray-400 mb-1.5 uppercase">First Name</label>

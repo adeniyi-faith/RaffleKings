@@ -1,3 +1,14 @@
+<?php
+ob_start();
+define('RK_FRONTEND_APP', true);
+define('WP_USE_THEMES', false);
+require_once(__DIR__ . '/wp/wp-load.php');
+if (!is_user_logged_in()) {
+    header('Location: ' . (function_exists('rk_login_url_with_return') ? rk_login_url_with_return() : 'login.php?return=complete-profile.php'));
+    exit;
+}
+$rk_completion = function_exists('rk_get_profile_completion_state') ? rk_get_profile_completion_state(get_current_user_id()) : ['missing' => []];
+?>
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -18,11 +29,8 @@
     <script src="watchdog.js"></script>
     <script src="analytics.js"></script>
 
-    <!-- Auth Guard -->
     <script>
-        const token = localStorage.getItem('token');
-        if(!token) window.location.href = 'login.php';
-
+        window.RK_PROFILE_COMPLETION = <?php echo wp_json_encode($rk_completion); ?>;
         tailwind.config = { theme: { extend: { colors: { app: { primary: '#2563EB', primaryDark: '#1d4ed8' } } } } }
     </script>
 
@@ -36,6 +44,17 @@
 <body class="bg-gray-50 flex items-center justify-center h-[100dvh] px-4">
 
     <div class="max-w-md w-full bg-white p-8 rounded-3xl shadow-xl text-center">
+
+        <?php if (!empty($rk_completion['missing'])): ?>
+            <div class="mb-5 text-left bg-blue-50 border border-blue-100 rounded-2xl p-4">
+                <p class="text-xs font-black text-blue-700 uppercase tracking-wide mb-2">Profile checklist</p>
+                <ul class="text-xs text-blue-900 space-y-1">
+                    <?php foreach ($rk_completion['missing'] as $missing_item): ?>
+                        <li>• <?php echo esc_html(ucwords(str_replace('_', ' ', $missing_item))); ?></li>
+                    <?php endforeach; ?>
+                </ul>
+            </div>
+        <?php endif; ?>
 
         <div class="mb-4">
             <h1 class="text-2xl font-extrabold text-gray-900 mb-2">One Last Thing!</h1>
@@ -148,23 +167,13 @@
             formData.append('profile_image', fileInput.files[0]);
             formData.append('state', stateInput.value);
 
-            // Get Token (Required)
-            const token = localStorage.getItem('token');
-            if (!token) {
-                alert("Session expired. Please login again.");
-                window.location.href = 'login.php';
-                return;
-            }
-
             try {
                 // Use Centralized Config
                 const endpoint = (typeof API_CONFIG !== 'undefined') ? API_CONFIG.PROFILE_UPDATE : 'ajax-router.php?action=update_profile';
 
                 const response = await fetch(endpoint, {
                     method: 'POST',
-                    headers: {
-                        'Authorization': `Bearer ${token}`
-                    },
+                    credentials: 'same-origin',
                     body: formData
                 });
 
