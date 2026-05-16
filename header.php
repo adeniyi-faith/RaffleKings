@@ -36,10 +36,10 @@ $rk_avatar = "https://api.dicebear.com/9.x/adventurer/svg?seed=Guest&backgroundC
 if ($rk_is_logged_in) {
     $rk_user_id = get_current_user_id();
     $rk_user = wp_get_current_user();
-    
+
     $rk_wallet = (float) get_user_meta($rk_user_id, 'wallet_balance', true);
     $rk_avatar = get_user_meta($rk_user_id, 'profile_pic_url', true);
-    
+
     if (empty($rk_avatar)) {
         $seed = preg_replace('/\s+/', '', $rk_user->display_name);
         $rk_avatar = "https://api.dicebear.com/9.x/adventurer/svg?seed={$seed}&backgroundColor=e5e7eb";
@@ -61,7 +61,7 @@ if ($rk_wallet >= 1000000) {
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
-    
+
     <!-- SEO & Social Media Metadata -->
     <title>RaffleKings - The ultimate community raffle platform</title>
     <meta name="description" content="Join RaffleKings, the ultimate community raffle platform. Participate in daily and weekly draws, win cash prizes, and enjoy secure, instant payouts.">
@@ -81,7 +81,7 @@ if ($rk_wallet >= 1000000) {
     <meta property="twitter:title" content="RaffleKings - Win Big Daily & Weekly">
     <meta property="twitter:description" content="The ultimate community raffle platform. Secure tickets, instant verification, and massive payouts. Play now!">
     <meta property="twitter:image" content="https://getonlinestudio.com/insights/wp-content/uploads/2026/01/iOS-1-1.png">
-    
+
     <!-- PWA & Mobile Meta Tags -->
     <meta name="theme-color" content="#ffffff">
     <meta name="mobile-web-app-capable" content="yes">
@@ -89,7 +89,7 @@ if ($rk_wallet >= 1000000) {
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
     <meta name="apple-mobile-web-app-title" content="RaffleKings">
     <link rel="manifest" href="manifest.json">
-    
+
     <!-- Brand Assets / Favicons -->
     <link rel="apple-touch-icon" href="https://getonlinestudio.com/insights/wp-content/uploads/2026/01/iOS-1-1.png">
     <link rel="icon" type="image/png" sizes="32x32" href="https://getonlinestudio.com/insights/wp-content/uploads/2026/01/@32-px.png">
@@ -124,39 +124,39 @@ if ($rk_wallet >= 1000000) {
       gtag('js', new Date());
       gtag('config', 'G-XMBB4JFPQ1');
     </script>
-    
+
     <script src="analytics-tracker.js" data-cfasync="false"></script>
-    
+
     <!-- Tailwind CSS -->
     <script src="https://cdn.tailwindcss.com" data-cfasync="false"></script>
     <script data-cfasync="false">
         tailwind.config = {
-            darkMode: 'class', 
+            darkMode: 'class',
             theme: {
                 extend: {
                     colors: {
                         'app-primary': '#2563eb',
                         'app-secondary': '#1e40af',
                         'app-bg': '#f8fafc',
-                        'dark-bg': '#0f172a',       
-                        'dark-card': '#1e293b',     
-                        'dark-border': '#334155'   
+                        'dark-bg': '#0f172a',
+                        'dark-card': '#1e293b',
+                        'dark-border': '#334155'
                     },
                     fontFamily: { sans: ['Inter', 'sans-serif'] }
                 }
             }
         }
     </script>
-    
+
     <!-- Lucide Icons & Fonts -->
     <script src="https://unpkg.com/lucide@latest" data-cfasync="false"></script>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
-    
+
     <!-- Alpine.js -->
     <script src="https://cdn.jsdelivr.net/npm/alpinejs@3.x.x/dist/cdn.min.js" defer data-cfasync="false"></script>
 
     <!-- Configuration -->
-    <script src="config.js" data-cfasync="false"></script> 
+    <script src="config.js" data-cfasync="false"></script>
     <script src="watchdog.js" defer data-cfasync="false"></script>
 
     <!-- Service Worker -->
@@ -204,7 +204,7 @@ if ($rk_wallet >= 1000000) {
     <!-- Top Navigation Bar -->
     <header class="bg-white dark:bg-dark-bg/95 dark:border-dark-border px-4 sm:px-5 pb-3 flex justify-between items-center shadow-sm dark:shadow-none border-b border-transparent dark:border-gray-800 z-30 sticky top-0 flex-shrink-0 backdrop-blur-md"
             style="padding-top: calc(env(safe-area-inset-top) + 0.75rem);">
-        
+
         <!-- BRAND LOGO LINK -->
         <a href="index.php" class="flex items-center gap-2 active:scale-95 transition-transform">
             <img src="https://getonlinestudio.com/insights/wp-content/uploads/2026/01/App_Icon.png" alt="RaffleKings Logo" class="w-8 h-8 rounded-lg">
@@ -255,7 +255,7 @@ if ($rk_wallet >= 1000000) {
                     'border-red-500 bg-red-50 dark:bg-red-900/80 dark:border-red-400 dark:text-red-50': note.type === 'danger',
                     'border-purple-500 bg-purple-50 dark:bg-purple-900/80 dark:border-purple-400 dark:text-purple-50': note.type === 'promo'
                  }">
-                 
+
                  <div class="flex items-start justify-between gap-3">
                     <div class="flex-1">
                         <template x-if="note.title">
@@ -281,8 +281,9 @@ if ($rk_wallet >= 1000000) {
                 async init() {
                     try {
                         // 🚀 Pointing to the NEW Local WP REST endpoint instead of external API
-                        const res = await fetch('/wp/wp-json/raffle/v1/site-notices');
-                        const notices = await res.json();
+                        const res = await fetch((typeof API_CONFIG !== 'undefined' && API_CONFIG.SITE_NOTICES) ? API_CONFIG.SITE_NOTICES : 'ajax-router.php?action=site_notices');
+                        const noticesPayload = await res.json();
+                        const notices = noticesPayload && Object.prototype.hasOwnProperty.call(noticesPayload, 'data') ? noticesPayload.data : noticesPayload;
                         if (!Array.isArray(notices)) return;
 
                         this.activeNotices = notices.filter(n => this.shouldShow(n)).map(n => ({
@@ -292,7 +293,7 @@ if ($rk_wallet >= 1000000) {
                         this.activeNotices.forEach(n => {
                             if (n.dismiss_sec > 0) {
                                 let timeLeft = n.dismiss_sec * 1000;
-                                const interval = 100; 
+                                const interval = 100;
                                 n.timer = setInterval(() => {
                                     timeLeft -= interval;
                                     n.progress = (timeLeft / (n.dismiss_sec * 1000)) * 100;
@@ -390,14 +391,14 @@ if ($rk_wallet >= 1000000) {
     <script>
     const RKPromo = (function() {
         const SEGMENTS = [
-            { label: "₦500k", color: "#9333ea" }, 
+            { label: "₦500k", color: "#9333ea" },
             { label: "50% OFF", color: "#dc2626" },
-            { label: "IPHONE", color: "#3b82f6" },   
-            { label: "X2 TIX", color: "#f97316" }, 
+            { label: "IPHONE", color: "#3b82f6" },
+            { label: "X2 TIX", color: "#f97316" },
             { label: "₦300", color: "#22c55e" },
             { label: "MYSTERY", color: "#eab308" }
         ];
-        
+
         const TARGET_INDEX = 4;
         const START_INDEX = 5;
         const DURATION = 4000;
@@ -405,7 +406,7 @@ if ($rk_wallet >= 1000000) {
         const arc = (2 * Math.PI) / SEGMENTS.length;
         const offset = -Math.PI / 2;
         let rotation = offset - (START_INDEX * arc) - (arc / 2);
-        
+
         function easeOutQuart(x) { return 1 - Math.pow(1 - x, 4); }
 
         function initCanvas() {
@@ -450,7 +451,7 @@ if ($rk_wallet >= 1000000) {
             document.getElementById('rk-spin-btn').classList.add('opacity-50', 'cursor-not-allowed');
 
             const segmentAngle = (2 * Math.PI) / SEGMENTS.length;
-            const offset = -Math.PI / 2; 
+            const offset = -Math.PI / 2;
             const targetAngle = offset - (TARGET_INDEX * segmentAngle) - (segmentAngle / 2);
             const spins = 5 * 2 * Math.PI;
             const startRot = rotation % (2 * Math.PI);
@@ -477,7 +478,7 @@ if ($rk_wallet >= 1000000) {
             isSpinning = false;
             document.getElementById('rk-spin-btn').style.display = 'none';
             document.getElementById('rk-claim-area').classList.remove('hidden');
-            document.getElementById('rk-claim-area').classList.add('fade-in'); 
+            document.getElementById('rk-claim-area').classList.add('fade-in');
             document.getElementById('rk-win-label').innerText = "You Won ₦300!";
             startConfetti();
         }
@@ -510,7 +511,7 @@ if ($rk_wallet >= 1000000) {
                 setTimeout(() => {
                     document.getElementById('rk-promo-modal').classList.add('open');
                     if(typeof lucide !== 'undefined') lucide.createIcons();
-                }, 2000); 
+                }, 2000);
             }
         }
         function claim() {
@@ -528,16 +529,16 @@ if ($rk_wallet >= 1000000) {
 
     <!-- Main Content Container -->
     <main class="flex-1 w-full overflow-hidden relative flex flex-col">
-        
+
         <!-- 🚀 REFACTORED HEADER SYNC LOGIC -->
         <script data-cfasync="false">
-            let isBalanceVisible = localStorage.getItem('balanceVisible') !== 'false'; 
+            let isBalanceVisible = localStorage.getItem('balanceVisible') !== 'false';
 
             // Initialize Balance Visibility on Load (Prevents Flicker)
             document.addEventListener('DOMContentLoaded', () => {
                 const amountEl = document.getElementById('balance-amount');
                 const eyeEl = document.getElementById('balance-eye');
-                
+
                 if (!isBalanceVisible) {
                     if (amountEl.innerText !== '****') amountEl.setAttribute('data-value', amountEl.innerText);
                     amountEl.innerText = '****';
@@ -560,12 +561,12 @@ if ($rk_wallet >= 1000000) {
                 try {
                     const formData = new FormData();
                     formData.append('action', 'get_balances');
-                    
-                    const res = await fetch(window.location.href.split('?')[0], { 
-                        method: 'POST', 
-                        body: formData 
+
+                    const res = await fetch(window.location.href.split('?')[0], {
+                        method: 'POST',
+                        body: formData
                     });
-                    
+
                     if(res.ok) {
                         const balData = await res.json();
                         if(balData.success) {

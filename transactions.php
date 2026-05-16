@@ -30,7 +30,7 @@
 
     <!-- Transaction List -->
     <section class="px-5 pb-5 space-y-3" id="transaction-list">
-        
+
         <!-- Loading Skeleton -->
         <div id="loading-skeleton" class="space-y-3">
             <div class="bg-white dark:bg-dark-card p-4 rounded-xl shadow-sm border border-gray-100 dark:border-dark-border flex items-center justify-between animate-pulse transition-colors">
@@ -70,9 +70,9 @@
 
 <script>
     // SYNERGY FIX: Use centralized config
-    const API_URL = (typeof API_CONFIG !== 'undefined' && API_CONFIG.TRANSACTIONS) 
-                    ? API_CONFIG.TRANSACTIONS 
-                    : `${WORDPRESS_URL}/wp-json/raffle/v1/transactions`;
+    const API_URL = (typeof API_CONFIG !== 'undefined' && API_CONFIG.TRANSACTIONS)
+                    ? API_CONFIG.TRANSACTIONS
+                    : 'ajax-router.php?action=transactions';
 
     const container = document.getElementById('transaction-list');
     const skeleton = document.getElementById('loading-skeleton');
@@ -87,7 +87,7 @@
             const res = await fetch(API_URL, {
                 headers: { 'Authorization': `Bearer ${token}` }
             });
-            
+
             // SELF HEALING: Check for invalid token
             if (res.status === 401) {
                 localStorage.clear();
@@ -95,10 +95,11 @@
                 return;
             }
 
-            const data = await res.json();
-            
+            const rafflePayload = await res.json();
+            const data = rafflePayload && Object.prototype.hasOwnProperty.call(rafflePayload, 'data') ? rafflePayload.data : rafflePayload;
+
             skeleton.classList.add('hidden');
-            
+
             if (Array.isArray(data) && data.length > 0) {
                 allTransactions = data;
                 renderList(data);
@@ -114,7 +115,7 @@
 
     function renderList(items) {
         container.innerHTML = ''; // Clear current
-        
+
         if(items.length === 0) {
             emptyState.classList.remove('hidden');
             emptyState.classList.add('flex');
@@ -211,7 +212,7 @@
             const div = document.createElement('div');
             // Added dark: classes to container string
             div.className = `transaction-item bg-white dark:bg-dark-card p-4 rounded-xl shadow-sm border border-gray-100 dark:border-dark-border flex items-center justify-between active:scale-[0.99] transition-transform ${typeCategory}`;
-            
+
             div.innerHTML = `
                 <div class="flex items-center gap-3">
                     <div class="w-10 h-10 rounded-full flex items-center justify-center ${iconColor}">
@@ -229,7 +230,7 @@
             `;
             container.appendChild(div);
         });
-        
+
         lucide.createIcons();
     }
 
@@ -239,7 +240,7 @@
             btn.classList.remove('bg-gray-900', 'text-white', 'dark:bg-white', 'dark:text-gray-900');
             btn.classList.add('bg-white', 'dark:bg-dark-card', 'text-gray-500', 'dark:text-gray-400', 'border', 'border-gray-200', 'dark:border-gray-700');
         });
-        
+
         // Activate Clicked
         const target = event.target;
         target.classList.remove('bg-white', 'dark:bg-dark-card', 'text-gray-500', 'dark:text-gray-400', 'border', 'border-gray-200', 'dark:border-gray-700');
@@ -249,9 +250,9 @@
         if (type === 'all') {
             renderList(allTransactions);
         } else if (type === 'in') {
-            const filtered = allTransactions.filter(tx => 
-                tx.type === 'wallet_deposit' || 
-                tx.type === 'earnings_transfer' || 
+            const filtered = allTransactions.filter(tx =>
+                tx.type === 'wallet_deposit' ||
+                tx.type === 'earnings_transfer' ||
                 tx.type === 'win_payout' ||
                 tx.type === 'points_redemption' ||
                 tx.type === 'referral_commission' ||
@@ -259,7 +260,7 @@
             );
             renderList(filtered);
         } else if (type === 'out') {
-            const filtered = allTransactions.filter(tx => 
+            const filtered = allTransactions.filter(tx =>
                 tx.type.includes('ticket_purchase') || tx.type === 'withdrawal'
             );
             renderList(filtered);

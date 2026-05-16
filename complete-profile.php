@@ -4,7 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
     <title>Complete Profile - RaffleKings</title>
-    
+
     <!-- *** SECURITY PATCH: META TAGS *** -->
     <meta name="referrer" content="strict-origin-when-cross-origin">
     <meta http-equiv="X-Content-Type-Options" content="nosniff">
@@ -12,7 +12,7 @@
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://unpkg.com/lucide@latest"></script>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
-    
+
     <!-- *** SECURITY PATCH: CENTRALIZED CONFIG WITH CACHE BUSTING *** -->
     <script src="config.js?v=<?php echo time(); ?>"></script>
     <script src="watchdog.js"></script>
@@ -21,7 +21,7 @@
     <!-- Auth Guard -->
     <script>
         const token = localStorage.getItem('token');
-        if(!token) window.location.href = 'login.php'; 
+        if(!token) window.location.href = 'login.php';
 
         tailwind.config = { theme: { extend: { colors: { app: { primary: '#2563EB', primaryDark: '#1d4ed8' } } } } }
     </script>
@@ -36,7 +36,7 @@
 <body class="bg-gray-50 flex items-center justify-center h-[100dvh] px-4">
 
     <div class="max-w-md w-full bg-white p-8 rounded-3xl shadow-xl text-center">
-        
+
         <div class="mb-4">
             <h1 class="text-2xl font-extrabold text-gray-900 mb-2">One Last Thing!</h1>
             <p class="text-sm text-gray-500">Complete your profile to start winning.</p>
@@ -54,7 +54,7 @@
         </div>
 
         <form id="complete-form" onsubmit="handleCompletion(event)">
-            
+
             <!-- 1. State Selection -->
             <div class="mb-6 text-left">
                 <label class="text-xs font-bold text-gray-500 uppercase tracking-wide ml-1 mb-1 block">State of Residence</label>
@@ -93,7 +93,7 @@
                     Save Profile <i data-lucide="check-circle" class="w-4 h-4"></i>
                 </button>
             </div>
-            
+
         </form>
 
     </div>
@@ -133,7 +133,7 @@
 
         async function handleCompletion(e) {
             e.preventDefault();
-            
+
             if (!fileInput.files.length || !stateInput.value) {
                 alert("Both State and Photo are required.");
                 return;
@@ -146,7 +146,7 @@
 
             const formData = new FormData();
             formData.append('profile_image', fileInput.files[0]);
-            formData.append('state', stateInput.value); 
+            formData.append('state', stateInput.value);
 
             // Get Token (Required)
             const token = localStorage.getItem('token');
@@ -158,21 +158,21 @@
 
             try {
                 // Use Centralized Config
-                const endpoint = (typeof API_CONFIG !== 'undefined') ? API_CONFIG.PROFILE : 'https://api.rafflekings.com.ng/wp-json/raffle/v1/profile';
+                const endpoint = (typeof API_CONFIG !== 'undefined') ? API_CONFIG.PROFILE_UPDATE : 'ajax-router.php?action=update_profile';
 
                 const response = await fetch(endpoint, {
                     method: 'POST',
-                    headers: { 
+                    headers: {
                         'Authorization': `Bearer ${token}`
                     },
                     body: formData
                 });
-                
+
                 const data = await response.json();
 
                 if (response.ok) {
                     if(data.avatar) localStorage.setItem('user_avatar_url', data.avatar);
-                    
+
                     // *** RECOVERY LOGIC: CHECK FOR PENDING CHECKOUT ***
                     const pending = localStorage.getItem('pendingCheckout');
                     if (pending) {
@@ -182,12 +182,12 @@
                             const amount = item.amount || item.price;
                             const tickets = item.tickets || item.qty;
                             const rId = item.raffleId || item.raffle_id || 0;
-                            
+
                             const url = `checkout.php?amount=${amount}&tickets=${tickets}&numbers=${numbersStr}&raffle_id=${rId}`;
-                            
+
                             localStorage.removeItem('pendingCheckout');
                             window.location.href = url;
-                            return; 
+                            return;
                         } catch(parseErr) {
                             console.error("Invalid pending checkout data", parseErr);
                         }
