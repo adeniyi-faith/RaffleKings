@@ -28,6 +28,9 @@
             document.querySelectorAll('[data-rk-turnstile-token]').forEach((input) => {
                 input.value = '';
             });
+            if (window.turnstile) {
+                try { window.turnstile.reset(); } catch(e) {}
+            }
         };
         window.rkSyncTurnstileToken = function(form) {
             const hiddenInput = form ? form.querySelector('[data-rk-turnstile-token]') : null;
@@ -420,6 +423,12 @@
                 btn.disabled = false;
                 btn.innerHTML = originalContent;
                 lucide.createIcons();
+                if (window.turnstile) {
+                    try { window.turnstile.reset(); } catch(e) {}
+                }
+                if (window.rkTurnstileExpired) {
+                    window.rkTurnstileExpired();
+                }
             }
         }
 
