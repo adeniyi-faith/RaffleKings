@@ -1,140 +1,261 @@
 <?php
 /**
- * RaffleKings Local AJAX Router
- * Bypasses REST API for instant data fetching and native cookie authentication.
- * * Location: Place this file in your Custom PHP frontend root folder.
+ * RaffleKings Phase 1 same-origin AJAX router.
+ *
+ * Frontend pages must call this file instead of the remote WordPress REST host. The
+ * router bootstraps the local WordPress install and dispatches to the existing
+ * backend functions directly, returning a consistent JSON envelope.
  */
 
-// 1. Boot up WordPress silently
 define('RK_FRONTEND_APP', true);
-define('WP_USE_THEMES', false); // Skips loading the theme for maximum performance
+define('WP_USE_THEMES', false);
 require_once(__DIR__ . '/wp/wp-load.php');
 
-// 2. Prepare JSON Response Headers
-header('Content-Type: application/json');
-header('Access-Control-Allow-Origin: *'); // Adjust if needed
+header('Content-Type: application/json; charset=utf-8');
+header('X-Robots-Tag: noindex');
 
-// 3. Read the incoming Request Data
-$request_body = file_get_contents('php://input');
-$data = json_decode($request_body, true);
-
-// Fallback to $_POST if not JSON
-if (!$data && !empty($_POST)) {
-    $data = $_POST;
-}
-
-$action = $data['action'] ?? $_GET['action'] ?? '';
-
-// 4. Helper: Unwrap WP_REST_Response
-// Since your old functions return WP_REST_Response, this helper unwraps them automatically!
-function rk_send_response($response) {
-    if (is_wp_error($response)) {
-        echo json_encode([
-            'success' => false, 
-            'message' => $response->get_error_message(),
-            'code' => $response->get_error_code()
-        ]);
-    } elseif (class_exists('WP_REST_Response') && $response instanceof WP_REST_Response) {
-        http_response_code($response->get_status());
-        echo wp_json_encode($response->get_data());
-    } else {
-        echo wp_json_encode($response);
-    }
+if ($_SERVER['REQUEST_METHOD'] === 'OPTIONS') {
+    http_response_code(204);
     exit;
 }
 
-// 5. Mock a WP_REST_Request (To trick your existing functions into working)
-$mock_request = new WP_REST_Request('POST', '/mock/route');
-if (!empty($data)) {
-    $mock_request->set_body_params($data);
-}
-if (!empty($_GET)) {
-    $mock_request->set_query_params($_GET);
+$raw_body = file_get_contents('php://input');
+$body_data = json_decode($raw_body, true);
+if (!is_array($body_data)) {
+    $body_data = $_POST ?: [];
 }
 
-// 6. Route the Request
-switch ($action) {
+$action = sanitize_key($body_data['action'] ?? $_GET['action'] ?? '');
 
-    // ==========================================
-    // AUTHENTICATION ROUTES (Native Cookies)
-    // ==========================================
-    case 'login':
-        $username = sanitize_user($data['username'] ?? '');
-        $password = $data['password'] ?? '';
-        
-        if (empty($username) || empty($password)) {
-            rk_send_response(new WP_Error('empty_fields', 'Username and password are required.'));
+function rk_ajax_envelope($success, $data = null, $message = '', $code = 'ok', $status = 200) {
+    if (!headers_sent()) {
+        http_response_code($status);
+    }
+
+    $payload = [
+        'success' => (bool) $success,
+        'data' => $data,
+        'message' => $message,
+        'code' => $code,
+    ];
+
+    // Compatibility for older frontend code that reads fields directly.
+    if (is_array($data) && array_keys($data) !== range(0, count($data) - 1)) {
+        $payload = array_merge($data, $payload);
+    }
+
+    echo wp_json_encode($payload);
+    exit;
+}
+
+function rk_ajax_error($message, $code = 'error', $status = 400, $data = null) {
+    rk_ajax_envelope(false, $data, $message, $code, $status);
+}
+
+function rk_ajax_send($response, $default_message = '') {
+    $status = 200;
+
+    if (is_wp_error($response)) {
+        $error_data = $response->get_error_data();
+        $status = (is_array($error_data) && isset($error_data['status'])) ? (int) $error_data['status'] : 400;
+        rk_ajax_envelope(false, null, $response->get_error_message(), $response->get_error_code(), $status ?: 400);
+    }
+
+    if ($response instanceof WP_REST_Response) {
+        $status = (int) $response->get_status();
+        $response = $response->get_data();
+    }
+
+    $success = true;
+    $message = $default_message;
+    $code = 'ok';
+    $data = $response;
+
+    if (is_array($response)) {
+        if (array_key_exists('success', $response)) {
+            $success = (bool) $response['success'];
         }
-
-        $user = wp_signon([
-            'user_login'    => $username,
-            'user_password' => $password,
-            'remember'      => true
-        ], is_ssl());
-
-        if (is_wp_error($user)) {
-            rk_send_response(new WP_Error('login_failed', strip_tags($user->get_error_message())));
-        } else {
-            rk_send_response([
-                'success' => true,
-                'message' => 'Login successful',
-                'user' => ['id' => $user->ID, 'name' => $user->display_name, 'email' => $user->user_email]
-            ]);
+        if (isset($response['message'])) {
+            $message = (string) $response['message'];
         }
-        break;
+        if (isset($response['code'])) {
+            $code = (string) $response['code'];
+        } elseif (!$success) {
+            $code = 'error';
+        }
+    }
 
-    case 'logout':
-        wp_logout();
-        rk_send_response(['success' => true, 'message' => 'Logged out successfully']);
-        break;
-
-    // ==========================================
-    // GAMIFICATION & RAFFLES
-    // ==========================================
-    case 'get_hall_of_fame':
-        // Calls your exact function from api-gamification.php
-        $result = rk_get_hall_of_fame(); 
-        rk_send_response($result);
-        break;
-
-    case 'buy_ticket':
-        if (!is_user_logged_in()) rk_send_response(new WP_Error('unauthorized', 'Please log in.', ['status' => 401]));
-        // Assuming your existing function expects a WP_REST_Request object
-        $result = rk_buy_ticket_api($mock_request); 
-        rk_send_response($result);
-        break;
-
-    // ==========================================
-    // FINANCIALS & WALLET
-    // ==========================================
-    case 'get_balances':
-        if (!is_user_logged_in()) rk_send_response(new WP_Error('unauthorized', 'Please log in.', ['status' => 401]));
-        
-        $user_id = get_current_user_id();
-        rk_send_response([
-            'success' => true,
-            'wallet' => get_user_meta($user_id, 'wallet_balance', true) ?: 0,
-            'earnings' => get_user_meta($user_id, 'earnings_balance', true) ?: 0
-        ]);
-        break;
-
-    case 'process_deposit':
-        if (!is_user_logged_in()) rk_send_response(new WP_Error('unauthorized', 'Please log in.', ['status' => 401]));
-        // Assuming rk_process_deposit_api exists in api-financials.php
-        $result = rk_process_deposit_api($mock_request);
-        rk_send_response($result);
-        break;
-
-    case 'process_withdrawal':
-        if (!is_user_logged_in()) rk_send_response(new WP_Error('unauthorized', 'Please log in.', ['status' => 401]));
-        $result = rk_process_withdrawal_api($mock_request);
-        rk_send_response($result);
-        break;
-
-    // ==========================================
-    // FALLBACK
-    // ==========================================
-    default:
-        rk_send_response(new WP_Error('invalid_action', 'Endpoint action not found.', ['status' => 404]));
-        break;
+    rk_ajax_envelope($success, $data, $message, $code, $status ?: 200);
 }
+
+function rk_ajax_require_login() {
+    if (!is_user_logged_in()) {
+        rk_ajax_error('Please log in.', 'unauthorized', 401);
+    }
+}
+
+function rk_ajax_request($method = 'POST', $route = '/rk/local') {
+    global $body_data, $raw_body;
+
+    $request = new WP_REST_Request($method, $route);
+    $params = is_array($body_data) ? $body_data : [];
+    unset($params['action']);
+
+    $request->set_query_params(array_merge($_GET, $params));
+    $request->set_body_params($params);
+    $request->set_file_params($_FILES);
+    $request->set_header('Content-Type', 'application/json');
+    $request->set_body($raw_body ?: wp_json_encode($params));
+
+    return $request;
+}
+
+function rk_ajax_site_settings() {
+    return [
+        'bank_name' => get_option('rk_bank_name'),
+        'account_number' => get_option('rk_account_number'),
+        'account_name' => get_option('rk_account_name'),
+        'turnstile_site_key' => defined('RK_TURNSTILE_SITE_KEY') ? RK_TURNSTILE_SITE_KEY : '',
+    ];
+}
+
+function rk_ajax_format_raffle($post) {
+    if (!$post instanceof WP_Post) {
+        $post = get_post($post);
+    }
+    if (!$post || $post->post_type !== 'raffle') {
+        return null;
+    }
+
+    $meta = function_exists('rk_get_raffle_meta') ? rk_get_raffle_meta(['id' => $post->ID]) : [];
+
+    return [
+        'id' => $post->ID,
+        'date' => get_post_time('c', true, $post),
+        'slug' => $post->post_name,
+        'status' => $post->post_status,
+        'link' => 'raffle-details.php?id=' . $post->ID,
+        'title' => ['rendered' => get_the_title($post)],
+        'content' => ['rendered' => apply_filters('the_content', $post->post_content)],
+        'excerpt' => ['rendered' => get_the_excerpt($post)],
+        'featured_media_url' => get_the_post_thumbnail_url($post, 'large') ?: '',
+        'raffle_meta' => $meta,
+    ];
+}
+
+function rk_ajax_get_raffles() {
+    $per_page = min(100, max(1, (int) ($_GET['per_page'] ?? 100)));
+    $posts = get_posts([
+        'post_type' => 'raffle',
+        'post_status' => 'publish',
+        'posts_per_page' => $per_page,
+        'orderby' => 'date',
+        'order' => 'DESC',
+    ]);
+
+    return array_values(array_filter(array_map('rk_ajax_format_raffle', $posts)));
+}
+
+function rk_ajax_get_raffle() {
+    global $body_data;
+    $id = (int) ($body_data['id'] ?? $_GET['id'] ?? $_GET['raffle_id'] ?? 0);
+    if (!$id) {
+        return new WP_Error('missing_raffle_id', 'Raffle ID is required.', ['status' => 400]);
+    }
+
+    $raffle = rk_ajax_format_raffle(get_post($id));
+    if (!$raffle) {
+        return new WP_Error('raffle_not_found', 'Raffle not found.', ['status' => 404]);
+    }
+
+    return $raffle;
+}
+
+function rk_ajax_login() {
+    global $body_data;
+    $username = sanitize_user($body_data['username'] ?? $body_data['email'] ?? '');
+    $password = (string) ($body_data['password'] ?? '');
+
+    if ($username === '' || $password === '') {
+        return new WP_Error('empty_fields', 'Username and password are required.', ['status' => 400]);
+    }
+
+    $user = wp_signon([
+        'user_login' => $username,
+        'user_password' => $password,
+        'remember' => true,
+    ], is_ssl());
+
+    if (is_wp_error($user)) {
+        return new WP_Error('login_failed', wp_strip_all_tags($user->get_error_message()), ['status' => 401]);
+    }
+
+    return [
+        'success' => true,
+        'message' => 'Login successful',
+        'token' => wp_create_nonce('rk_ajax_session'),
+        'user' => [
+            'id' => $user->ID,
+            'name' => $user->display_name,
+            'email' => $user->user_email,
+        ],
+    ];
+}
+
+$routes = [
+    'register' => ['public' => true, 'method' => 'POST', 'callback' => fn() => rk_handle_new_registration(rk_ajax_request('POST', '/lottery/v1/register'))],
+    'login' => ['public' => true, 'method' => 'POST', 'callback' => 'rk_ajax_login'],
+    'logout' => ['public' => true, 'method' => 'POST', 'callback' => function() { wp_logout(); return ['success' => true, 'message' => 'Logged out successfully']; }],
+    'forgot_password' => ['public' => true, 'method' => 'POST', 'callback' => fn() => rk_handle_forgot_password(rk_ajax_request('POST', '/raffle/v1/auth/forgot-password'))],
+    'reset_password' => ['public' => true, 'method' => 'POST', 'callback' => fn() => rk_handle_reset_password(rk_ajax_request('POST', '/raffle/v1/auth/reset-password'))],
+    'get_settings' => ['public' => true, 'method' => 'GET', 'callback' => 'rk_ajax_site_settings'],
+    'get_raffles' => ['public' => true, 'method' => 'GET', 'callback' => 'rk_ajax_get_raffles'],
+    'get_raffle' => ['public' => true, 'method' => 'GET', 'callback' => 'rk_ajax_get_raffle'],
+    'hall_of_fame' => ['public' => true, 'method' => 'GET', 'callback' => 'rk_get_hall_of_fame'],
+    'get_hall_of_fame' => ['public' => true, 'method' => 'GET', 'callback' => 'rk_get_hall_of_fame'],
+    'draw_results' => ['public' => true, 'method' => 'GET', 'callback' => fn() => rk_get_draw_results(rk_ajax_request('GET', '/raffle/v1/draw/results'))],
+    'live_comments' => ['public' => true, 'method' => 'GET', 'callback' => fn() => rk_get_live_comments(rk_ajax_request('GET', '/raffle/v1/live/comments'))],
+    'tutorials' => ['public' => true, 'method' => 'GET', 'callback' => fn() => rk_get_tutorials(rk_ajax_request('GET', '/raffle/v1/tutorials'))],
+    'tutorial_helpful' => ['public' => true, 'method' => 'POST', 'callback' => fn() => rk_tutorial_mark_helpful(rk_ajax_request('POST', '/raffle/v1/tutorials/helpful'))],
+    'site_notices' => ['public' => true, 'method' => 'GET', 'callback' => fn() => rk_get_site_notices(rk_ajax_request('GET', '/raffle/v1/site-notices'))],
+    'system_log' => ['public' => true, 'method' => 'POST', 'callback' => fn() => rk_handle_system_log(rk_ajax_request('POST', '/raffle/v1/system/log'))],
+    'post_live_comment' => ['public' => false, 'method' => 'POST', 'callback' => fn() => rk_post_live_comment(rk_ajax_request('POST', '/raffle/v1/live/comment'))],
+    'get_profile' => ['public' => false, 'method' => 'GET', 'callback' => fn() => rk_get_user_profile(rk_ajax_request('GET', '/raffle/v1/profile'))],
+    'update_profile' => ['public' => false, 'method' => 'POST', 'callback' => fn() => rk_update_user_profile(rk_ajax_request('POST', '/raffle/v1/profile'))],
+    'get_balance' => ['public' => false, 'method' => 'GET', 'callback' => 'rk_get_balance'],
+    'balance' => ['public' => false, 'method' => 'GET', 'callback' => 'rk_get_balance'],
+    'cart_sync' => ['public' => false, 'method' => 'POST', 'callback' => fn() => rk_handle_cart_sync(rk_ajax_request('POST', '/raffle/v1/cart/sync'))],
+    'buy_ticket' => ['public' => false, 'method' => 'POST', 'callback' => fn() => rk_handle_payment_ai(rk_ajax_request('POST', '/raffle/v1/payment'))],
+    'payment' => ['public' => false, 'method' => 'POST', 'callback' => fn() => rk_handle_payment_ai(rk_ajax_request('POST', '/raffle/v1/payment'))],
+    'transfer' => ['public' => false, 'method' => 'POST', 'callback' => fn() => rk_handle_transfer(rk_ajax_request('POST', '/raffle/v1/transfer'))],
+    'withdrawal' => ['public' => false, 'method' => 'POST', 'callback' => fn() => rk_handle_withdrawal(rk_ajax_request('POST', '/raffle/v1/withdraw'))],
+    'withdraw' => ['public' => false, 'method' => 'POST', 'callback' => fn() => rk_handle_withdrawal(rk_ajax_request('POST', '/raffle/v1/withdraw'))],
+    'bank_accounts' => ['public' => false, 'method' => 'GET', 'callback' => fn() => rk_get_bank_accounts(rk_ajax_request('GET', '/raffle/v1/bank-accounts'))],
+    'save_bank_account' => ['public' => false, 'method' => 'POST', 'callback' => fn() => rk_save_bank_account(rk_ajax_request('POST', '/raffle/v1/bank-accounts'))],
+    'delete_bank_account' => ['public' => false, 'method' => 'POST', 'callback' => fn() => rk_delete_bank_account(rk_ajax_request('DELETE', '/raffle/v1/bank-accounts'))],
+    'transactions' => ['public' => false, 'method' => 'GET', 'callback' => fn() => rk_get_user_transactions(rk_ajax_request('GET', '/raffle/v1/transactions'))],
+    'user_tickets' => ['public' => false, 'method' => 'GET', 'callback' => fn() => rk_get_user_tickets(rk_ajax_request('GET', '/raffle/v1/tickets'))],
+    'tickets' => ['public' => false, 'method' => 'GET', 'callback' => fn() => rk_get_user_tickets(rk_ajax_request('GET', '/raffle/v1/tickets'))],
+    'rewards_state' => ['public' => false, 'method' => 'GET', 'callback' => fn() => rk_get_rewards_state(rk_ajax_request('GET', '/raffle/v1/rewards-state'))],
+    'spin' => ['public' => false, 'method' => 'POST', 'callback' => fn() => rk_execute_spin_logic(rk_ajax_request('POST', '/raffle/v1/spin-wheel'))],
+    'daily_claim' => ['public' => false, 'method' => 'POST', 'callback' => fn() => rk_handle_daily_claim(rk_ajax_request('POST', '/raffle/v1/claim-daily'))],
+    'task_claim' => ['public' => false, 'method' => 'POST', 'callback' => fn() => rk_handle_task_claim(rk_ajax_request('POST', '/raffle/v1/claim-task'))],
+    'redeem_points' => ['public' => false, 'method' => 'POST', 'callback' => fn() => rk_handle_redeem_points(rk_ajax_request('POST', '/raffle/v1/redeem-points'))],
+    'referral_stats' => ['public' => false, 'method' => 'GET', 'callback' => fn() => rk_get_referral_stats(rk_ajax_request('GET', '/raffle/v1/referral-stats'))],
+    'push_device_save' => ['public' => false, 'method' => 'POST', 'callback' => fn() => rk_save_push_device(rk_ajax_request('POST', '/raffle/v1/save-device'))],
+];
+
+if (!$action || !isset($routes[$action])) {
+    rk_ajax_error('Endpoint action not found.', 'invalid_action', 404);
+}
+
+$route = $routes[$action];
+if (empty($route['public'])) {
+    rk_ajax_require_login();
+}
+
+if (!is_callable($route['callback'])) {
+    rk_ajax_error('Endpoint handler is unavailable.', 'handler_missing', 500);
+}
+
+rk_ajax_send(call_user_func($route['callback']));

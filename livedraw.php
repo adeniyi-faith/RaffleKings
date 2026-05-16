@@ -6,20 +6,20 @@
     <meta name="theme-color" content="#020617">
     <meta name="apple-mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-    
+
     <title>Live Draw Reveal - RaffleKings</title>
-    
+
     <script src="https://cdn.tailwindcss.com"></script>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700;900&display=swap" rel="stylesheet">
     <script src="https://unpkg.com/lucide@latest"></script>
-    
+
     <style>
         /* iOS CRITICAL FIXES */
         * {
             box-sizing: border-box;
             -webkit-tap-highlight-color: transparent;
         }
-        
+
         html {
             width: 100%;
             height: 100%;
@@ -27,7 +27,7 @@
             overflow: hidden;
             background-color: #020617;
         }
-        
+
         body {
             margin: 0;
             padding: 0;
@@ -43,14 +43,14 @@
             /* REMOVED: position fixed on body - causes Safari issues */
             position: relative;
         }
-        
+
         /* iOS Safari dynamic height fix */
         @supports (-webkit-touch-callout: none) {
             body {
                 min-height: -webkit-fill-available;
             }
         }
-        
+
         [x-cloak] { display: none !important; }
 
         /* Container must handle height properly */
@@ -89,9 +89,9 @@
 
         /* Scroll fixes for iOS */
         .no-scrollbar::-webkit-scrollbar { display: none; }
-        .no-scrollbar { 
-            -ms-overflow-style: none; 
-            scrollbar-width: none; 
+        .no-scrollbar {
+            -ms-overflow-style: none;
+            scrollbar-width: none;
         }
 
         /* iOS scroll momentum */
@@ -102,20 +102,20 @@
             flex: 1;
             min-height: 0;
         }
-        
+
         /* Prevent iOS rubber-band effect */
         .scroll-container {
             overscroll-behavior-y: contain;
         }
 
         /* Safe area padding - iOS notch support */
-        .safe-pb { 
-            padding-bottom: calc(1.5rem + env(safe-area-inset-bottom)); 
+        .safe-pb {
+            padding-bottom: calc(1.5rem + env(safe-area-inset-bottom));
         }
-        .safe-pt { 
-            padding-top: calc(1rem + env(safe-area-inset-top)); 
+        .safe-pt {
+            padding-top: calc(1rem + env(safe-area-inset-top));
         }
-        
+
         .progress-bar-fill {
             transition: width 0.4s cubic-bezier(0.4, 0, 0.2, 1);
         }
@@ -165,33 +165,32 @@
                         const vh = window.innerHeight * 0.01;
                         document.documentElement.style.setProperty('--vh', `${vh}px`);
                     };
-                    
+
                     setAppHeight();
                     window.addEventListener('resize', setAppHeight);
                     window.addEventListener('orientationchange', () => {
                         setTimeout(setAppHeight, 100);
                     });
-                    
+
                     this.fetchResults();
                 },
 
                 async fetchResults() {
                     this.loading = true;
                     this.loadProgress = 10;
-                    
+
                     const start = Date.now();
-                    
+
                     try {
                         this.loadingText = 'Authenticating Request...';
                         this.loadProgress = 30;
-                        
-                        const baseUrl = (typeof WORDPRESS_URL !== 'undefined') ? WORDPRESS_URL : 'https://api.rafflekings.com.ng';
-                        const url = baseUrl + '/wp-json/raffle/v1/draw/results';
-                        
+
+                        const url = (typeof API_CONFIG !== 'undefined' && API_CONFIG.DRAW_RESULTS) ? API_CONFIG.DRAW_RESULTS : 'ajax-router.php?action=draw_results';
+
                         const res = await fetch(url);
                         this.loadProgress = 60;
                         this.loadingText = 'Decrypting Raffle Vault...';
-                        
+
                         const data = await res.json();
                         this.loadProgress = 85;
                         this.loadingText = 'Formatting Standings...';
@@ -203,10 +202,10 @@
                             this.totalEntries = data.total_pool_size || this.participants.length;
                             this.winners.sort((a, b) => b.rank - a.rank);
                         }
-                        
+
                         this.loadProgress = 100;
                         await new Promise(r => setTimeout(r, 400));
-                        
+
                     } catch (e) {
                         console.error("Fetch Error:", e);
                     } finally {
@@ -221,8 +220,8 @@
                     if (this.winners.length === 0) return;
                     this.view = 'flashing';
                     let flashCount = 0;
-                    const maxFlash = 30; 
-                    
+                    const maxFlash = 30;
+
                     const flashInterval = setInterval(() => {
                         if (this.participants.length > 0) {
                             this.flashingParticipant = this.participants[Math.floor(Math.random() * this.participants.length)];
@@ -259,7 +258,7 @@
 <body class="text-white bg-slate-950">
 
     <div x-data="liveDraw()" x-init="init()" class="app-container" x-cloak>
-        
+
         <!-- Background Layer -->
         <div class="bg-layer">
             <div class="absolute top-0 left-0 w-full h-full bg-gradient-to-b from-red-900/10 to-transparent"></div>
@@ -268,11 +267,11 @@
 
         <!-- MAIN CONTENT -->
         <main class="relative z-10 flex-1-ios">
-            
+
             <!-- PHASE 1: INTRO -->
             <template x-if="view === 'intro'">
                 <div class="flex-1 flex flex-col items-center justify-center px-6 text-center">
-                    
+
                     <template x-if="loading">
                         <div class="w-full max-w-xs py-10">
                             <h2 class="text-xl font-black mb-6 tracking-widest uppercase text-white/90" x-text="loadingText"></h2>
@@ -282,7 +281,7 @@
                             <p class="mt-4 text-[9px] font-bold text-white/30 tracking-[0.3em] uppercase" x-text="loadProgress + '%'"></p>
                         </div>
                     </template>
-                    
+
                     <template x-if="!loading && winners.length === 0">
                         <div class="p-8 bg-white/5 border border-white/10 rounded-[2.5rem] backdrop-blur-xl">
                             <h2 class="text-xl font-black mb-2 uppercase tracking-tight">Vault Empty</h2>
@@ -298,8 +297,8 @@
                             </div>
                             <h2 class="text-4xl md:text-5xl font-black mb-2 tracking-tighter" x-text="raffleTitle"></h2>
                             <p class="text-white/40 font-medium uppercase tracking-[0.4em] text-[10px] mb-12">Click below to start the reveal</p>
-                            
-                            <button @click="startRevealSequence()" 
+
+                            <button @click="startRevealSequence()"
                                     class="w-full py-5 rounded-[2rem] bg-red-600 hover:bg-red-700 text-white font-black text-lg shadow-2xl shadow-red-600/30 active:scale-95 transition-transform border-b-4 border-red-800 flex items-center justify-center gap-3">
                                 <span>REVEAL WINNERS</span>
                                 <i data-lucide="zap" class="w-5 h-5 fill-white"></i>
@@ -395,7 +394,7 @@
             </template>
 
         </main>
-        
+
         <!-- Footer Stats -->
         <footer x-show="view === 'results'" class="safe-pb px-6 py-4 bg-slate-950 border-t border-white/5 flex justify-center gap-10 relative z-20 flex-shrink-0">
             <div class="text-center">

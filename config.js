@@ -1,70 +1,76 @@
 // --- GLOBAL APP CONFIGURATION ---
 
-// 1. BACKEND URL (WordPress API)
-const WORDPRESS_URL = "https://api.rafflekings.com.ng"; 
+// Phase 1: same-origin local API gateway.
+const WORDPRESS_URL = "";
+const AJAX_ROUTER = "ajax-router.php";
+const ajaxAction = (action) => `${AJAX_ROUTER}?action=${encodeURIComponent(action)}`;
 
-// 2. FRONTEND URL (For generating referral links)
+// FRONTEND URL (For generating referral links)
 const FRONTEND_URL = "https://rafflekings.com.ng";
 
-// 3. API ENDPOINTS
+// API ENDPOINTS
 const API_CONFIG = {
-    REGISTER:   `${WORDPRESS_URL}/wp-json/lottery/v1/register`,
-    LOGIN:      `${WORDPRESS_URL}/wp-json/jwt-auth/v1/token`,
-    USER_ME:    `${WORDPRESS_URL}/wp-json/wp/v2/users/me`,
-    
+    REGISTER: ajaxAction('register'),
+    LOGIN: ajaxAction('login'),
+    USER_ME: ajaxAction('get_profile'),
+
     // Auth & Password Reset
-    FORGOT_PASSWORD: `${WORDPRESS_URL}/wp-json/raffle/v1/auth/forgot-password`,
-    RESET_PASSWORD:  `${WORDPRESS_URL}/wp-json/raffle/v1/auth/reset-password`,
-    
+    FORGOT_PASSWORD: ajaxAction('forgot_password'),
+    RESET_PASSWORD: ajaxAction('reset_password'),
+
     // Raffle System Endpoints
-    PAYMENT:    `${WORDPRESS_URL}/wp-json/raffle/v1/payment`,
-    BALANCE:    `${WORDPRESS_URL}/wp-json/raffle/v1/balance`,
-    SETTINGS:   `${WORDPRESS_URL}/wp-json/raffle/v1/settings`,
-    TRANSFER:   `${WORDPRESS_URL}/wp-json/raffle/v1/transfer`,
-    
+    PAYMENT: ajaxAction('payment'),
+    BALANCE: ajaxAction('get_balance'),
+    SETTINGS: ajaxAction('get_settings'),
+    TRANSFER: ajaxAction('transfer'),
+    RAFFLES: ajaxAction('get_raffles'),
+    RAFFLE: ajaxAction('get_raffle'),
+
     // Core Profile & Logic
-    PROFILE:        `${WORDPRESS_URL}/wp-json/raffle/v1/profile`,
-    TICKETS:        `${WORDPRESS_URL}/wp-json/raffle/v1/tickets`,
-    CLAIM_DAILY:    `${WORDPRESS_URL}/wp-json/raffle/v1/claim-daily`,
-    CLAIM_TASK:     `${WORDPRESS_URL}/wp-json/raffle/v1/claim-task`,
-    REDEEM:         `${WORDPRESS_URL}/wp-json/raffle/v1/redeem-points`,
-    SAVE_DEVICE:    `${WORDPRESS_URL}/wp-json/raffle/v1/save-device`,
-    PROFILE_UPDATE: `${WORDPRESS_URL}/wp-json/raffle/v1/profile`,
-    SPIN_WHEEL:     `${WORDPRESS_URL}/wp-json/raffle/v1/spin-wheel`,
-    
-    // *** NEW: Tutorials ***
-    TUTORIALS:       `${WORDPRESS_URL}/wp-json/raffle/v1/tutorials`,
-    TUTORIAL_ACTION: `${WORDPRESS_URL}/wp-json/raffle/v1/tutorials/helpful`,
+    PROFILE: ajaxAction('get_profile'),
+    TICKETS: ajaxAction('user_tickets'),
+    CLAIM_DAILY: ajaxAction('daily_claim'),
+    CLAIM_TASK: ajaxAction('task_claim'),
+    REDEEM: ajaxAction('redeem_points'),
+    SAVE_DEVICE: ajaxAction('push_device_save'),
+    PROFILE_UPDATE: ajaxAction('update_profile'),
+    SPIN_WHEEL: ajaxAction('spin'),
 
-    // --- SITE ALERTS (Required for Header Notifications) ---
-    SITE_NOTICES:    `${WORDPRESS_URL}/wp-json/raffle/v1/site-notices`,
+    // Tutorials
+    TUTORIALS: ajaxAction('tutorials'),
+    TUTORIAL_ACTION: ajaxAction('tutorial_helpful'),
 
-    // --- REFERRAL & HALL OF FAME ---
-    REFERRAL_STATS: `${WORDPRESS_URL}/wp-json/raffle/v1/referral-stats`,
-    HALL_OF_FAME:   `${WORDPRESS_URL}/wp-json/raffle/v1/hall-of-fame`,
-    
+    // Site alerts
+    SITE_NOTICES: ajaxAction('site_notices'),
+
+    // Referral & Hall of Fame
+    REFERRAL_STATS: ajaxAction('referral_stats'),
+    HALL_OF_FAME: ajaxAction('hall_of_fame'),
+
     // Cart & Finance
-    CART_SYNC:     `${WORDPRESS_URL}/wp-json/raffle/v1/cart/sync`,
-    BANK_ACCOUNTS: `${WORDPRESS_URL}/wp-json/raffle/v1/bank-accounts`,
-    WITHDRAW:      `${WORDPRESS_URL}/wp-json/raffle/v1/withdraw`,
-    TRANSACTIONS:  `${WORDPRESS_URL}/wp-json/raffle/v1/transactions`,
-    REWARDS_STATE: `${WORDPRESS_URL}/wp-json/raffle/v1/rewards-state`,
+    CART_SYNC: ajaxAction('cart_sync'),
+    BANK_ACCOUNTS: ajaxAction('bank_accounts'),
+    SAVE_BANK_ACCOUNT: ajaxAction('save_bank_account'),
+    DELETE_BANK_ACCOUNT: ajaxAction('delete_bank_account'),
+    WITHDRAW: ajaxAction('withdrawal'),
+    TRANSACTIONS: ajaxAction('transactions'),
+    REWARDS_STATE: ajaxAction('rewards_state'),
 
     // Live Draw & Chat Endpoints
-    DRAW_RESULTS:   `${WORDPRESS_URL}/wp-json/raffle/v1/draw/results`,
-    LIVE_COMMENT:   `${WORDPRESS_URL}/wp-json/raffle/v1/live/comment`,
-    LIVE_COMMENTS:  `${WORDPRESS_URL}/wp-json/raffle/v1/live/comments`,
+    DRAW_RESULTS: ajaxAction('draw_results'),
+    LIVE_COMMENT: ajaxAction('post_live_comment'),
+    LIVE_COMMENTS: ajaxAction('live_comments'),
 
     // System Health
-    SYSTEM_LOG:     `${WORDPRESS_URL}/wp-json/raffle/v1/system/log`
+    SYSTEM_LOG: ajaxAction('system_log')
 };
 
-// 3. APP SETTINGS
+// APP SETTINGS
 const APP_SETTINGS = {
     CURRENCY_SYMBOL: '₦',
     POINTS_RATIO: 10,
     SUPPORT_EMAIL: 'help@rafflekings.com.ng',
-    DEBUG_MODE: true 
+    DEBUG_MODE: true
 };
 
 // --- UTILITY: AUTOMATIC REFERRAL TRACKING ---
@@ -80,3 +86,11 @@ const APP_SETTINGS = {
 })();
 
 function getStoredReferralCode() { return localStorage.getItem('rk_referrer_code') || ''; }
+
+async function rkApiJson(response) {
+    const payload = await response.json();
+    if (payload && Object.prototype.hasOwnProperty.call(payload, 'data')) {
+        return payload.data;
+    }
+    return payload;
+}

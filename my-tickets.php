@@ -20,7 +20,7 @@
 
     <!-- Active Tickets List -->
     <div class="p-5 space-y-4" id="tickets-container">
-        
+
         <!-- Skeleton Loader -->
         <div id="loading-skeleton" class="space-y-4">
             <!-- Skeleton Card 1 -->
@@ -37,7 +37,7 @@
                 </div>
                 <div class="bg-gray-100 dark:bg-gray-800 rounded-xl p-3 h-20"></div>
             </div>
-            
+
             <!-- Skeleton Card 2 -->
             <div class="bg-white dark:bg-dark-card rounded-2xl p-5 shadow-sm border border-gray-100 dark:border-dark-border animate-pulse">
                 <div class="flex justify-between items-start mb-3">
@@ -55,9 +55,9 @@
         </div>
 
         <!-- Tickets will be injected here -->
-        
+
     </div>
-    
+
     <div id="no-tickets" class="hidden text-center py-10">
         <div class="w-16 h-16 bg-gray-100 dark:bg-gray-800 rounded-full flex items-center justify-center mx-auto mb-3 transition-colors">
             <i data-lucide="ticket" class="w-8 h-8 text-gray-400 dark:text-gray-500"></i>
@@ -81,10 +81,10 @@
         const noData = document.getElementById('no-tickets');
 
         // SYNERGY FIX: Use the centralized config endpoint
-        // If API_CONFIG is missing, fallback safely to manual URL
-        const ENDPOINT = (typeof API_CONFIG !== 'undefined' && API_CONFIG.TICKETS) 
-                         ? API_CONFIG.TICKETS 
-                         : `${WORDPRESS_URL}/wp-json/raffle/v1/tickets`;
+        // If API_CONFIG is missing, fallback safely to the same-origin router.
+        const ENDPOINT = (typeof API_CONFIG !== 'undefined' && API_CONFIG.TICKETS)
+                         ? API_CONFIG.TICKETS
+                         : 'ajax-router.php?action=user_tickets';
 
         try {
             console.log("Fetching tickets from:", ENDPOINT);
@@ -106,7 +106,8 @@
                 throw new Error(`Server Error ${response.status}: ${errText}`);
             }
 
-            const data = await response.json();
+            const ticketPayload = await response.json();
+            const data = ticketPayload && Object.prototype.hasOwnProperty.call(ticketPayload, 'data') ? ticketPayload.data : ticketPayload;
             skeleton.classList.add('hidden');
 
             if (!Array.isArray(data) || data.length === 0) {
@@ -117,11 +118,11 @@
             data.forEach(group => {
                 const card = document.createElement('div');
                 card.className = "bg-white dark:bg-dark-card rounded-2xl p-5 shadow-sm border border-gray-100 dark:border-dark-border relative overflow-hidden transition-colors duration-200";
-                
+
                 // Status Color Logic (Updated for Dark Mode)
                 let statusBadge = '';
                 let statusBg = '';
-                
+
                 if (group.status === 'Active') {
                     statusBadge = `<span class="bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-400 text-[10px] font-bold px-2 py-1 rounded-lg">Active</span>`;
                     statusBg = 'bg-blue-50/50 dark:bg-blue-900/10 border-blue-100 dark:border-blue-900/20';
@@ -147,7 +148,7 @@
                              <p class="text-[10px] text-gray-400 dark:text-gray-500 mt-1">ID: #${group.raffle_id}</p>
                         </div>
                     </div>
-                    
+
                     <div class="${statusBg} rounded-xl p-3 border">
                         <p class="text-[10px] text-gray-400 dark:text-gray-500 font-bold uppercase tracking-wider mb-2 flex items-center gap-1">
                             <i data-lucide="hash" class="w-3 h-3"></i> Your Ticket Numbers
