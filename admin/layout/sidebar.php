@@ -3,8 +3,8 @@ $current_page = isset($_GET['page']) ? sanitize_key($_GET['page']) : 'dashboard'
 
 function is_active($page, $current) {
     return $page === $current
-        ? 'bg-indigo-600/15 text-indigo-200 font-semibold border-indigo-400 shadow-lg shadow-indigo-950/30'
-        : 'border-transparent text-slate-400 hover:bg-white/5 hover:text-slate-100';
+        ? 'bg-white/10 text-white font-bold border-transparent'
+        : 'border-transparent text-gray-400 hover:bg-white/5 hover:text-white';
 }
 
 $nav_groups = [
@@ -38,25 +38,25 @@ $nav_groups = [
 ];
 ?>
 
-<aside id="sidebar" class="sidebar-transition fixed left-0 top-0 z-30 flex h-full w-72 -translate-x-full flex-col overflow-y-auto border-r border-white/10 bg-slate-950/95 backdrop-blur-xl md:translate-x-0">
-    <div class="border-b border-white/10 p-6">
+<aside id="sidebar" class="sidebar-transition fixed left-0 top-0 z-30 flex h-full w-72 -translate-x-full flex-col overflow-y-auto border-r border-navy-800 bg-navy-900 md:translate-x-0">
+    <div class="p-6">
         <div class="flex items-center gap-3">
-            <div class="flex h-12 w-12 items-center justify-center rounded-2xl bg-indigo-500 text-lg font-black text-white shadow-lg shadow-indigo-950/40">RK</div>
+            <div class="flex h-10 w-10 items-center justify-center rounded-xl bg-gold-500 text-base font-black text-navy-900 shadow-sm">RK</div>
             <div>
-                <h2 class="text-xl font-black tracking-[0.18em] text-white">RaffleKings</h2>
-                <p class="text-xs uppercase tracking-[0.25em] text-slate-500">Admin Platform</p>
+                <h2 class="text-lg font-bold tracking-wider text-white">RaffleKings</h2>
+                <p class="text-[10px] uppercase tracking-widest text-gray-400">Admin Platform</p>
             </div>
         </div>
     </div>
 
-    <nav class="flex-1 space-y-7 px-4 py-6">
+    <nav class="flex-1 space-y-8 px-4 py-4">
         <?php foreach ($nav_groups as $group => $items): ?>
             <div>
-                <h3 class="mb-3 px-3 text-[11px] font-bold uppercase tracking-[0.22em] text-slate-600"><?php echo esc_html($group); ?></h3>
-                <div class="space-y-1">
+                <h3 class="mb-2 px-3 text-[10px] font-bold uppercase tracking-widest text-gray-500"><?php echo esc_html($group); ?></h3>
+                <div class="space-y-0.5">
                     <?php foreach ($items as $slug => $data): ?>
-                        <a href="?page=<?php echo esc_attr($slug); ?>" class="flex items-center gap-3 rounded-2xl border px-3 py-2.5 text-sm transition <?php echo esc_attr(is_active($slug, $current_page)); ?>">
-                            <svg class="h-5 w-5 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><?php echo $data['icon']; ?></svg>
+                        <a href="?page=<?php echo esc_attr($slug); ?>" class="flex items-center gap-3 rounded-xl border px-3 py-2 text-sm transition <?php echo esc_attr(is_active($slug, $current_page)); ?>">
+                            <svg class="h-[18px] w-[18px] flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><?php echo $data['icon']; ?></svg>
                             <span><?php echo esc_html($data['title']); ?></span>
                         </a>
                     <?php endforeach; ?>
@@ -65,9 +65,9 @@ $nav_groups = [
         <?php endforeach; ?>
     </nav>
 
-    <div class="border-t border-white/10 p-4">
-        <a href="<?php echo esc_url(wp_nonce_url(add_query_arg('rk_admin_logout', '1'), 'rk_admin_logout')); ?>" class="flex items-center justify-center gap-2 rounded-2xl border border-red-400/20 bg-red-500/10 px-4 py-3 text-sm font-semibold text-red-200 transition hover:bg-red-500/20">
-            <svg class="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a2 2 0 01-2 2H5a2 2 0 01-2-2V7a2 2 0 012-2h6a2 2 0 012 2v1"/></svg>
+    <div class="p-4">
+        <a href="<?php echo esc_url(wp_nonce_url(add_query_arg('rk_admin_logout', '1'), 'rk_admin_logout')); ?>" class="flex items-center justify-center gap-2 rounded-xl border border-transparent bg-white/5 px-4 py-2.5 text-sm font-semibold text-gray-300 transition hover:bg-white/10 hover:text-white">
+            <svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a2 2 0 01-2 2H5a2 2 0 01-2-2V7a2 2 0 012-2h6a2 2 0 012 2v1"/></svg>
             Sign Out
         </a>
     </div>
