@@ -52,7 +52,7 @@
             <div class="flex h-full rounded-[20px] p-4 items-center gap-4">
                 <!-- Image Side -->
                 <div class="w-24 h-24 bg-blue-50 rounded-xl flex items-center justify-center flex-shrink-0">
-                    <img src="https://img.icons8.com/3d-fluency/94/iphone-x.png" class="w-16 h-16 object-contain drop-shadow-md group-hover:scale-110 transition-transform">
+                    <img src="https://img.icons8.com/3d-fluency/94/iphone-x.png" loading="lazy" class="w-16 h-16 object-contain drop-shadow-md group-hover:scale-110 transition-transform">
                 </div>
                 
                 <!-- Text Side -->

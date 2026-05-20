@@ -275,7 +275,7 @@ if ($p_is_logged_in) {
         <div class="relative z-10 flex flex-col items-center text-center">
             <!-- Avatar Circle -->
             <div class="w-24 h-24 rounded-full border-4 border-white/20 shadow-xl overflow-hidden mb-3 relative group bg-blue-700 dark:bg-blue-800">
-                <img :src="avatar" alt="Profile" class="w-full h-full object-cover"
+                <img :src="avatar" alt="Profile" loading="lazy" class="w-full h-full object-cover"
                      onerror="this.src='https://api.dicebear.com/7.x/initials/svg?seed=Guest'">
 
                 <!-- Edit Overlay -->
