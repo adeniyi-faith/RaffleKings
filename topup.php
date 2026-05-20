@@ -172,73 +172,11 @@ include 'header.php';
 
 </div>
 
+<script src="assets/js/financials/topup.js"></script>
 <script>
     document.addEventListener('DOMContentLoaded', () => {
-        if(typeof lucide !== 'undefined') lucide.createIcons();
+        if (typeof window.initTopup === 'function') {
+            window.initTopup('<?= esc_js($order_id) ?>');
+        }
     });
-
-    function copyToClipboard(text, itemType) {
-        navigator.clipboard.writeText(text).then(() => {
-            alert(itemType + " Copied!");
-        }).catch(err => {
-            // Fallback for older mobile browsers
-            const textArea = document.createElement("textarea");
-            textArea.value = text;
-            document.body.appendChild(textArea);
-            textArea.select();
-            document.execCommand("copy");
-            document.body.removeChild(textArea);
-            alert(itemType + " Copied!");
-        });
-    }
-
-    async function processPayment() {
-        const amount = document.getElementById('amount-paid').value;
-        const fileInput = document.getElementById('proof-file');
-
-        if (!amount || fileInput.files.length === 0) {
-            alert("Please fill all fields and upload a receipt.");
-            return;
-        }
-
-        if (parseFloat(amount) < 1000) {
-            alert("Minimum top-up amount is ₦1,000.");
-            return;
-        }
-
-        document.getElementById('processing-modal').classList.remove('hidden');
-
-        const formData = new FormData();
-        formData.append('proof', fileInput.files[0]);
-        formData.append('amount', amount);
-        formData.append('type', 'wallet_deposit');
-        formData.append('order_id', '<?= esc_js($order_id) ?>'); // SSR Order ID injected directly
-
-        try {
-            // We post directly to this same file to trigger the PHP Proxy logic at the top
-            const response = await fetch(window.location.pathname + '?action=process_payment', {
-                method: 'POST',
-                // Note: No Bearer token needed anymore. Native WP cookies handle the auth automatically.
-                body: formData
-            });
-
-            const result = await response.json();
-            document.getElementById('processing-modal').classList.add('hidden');
-
-            if (result.success) {
-                // If the AI auto-verified or queued it, the message handles both cases nicely
-                alert("Success: " + result.message);
-                window.location.href = 'index.php';
-            } else {
-                alert("Notice: " + (result.message || "Could not verify."));
-                if (result.status === 'manual_review') {
-                    window.location.href = 'index.php'; // Still redirect if it just went to manual queue
-                }
-            }
-        } catch (error) {
-            document.getElementById('processing-modal').classList.add('hidden');
-            alert("Connection Error. Please check your internet connection and try again.");
-            console.error(error);
-        }
-    }
 </script>
