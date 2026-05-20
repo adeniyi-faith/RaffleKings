@@ -197,7 +197,7 @@
                     <label class="block text-[10px] font-bold text-gray-400 dark:text-gray-500 uppercase tracking-wider mb-1">Password</label>
                     <div class="relative">
                         <input type="password" name="password" id="pass-input" placeholder="Create a secret code" class="w-full bg-gray-50 dark:bg-dark-bg border border-gray-200 dark:border-gray-700 rounded-xl px-4 py-3.5 outline-none focus:ring-2 focus:ring-app-primary/20 focus:border-app-primary text-gray-800 dark:text-white font-medium transition-all pr-10 placeholder-gray-400 dark:placeholder-gray-600" required>
-                        <button type="button" onclick="togglePass()" class="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 dark:text-gray-500 hover:text-gray-600 dark:hover:text-gray-300">
+                        <button type="button" onclick="togglePass()" class="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 dark:text-gray-500 hover:text-gray-600 dark:hover:text-gray-300" aria-label="Toggle password visibility">
                             <i data-lucide="eye" class="w-4 h-4"></i>
                         </button>
                     </div>

@@ -180,7 +180,7 @@
                             <label class="text-xs font-bold text-gray-500 uppercase tracking-wide ml-1">Password</label>
                             <div class="relative">
                                 <input type="password" name="password" id="input-password" placeholder="••••••••" class="w-full bg-white border border-gray-200 rounded-xl px-4 py-3.5 outline-none focus:ring-2 focus:ring-app-primary/20 transition-all text-gray-800 font-medium shadow-sm pr-12" required>
-                                <button type="button" onclick="togglePassword('input-password', 'eye-icon-reg')" class="absolute right-4 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 focus:outline-none">
+                                <button type="button" onclick="togglePassword('input-password', 'eye-icon-reg')" class="absolute right-4 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 focus:outline-none" aria-label="Toggle password visibility">
                                     <i data-lucide="eye" id="eye-icon-reg" class="w-5 h-5"></i>
                                 </button>
                             </div>
