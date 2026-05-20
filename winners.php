@@ -1,7 +1,8 @@
 <?php include 'header.php'; ?>
 
 <script>
-    function winnersApp() {
+(function() {
+    window.winnersApp = function winnersApp() {
         return {
             isLoading: true,
             featuredWinners: [],
@@ -88,6 +89,7 @@
             }
         }
     }
+})();
 </script>
 
 <!-- SCROLL FIX: 'h-0' combined with 'flex-1' forces the container to fit available space and scroll internally -->

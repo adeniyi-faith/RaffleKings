@@ -232,11 +232,14 @@ $initial_raffles = array_map('rk_frontend_format_raffle', get_posts([
 </div>
 
 <script>
+(function() {
     // 🚀 NEW: Fetch data synchronously from the backend via PHP
     const ssrRaffles = <?php echo json_encode($initial_raffles); ?>;
 
-    document.addEventListener('DOMContentLoaded', () => {
-        lucide.createIcons();
+    function initIndexPage() {
+        if (typeof lucide !== 'undefined') {
+            lucide.createIcons();
+        }
 
         // --- 1. Start Ticker ---
         initLiveTicker();
@@ -255,7 +258,7 @@ $initial_raffles = array_map('rk_frontend_format_raffle', get_posts([
         } else {
             console.warn("initCarousel function not found");
         }
-    });
+    }
 
     // --- 1. LIVE TICKER ---
     function initLiveTicker() {
@@ -466,6 +469,10 @@ $initial_raffles = array_map('rk_frontend_format_raffle', get_posts([
             carousel.addEventListener('scroll', updateDots);
         }
     }
+
+    // Initialize the page logic now
+    initIndexPage();
+})();
 </script>
 
 <?php include 'footer.php'; ?>
