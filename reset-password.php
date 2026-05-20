@@ -50,7 +50,7 @@
                     <label class="block text-xs font-bold text-gray-400 uppercase tracking-wider mb-2">New Password</label>
                     <div class="relative">
                         <input type="password" name="password" id="new-pass" placeholder="••••••••" class="w-full bg-gray-50 border border-gray-100 rounded-xl pl-4 pr-12 py-3.5 outline-none focus:ring-2 focus:ring-app-primary/20" required>
-                        <button type="button" onclick="togglePass()" class="absolute right-4 top-1/2 -translate-y-1/2 text-gray-400">
+                        <button type="button" onclick="togglePass()" class="absolute right-4 top-1/2 -translate-y-1/2 text-gray-400" aria-label="Toggle password visibility">
                             <i data-lucide="eye" id="eye-icon" class="w-5 h-5"></i>
                         </button>
                     </div>

@@ -134,7 +134,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
                         <input type="password" id="login-password" name="password" placeholder="••••••••" class="w-full bg-gray-50 border border-gray-100 text-gray-900 rounded-xl pl-11 pr-12 py-3.5 outline-none focus:bg-white focus:ring-2 focus:ring-app-primary/20 focus:border-app-primary/50 transition-all font-medium placeholder-gray-400" required>
 
                         <!-- Toggle Button -->
-                        <button type="button" onclick="togglePassword('login-password', 'eye-icon-login')" class="absolute right-4 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 focus:outline-none">
+                        <button type="button" onclick="togglePassword('login-password', 'eye-icon-login')" class="absolute right-4 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 focus:outline-none" aria-label="Toggle password visibility">
                             <i data-lucide="eye" id="eye-icon-login" class="w-5 h-5"></i>
                         </button>
                     </div>
