@@ -131,9 +131,6 @@ const SPARouter = {
             if (typeof setupActiveNavigation === 'function') {
                 setupActiveNavigation();
             }
-            if (typeof setupExitTrap === 'function') {
-                setupExitTrap();
-            }
 
             // Scroll to top
             window.scrollTo({ top: 0, behavior: 'instant' });
