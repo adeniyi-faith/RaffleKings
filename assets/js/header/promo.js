@@ -129,7 +129,10 @@ const RKPromo = (function() {
             localStorage.setItem('rk_promo_expiry', Date.now() + (10 * 60 * 1000));
             window.location.href = 'raffles.php';
         }
-        function closeModal() { document.getElementById('rk-promo-modal').classList.remove('open'); }
+        function closeModal() {
+            localStorage.setItem('rk_wheel_spun', 'true');
+            document.getElementById('rk-promo-modal').classList.remove('open');
+        }
 
         return { init, spin, claim, closeModal };
     })();
