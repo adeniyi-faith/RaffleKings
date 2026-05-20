@@ -12,7 +12,7 @@ const SPARouter = {
         // Wrap initial content in a view container
         const initialPath = window.location.pathname + window.location.search;
         const initialView = document.createElement('div');
-        initialView.className = 'spa-view w-full h-full';
+        initialView.className = 'spa-view w-full h-full flex flex-col';
         initialView.dataset.path = initialPath;
 
         // Move all children of app-main into the new view wrapper
@@ -58,20 +58,41 @@ const SPARouter = {
         try {
             let targetView = this.views[path];
 
-            // 1. Fetch new view if not cached (while current view remains visible)
+            // 1. If not cached, show skeleton and fetch
             if (!targetView) {
+                // Transition out immediately
+                if (currentActiveView) {
+                    currentActiveView.style.transition = 'opacity 0.15s ease-out, transform 0.15s ease-out';
+                    currentActiveView.style.opacity = '0';
+                    currentActiveView.style.transform = 'translateY(10px)';
+                    await new Promise(r => setTimeout(r, 150));
+                    currentActiveView.style.display = 'none';
+                }
+
+                // Show Skeleton
+                const skeletonView = document.createElement('div');
+                skeletonView.className = 'spa-view w-full h-full flex flex-col';
+                skeletonView.innerHTML = this.getSkeletonHTML();
+                mainContainer.appendChild(skeletonView);
+
+                // Update History immediately for responsiveness
+                if (pushState) {
+                    history.pushState({ path }, '', path);
+                    pushState = false; // prevent pushing again
+                }
+
+                // Fetch new view
                 const response = await fetch(path);
                 if (!response.ok) throw new Error('Network response was not ok');
                 const fullHtml = await response.text();
 
-                // Extract <main id="app-main"> content
                 const parser = new DOMParser();
                 const doc = parser.parseFromString(fullHtml, 'text/html');
                 const newMain = doc.getElementById('app-main');
 
                 if (newMain) {
                     targetView = document.createElement('div');
-                    targetView.className = 'spa-view w-full h-full';
+                    targetView.className = 'spa-view w-full h-full flex flex-col';
                     targetView.dataset.path = path;
                     targetView.innerHTML = newMain.innerHTML;
                     targetView.style.display = 'none';
@@ -79,25 +100,26 @@ const SPARouter = {
                     mainContainer.appendChild(targetView);
                     this.views[path] = targetView;
 
-                    // Execute scripts ONLY on initial load
                     this.executeScripts(targetView);
                 } else {
-                    // Fallback to full reload
                     window.location.href = path;
                     return;
                 }
+
+                skeletonView.remove();
+
+            } else {
+                // View IS cached. Just transition out old view.
+                if (currentActiveView && currentActiveView !== targetView) {
+                    currentActiveView.style.transition = 'opacity 0.15s ease-out, transform 0.15s ease-out';
+                    currentActiveView.style.opacity = '0';
+                    currentActiveView.style.transform = 'translateY(10px)';
+                    await new Promise(r => setTimeout(r, 150));
+                    currentActiveView.style.display = 'none';
+                }
             }
 
-            // 2. Transition Out (Hide old view)
-            if (currentActiveView && currentActiveView !== targetView) {
-                currentActiveView.style.transition = 'opacity 0.2s ease-out, transform 0.2s ease-out';
-                currentActiveView.style.opacity = '0';
-                currentActiveView.style.transform = 'translateY(10px)';
-                await new Promise(r => setTimeout(r, 200));
-                currentActiveView.style.display = 'none';
-            }
-
-            // 3. Update History
+            // 2. Update History (if not already done during skeleton)
             if (pushState) {
                 history.pushState({ path }, '', path);
             }
@@ -140,6 +162,28 @@ const SPARouter = {
             console.error('SPA Navigation failed:', error);
             window.location.href = path; // Fallback to normal navigation
         }
+    },
+
+    getSkeletonHTML() {
+        return `
+        <div class="flex-1 w-full h-full flex flex-col p-5 space-y-5 animate-pulse mt-2">
+            <div class="flex items-center justify-between mb-4">
+                <div class="h-8 bg-gray-200 dark:bg-gray-800 rounded-lg w-1/3"></div>
+                <div class="h-10 w-10 bg-gray-200 dark:bg-gray-800 rounded-full"></div>
+            </div>
+            <div class="h-40 bg-gray-200 dark:bg-gray-800 rounded-3xl w-full mb-6 shadow-sm"></div>
+            <div class="grid grid-cols-2 gap-4 mb-6">
+                <div class="h-28 bg-gray-200 dark:bg-gray-800 rounded-2xl shadow-sm"></div>
+                <div class="h-28 bg-gray-200 dark:bg-gray-800 rounded-2xl shadow-sm"></div>
+            </div>
+            <div class="h-8 bg-gray-200 dark:bg-gray-800 rounded-lg w-1/4 mt-2 mb-4"></div>
+            <div class="space-y-4">
+                <div class="h-24 bg-gray-200 dark:bg-gray-800 rounded-2xl w-full shadow-sm"></div>
+                <div class="h-24 bg-gray-200 dark:bg-gray-800 rounded-2xl w-full shadow-sm"></div>
+                <div class="h-24 bg-gray-200 dark:bg-gray-800 rounded-2xl w-full shadow-sm"></div>
+            </div>
+        </div>
+        `;
     },
 
     executeScripts(container) {
