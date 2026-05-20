@@ -131,6 +131,7 @@ const RKPromo = (function() {
         }
         function closeModal() {
             localStorage.setItem('rk_wheel_spun', 'true');
+            localStorage.setItem('rk_promo_dismissed', 'true');
             document.getElementById('rk-promo-modal').classList.remove('open');
         }
 
