@@ -1,0 +1,23 @@
+* { -webkit-tap-highlight-color: transparent; }
+        html, body { height: 100%; height: 100dvh; width: 100%; margin: 0; padding: 0; overflow: hidden; overscroll-behavior-y: none; }
+        body { font-family: 'Inter', sans-serif; }
+        [x-cloak] { display: none !important; }
+        html:not(.js-ready) body { opacity: 0; visibility: hidden; }
+        html.js-ready body { opacity: 1; visibility: visible; transition: opacity 0.3s ease-in; }
+        .no-scrollbar::-webkit-scrollbar { display: none; }
+        .no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
+        .safe-bottom { padding-bottom: env(safe-area-inset-bottom); }
+        .fade-in { animation: fadeIn 0.3s ease-in-out; }
+        @keyframes fadeIn { from { opacity: 0; transform: translateY(5px); } to { opacity: 1; transform: translateY(0); } }
+        .slide-in { animation: slideIn 0.3s cubic-bezier(0.16, 1, 0.3, 1); }
+        @keyframes slideIn { from { transform: translateX(100%); } to { transform: translateX(0); } }
+        .ripple-container { position: relative; overflow: hidden; transform: translate3d(0, 0, 0); }
+        .ripple-effect { position: absolute; border-radius: 50%; background-color: rgba(255, 255, 255, 0.3); width: 100px; height: 100px; margin-top: -50px; margin-left: -50px; animation: ripple 0.6s linear; pointer-events: none; }
+        @keyframes ripple { from { transform: scale(0); opacity: 1; } to { transform: scale(2.5); opacity: 0; } }
+
+#rk-promo-modal { opacity: 0; pointer-events: none; transition: opacity 0.3s ease-out; }
+      #rk-promo-modal.open { opacity: 1; pointer-events: auto; }
+      .rk-spin-btn { background: linear-gradient(180deg, #facc15 0%, #eab308 100%); box-shadow: 0 4px 0 #a16207; transition: all 0.1s; }
+      .rk-spin-btn:active { transform: translateY(2px); box-shadow: 0 2px 0 #a16207; }
+      .rk-claim-btn { animation: rk-pulse 2s infinite; }
+      @keyframes rk-pulse { 0% { box-shadow: 0 0 0 0 rgba(220, 38, 38, 0.7); } 70% { box-shadow: 0 0 0 10px rgba(220, 38, 38, 0); } 100% { box-shadow: 0 0 0 0 rgba(220, 38, 38, 0); } }
