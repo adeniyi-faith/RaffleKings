@@ -69,7 +69,7 @@
     <!-- 2. Header (User Info & Close) -->
     <div class="absolute top-6 left-0 w-full z-30 px-4 pt-4 flex justify-between items-center">
         <div class="flex items-center gap-2">
-            <img id="story-avatar" src="https://placehold.co/100x100/2563EB/ffffff?text=CD" class="w-8 h-8 rounded-full border border-white/50">
+            <img id="story-avatar" src="https://placehold.co/100x100/2563EB/ffffff?text=CD" loading="lazy" class="w-8 h-8 rounded-full border border-white/50">
             <div>
                 <p id="story-user" class="text-sm font-bold text-white shadow-black drop-shadow-md">The Community Draw</p>
                 <p id="story-time" class="text-[10px] text-gray-200 opacity-80">Loading...</p>
