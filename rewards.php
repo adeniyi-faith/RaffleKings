@@ -229,6 +229,7 @@ $start_points = (int)($initial_state['points'] ?? 0);
 </script>
 
 <script>
+(function() {
     // 🚀 NEW: State is injected instantly via PHP SSR
     const isLoggedIn = <?php echo $rk_is_logged_in ? 'true' : 'false'; ?>;
     let userState = <?php echo json_encode($initial_state); ?>;
@@ -236,10 +237,12 @@ $start_points = (int)($initial_state['points'] ?? 0);
     let currentTaskId = null;
     let pendingClaim = false;
 
-    document.addEventListener('DOMContentLoaded', () => {
-        lucide.createIcons();
+    function initRewardsPage() {
+        if (typeof lucide !== 'undefined') {
+            lucide.createIcons();
+        }
         initRewards(false); // false = use initial PHP state
-    });
+    }
 
     // --- INIT ---
     async function initRewards(isRefresh = true) {
@@ -565,7 +568,10 @@ $start_points = (int)($initial_state['points'] ?? 0);
         const m = document.getElementById('reward-modal');
         m.classList.add('opacity-0', 'pointer-events-none');
         setTimeout(() => m.classList.add('hidden'), 300);
-    }
+    };
+
+    initRewardsPage();
+})();
 </script>
 
 <?php include 'footer.php'; ?>

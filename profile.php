@@ -96,7 +96,8 @@ if ($p_is_logged_in) {
 
 <!-- State Logic -->
 <script>
-    function userProfile() {
+(function() {
+    window.userProfile = function userProfile() {
         return {
             // 🚀 SERVER-SIDE RENDERING (SSR): Inject PHP directly into Javascript state!
             isLoggedIn: <?php echo $p_is_logged_in ? 'true' : 'false'; ?>,
@@ -237,6 +238,7 @@ if ($p_is_logged_in) {
             }
         }
     }
+})();
 </script>
 
 <style>

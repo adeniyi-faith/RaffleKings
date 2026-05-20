@@ -1,10 +1,7 @@
     // Initialize Icons
-    lucide.createIcons();
-
-    document.addEventListener('DOMContentLoaded', () => {
-        setupActiveNavigation();
-        setupExitTrap();
-    });
+    if (typeof lucide !== 'undefined') {
+        lucide.createIcons();
+    }
 
     // --- 1. KEYWORD-BASED NAVIGATION HIGHLIGHTING ---
     function setupActiveNavigation() {
@@ -155,3 +152,7 @@
     for (const button of buttons) {
         button.addEventListener("click", createRipple);
     }
+
+    // Initialize layout scripts on first load
+    setupActiveNavigation();
+    setupExitTrap();
