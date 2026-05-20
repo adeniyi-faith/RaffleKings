@@ -12,7 +12,7 @@ const SPARouter = {
         // Wrap initial content in a view container
         const initialPath = window.location.pathname + window.location.search;
         const initialView = document.createElement('div');
-        initialView.className = 'spa-view w-full h-full flex flex-col';
+        initialView.className = 'spa-view flex-1 w-full h-full flex flex-col min-h-0 overflow-hidden relative';
         initialView.dataset.path = initialPath;
 
         // Move all children of app-main into the new view wrapper
@@ -61,17 +61,11 @@ const SPARouter = {
             // 1. If not cached, show skeleton and fetch
             if (!targetView) {
                 // Transition out immediately
-                if (currentActiveView) {
-                    currentActiveView.style.transition = 'opacity 0.15s ease-out, transform 0.15s ease-out';
-                    currentActiveView.style.opacity = '0';
-                    currentActiveView.style.transform = 'translateY(10px)';
-                    await new Promise(r => setTimeout(r, 150));
-                    currentActiveView.style.display = 'none';
-                }
+                if (currentActiveView && currentActiveView !== targetView) { currentActiveView.style.display = 'none'; }
 
                 // Show Skeleton
                 const skeletonView = document.createElement('div');
-                skeletonView.className = 'spa-view w-full h-full flex flex-col';
+                skeletonView.className = 'spa-view flex-1 w-full h-full flex flex-col min-h-0 overflow-hidden relative';
                 skeletonView.innerHTML = this.getSkeletonHTML();
                 mainContainer.appendChild(skeletonView);
 
@@ -92,7 +86,7 @@ const SPARouter = {
 
                 if (newMain) {
                     targetView = document.createElement('div');
-                    targetView.className = 'spa-view w-full h-full flex flex-col';
+                    targetView.className = 'spa-view flex-1 w-full h-full flex flex-col min-h-0 overflow-hidden relative';
                     targetView.dataset.path = path;
                     targetView.innerHTML = newMain.innerHTML;
                     targetView.style.display = 'none';
@@ -110,13 +104,7 @@ const SPARouter = {
 
             } else {
                 // View IS cached. Just transition out old view.
-                if (currentActiveView && currentActiveView !== targetView) {
-                    currentActiveView.style.transition = 'opacity 0.15s ease-out, transform 0.15s ease-out';
-                    currentActiveView.style.opacity = '0';
-                    currentActiveView.style.transform = 'translateY(10px)';
-                    await new Promise(r => setTimeout(r, 150));
-                    currentActiveView.style.display = 'none';
-                }
+                if (currentActiveView && currentActiveView !== targetView) { currentActiveView.style.display = 'none'; }
             }
 
             // 2. Update History (if not already done during skeleton)
@@ -137,20 +125,11 @@ const SPARouter = {
 
             // 5. Transition In (Show new view)
             if (currentActiveView !== targetView) {
-                targetView.style.display = 'block';
-                targetView.style.opacity = '0';
-                targetView.style.transform = 'translateY(10px)';
-
-                requestAnimationFrame(() => {
-                    targetView.style.transition = 'opacity 0.2s ease-out, transform 0.2s ease-out';
-                    targetView.style.opacity = '1';
-                    targetView.style.transform = 'translateY(0)';
-
-                    setTimeout(() => {
-                        targetView.style.transition = '';
-                        this.isNavigating = false;
-                    }, 200);
-                });
+                targetView.style.display = 'flex';
+                targetView.style.opacity = '1';
+                targetView.style.transform = 'none';
+                targetView.style.transition = 'none';
+                this.isNavigating = false;
             } else {
                 this.isNavigating = false;
             }
