@@ -207,8 +207,8 @@ if ($rk_wallet >= 1000000) {
     <!-- PROMO LOGIC -->
     <script src="assets/js/header/promo.js"></script>
 
-    <!-- Main Content Container -->
-    <main class="flex-1 w-full overflow-hidden relative flex flex-col">
+    <!-- 🚀 REFACTORED HEADER SYNC LOGIC -->
+    <script src="assets/js/header/sync.js"></script>
 
-        <!-- 🚀 REFACTORED HEADER SYNC LOGIC -->
-        <script src="assets/js/header/sync.js"></script>
+    <!-- Main Content Container -->
+    <main id="app-main" class="flex-1 w-full overflow-hidden relative flex flex-col">

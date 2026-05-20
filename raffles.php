@@ -229,6 +229,7 @@ include 'header.php';
 </a>
 
 <script>
+(function() {
 // 🚀 SERVER-SIDE RENDERING VARIABLES
 const ssrRaffles = <?php echo json_encode($initial_raffles); ?>;
 const isLoggedIn = <?php echo is_user_logged_in() ? 'true' : 'false'; ?>;
@@ -765,9 +766,8 @@ const app = {
     }
 };
 
-document.addEventListener('DOMContentLoaded', () => {
     app.init();
-});
+})();
 </script>
 
 <?php include 'footer.php'; ?>
