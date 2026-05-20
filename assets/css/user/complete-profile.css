@@ -1,0 +1,4 @@
+        body { font-family: 'Inter', sans-serif; background-color: #F3F4F6; }
+        @keyframes shine { 0% { background-position: -100% 0; } 100% { background-position: 200% 0; } }
+        .gold-ring { background: linear-gradient(45deg, #F59E0B, #FDE68A, #D97706, #F59E0B); background-size: 200% auto; animation: shine 3s linear infinite; padding: 4px; border-radius: 50%; }
+        select { font-size: 16px !important; }
