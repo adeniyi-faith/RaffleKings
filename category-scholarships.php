@@ -124,7 +124,7 @@
             
             <div class="min-w-[140px] bg-white p-3 rounded-xl border border-gray-100 shadow-sm text-center">
                 <div class="w-10 h-10 rounded-full bg-gray-100 mx-auto mb-2 overflow-hidden">
-                    <img src="https://api.dicebear.com/7.x/avataaars/svg?seed=Funmi" />
+                    <img loading="lazy" src="https://api.dicebear.com/7.x/avataaars/svg?seed=Funmi" />
                 </div>
                 <p class="text-xs font-bold text-gray-900">Funmi A.</p>
                 <p class="text-[9px] text-gray-500 mb-1">UNILAG • 300L</p>
@@ -133,7 +133,7 @@
 
             <div class="min-w-[140px] bg-white p-3 rounded-xl border border-gray-100 shadow-sm text-center">
                 <div class="w-10 h-10 rounded-full bg-gray-100 mx-auto mb-2 overflow-hidden">
-                    <img src="https://api.dicebear.com/7.x/avataaars/svg?seed=David" />
+                    <img loading="lazy" src="https://api.dicebear.com/7.x/avataaars/svg?seed=David" />
                 </div>
                 <p class="text-xs font-bold text-gray-900">David O.</p>
                 <p class="text-[9px] text-gray-500 mb-1">YABATECH • HND 1</p>
@@ -142,7 +142,7 @@
 
             <div class="min-w-[140px] bg-white p-3 rounded-xl border border-gray-100 shadow-sm text-center">
                 <div class="w-10 h-10 rounded-full bg-gray-100 mx-auto mb-2 overflow-hidden">
-                    <img src="https://api.dicebear.com/7.x/avataaars/svg?seed=Zainab" />
+                    <img loading="lazy" src="https://api.dicebear.com/7.x/avataaars/svg?seed=Zainab" />
                 </div>
                 <p class="text-xs font-bold text-gray-900">Zainab S.</p>
                 <p class="text-[9px] text-gray-500 mb-1">ABU ZARIA • 200L</p>

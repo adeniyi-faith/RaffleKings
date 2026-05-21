@@ -135,7 +135,7 @@
                 <div @click="openArticle(featured)" class="w-full aspect-video bg-gray-900 rounded-2xl flex items-center justify-center relative overflow-hidden shadow-lg group cursor-pointer mb-2">
                     <!-- Thumbnail Overlay -->
                     <div class="absolute inset-0 bg-gradient-to-t from-black/80 via-transparent to-transparent z-10"></div>
-                    <img :src="featured.thumbnail || 'https://images.unsplash.com/photo-1611162617474-5b21e879e113?q=80&w=1000&auto=format&fit=crop'" class="absolute inset-0 w-full h-full object-cover opacity-80 transition-transform duration-700 group-hover:scale-105">
+                    <img loading="lazy" :src="featured.thumbnail || 'https://images.unsplash.com/photo-1611162617474-5b21e879e113?q=80&w=1000&auto=format&fit=crop'" class="absolute inset-0 w-full h-full object-cover opacity-80 transition-transform duration-700 group-hover:scale-105">
                     
                     <div class="relative z-20 flex flex-col items-center">
                         <div class="w-14 h-14 bg-white/20 backdrop-blur-md rounded-full flex items-center justify-center border border-white/30 group-hover:scale-110 transition-transform shadow-xl">
@@ -176,7 +176,7 @@
                             
                             <div class="w-20 h-20 bg-gray-100 rounded-xl flex-shrink-0 overflow-hidden relative flex items-center justify-center">
                                 <template x-if="article.thumbnail">
-                                    <img :src="article.thumbnail" class="w-full h-full object-cover">
+                                    <img loading="lazy" :src="article.thumbnail" class="w-full h-full object-cover">
                                 </template>
                                 <template x-if="!article.thumbnail">
                                     <i data-lucide="book-open" class="w-8 h-8 text-gray-300"></i>
@@ -237,7 +237,7 @@
                     
                     <div class="flex items-center gap-3 mb-6 pb-6 border-b border-gray-100">
                         <div class="w-10 h-10 rounded-full bg-gray-200 overflow-hidden">
-                             <img :src="`https://api.dicebear.com/7.x/initials/svg?seed=${activeArticle.author}`" class="w-full h-full">
+                             <img loading="lazy" :src="`https://api.dicebear.com/7.x/initials/svg?seed=${activeArticle.author}`" class="w-full h-full">
                         </div>
                         <div>
                             <p class="text-xs font-bold text-gray-900" x-text="activeArticle.author"></p>
