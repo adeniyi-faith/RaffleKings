@@ -33,7 +33,7 @@
     <section class="p-5 pb-2">
         <div onclick="openConfigSheet('iPhone 15 Pro Max', 2500, ['Natural Titanium', 'Blue Titanium', 'White Titanium', 'Black Titanium'])" class="relative w-full h-80 rounded-3xl overflow-hidden shadow-xl shadow-gray-200 group cursor-pointer active:scale-[0.99] transition-transform">
             <!-- Image -->
-            <img src="https://images.unsplash.com/photo-1696446701796-da61225697cc?q=80&w=800&auto=format&fit=crop" 
+            <img loading="lazy" src="https://images.unsplash.com/photo-1696446701796-da61225697cc?q=80&w=800&auto=format&fit=crop"
                  class="w-full h-full object-cover object-center" alt="iPhone 15 Pro">
             
             <!-- Overlay Gradient -->
@@ -84,7 +84,7 @@
             <!-- Item 1: Samsung A-Series -->
             <div onclick="openConfigSheet('Samsung Galaxy A54', 1000, ['Awesome Lime', 'Awesome Violet', 'Graphite', 'White'])" class="bg-white p-3 rounded-2xl border border-gray-100 shadow-sm active:scale-[0.98] transition-transform group cursor-pointer">
                 <div class="relative w-full aspect-square bg-gray-50 rounded-xl mb-3 overflow-hidden">
-                    <img src="https://images.unsplash.com/photo-1610945415295-d9bbf067e59c?q=80&w=400&auto=format&fit=crop" class="w-full h-full object-cover mix-blend-multiply" alt="Samsung">
+                    <img loading="lazy" src="https://images.unsplash.com/photo-1610945415295-d9bbf067e59c?q=80&w=400&auto=format&fit=crop" class="w-full h-full object-cover mix-blend-multiply" alt="Samsung">
                     <div class="absolute bottom-2 left-2 flex gap-1">
                         <div class="w-2.5 h-2.5 rounded-full bg-green-400 border border-white shadow-sm"></div>
                         <div class="w-2.5 h-2.5 rounded-full bg-purple-500 border border-white shadow-sm"></div>
@@ -106,7 +106,7 @@
             <div onclick="openConfigSheet('Tecno Spark 10 Pro', 500, ['Starry Black', 'Pearl White'])" class="bg-white p-3 rounded-2xl border border-gray-100 shadow-sm active:scale-[0.98] transition-transform group cursor-pointer">
                 <div class="relative w-full aspect-square bg-gray-50 rounded-xl mb-3 overflow-hidden">
                     <!-- Updated Image URL -->
-                    <img src="https://getonlinestudio.com/insights/wp-content/uploads/2025/12/spark-10.jpeg" class="w-full h-full object-cover mix-blend-multiply" alt="Tecno">
+                    <img loading="lazy" src="https://getonlinestudio.com/insights/wp-content/uploads/2025/12/spark-10.jpeg" class="w-full h-full object-cover mix-blend-multiply" alt="Tecno">
                      <div class="absolute bottom-2 left-2 flex gap-1">
                         <div class="w-2.5 h-2.5 rounded-full bg-gray-900 border border-white shadow-sm"></div>
                         <div class="w-2.5 h-2.5 rounded-full bg-gray-100 border border-gray-300 shadow-sm"></div>
@@ -127,7 +127,7 @@
             <div onclick="openConfigSheet('AirPods Pro (2nd Gen)', 800, ['White'])" class="bg-white p-3 rounded-2xl border border-gray-100 shadow-sm active:scale-[0.98] transition-transform group cursor-pointer">
                 <div class="relative w-full aspect-square bg-gray-50 rounded-xl mb-3 overflow-hidden">
                     <!-- Updated Image URL -->
-                    <img src="https://getonlinestudio.com/insights/wp-content/uploads/2025/12/airpod-pro.jpeg" class="w-full h-full object-cover mix-blend-multiply" alt="AirPods">
+                    <img loading="lazy" src="https://getonlinestudio.com/insights/wp-content/uploads/2025/12/airpod-pro.jpeg" class="w-full h-full object-cover mix-blend-multiply" alt="AirPods">
                 </div>
                 <h4 class="font-bold text-gray-900 text-sm truncate">AirPods Pro (2nd Gen)</h4>
                 <div class="flex justify-between items-center mt-1">
