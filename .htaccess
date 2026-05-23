@@ -1,4 +1,7 @@
 # --- BASIC SETTINGS ---
+Options +FollowSymLinks -Indexes
+DirectoryIndex index.php index.html
+
 RewriteEngine On
 RewriteBase /
 
