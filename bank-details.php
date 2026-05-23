@@ -67,7 +67,7 @@ include 'header.php';
 
     <!-- Header -->
     <div class="bg-white dark:bg-dark-bg px-5 pt-4 pb-4 border-b border-gray-100 dark:border-dark-border sticky top-0 z-40 shadow-sm dark:shadow-none flex items-center gap-3 transition-colors duration-200">
-        <button onclick="history.back()" class="p-1 -ml-1 text-gray-400 hover:text-gray-600 dark:hover:text-gray-200 transition-colors">
+        <button onclick="history.back()" aria-label="Go back" class="p-1 -ml-1 text-gray-400 hover:text-gray-600 dark:hover:text-gray-200 transition-colors">
             <i data-lucide="arrow-left" class="w-5 h-5"></i>
         </button>
         <div>
