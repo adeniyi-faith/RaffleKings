@@ -1779,7 +1779,16 @@ function rk_render_referrals_page() {
             </div>
         
         <?php elseif ($active_tab === 'commissions'): ?>
-            <?php $logs = $wpdb->get_results("SELECT * FROM $table_txns WHERE type = 'referral_commission' ORDER BY created_at DESC LIMIT 100"); ?>
+            <?php
+                $logs = $wpdb->get_results("SELECT * FROM $table_txns WHERE type = 'referral_commission' ORDER BY created_at DESC LIMIT 100");
+                // Performance Optimization: Prevent N+1 Query
+                if (!empty($logs)) {
+                    $user_ids = array_unique(wp_list_pluck($logs, 'user_id'));
+                    if (!empty($user_ids)) {
+                        cache_users($user_ids);
+                    }
+                }
+            ?>
             <table class="wp-list-table widefat fixed striped">
                 <thead><tr><th>Date</th><th>Referrer</th><th>Amount</th><th>Source</th></tr></thead>
                 <tbody>
@@ -2269,6 +2278,14 @@ function rk_render_transactions_page() {
 
     // Fetch Results
     $results = $wpdb->get_results("SELECT * FROM $table $where ORDER BY id DESC LIMIT 100");
+
+    // Performance Optimization: Prevent N+1 Query in foreach loop
+    if (!empty($results)) {
+        $user_ids = array_unique(wp_list_pluck($results, 'user_id'));
+        if (!empty($user_ids)) {
+            cache_users($user_ids);
+        }
+    }
     ?>
     <div class="wrap">
         <h1 class="wp-heading-inline">🚀 Transaction Monitor (Deposits & Purchases)</h1>
