@@ -37,7 +37,7 @@
 
         <div class="bg-white rounded-3xl shadow-xl p-8">
             <form id="reset-form" onsubmit="handleReset(event)" class="space-y-5">
-                <div id="status-msg" class="hidden p-3 rounded-lg text-xs font-bold text-center"></div>
+                <div id="status-msg" role="alert" aria-live="polite" class="hidden p-3 rounded-lg text-xs font-bold text-center"></div>
 
                 <input type="hidden" name="email" id="email_hidden">
 
