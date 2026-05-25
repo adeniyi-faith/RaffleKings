@@ -21,9 +21,9 @@ if (!wp_next_scheduled('rk_temu_clickbait_event')) {
 // Hooking the events
 add_action('rk_daily_retention_event', 'rk_run_the_trap_system');
 add_action('rk_daily_retention_event', 'rk_run_receipt_cleanup');
-add_action('rk_daily_retention_event', 'rk_send_admin_template_digest'); 
+// add_action('rk_daily_retention_event', 'rk_send_admin_template_digest');
 add_action('rk_aggressive_push_event', 'rk_run_temu_push_engine');
-add_action('rk_temu_clickbait_event', 'rk_run_clickbait_engine');
+// add_action('rk_temu_clickbait_event', 'rk_run_clickbait_engine');
 
 // ================================================================
 // PART 1: "THE TRAP" (DAILY RETENTION BONUS SYSTEM)
