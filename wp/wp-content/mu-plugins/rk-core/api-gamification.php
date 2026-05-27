@@ -771,7 +771,7 @@ function rk_get_rewards_state($request) {
     // Referral Data
     $user_info = get_userdata($user_id);
     $frontend_base = defined('RK_FRONTEND_URL') ? RK_FRONTEND_URL : 'https://rafflekings.com.ng';
-    $referral_link = $frontend_base . '/?ref=' . $user_info->user_login;
+    $referral_link = $frontend_base . '/?ref=' . ($user_info ? $user_info->user_login : '');
     $referral_count = (int) get_user_meta($user_id, 'rk_referral_count', true);
     
     // --- ROBUST VISUAL STREAK LOGIC ---
