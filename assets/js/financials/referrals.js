@@ -24,7 +24,6 @@
 
     async function fetchReferralStats() {
         const token = localStorage.getItem('token');
-        if(!token) return;
 
         // SYNERGY: Use Centralized Config
         const endpoint = (typeof API_CONFIG !== 'undefined' && API_CONFIG.REFERRAL_STATS)
@@ -32,9 +31,8 @@
                          : 'ajax-router.php?action=referral_stats';
 
         try {
-            const response = await fetch(endpoint, {
-                headers: { 'Authorization': `Bearer ${token}` }
-            });
+            const headers = token ? { 'Authorization': `Bearer ${token}` } : {};
+            const response = await fetch(endpoint, { headers });
 
             if(response.ok) {
                 const data = await response.json();
