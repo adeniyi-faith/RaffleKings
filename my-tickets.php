@@ -89,12 +89,13 @@ if (!is_user_logged_in()) {
         const ENDPOINT = (typeof API_CONFIG !== 'undefined' && API_CONFIG.TICKETS)
                          ? API_CONFIG.TICKETS
                          : 'ajax-router.php?action=user_tickets';
+        const isSameOriginAjax = ENDPOINT.includes('ajax-router.php');
 
         try {
             console.log("Fetching tickets from:", ENDPOINT);
 
-            const headers = token ? { 'Authorization': `Bearer ${token}` } : {};
-            const response = await fetch(ENDPOINT, { headers });
+            const headers = (!isSameOriginAjax && token) ? { 'Authorization': `Bearer ${token}` } : {};
+            const response = await fetch(ENDPOINT, { headers, credentials: 'same-origin' });
 
             // AUTH GUARD: If token is invalid/expired (401), force logout
             if (response.status === 401) {

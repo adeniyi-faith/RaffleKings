@@ -3,6 +3,7 @@
     const API_URL = (typeof API_CONFIG !== 'undefined' && API_CONFIG.TRANSACTIONS)
                     ? API_CONFIG.TRANSACTIONS
                     : 'ajax-router.php?action=transactions';
+    const isSameOriginAjax = API_URL.includes('ajax-router.php');
 
     let allTransactions = [];
 
@@ -14,14 +15,19 @@
         async function fetchTransactions() {
             const token = localStorage.getItem('token');
             try {
-                const headers = token ? { 'Authorization': `Bearer ${token}` } : {};
-                const res = await fetch(API_URL, { headers });
+                const headers = (!isSameOriginAjax && token) ? { 'Authorization': `Bearer ${token}` } : {};
+                const res = await fetch(API_URL, { headers, credentials: 'same-origin' });
 
                 // SELF HEALING: Check for invalid token
                 if (res.status === 401) {
                     localStorage.clear();
                     window.location.href = 'login';
                     return;
+                }
+
+                if (!res.ok) {
+                    const errText = await res.text();
+                    throw new Error(`Server Error ${res.status}: ${errText}`);
                 }
 
                 const rafflePayload = await res.json();
