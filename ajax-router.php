@@ -265,12 +265,16 @@ $routes = [
     'user_tickets' => ['public' => false, 'method' => 'GET', 'callback' => fn() => rk_get_user_tickets(rk_ajax_request('GET', '/raffle/v1/tickets'))],
     'tickets' => ['public' => false, 'method' => 'GET', 'callback' => fn() => rk_get_user_tickets(rk_ajax_request('GET', '/raffle/v1/tickets'))],
     'rewards_state' => ['public' => false, 'method' => 'GET', 'callback' => fn() => rk_get_rewards_state(rk_ajax_request('GET', '/raffle/v1/rewards-state'))],
+    'get_state' => ['public' => false, 'method' => 'GET', 'callback' => fn() => rk_get_rewards_state(rk_ajax_request('GET', '/raffle/v1/rewards-state'))],
     'spin' => ['public' => false, 'method' => 'POST', 'callback' => fn() => rk_execute_spin_logic(rk_ajax_request('POST', '/raffle/v1/spin-wheel'))],
     'daily_claim' => ['public' => false, 'method' => 'POST', 'callback' => fn() => rk_handle_daily_claim(rk_ajax_request('POST', '/raffle/v1/claim-daily'))],
+    'claim_daily' => ['public' => false, 'method' => 'POST', 'callback' => fn() => rk_handle_daily_claim(rk_ajax_request('POST', '/raffle/v1/claim-daily'))],
     'task_claim' => ['public' => false, 'method' => 'POST', 'callback' => fn() => rk_handle_task_claim(rk_ajax_request('POST', '/raffle/v1/claim-task'))],
+    'claim_task' => ['public' => false, 'method' => 'POST', 'callback' => fn() => rk_handle_task_claim(rk_ajax_request('POST', '/raffle/v1/claim-task'))],
     'redeem_points' => ['public' => false, 'method' => 'POST', 'callback' => fn() => rk_handle_redeem_points(rk_ajax_request('POST', '/raffle/v1/redeem-points'))],
     'referral_stats' => ['public' => false, 'method' => 'GET', 'callback' => fn() => rk_get_referral_stats(rk_ajax_request('GET', '/raffle/v1/referral-stats'))],
     'push_device_save' => ['public' => false, 'method' => 'POST', 'callback' => fn() => rk_save_push_device(rk_ajax_request('POST', '/raffle/v1/save-device'))],
+    'save_device' => ['public' => false, 'method' => 'POST', 'callback' => fn() => rk_save_push_device(rk_ajax_request('POST', '/raffle/v1/save-device'))],
 ];
 
 if (!$action || !isset($routes[$action])) {
@@ -286,4 +290,9 @@ if (!is_callable($route['callback'])) {
     rk_ajax_error('Endpoint handler is unavailable.', 'handler_missing', 500);
 }
 
-rk_ajax_send(call_user_func($route['callback']));
+try {
+    rk_ajax_send(call_user_func($route['callback']));
+} catch (Throwable $e) {
+    error_log('RaffleKings ajax action failed [' . $action . ']: ' . $e->getMessage());
+    rk_ajax_error('Server error. Please try again.', 'server_error', 500);
+}

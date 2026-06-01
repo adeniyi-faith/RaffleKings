@@ -681,25 +681,36 @@ function rk_get_user_tickets($request) {
     global $wpdb;
     
     $entries_table = $wpdb->prefix . 'raffle_entries';
-    if($wpdb->get_var("SHOW TABLES LIKE '$entries_table'") != $entries_table) return []; 
+    if ($wpdb->get_var($wpdb->prepare('SHOW TABLES LIKE %s', $entries_table)) !== $entries_table) return []; 
 
-    $results = $wpdb->get_results($wpdb->prepare("SELECT * FROM $entries_table WHERE user_id = %d ORDER BY created_at DESC", $user_id));
+    $results = $wpdb->get_results($wpdb->prepare(
+        "SELECT raffle_id, ticket_number, created_at FROM $entries_table WHERE user_id = %d ORDER BY created_at DESC",
+        $user_id
+    ));
+    if ($wpdb->last_error) {
+        error_log('RaffleKings tickets query failed: ' . $wpdb->last_error);
+        return new WP_Error('tickets_unavailable', 'Tickets are temporarily unavailable.', ['status' => 500]);
+    }
+
     $grouped = [];
-    foreach($results as $row) {
-        $rid = $row->raffle_id;
+    foreach((array) $results as $row) {
+        $rid = isset($row->raffle_id) ? (int) $row->raffle_id : 0;
+        if ($rid <= 0) continue;
+
         if (!isset($grouped[$rid])) {
             $expiry_date = get_post_meta($rid, 'expiry_date', true);
             $is_sold_out = get_post_meta($rid, 'is_sold_out', true);
+            $expiry_ts = $expiry_date ? strtotime($expiry_date) : false;
             $status = 'Active';
             if ($is_sold_out) $status = 'Concluded';
-            elseif ($expiry_date && time() > (strtotime($expiry_date) + 86400)) $status = 'Expired';
+            elseif ($expiry_ts && time() > ($expiry_ts + 86400)) $status = 'Expired';
             
             $title = get_the_title($rid);
             if(!$title) $title = 'Raffle #' . $rid;
 
             $grouped[$rid] = ['raffle_id' => $rid, 'raffle_title' => $title, 'date' => $row->created_at, 'status' => $status, 'tickets' => []];
         }
-        $grouped[$rid]['tickets'][] = str_pad($row->ticket_number, 3, '0', STR_PAD_LEFT);
+        $grouped[$rid]['tickets'][] = str_pad((string) $row->ticket_number, 3, '0', STR_PAD_LEFT);
     }
     return array_values($grouped);
 }
