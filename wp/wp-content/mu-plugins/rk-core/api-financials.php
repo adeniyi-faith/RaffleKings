@@ -646,8 +646,18 @@ function rk_get_user_transactions($request) {
     if (!$user_id) return new WP_Error('no_auth', 'Not logged in', ['status' => 401]);
     global $wpdb;
     $table = $wpdb->prefix . 'raffle_transactions';
+
+    if ($wpdb->get_var($wpdb->prepare('SHOW TABLES LIKE %s', $table)) !== $table) {
+        return [];
+    }
+
     $results = $wpdb->get_results($wpdb->prepare("SELECT * FROM $table WHERE user_id = %d ORDER BY created_at DESC LIMIT 50", $user_id));
-    return $results;
+    if ($wpdb->last_error) {
+        error_log('RaffleKings transactions query failed: ' . $wpdb->last_error);
+        return new WP_Error('transactions_unavailable', 'Transactions are temporarily unavailable.', ['status' => 500]);
+    }
+
+    return is_array($results) ? $results : [];
 }
 
 function rk_revoke_transaction($request) {
