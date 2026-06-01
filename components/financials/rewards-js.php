@@ -237,20 +237,30 @@
             btn.classList.add('bg-gray-300', 'cursor-wait');
         }
 
+        const endpoint = (typeof API_CONFIG !== 'undefined' && API_CONFIG.CLAIM_DAILY)
+            ? API_CONFIG.CLAIM_DAILY
+            : window.location.href.split('?')[0];
+        const isSameOriginAjax = endpoint.includes('ajax-router.php');
+
         try {
             const fd = new FormData();
-            fd.append('action', 'claim_daily');
-            const res = await fetch(window.location.href.split('?')[0], { method: 'POST', body: fd });
+            fd.append('action', isSameOriginAjax ? 'daily_claim' : 'claim_daily');
+            const res = await fetch(endpoint, { method: 'POST', body: fd, credentials: 'same-origin' });
             const data = await res.json();
+            const payload = data && Object.prototype.hasOwnProperty.call(data, 'data') && data.data ? data.data : data;
 
-            if(data.success) {
-                showModal('Daily Reward!', `You claimed +${data.points_added} Points`);
+            if(res.ok && data.success) {
+                showModal('Daily Reward!', `You claimed +${payload.points_added || data.points_added} Points`);
                 initRewards();
             } else {
-                alert(data.message);
+                alert(data.message || payload.message || 'Daily reward failed. Please try again.');
                 initRewards();
             }
-        } catch(e) { alert("Error claiming daily reward."); initRewards(); }
+        } catch(e) {
+            console.error('Daily reward claim failed', e);
+            alert("Error claiming daily reward.");
+            initRewards();
+        }
     }
 
     async function handleTask(taskId, url, isShare) {
