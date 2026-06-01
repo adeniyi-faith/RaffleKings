@@ -704,6 +704,45 @@ function rk_get_user_tickets($request) {
     return array_values($grouped);
 }
 
+function rk_normalize_completed_tasks($completed_tasks) {
+    if (is_array($completed_tasks)) {
+        return array_values(array_filter(array_map('sanitize_text_field', $completed_tasks)));
+    }
+
+    if (is_string($completed_tasks) && $completed_tasks !== '') {
+        $maybe_unserialized = maybe_unserialize($completed_tasks);
+        if (is_array($maybe_unserialized)) {
+            return array_values(array_filter(array_map('sanitize_text_field', $maybe_unserialized)));
+        }
+
+        $maybe_json = json_decode($completed_tasks, true);
+        if (is_array($maybe_json)) {
+            return array_values(array_filter(array_map('sanitize_text_field', $maybe_json)));
+        }
+    }
+
+    return [];
+}
+
+function rk_get_request_params($request) {
+    if ($request instanceof WP_REST_Request) {
+        $params = $request->get_json_params();
+        if (is_array($params) && !empty($params)) {
+            return $params;
+        }
+
+        $params = $request->get_body_params();
+        if (is_array($params) && !empty($params)) {
+            return $params;
+        }
+
+        $params = $request->get_params();
+        return is_array($params) ? $params : [];
+    }
+
+    return is_array($request) ? $request : [];
+}
+
 function rk_handle_daily_claim($request) {
     $user_id = get_current_user_id();
     if (!$user_id) return new WP_Error('no_auth', 'Not logged in', ['status' => 401]);
@@ -766,7 +805,7 @@ function rk_get_rewards_state($request) {
     $points = (int) get_user_meta($user_id, 'rk_points', true);
     $db_streak = (int) get_user_meta($user_id, 'rk_streak_count', true);
     $last_claim = get_user_meta($user_id, 'rk_last_claim_date', true);
-    $completed_tasks = get_user_meta($user_id, 'rk_completed_tasks', true) ?: [];
+    $completed_tasks = rk_normalize_completed_tasks(get_user_meta($user_id, 'rk_completed_tasks', true));
     
     // Referral Data
     $user_info = get_userdata($user_id);
@@ -827,11 +866,11 @@ function rk_get_rewards_state($request) {
 function rk_handle_task_claim($request) {
     $user_id = get_current_user_id();
     if (!$user_id) return new WP_Error('no_auth', 'Not logged in', ['status' => 401]);
-    $params = $request->get_json_params();
-    $task_id = sanitize_text_field($params['task_id']);
+    $params = rk_get_request_params($request);
+    $task_id = isset($params['task_id']) ? sanitize_text_field($params['task_id']) : '';
     $task_rewards = ['push_notification' => 1500, 'join_community' => 1300, 'whatsapp_follow' => 800, 'whatsapp_share' => 500];
     if (!array_key_exists($task_id, $task_rewards)) return new WP_Error('invalid_task', 'Unknown Task', ['status' => 400]);
-    $completed = get_user_meta($user_id, 'rk_completed_tasks', true) ?: [];
+    $completed = rk_normalize_completed_tasks(get_user_meta($user_id, 'rk_completed_tasks', true));
     if ($task_id === 'whatsapp_share') {
         $last_share = get_user_meta($user_id, 'rk_last_share_date', true);
         if ($last_share && strtotime($last_share) >= strtotime('today')) return new WP_Error('daily_limit', 'Come back tomorrow to share again', ['status' => 400]);

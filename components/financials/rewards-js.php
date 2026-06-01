@@ -345,6 +345,13 @@
         m.classList.add('opacity-100', 'pointer-events-auto');
     }
 
+    window.attemptDailyClaim = attemptDailyClaim;
+    window.openPushModal = openPushModal;
+    window.closePushModal = closePushModal;
+    window.confirmPushPermission = confirmPushPermission;
+    window.handleTask = handleTask;
+    window.redeemPoints = redeemPoints;
+
     window.closeModal = function() {
         const m = document.getElementById('reward-modal');
         m.classList.add('opacity-0', 'pointer-events-none');

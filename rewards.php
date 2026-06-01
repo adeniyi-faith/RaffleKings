@@ -31,16 +31,25 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
     ];
 
     if (isset($handlers[$action]) && is_callable($handlers[$action])) {
-        $response = call_user_func($handlers[$action], $request);
+        try {
+            $response = call_user_func($handlers[$action], $request);
 
-        if (is_wp_error($response)) {
+            if (is_wp_error($response)) {
+                echo json_encode([
+                    'success' => false,
+                    'message' => $response->get_error_message(),
+                    'code' => $response->get_error_code()
+                ]);
+            } else {
+                echo json_encode($response instanceof WP_REST_Response ? $response->get_data() : $response);
+            }
+        } catch (Throwable $e) {
+            error_log('RaffleKings rewards action failed: ' . $e->getMessage());
             echo json_encode([
                 'success' => false,
-                'message' => $response->get_error_message(),
-                'code' => $response->get_error_code()
+                'message' => 'Rewards are temporarily unavailable. Please try again.',
+                'code' => 'rewards_unavailable'
             ]);
-        } else {
-            echo json_encode($response instanceof WP_REST_Response ? $response->get_data() : $response);
         }
         exit;
     }
@@ -58,12 +67,17 @@ $initial_state = [
     'server_time' => current_time('mysql')
 ];
 
-if ($rk_is_logged_in) {
-    // Fetch state locally to inject straight into HTML.
-    $state_request = new WP_REST_Request('GET', '/rk/local-rewards-state');
-    $state_response = rk_get_rewards_state($state_request);
-    if (!is_wp_error($state_response)) {
-        $initial_state = $state_response instanceof WP_REST_Response ? $state_response->get_data() : $state_response;
+if ($rk_is_logged_in && is_callable('rk_get_rewards_state')) {
+    // Fetch state locally to inject straight into HTML, but never let a
+    // rewards-data issue crash the whole page for authenticated users.
+    try {
+        $state_request = new WP_REST_Request('GET', '/rk/local-rewards-state');
+        $state_response = rk_get_rewards_state($state_request);
+        if (!is_wp_error($state_response)) {
+            $initial_state = $state_response instanceof WP_REST_Response ? $state_response->get_data() : $state_response;
+        }
+    } catch (Throwable $e) {
+        error_log('RaffleKings rewards SSR state failed: ' . $e->getMessage());
     }
 }
 
