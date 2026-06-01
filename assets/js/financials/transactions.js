@@ -14,9 +14,8 @@
         async function fetchTransactions() {
             const token = localStorage.getItem('token');
             try {
-                const res = await fetch(API_URL, {
-                    headers: { 'Authorization': `Bearer ${token}` }
-                });
+                const headers = token ? { 'Authorization': `Bearer ${token}` } : {};
+                const res = await fetch(API_URL, { headers });
 
                 // SELF HEALING: Check for invalid token
                 if (res.status === 401) {

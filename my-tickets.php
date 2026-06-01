@@ -1,11 +1,15 @@
-<?php include 'header.php'; ?>
+<?php
+ob_start();
+define('RK_FRONTEND_APP', true);
+define('WP_USE_THEMES', false);
+require_once(__DIR__ . '/wp/wp-load.php');
 
-<!-- Auth Guard -->
-<script>
-    if (!localStorage.getItem('token')) {
-        window.location.href = 'login';
-    }
-</script>
+if (!is_user_logged_in()) {
+    header('Location: ' . (function_exists('rk_login_url_with_return') ? rk_login_url_with_return() : 'login.php'));
+    exit;
+}
+?>
+<?php include 'header.php'; ?>
 
 <!-- Scrollable Content Area -->
 <div class="flex-1 overflow-y-auto no-scrollbar pb-36 bg-gray-50 dark:bg-dark-bg transition-colors duration-200">
@@ -89,9 +93,8 @@
         try {
             console.log("Fetching tickets from:", ENDPOINT);
 
-            const response = await fetch(ENDPOINT, {
-                headers: { 'Authorization': `Bearer ${token}` }
-            });
+            const headers = token ? { 'Authorization': `Bearer ${token}` } : {};
+            const response = await fetch(ENDPOINT, { headers });
 
             // AUTH GUARD: If token is invalid/expired (401), force logout
             if (response.status === 401) {
