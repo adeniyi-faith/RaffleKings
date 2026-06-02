@@ -225,8 +225,8 @@ function rk_handle_new_registration($request) {
         }
     }
 
-    $turnstile = rk_verify_turnstile_token($turnstile_token, $_SERVER['REMOTE_ADDR'] ?? '');
-    if (is_wp_error($turnstile)) return $turnstile;
+    // $turnstile = rk_verify_turnstile_token($turnstile_token, $_SERVER['REMOTE_ADDR'] ?? '');
+    // if (is_wp_error($turnstile)) return $turnstile;
 
     if (empty($username) || empty($email) || empty($password)) return new WP_Error('missing', 'Username, email, and password are required', ['status' => 400]);
     if (!is_email($email)) return new WP_Error('invalid_email', 'Enter a valid email address', ['status' => 400]);

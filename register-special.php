@@ -204,9 +204,9 @@
                 </div>
 
                 <!-- Cloudflare Turnstile -->
-                <div class="flex justify-center py-1">
+                    <!-- <div class="mb-4 flex justify-center">
                     <div class="cf-turnstile" data-sitekey="0x4AAAAAACMsPBMFl2oCJQvS" data-theme="auto" data-callback="rkTurnstileCallback" data-expired-callback="rkTurnstileExpired" data-error-callback="rkTurnstileExpired"></div>
-                </div>
+                    </div> -->
 
                 <div class="pt-2">
                     <button type="submit" id="submit-btn" class="w-full bg-gray-900 dark:bg-white text-white dark:text-gray-900 py-4 rounded-xl font-bold shadow-lg shadow-gray-900/20 dark:shadow-none active:scale-[0.98] transition-transform flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed">
@@ -363,16 +363,16 @@
             lucide.createIcons();
 
             const form = document.getElementById('quick-reg-form');
-            const turnstileToken = window.rkSyncTurnstileToken ? window.rkSyncTurnstileToken(form) : '';
-            if (!turnstileToken) {
-                alert('Please wait for the security challenge to finish, then try again.');
-                btn.disabled = false;
-                btn.innerHTML = originalContent;
-                lucide.createIcons();
-                return;
-            }
+            // const turnstileToken = window.rkSyncTurnstileToken ? window.rkSyncTurnstileToken(form) : '';
+            // if (!turnstileToken) {
+            //     alert('Please wait for the security challenge to finish, then try again.');
+            //     btn.disabled = false;
+            //     btn.innerHTML = originalContent;
+            //     lucide.createIcons();
+            //     return;
+            // }
             const formData = new FormData(form);
-            formData.set('turnstile_token', turnstileToken);
+            // formData.set('turnstile_token', turnstileToken);
 
             try {
                 // A. Register User
