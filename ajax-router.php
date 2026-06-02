@@ -9,7 +9,7 @@
 
 define('RK_FRONTEND_APP', true);
 define('WP_USE_THEMES', false);
-require_once(__DIR__ . '/wp/wp-load.php');
+require_once(dirname(__FILE__) . '/wp/wp-load.php');
 
 header('Content-Type: application/json; charset=utf-8');
 header('X-Robots-Tag: noindex');
