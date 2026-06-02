@@ -231,9 +231,9 @@
                     </label>
 
                     <!-- Turnstile Widget -->
-                    <div class="mb-4 flex justify-center">
+                    <!-- <div class="mb-4 flex justify-center">
                         <div class="cf-turnstile" data-sitekey="0x4AAAAAACMsPBMFl2oCJQvS" data-callback="rkTurnstileCallback" data-expired-callback="rkTurnstileExpired" data-error-callback="rkTurnstileExpired"></div>
-                    </div>
+                    </div> -->
 
                     <!-- Buttons Lifted -->
                     <div class="flex gap-3 mt-auto mb-6">
@@ -323,16 +323,16 @@
             lucide.createIcons();
 
             const form = document.getElementById('reg-form');
-            const turnstileToken = window.rkSyncTurnstileToken ? window.rkSyncTurnstileToken(form) : '';
-            if (!turnstileToken) {
-                alert('Please wait for the security challenge to finish, then try again.');
-                finishBtn.innerHTML = originalText;
-                finishBtn.disabled = false;
-                lucide.createIcons();
-                return;
-            }
+            // const turnstileToken = window.rkSyncTurnstileToken ? window.rkSyncTurnstileToken(form) : '';
+            // if (!turnstileToken) {
+            //     alert('Please wait for the security challenge to finish, then try again.');
+            //     finishBtn.innerHTML = originalText;
+            //     finishBtn.disabled = false;
+            //     lucide.createIcons();
+            //     return;
+            // }
             const formData = new FormData(form);
-            formData.set('turnstile_token', turnstileToken);
+            // formData.set('turnstile_token', turnstileToken);
 
             const storedReferrer = localStorage.getItem('rk_referrer_code');
             if (storedReferrer) {
