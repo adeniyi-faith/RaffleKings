@@ -291,23 +291,16 @@
 
         async function fetchTakenNumbers(raffleId) {
             try {
-                // *** REAL FETCH FIRST ***
                 const res = await fetch(`ajax-router.php?action=get_raffle&id=${encodeURIComponent(raffleId)}`);
                 if(res.ok) {
                     const data = await res.json();
                     if(data.raffle_meta && data.raffle_meta.taken_numbers) {
                         takenNumbers = data.raffle_meta.taken_numbers.map(Number);
-                        return; // Success!
                     }
                 }
             } catch(e) {
-                console.warn("Real fetch failed or unavailable, checking fallback...", e);
-            }
-
-            // *** FALLBACK ***
-            if (takenNumbers.length === 0) {
-                 console.log("Using preview mock for taken numbers");
-                 takenNumbers = [5, 12, 45, 88, 102];
+                console.warn("Fetch taken numbers failed", e);
+                takenNumbers = [];
             }
         }
 
@@ -431,7 +424,7 @@
             setTimeout(() => { toast.classList.add('opacity-0', 'translate-y-2'); }, 2000);
         }
 
-        function confirmSelection() {
+        async function confirmSelection() {
             if (selectedNumbers.length < targetQty) {
                 showToast(`Please pick ${targetQty} numbers!`);
                 return;
@@ -456,13 +449,43 @@
             };
             localStorage.setItem('pendingCheckout', JSON.stringify(checkoutData));
 
-            setTimeout(() => {
-                if (isLoggedIn) {
-                    window.location.href = `checkout.php?amount=${selection.totalPrice}&tickets=${targetQty}&numbers=${numbersStr}&raffle_id=${selection.raffleId}`;
-                } else {
-                    window.location.href = `register-special.php?amount=${selection.totalPrice}&tickets=${targetQty}&numbers=${numbersStr}&raffle_id=${selection.raffleId}`;
+            if (isLoggedIn) {
+                try {
+                    // Get existing cart to append to or create new
+                    let existingCart = JSON.parse(localStorage.getItem('cart')) || [];
+
+                    // Add this selection to cart
+                    const cartItem = {
+                        raffle_id: selection.raffleId,
+                        raffle_name: document.getElementById('raffle-title').innerText || 'Raffle Ticket',
+                        price: selection.totalPrice,
+                        qty: targetQty,
+                        numbers: selectedNumbers
+                    };
+
+                    existingCart.push(cartItem);
+                    const totalVal = existingCart.reduce((sum, item) => sum + parseFloat(item.price), 0);
+                    localStorage.setItem('cart', JSON.stringify(existingCart));
+
+                    await fetch((typeof API_CONFIG !== 'undefined' && API_CONFIG.CART_SYNC) ? API_CONFIG.CART_SYNC : 'ajax-router.php?action=cart_sync', {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json',
+                            'Authorization': 'Bearer ' + isLoggedIn
+                        },
+                        body: JSON.stringify({
+                            cart: existingCart,
+                            total: totalVal
+                        })
+                    });
+                } catch(e) {
+                    console.error("Cart sync failed before checkout", e);
                 }
-            }, 500);
+
+                window.location.href = `checkout.php?amount=${selection.totalPrice}&tickets=${targetQty}&numbers=${numbersStr}&raffle_id=${selection.raffleId}`;
+            } else {
+                window.location.href = `register-special.php?amount=${selection.totalPrice}&tickets=${targetQty}&numbers=${numbersStr}&raffle_id=${selection.raffleId}`;
+            }
         }
     </script>
 </body>
