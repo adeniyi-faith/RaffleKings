@@ -29,6 +29,12 @@ function rk_get_hall_of_fame() {
         ORDER BY won_at DESC, id DESC LIMIT 50
     ");
 
+    // BOLT OPTIMIZATION: Preload user data to prevent N+1 query problem
+    $user_ids = array_unique(array_column($winners, 'user_id'));
+    if (!empty($user_ids)) {
+        cache_users($user_ids);
+        update_meta_cache('user', $user_ids);
+    }
     $formatted = [];
     foreach($winners as $w) {
         $user = get_userdata($w->user_id);
