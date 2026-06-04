@@ -11,7 +11,7 @@
             <div class="flex flex-col items-center justify-center mb-6">
                 <div class="relative group cursor-pointer active:scale-95 transition-transform" @click="$refs.fileInput.click()">
                     <div class="w-24 h-24 rounded-full p-1 border-2 border-dashed border-app-primary bg-blue-50 dark:bg-blue-900/20">
-                        <img :src="form.avatar" class="w-full h-full rounded-full object-cover shadow-sm">
+                        <img :src="form.avatar" loading="lazy" class="w-full h-full rounded-full object-cover shadow-sm">
                     </div>
                     <div class="absolute bottom-0 right-0 bg-app-primary text-white p-2 rounded-full shadow-md border-2 border-white dark:border-dark-bg">
                         <i data-lucide="camera" class="w-4 h-4"></i>
