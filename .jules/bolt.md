@@ -1,0 +1,3 @@
+## 2024-10-24 - N+1 Query in Admin Loops
+**Learning:** Found multiple instances in `wp/wp-content/mu-plugins/rk-core/admin-panel.php` where `get_userdata()` is called inside a `foreach` loop iterating over 100+ database records. This causes an N+1 query problem because WordPress has to do an individual query for each user, unless they are pre-cached.
+**Action:** Extract user IDs with `wp_list_pluck`, unique them, and use WordPress's `cache_users($user_ids)` before looping. This performs a single `IN (...)` database query and populates the WP object cache so subsequent `get_userdata()` calls inside the loop are zero-query memory lookups.
