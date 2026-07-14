@@ -108,7 +108,7 @@ include 'header.php';
 
     <!-- Header (Sticky) -->
     <div class="bg-white dark:bg-dark-bg/95 px-5 pt-4 pb-4 shadow-sm border-b border-gray-100 dark:border-dark-border flex items-center sticky top-0 z-30 backdrop-blur-md transition-colors duration-200">
-        <button onclick="history.back()" class="p-2 -ml-2 rounded-full hover:bg-gray-50 dark:hover:bg-gray-800 text-gray-600 dark:text-gray-400 active:bg-gray-100 dark:active:bg-gray-700 transition-colors">
+        <button onclick="history.back()" aria-label="Go back" class="p-2 -ml-2 rounded-full hover:bg-gray-50 dark:hover:bg-gray-800 text-gray-600 dark:text-gray-400 active:bg-gray-100 dark:active:bg-gray-700 transition-colors">
             <i data-lucide="arrow-left" class="w-6 h-6"></i>
         </button>
         <h1 class="text-lg font-bold text-gray-900 dark:text-white ml-2">Edit Profile</h1>

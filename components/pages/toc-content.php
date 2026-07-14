@@ -1,6 +1,6 @@
     <div class="sticky top-0 z-50 px-5 pt-4 pb-2 bg-white/90 dark:bg-dark-bg/95 backdrop-blur-md border-b border-gray-100 dark:border-dark-border">
         <div class="flex justify-between items-center">
-            <button onclick="history.back()" class="p-2 -ml-2 rounded-full text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors">
+            <button onclick="history.back()" aria-label="Go back" class="p-2 -ml-2 rounded-full text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors">
                 <i data-lucide="arrow-left" class="w-6 h-6"></i>
             </button>
             <h1 class="font-bold text-lg tracking-tight">Terms of Service</h1>

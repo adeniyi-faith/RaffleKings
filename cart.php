@@ -22,7 +22,7 @@
     <!-- 2. Page Header -->
     <div class="bg-white px-5 pt-4 pb-4 border-b border-gray-100 flex items-center justify-between">
         <div class="flex items-center gap-3">
-            <button onclick="history.back()" class="p-1 -ml-1 text-gray-400 hover:text-gray-600">
+            <button onclick="history.back()" aria-label="Go back" class="p-1 -ml-1 text-gray-400 hover:text-gray-600">
                 <i data-lucide="arrow-left" class="w-5 h-5"></i>
             </button>
             <h2 class="text-lg font-bold text-gray-900">Reserved Tickets</h2>

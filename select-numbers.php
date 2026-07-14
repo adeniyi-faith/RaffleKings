@@ -94,7 +94,7 @@
     <!-- Compact Sticky Header -->
     <div class="px-4 py-3 flex justify-between items-center sticky top-0 z-20 bg-white/95 dark:bg-dark-bg/95 backdrop-blur-sm border-b border-gray-100 dark:border-dark-border safe-top transition-colors duration-200">
         <div class="flex items-center gap-3">
-            <button onclick="history.back()" class="text-gray-400 hover:text-gray-600 dark:hover:text-white active:scale-95 transition-transform p-1 -ml-1">
+            <button onclick="history.back()" aria-label="Go back" class="text-gray-400 hover:text-gray-600 dark:hover:text-white active:scale-95 transition-transform p-1 -ml-1">
                 <i data-lucide="arrow-left" class="w-6 h-6"></i>
             </button>
             <div>
