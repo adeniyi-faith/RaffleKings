@@ -110,7 +110,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
             <form id="login-form" onsubmit="handleLogin(event)" class="space-y-5">
 
                 <!-- Error Message Container -->
-                <div id="error-msg" class="hidden bg-red-50 text-red-600 p-3 rounded-lg text-xs font-bold text-center border border-red-100 flex items-center justify-center gap-2">
+                <div id="error-msg" role="alert" aria-live="assertive" class="hidden bg-red-50 text-red-600 p-3 rounded-lg text-xs font-bold text-center border border-red-100 flex items-center justify-center gap-2">
                     <i data-lucide="alert-circle" class="w-4 h-4"></i>
                     <span id="error-text"></span>
                 </div>
