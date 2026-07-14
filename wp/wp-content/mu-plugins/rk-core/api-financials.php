@@ -25,7 +25,7 @@ function rk_calculate_ticket_price($qty, $unit_price, $is_golden_box = false) {
 
     // --- 1. EXISTING STRUCTURE ---
     if ($unit_price <= 200) {
-        if ($qty >= 2) $multiplier = 0.90; 
+        if ($qty >= 2) $multiplier = 0.90;
     } else {
         switch ($qty) {
             case 1: $multiplier = 1.0; break;
@@ -52,33 +52,33 @@ function rk_calculate_ticket_price($qty, $unit_price, $is_golden_box = false) {
  */
 function rk_update_balance_safe($user_id, $amount, $operation = 'add') {
     global $wpdb;
-    
+
     // Start Transaction
     $wpdb->query('START TRANSACTION');
-    
+
     try {
         // Lock the row for update (Prevents concurrent reads/writes)
         $current = $wpdb->get_var($wpdb->prepare(
-            "SELECT meta_value FROM {$wpdb->usermeta} 
-             WHERE user_id = %d AND meta_key = 'wallet_balance' 
+            "SELECT meta_value FROM {$wpdb->usermeta}
+             WHERE user_id = %d AND meta_key = 'wallet_balance'
              FOR UPDATE",
             $user_id
         ));
-        
+
         // Handle case where meta doesn't exist yet
         $current = $current ? (float)$current : 0;
-        
-        $new_balance = ($operation === 'add') 
-            ? $current + $amount 
+
+        $new_balance = ($operation === 'add')
+            ? $current + $amount
             : $current - $amount;
-        
+
         if ($new_balance < 0) {
             throw new Exception('Insufficient balance');
         }
-        
+
         update_user_meta($user_id, 'wallet_balance', $new_balance);
         $wpdb->query('COMMIT');
-        
+
         return $new_balance;
     } catch (Exception $e) {
         $wpdb->query('ROLLBACK');
@@ -101,14 +101,14 @@ function rk_get_balance() {
 function rk_handle_payment_ai($request) {
     // --- SECURITY FIX: RATE LIMITING ---
     if (function_exists('rk_check_rate_limit')) {
-        $limit_check = rk_check_rate_limit('payment', 10, 60); 
+        $limit_check = rk_check_rate_limit('payment', 10, 60);
         if (is_wp_error($limit_check)) return $limit_check;
     }
     // -----------------------------------
 
     $user_id = get_current_user_id();
     if (!$user_id) return new WP_Error('no_auth', 'Not logged in', ['status' => 401]);
-    
+
     // BAN CHECK
     if (function_exists('rk_check_user_status')) {
         if (is_wp_error($status = rk_check_user_status($user_id, 'payment'))) return $status;
@@ -119,10 +119,10 @@ function rk_handle_payment_ai($request) {
     if (empty($params)) $params = $request->get_json_params();
 
     $amount = floatval($request->get_param('amount'));
-    $type = $request->get_param('type'); 
-    
+    $type = $request->get_param('type');
+
     $raffle_id = $request->get_param('raffle_id') ? intval($request->get_param('raffle_id')) : 0;
-    
+
     // --- SECURITY FIX #8: SECURE ORDER ID ---
     $order_id = $request->get_param('order_id');
     if (empty($order_id)) {
@@ -148,110 +148,172 @@ function rk_handle_payment_ai($request) {
     // --- SECURITY FIX #2: SERVER-SIDE PRICE VALIDATION (WITH GOLDEN BOX) ---
     if ($raffle_id > 0 && $ticket_count > 0) {
         $raffle_price = (float) get_post_meta($raffle_id, 'raffle_price', true);
-        
+
         // Pass Golden Box flag to calculator
         $expected_amount = rk_calculate_ticket_price($ticket_count, $raffle_price, $is_golden_box);
-        
+
         if (abs($amount - $expected_amount) > 0.01) {
-            return new WP_Error('price_mismatch', 
-                "Price error. Expected ₦$expected_amount for $ticket_count tickets (Golden Box: " . ($is_golden_box ? 'ON' : 'OFF') . "), received ₦$amount", 
+            return new WP_Error('price_mismatch',
+                "Price error. Expected ₦$expected_amount for $ticket_count tickets (Golden Box: " . ($is_golden_box ? 'ON' : 'OFF') . "), received ₦$amount",
                 ['status' => 400]
             );
         }
+        $amount = $expected_amount; // Server-authoritative override
     }
-    
-    global $wpdb; 
+
+    global $wpdb;
     $table_txn = $wpdb->prefix . 'raffle_transactions';
     $table_entries = $wpdb->prefix . 'raffle_entries';
 
     // *** CASE 1: SPENDING WALLET PAYMENT ***
     if ($type === 'wallet_payment') {
-        $new_bal = rk_update_balance_safe($user_id, $amount, 'subtract');
-        if (is_wp_error($new_bal)) return $new_bal;
+        $wpdb->query('START TRANSACTION');
 
-        $proof_note = 'wallet_debit';
-        if ($is_golden_box) $proof_note .= ' (Golden Box Applied)';
+        try {
+            // Lock balance for update
+            $current_bal = $wpdb->get_var($wpdb->prepare(
+                "SELECT meta_value FROM {$wpdb->usermeta} WHERE user_id = %d AND meta_key = 'wallet_balance' FOR UPDATE",
+                $user_id
+            ));
+            $current_bal = (float)$current_bal;
 
-        $wpdb->insert($table_txn, [
-            'user_id' => $user_id, 
-            'claimed_amount' => $amount, 
-            'status' => 'verified_final', 
-            'type' => 'ticket_purchase_wallet', 
-            'proof_url' => $proof_note, 
-            'created_at' => current_time('mysql')
-        ]);
-        $txn_id = $wpdb->insert_id;
-        
-        if ($raffle_id > 0 && !empty($numbers_str)) {
-            $numbers = explode(',', $numbers_str);
-            foreach ($numbers as $num) {
-                $num = intval(trim($num));
-                if ($num > 0) {
-                    $wpdb->insert($table_entries, [
-                        'user_id' => $user_id, 
-                        'raffle_id' => $raffle_id, 
-                        'ticket_number' => $num, 
-                        'txn_id' => $txn_id, 
-                        'created_at' => current_time('mysql')
-                    ]);
+            if ($current_bal < $amount) {
+                throw new Exception('Insufficient funds.');
+            }
+
+            // *** NEW SECURITY FIX #3: CHECK TICKET AVAILABILITY BEFORE PAYMENT ***
+            if ($raffle_id > 0 && !empty($numbers_str)) {
+                // Verify these exact numbers aren't already taken
+                // Escape and format numbers array
+                $nums = array_map('intval', explode(',', $numbers_str));
+                $nums = array_filter($nums, fn($n) => $n > 0);
+                if (!empty($nums)) {
+                    $nums_in = implode(',', $nums);
+                    $existing = $wpdb->get_var("SELECT COUNT(*) FROM $table_entries WHERE raffle_id = $raffle_id AND ticket_number IN ($nums_in) FOR UPDATE");
+                    if ($existing > 0) {
+                        throw new Exception('One or more selected numbers have just been bought by someone else. Please pick new numbers.');
+                    }
                 }
             }
-            // 🔥 TRIGGER RECEIPT EMAIL
-            rk_send_purchase_receipt($user_id, $amount, $raffle_id, $ticket_count, $numbers_str);
+
+            $proof_note = 'wallet_debit';
+            if ($is_golden_box) $proof_note .= ' (Golden Box Applied)';
+
+            $wpdb->insert($table_txn, [
+                'user_id' => $user_id,
+                'claimed_amount' => $amount,
+                'status' => 'verified_final',
+                'type' => 'ticket_purchase_wallet',
+                'proof_url' => $proof_note,
+                'created_at' => current_time('mysql')
+            ]);
+            $txn_id = $wpdb->insert_id;
+
+            // Deduct balance manually within transaction
+            update_user_meta($user_id, 'wallet_balance', $current_bal - $amount);
+
+            if ($raffle_id > 0 && !empty($numbers_str)) {
+                $numbers = explode(',', $numbers_str);
+                foreach ($numbers as $num) {
+                    $num = intval(trim($num));
+                    if ($num > 0) {
+                        $wpdb->insert($table_entries, [
+                            'user_id' => $user_id,
+                            'raffle_id' => $raffle_id,
+                            'ticket_number' => $num,
+                            'txn_id' => $txn_id,
+                            'created_at' => current_time('mysql')
+                        ]);
+                    }
+                }
+            }
+
+            $wpdb->query('COMMIT');
+
+            // 🔥 TRIGGER RECEIPT EMAIL (outside the main db transaction but after commit)
+            if ($raffle_id > 0 && !empty($numbers_str)) {
+                rk_send_purchase_receipt($user_id, $amount, $raffle_id, $ticket_count, $numbers_str);
+            }
+
+            return ['success' => true, 'message' => 'Success', 'new_balance' => $current_bal - $amount];
+        } catch (Exception $e) {
+            $wpdb->query('ROLLBACK');
+            return new WP_Error('payment_error', $e->getMessage(), ['status' => 400]);
         }
-        return ['success' => true, 'message' => 'Success', 'new_balance' => $new_bal];
     }
 
     // *** CASE 2: EARNINGS/BONUS WALLET PAYMENT ***
     if ($type === 'earnings_payment') {
         $wpdb->query('START TRANSACTION');
-        $current_earn = $wpdb->get_var($wpdb->prepare(
-            "SELECT meta_value FROM {$wpdb->usermeta} WHERE user_id = %d AND meta_key = 'earnings_balance' FOR UPDATE", 
-            $user_id
-        ));
-        $current_earn = (float)$current_earn;
 
-        if ($current_earn < $amount) {
-            $wpdb->query('ROLLBACK');
-            return new WP_Error('insufficient_funds', 'Insufficient winnings/bonus balance.', ['status' => 400]);
-        }
-        
-        update_user_meta($user_id, 'earnings_balance', $current_earn - $amount);
-        $wpdb->query('COMMIT');
-        
-        $proof_note = 'earnings_debit';
-        if ($is_golden_box) $proof_note .= ' (Golden Box Applied)';
+        try {
+            $current_earn = $wpdb->get_var($wpdb->prepare(
+                "SELECT meta_value FROM {$wpdb->usermeta} WHERE user_id = %d AND meta_key = 'earnings_balance' FOR UPDATE",
+                $user_id
+            ));
+            $current_earn = (float)$current_earn;
 
-        $wpdb->insert($table_txn, [
-            'user_id' => $user_id, 
-            'claimed_amount' => $amount, 
-            'status' => 'verified_final', 
-            'type' => 'ticket_purchase_earnings', 
-            'proof_url' => $proof_note, 
-            'created_at' => current_time('mysql')
-        ]);
-        $txn_id = $wpdb->insert_id;
-        
-        if ($raffle_id > 0 && !empty($numbers_str)) {
-            $numbers = explode(',', $numbers_str);
-            foreach ($numbers as $num) {
-                $num = intval(trim($num));
-                if ($num > 0) {
-                    $wpdb->insert($table_entries, [
-                        'user_id' => $user_id, 
-                        'raffle_id' => $raffle_id, 
-                        'ticket_number' => $num, 
-                        'txn_id' => $txn_id, 
-                        'created_at' => current_time('mysql')
-                    ]);
+            if ($current_earn < $amount) {
+                throw new Exception('Insufficient winnings/bonus balance.');
+            }
+
+            // *** NEW SECURITY FIX #3: CHECK TICKET AVAILABILITY BEFORE PAYMENT ***
+            if ($raffle_id > 0 && !empty($numbers_str)) {
+                $nums = array_map('intval', explode(',', $numbers_str));
+                $nums = array_filter($nums, fn($n) => $n > 0);
+                if (!empty($nums)) {
+                    $nums_in = implode(',', $nums);
+                    $existing = $wpdb->get_var("SELECT COUNT(*) FROM $table_entries WHERE raffle_id = $raffle_id AND ticket_number IN ($nums_in) FOR UPDATE");
+                    if ($existing > 0) {
+                        throw new Exception('One or more selected numbers have just been bought by someone else. Please pick new numbers.');
+                    }
                 }
             }
+
+            $proof_note = 'earnings_debit';
+            if ($is_golden_box) $proof_note .= ' (Golden Box Applied)';
+
+            $wpdb->insert($table_txn, [
+                'user_id' => $user_id,
+                'claimed_amount' => $amount,
+                'status' => 'verified_final',
+                'type' => 'ticket_purchase_earnings',
+                'proof_url' => $proof_note,
+                'created_at' => current_time('mysql')
+            ]);
+            $txn_id = $wpdb->insert_id;
+
+            update_user_meta($user_id, 'earnings_balance', $current_earn - $amount);
+
+            if ($raffle_id > 0 && !empty($numbers_str)) {
+                $numbers = explode(',', $numbers_str);
+                foreach ($numbers as $num) {
+                    $num = intval(trim($num));
+                    if ($num > 0) {
+                        $wpdb->insert($table_entries, [
+                            'user_id' => $user_id,
+                            'raffle_id' => $raffle_id,
+                            'ticket_number' => $num,
+                            'txn_id' => $txn_id,
+                            'created_at' => current_time('mysql')
+                        ]);
+                    }
+                }
+            }
+
+            $wpdb->query('COMMIT');
+
             // 🔥 TRIGGER RECEIPT EMAIL
-            rk_send_purchase_receipt($user_id, $amount, $raffle_id, $ticket_count, $numbers_str);
+            if ($raffle_id > 0 && !empty($numbers_str)) {
+                rk_send_purchase_receipt($user_id, $amount, $raffle_id, $ticket_count, $numbers_str);
+            }
+            return ['success' => true, 'message' => 'Success', 'new_balance' => $current_earn - $amount];
+        } catch (Exception $e) {
+            $wpdb->query('ROLLBACK');
+            return new WP_Error('payment_error', $e->getMessage(), ['status' => 400]);
         }
-        return ['success' => true, 'message' => 'Success', 'new_balance' => $current_earn - $amount];
     }
-    
+
     // *** CASE 3: BANK TRANSFER (AI-POWERED WITH FAIL-SAFE) ***
     $file = $params['proof'];
     if (!$file) return new WP_Error('missing_proof', 'Missing proof', ['status' => 400]);
@@ -262,7 +324,7 @@ function rk_handle_payment_ai($request) {
 
     // --- SECURITY FIX #5: SECURE FILE UPLOAD VALIDATION ---
     $allowed_types = ['image/jpeg', 'image/png', 'image/jpg', 'image/webp'];
-    
+
     if (function_exists('finfo_open')) {
         $finfo = finfo_open(FILEINFO_MIME_TYPE);
         $mime = finfo_file($finfo, $file['tmp_name']);
@@ -275,11 +337,11 @@ function rk_handle_payment_ai($request) {
     if (!in_array($mime, $allowed_types)) {
         return new WP_Error('invalid_file', 'Only JPG, PNG, WEBP images allowed', ['status' => 400]);
     }
-    
+
     if ($file['size'] > 5 * 1024 * 1024) {
         return new WP_Error('file_too_large', 'File must be under 5MB', ['status' => 400]);
     }
-    
+
     $file['name'] = sanitize_file_name($file['name']);
 
     $image_data = file_get_contents($file['tmp_name']);
@@ -288,19 +350,19 @@ function rk_handle_payment_ai($request) {
         return new WP_Error('upload_error', 'Failed to read image content.', ['status' => 400]);
     }
 
-    require_once(ABSPATH . 'wp-admin/includes/image.php'); 
-    require_once(ABSPATH . 'wp-admin/includes/file.php'); 
+    require_once(ABSPATH . 'wp-admin/includes/image.php');
+    require_once(ABSPATH . 'wp-admin/includes/file.php');
     require_once(ABSPATH . 'wp-admin/includes/media.php');
-    
+
     $attachment_id = media_handle_sideload($file, 0);
     $proof_url = is_wp_error($attachment_id) ? '' : wp_get_attachment_url($attachment_id);
     $base64_image = base64_encode($image_data);
-    
+
     // --- START FAIL-SAFE AI LOGIC ---
     $status = 'manual_review';
     $msg = 'Receipt uploaded. Awaiting final confirmation (usually 5-10 mins).';
-    $ai_notes = "System: Pending manual verification."; 
-    $extracted_amount = 0; 
+    $ai_notes = "System: Pending manual verification.";
+    $extracted_amount = 0;
     $extracted_txn_id = '';
     $is_success = false;
 
@@ -312,9 +374,9 @@ function rk_handle_payment_ai($request) {
         $payload = [
             "contents" => [[
                 "parts" => [
-                    ["text" => $prompt_text], 
+                    ["text" => $prompt_text],
                     ["inline_data" => [
-                        "mime_type" => $mime_type, 
+                        "mime_type" => $mime_type,
                         "data" => $base64_image
                     ]]
                 ]
@@ -333,47 +395,47 @@ function rk_handle_payment_ai($request) {
             } else {
                 $code = wp_remote_retrieve_response_code($response);
                 $body = wp_remote_retrieve_body($response);
-                
+
                 if ($code !== 200) {
                     $ai_notes .= " AI HTTP Error ($code)";
                 } else {
                     $api_response = json_decode($body, true);
-                    $model_text = isset($api_response['candidates'][0]['content']['parts'][0]['text']) 
-                        ? $api_response['candidates'][0]['content']['parts'][0]['text'] 
+                    $model_text = isset($api_response['candidates'][0]['content']['parts'][0]['text'])
+                        ? $api_response['candidates'][0]['content']['parts'][0]['text']
                         : '';
-                    
+
                     $clean_text = preg_replace('/```json\s*|\s*```/', '', $model_text);
                     preg_match('/\{.*\}/s', $clean_text, $matches);
                     $json = isset($matches[0]) ? json_decode($matches[0], true) : null;
-                    
+
                     if ($json) {
                         $extracted_txn_id = isset($json['txn_id']) ? sanitize_text_field($json['txn_id']) : '';
                         $check_amount = isset($json['amount_match']) && $json['amount_match'] === true;
                         $check_account = isset($json['account_match']) && $json['account_match'] === true;
-                        
+
                         $check_unique = true;
                         if (!empty($extracted_txn_id)) {
                             $exists = $wpdb->get_var($wpdb->prepare(
-                                "SELECT COUNT(*) FROM $table_txn WHERE txn_ref = %s", 
+                                "SELECT COUNT(*) FROM $table_txn WHERE txn_ref = %s",
                                 $extracted_txn_id
                             ));
-                            if ($exists > 0) { 
-                                $check_unique = false; 
-                                $ai_notes .= " [Duplicate ID: $extracted_txn_id]"; 
+                            if ($exists > 0) {
+                                $check_unique = false;
+                                $ai_notes .= " [Duplicate ID: $extracted_txn_id]";
                             }
-                        } else { 
-                            $check_unique = false; 
-                            $ai_notes .= " [No Txn ID Found]"; 
+                        } else {
+                            $check_unique = false;
+                            $ai_notes .= " [No Txn ID Found]";
                         }
 
                         if ($check_amount && $check_account && $check_unique) {
-                            $status = 'verified_final'; 
-                            $is_success = true; 
-                            $msg = 'Payment Verified Automatically!'; 
+                            $status = 'verified_final';
+                            $is_success = true;
+                            $msg = 'Payment Verified Automatically!';
                             $extracted_amount = $amount;
                             $ai_notes = "Verified by AI. ID: $extracted_txn_id";
-                        } else { 
-                            $ai_notes .= " AI Logic Fail: " . json_encode($json); 
+                        } else {
+                            $ai_notes .= " AI Logic Fail: " . json_encode($json);
                         }
                     } else {
                         $ai_notes .= " AI Parse Error: Could not parse JSON.";
@@ -388,14 +450,14 @@ function rk_handle_payment_ai($request) {
 
     // DB Persistence (Happens regardless of AI outcome)
     $wpdb->insert($table_txn, [
-        'user_id' => $user_id, 
-        'claimed_amount' => $amount, 
-        'gemini_amount' => $extracted_amount, 
-        'proof_url' => $proof_url, 
-        'status' => $status, 
-        'type' => $type, 
-        'txn_ref' => $extracted_txn_id, 
-        'order_id' => $order_id, 
+        'user_id' => $user_id,
+        'claimed_amount' => $amount,
+        'gemini_amount' => $extracted_amount,
+        'proof_url' => $proof_url,
+        'status' => $status,
+        'type' => $type,
+        'txn_ref' => $extracted_txn_id,
+        'order_id' => $order_id,
         'created_at' => current_time('mysql')
     ]);
     $txn_id = $wpdb->insert_id;
@@ -414,13 +476,13 @@ function rk_handle_payment_ai($request) {
     // *** CASHBACK BONUS LOGIC (30%) ***
     if (in_array($type, ['wallet_deposit', 'ticket_purchase'])) {
         $bonus_percent = defined('RK_DEPOSIT_BONUS_PERCENT') ? RK_DEPOSIT_BONUS_PERCENT : 0;
-        
+
         if ($bonus_percent > 0) {
             $bonus_amount = $amount * $bonus_percent;
-            
+
             $wpdb->query('START TRANSACTION');
             $curr = $wpdb->get_var($wpdb->prepare(
-                "SELECT meta_value FROM {$wpdb->usermeta} WHERE user_id = %d AND meta_key = 'earnings_balance' FOR UPDATE", 
+                "SELECT meta_value FROM {$wpdb->usermeta} WHERE user_id = %d AND meta_key = 'earnings_balance' FOR UPDATE",
                 $user_id
             ));
             update_user_meta($user_id, 'earnings_balance', (float)$curr + $bonus_amount);
@@ -457,7 +519,7 @@ function rk_handle_payment_ai($request) {
 function rk_handle_transfer($request) {
     $user_id = get_current_user_id();
     if (!$user_id) return new WP_Error('no_auth', 'Not logged in', ['status' => 401]);
-    
+
     // Check status if function exists
     if (function_exists('rk_check_user_status')) {
         $status = rk_check_user_status($user_id, 'transfer');
@@ -466,16 +528,16 @@ function rk_handle_transfer($request) {
 
     $amount = floatval($request->get_param('amount'));
     if ($amount <= 0) return new WP_Error('invalid_amount', 'Amount > 0 required', ['status' => 400]);
-    
+
     // Use Transaction for Atomicity
     global $wpdb;
     $wpdb->query('START TRANSACTION');
-    
+
     try {
         // Lock both rows
         $earnings = $wpdb->get_var($wpdb->prepare("SELECT meta_value FROM {$wpdb->usermeta} WHERE user_id = %d AND meta_key = 'earnings_balance' FOR UPDATE", $user_id));
         $wallet = $wpdb->get_var($wpdb->prepare("SELECT meta_value FROM {$wpdb->usermeta} WHERE user_id = %d AND meta_key = 'wallet_balance' FOR UPDATE", $user_id));
-        
+
         $earnings = (float)$earnings;
         $wallet = (float)$wallet;
 
@@ -488,7 +550,7 @@ function rk_handle_transfer($request) {
         $wpdb->query('COMMIT');
 
         $wpdb->insert($wpdb->prefix . 'raffle_transactions', ['user_id' => $user_id, 'claimed_amount' => $amount, 'status' => 'verified_final', 'type' => 'earnings_transfer', 'proof_url' => 'internal_transfer', 'created_at' => current_time('mysql')]);
-        
+
         return ['success' => true, 'message' => 'Transfer Successful', 'new_wallet' => $wallet + $amount, 'new_earnings' => $earnings - $amount];
     } catch (Exception $e) {
         $wpdb->query('ROLLBACK');
@@ -503,13 +565,13 @@ function rk_handle_transfer($request) {
 function rk_handle_withdrawal($request) {
     // Check Rate Limit
     if (function_exists('rk_check_rate_limit')) {
-        $limit_check = rk_check_rate_limit('withdraw', 3, 300); 
+        $limit_check = rk_check_rate_limit('withdraw', 3, 300);
         if (is_wp_error($limit_check)) return $limit_check;
     }
 
     $user_id = get_current_user_id();
     if (!$user_id) return new WP_Error('no_auth', 'Not logged in', ['status' => 401]);
-    
+
     if (function_exists('rk_check_user_status')) {
         $status = rk_check_user_status($user_id, 'withdraw');
         if (is_wp_error($status)) return $status;
@@ -518,17 +580,17 @@ function rk_handle_withdrawal($request) {
     $params = $request->get_json_params();
     $amount = round(floatval($params['amount']), 2);
     $account_id = sanitize_text_field($params['account_id']);
-    
+
     if ($amount < 2000) return new WP_Error('min_limit', 'Minimum withdrawal is ₦2,000', ['status' => 400]);
-    
+
     global $wpdb;
     $table_txn = $wpdb->prefix . 'raffle_transactions';
 
     // 1. LIFETIME DEPOSIT CHECK
     $total_deposited = $wpdb->get_var($wpdb->prepare(
-        "SELECT SUM(claimed_amount) FROM $table_txn 
-         WHERE user_id = %d 
-         AND status = 'verified_final' 
+        "SELECT SUM(claimed_amount) FROM $table_txn
+         WHERE user_id = %d
+         AND status = 'verified_final'
          AND type IN ('wallet_deposit', 'ticket_purchase')",
         $user_id
     ));
@@ -537,10 +599,10 @@ function rk_handle_withdrawal($request) {
     $authorize_deduction = false;
     if ((float)$total_deposited < 1000) {
         $authorize_deduction = isset($params['authorize_deduction']) && $params['authorize_deduction'] === true;
-        
+
         if (!$authorize_deduction) {
-             return new WP_Error('withdrawal_locked', 
-                "Withdrawal Locked: Account verification required.", 
+             return new WP_Error('withdrawal_locked',
+                "Withdrawal Locked: Account verification required.",
                 ['status' => 403, 'requires_auth' => true]
             );
         }
@@ -550,9 +612,9 @@ function rk_handle_withdrawal($request) {
     $wpdb->query('START TRANSACTION');
     $earnings = $wpdb->get_var($wpdb->prepare("SELECT meta_value FROM {$wpdb->usermeta} WHERE user_id = %d AND meta_key = 'earnings_balance' FOR UPDATE", $user_id));
     $earnings = round((float)$earnings, 2);
-    
+
     $fee = $authorize_deduction ? 1000 : 0;
-    
+
     // --- SMART BALANCE LOGIC ---
     $amount_to_deduct = 0;
     $amount_to_send = 0;
@@ -562,7 +624,7 @@ function rk_handle_withdrawal($request) {
     if ($earnings >= ($amount + $fee)) {
         $amount_to_deduct = $amount + $fee;
         $amount_to_send = $amount;
-    
+
     // Case B: User has enough for just the Withdrawal amount, but not the extra fee
     // We deduct the fee FROM the withdrawal amount (e.g., Balance 2000, Req 2000, Fee 1000 -> Send 1000)
     } elseif ($authorize_deduction && $earnings >= $amount) {
@@ -585,52 +647,52 @@ function rk_handle_withdrawal($request) {
         // Apply Deduction
         $new_earnings = $earnings - $amount_to_deduct;
         update_user_meta($user_id, 'earnings_balance', $new_earnings);
-        
+
         // Log Fee Transaction
         if ($authorize_deduction) {
              // FIX: Credit the deducted 1000 to user Spending Wallet so it counts as a deposit
              $current_wallet = $wpdb->get_var($wpdb->prepare(
-                "SELECT meta_value FROM {$wpdb->usermeta} WHERE user_id = %d AND meta_key = 'wallet_balance' FOR UPDATE", 
+                "SELECT meta_value FROM {$wpdb->usermeta} WHERE user_id = %d AND meta_key = 'wallet_balance' FOR UPDATE",
                 $user_id
              ));
              $current_wallet = (float)$current_wallet;
-             
+
              update_user_meta($user_id, 'wallet_balance', $current_wallet + 1000);
 
              $wpdb->insert($table_txn, [
                 'user_id' => $user_id,
                 'claimed_amount' => 1000,
                 'status' => 'verified_final',
-                'type' => 'wallet_deposit', 
+                'type' => 'wallet_deposit',
                 'proof_url' => 'winnings_deduction_auth',
                 'txn_ref' => 'FEE-' . time() . '-' . $user_id,
                 'created_at' => current_time('mysql')
             ]);
         }
-        
+
         // Create Withdrawal Request
         $wpdb->insert($table_txn, [
-            'user_id' => $user_id, 
+            'user_id' => $user_id,
             'claimed_amount' => $amount_to_send, // Note: This might be less than requested if fee was inclusive
-            'status' => 'pending', 
-            'type' => 'withdrawal', 
-            'proof_url' => 'bank_transfer_req', 
-            'txn_ref' => $account_id, 
+            'status' => 'pending',
+            'type' => 'withdrawal',
+            'proof_url' => 'bank_transfer_req',
+            'txn_ref' => $account_id,
             'created_at' => current_time('mysql')
         ]);
-        
+
         $wpdb->query('COMMIT');
 
     } catch (Exception $e) {
         $wpdb->query('ROLLBACK');
         return new WP_Error('db_error', 'Transaction failed.', ['status' => 500]);
     }
-    
+
     // Notifications
     if (function_exists('rk_send_telegram_alert')) {
         rk_send_telegram_alert("💸 <b>New Withdrawal</b>\nUser: " . get_userdata($user_id)->display_name . "\nSent: ₦" . number_format($amount_to_send));
     }
-    
+
     $msg = 'Withdrawal Request Submitted.';
     if ($fee_deducted_from_withdrawal) {
         $msg .= " Note: ₦1,000 verification fee was deducted from your withdrawal amount.";
@@ -664,11 +726,11 @@ function rk_revoke_transaction($request) {
     global $wpdb;
     $params = $request->get_json_params();
     $txn_id = intval($params['txn_id']);
-    
+
     // 1. Fetch Transaction
     $txn_table = $wpdb->prefix . 'raffle_transactions';
     $txn = $wpdb->get_row($wpdb->prepare("SELECT * FROM $txn_table WHERE id = %d", $txn_id));
-    
+
     if (!$txn) return new WP_Error('not_found', 'Transaction not found', ['status' => 404]);
     if ($txn->status === 'revoked') return new WP_Error('already_revoked', 'Transaction already revoked', ['status' => 400]);
 
@@ -682,12 +744,12 @@ function rk_revoke_transaction($request) {
         // Deduct using SAFE helper
         $res = rk_update_balance_safe($user_id, $amount, 'subtract');
         if (is_wp_error($res)) {
-            // Even if balance is low, we might want to force negative or handle error. 
+            // Even if balance is low, we might want to force negative or handle error.
             // For now, return the error.
             return $res;
         }
         $log_notes = "Funds deducted from wallet.";
-        
+
     } elseif ($txn->type === 'ticket_purchase' || strpos($txn->type, 'ticket_purchase') !== false) {
         // CASE B: Ticket Purchase (AI Mistake on Ticket Receipt)
         // We do NOT deduct money (since it was never added to wallet, it was direct).
@@ -695,7 +757,7 @@ function rk_revoke_transaction($request) {
         $entries_table = $wpdb->prefix . 'raffle_entries';
         $deleted = $wpdb->query($wpdb->prepare("DELETE FROM $entries_table WHERE txn_id = %d", $txn_id));
         $log_notes = "Voided purchase. Deleted $deleted tickets from pool.";
-        
+
     } elseif ($txn->type === 'prize_win') {
         // CASE C: Wrongly Credited Winner
         // Manual safe update for earnings
@@ -703,7 +765,7 @@ function rk_revoke_transaction($request) {
         $curr = $wpdb->get_var($wpdb->prepare("SELECT meta_value FROM {$wpdb->usermeta} WHERE user_id = %d AND meta_key = 'earnings_balance' FOR UPDATE", $user_id));
         update_user_meta($user_id, 'earnings_balance', ((float)$curr) - $amount);
         $wpdb->query('COMMIT');
-        
+
         // Also unmark the winner record if possible
         $wpdb->query($wpdb->prepare("UPDATE {$wpdb->prefix}raffle_winners SET is_credited = 0 WHERE user_id = %d AND prize_cash_value = %f LIMIT 1", $user_id, $amount));
         $log_notes = "Reversed prize credit.";
@@ -712,12 +774,12 @@ function rk_revoke_transaction($request) {
     // 3. Update Status to Revoked
     $wpdb->update(
         $txn_table,
-        ['status' => 'revoked', 'proof_url' => 'REVOKED BY ADMIN'], 
+        ['status' => 'revoked', 'proof_url' => 'REVOKED BY ADMIN'],
         ['id' => $txn_id]
     );
 
     return [
-        'success' => true, 
+        'success' => true,
         'message' => "Transaction #$txn_id Revoked. $log_notes",
         'new_status' => 'revoked'
     ];
@@ -735,17 +797,17 @@ add_action('rk_withdrawal_requested', 'rk_notify_telegram_withdrawal', 10, 3);
 
 function rk_notify_telegram_withdrawal($user_id, $amount, $account_info) {
     if (!function_exists('rk_send_telegram_alert')) return;
-    
+
     $user = get_userdata($user_id);
     $user_name = $user ? $user->display_name : 'Unknown User';
-    
+
     $message = "💸 <b>NEW WITHDRAWAL REQUEST</b>\n\n" .
                "👤 User: <b>$user_name</b>\n" .
                "💵 Amount: <b>₦" . number_format($amount) . "</b>\n" .
                "🏦 Account: <code>$account_info</code>\n\n" .
                "⚠️ <i>Action Required: Process withdrawal</i>\n" .
                "⏰ " . current_time('F j, Y - g:i A');
-    
+
     rk_send_telegram_alert($message);
 }
 
@@ -763,7 +825,7 @@ function rk_notify_telegram_payment_status($user_id, $amount, $status, $txn_id, 
 
     $user = get_userdata($user_id);
     $user_name = $user ? $user->display_name : 'Unknown User';
-    
+
     if ($ai_verified) {
         $icon = '🤖';
         $status_text = '✅ AUTO-VERIFIED by AI';
@@ -771,14 +833,14 @@ function rk_notify_telegram_payment_status($user_id, $amount, $status, $txn_id, 
         $icon = '👀';
         $status_text = '⏳ PENDING Manual Review';
     }
-    
+
     $message = "$icon <b>PAYMENT UPDATE</b>\n\n" .
                "👤 User: <b>$user_name</b>\n" .
                "💵 Amount: <b>₦" . number_format($amount) . "</b>\n" .
                "📊 Status: $status_text\n" .
                "🆔 Txn ID: <code>#$txn_id</code>\n\n" .
                "⏰ " . current_time('F j, Y - g:i A');
-    
+
     rk_send_telegram_alert($message);
 }
 
@@ -798,9 +860,9 @@ function rk_notify_telegram_deposit($user_id, $amount, $status, $txn_id, $proof_
     $user = get_userdata($user_id);
     $user_name = $user ? $user->display_name : 'Unknown User';
     $user_email = $user ? $user->user_email : 'N/A';
-    
+
     $status_emoji = ($status === 'verified_final') ? '✅' : '⏳';
-    
+
     $caption = "💰 <b>NEW DEPOSIT</b>\n\n" .
                "👤 User: <b>$user_name</b>\n" .
                "📧 Email: <code>$user_email</code>\n" .
@@ -808,7 +870,7 @@ function rk_notify_telegram_deposit($user_id, $amount, $status, $txn_id, $proof_
                "📊 Status: $status_emoji " . strtoupper(str_replace('_', ' ', $status)) . "\n" .
                "🆔 Txn ID: <code>#$txn_id</code>\n\n" .
                "⏰ " . current_time('F j, Y - g:i A');
-    
+
     // Send with image if proof_url is available
     if (!empty($proof_url) && function_exists('rk_send_telegram_photo')) {
         rk_send_telegram_photo($proof_url, $caption);
@@ -825,7 +887,7 @@ function rk_notify_telegram_deposit($user_id, $amount, $status, $txn_id, $proof_
 function rk_send_deposit_alert($user_id, $amount, $status, $txn_id) {
     // 1. Get the email from settings (or default to WP Admin email)
     $to = get_option('rk_notification_email', get_option('admin_email'));
-    
+
     // 2. Get User Info
     $user = get_userdata($user_id);
     $user_name = $user ? $user->display_name : 'Unknown User';
@@ -838,9 +900,9 @@ function rk_send_deposit_alert($user_id, $amount, $status, $txn_id) {
     $message = "
     <div style='font-family: Arial, sans-serif; max-width: 600px; padding: 20px; border: 1px solid #e0e0e0; border-radius: 8px; background-color: #f9f9f9;'>
         <h2 style='color: #4f46e5; margin-top: 0; border-bottom: 2px solid #4f46e5; padding-bottom: 10px;'>New Deposit Received</h2>
-        
+
         <p style='font-size: 16px; color: #333;'>A new deposit request has been logged in the system.</p>
-        
+
         <table style='width: 100%; border-collapse: collapse; background: #fff; border-radius: 4px; overflow: hidden; box-shadow: 0 1px 3px rgba(0,0,0,0.1);'>
             <tr>
                 <td style='padding: 12px; border-bottom: 1px solid #eee; background: #f4f4f5; width: 30%;'><strong>User</strong></td>
@@ -865,7 +927,7 @@ function rk_send_deposit_alert($user_id, $amount, $status, $txn_id) {
         <div style='margin-top: 25px; text-align: center;'>
             <a href='" . admin_url('admin.php?page=raffle-transactions') . "' style='background-color: #4f46e5; color: white; padding: 12px 24px; text-decoration: none; border-radius: 6px; font-weight: bold; display: inline-block;'>View Transaction in Admin</a>
         </div>
-        
+
         <p style='margin-top: 30px; font-size: 12px; color: #999; text-align: center;'>Sent from RaffleKings System</p>
     </div>
     ";
@@ -884,15 +946,15 @@ function rk_send_withdrawal_confirmation($user_id, $amount) {
 
     $user = get_userdata($user_id);
     if (!$user) return;
-    
+
     $email = $user->user_email;
     $name = $user->display_name ?: $user->user_login;
-    
+
     $subject = "✅ Withdrawal Processed - ₦" . number_format($amount);
-    
+
     $body = "
         <p style='font-size:17px;'>Hi <strong>$name</strong>,</p>
-        
+
         <div style='background:#f0fdf4; border-left:4px solid #16a34a; padding:20px; margin:24px 0; border-radius:8px;'>
             <p style='margin:0 0 8px; font-size:20px; font-weight:bold; color:#16a34a;'>
                 ✅ Withdrawal Successful
@@ -901,28 +963,28 @@ function rk_send_withdrawal_confirmation($user_id, $amount) {
                 Your withdrawal of <strong>₦" . number_format($amount) . "</strong> has been processed.
             </p>
         </div>
-        
+
         <p>Your funds should arrive in your bank account within <strong>24 hours</strong>.</p>
-        
+
         <div style='background:#eff6ff; padding:16px; margin:20px 0; border-radius:6px;'>
             <p style='margin:0; font-size:14px; color:#1e40af;'>
                 💡 <strong>Tip:</strong> If you don't see the funds after 24 hours, please contact your bank.
             </p>
         </div>
-        
+
         <p style='margin-top:28px; font-size:14px; color:#6c757d;'>
-            Questions? Contact us at 
+            Questions? Contact us at
             <a href='mailto:help@rafflekings.com.ng' style='color:#007AFF; text-decoration:none;'>help@rafflekings.com.ng</a>
         </p>
     ";
-    
+
     $message = rk_get_email_html(
         "Withdrawal Processed",
         $body,
         "View Transaction History →",
         "https://rafflekings.com.ng/transactions"
     );
-    
+
     rk_send_email($email, $subject, $message);
 }
 
@@ -958,7 +1020,7 @@ function rk_process_referral_commission($user_id, $deposit_amount) {
 
     // 4. Calculate Commission (50%)
     $commission = $deposit_amount * 0.50;
-    
+
     // Safety: Ensure we don't credit 0 or negative
     if ($commission <= 0) return;
 
@@ -967,13 +1029,13 @@ function rk_process_referral_commission($user_id, $deposit_amount) {
     $wpdb->query('START TRANSACTION');
     try {
         $current_earn = $wpdb->get_var($wpdb->prepare(
-            "SELECT meta_value FROM {$wpdb->usermeta} WHERE user_id = %d AND meta_key = 'earnings_balance' FOR UPDATE", 
+            "SELECT meta_value FROM {$wpdb->usermeta} WHERE user_id = %d AND meta_key = 'earnings_balance' FOR UPDATE",
             $referrer_id
         ));
         $current_earn = $current_earn ? (float)$current_earn : 0;
-        
+
         update_user_meta($referrer_id, 'earnings_balance', $current_earn + $commission);
-        
+
         // Also update total lifetime earnings for leaderboard stats
         $total_lifetime = (float) get_user_meta($referrer_id, 'rk_referral_earnings_total', true);
         update_user_meta($referrer_id, 'rk_referral_earnings_total', $total_lifetime + $commission);
@@ -1020,36 +1082,36 @@ function rk_process_referral_commission($user_id, $deposit_amount) {
  */
 function rk_send_purchase_receipt($user_id, $amount, $raffle_id, $ticket_count, $ticket_numbers) {
     if (!function_exists('rk_send_email')) return;
-    
+
     $user = get_userdata($user_id);
     $raffle_title = get_the_title($raffle_id);
     $base_url = defined('RK_FRONTEND_URL') ? RK_FRONTEND_URL : 'https://rafflekings.com.ng';
-    
+
     $subject = "🎟️ Receipt: You bought $ticket_count tickets";
-    
+
     // Truncate if too many
     if (strlen($ticket_numbers) > 100) {
         $ticket_numbers = substr($ticket_numbers, 0, 100) . '...';
     }
-    
+
     $body = "
         <div style='font-family: sans-serif; color: #333;'>
             <h2 style='color: #16a34a;'>Payment Successful!</h2>
             <p>Hi " . $user->display_name . ",</p>
             <p>You have successfully purchased <strong>$ticket_count tickets</strong> for <strong>$raffle_title</strong>.</p>
-            
+
             <div style='background: #f3f4f6; padding: 15px; border-radius: 8px; margin: 20px 0;'>
                 <p style='margin: 5px 0;'><strong>Amount Paid:</strong> ₦" . number_format($amount) . "</p>
                 <p style='margin: 5px 0;'><strong>Ticket Numbers:</strong><br>$ticket_numbers</p>
                 <p style='margin: 5px 0;'><strong>Date:</strong> " . date('F j, Y, g:i a') . "</p>
             </div>
-            
+
             <p>Good luck! We hope to see you on the winners list.</p>
-            
+
             <a href='{$base_url}/dashboard' style='display: inline-block; background: #2563eb; color: #fff; padding: 10px 20px; text-decoration: none; border-radius: 5px;'>View My Tickets</a>
         </div>
     ";
-    
+
     rk_send_email($user->user_email, $subject, $body);
 }
 
@@ -1058,24 +1120,24 @@ function rk_send_purchase_receipt($user_id, $amount, $raffle_id, $ticket_count, 
  */
 function rk_send_deposit_receipt($user_id, $amount) {
     if (!function_exists('rk_send_email')) return;
-    
+
     $user = get_userdata($user_id);
     $base_url = defined('RK_FRONTEND_URL') ? RK_FRONTEND_URL : 'https://rafflekings.com.ng';
-    
+
     $subject = "💰 Deposit Confirmed: ₦" . number_format($amount);
-    
+
     $body = "
         <div style='font-family: sans-serif; color: #333;'>
             <h2 style='color: #16a34a;'>Wallet Funded!</h2>
             <p>Hi " . $user->display_name . ",</p>
             <p>Your deposit of <strong>₦" . number_format($amount) . "</strong> has been confirmed and added to your wallet.</p>
-            
+
             <p><strong>Current Balance:</strong> ₦" . number_format(get_user_meta($user_id, 'wallet_balance', true)) . "</p>
-            
+
             <a href='{$base_url}/raffles' style='display: inline-block; background: #16a34a; color: #fff; padding: 10px 20px; text-decoration: none; border-radius: 5px;'>Play Now</a>
         </div>
     ";
-    
+
     rk_send_email($user->user_email, $subject, $body);
 }
 ?>

@@ -83,10 +83,7 @@
     let cart = [];
 
     // --- RENDER CART LOGIC ---
-    function renderCart() {
-        // 1. Get Cart
-        cart = JSON.parse(localStorage.getItem('cart')) || [];
-
+    async function renderCart() {
         const container = document.getElementById('cart-items-container');
         const emptyState = document.getElementById('empty-state');
         const footer = document.getElementById('checkout-footer');
@@ -94,9 +91,32 @@
         const countBadge = document.getElementById('cart-count');
         const totalEl = document.getElementById('total-amount');
 
+        // 1. Fetch server authoritative cart state
+        const token = localStorage.getItem('token');
+        if (token) {
+            try {
+                const res = await fetch((typeof API_CONFIG !== 'undefined' && API_CONFIG.CART_SYNC) ? API_CONFIG.CART_SYNC : 'ajax-router.php?action=cart_sync', {
+                    method: 'GET',
+                    headers: { 'Authorization': 'Bearer ' + token }
+                });
+                if (res.ok) {
+                    const data = await res.json();
+                    if (data.success && data.cart) {
+                        cart = typeof data.cart === 'string' ? JSON.parse(data.cart) : data.cart;
+                        localStorage.setItem('cart', JSON.stringify(cart));
+                    }
+                }
+            } catch (e) {
+                console.error("Failed to fetch server cart", e);
+                cart = JSON.parse(localStorage.getItem('cart')) || [];
+            }
+        } else {
+            cart = JSON.parse(localStorage.getItem('cart')) || [];
+        }
+
         container.innerHTML = ''; // Clear current list
 
-        if (cart.length === 0) {
+        if (!Array.isArray(cart) || cart.length === 0) {
             emptyState.classList.remove('hidden');
             footer.classList.add('hidden');
             upsell.classList.add('hidden');
