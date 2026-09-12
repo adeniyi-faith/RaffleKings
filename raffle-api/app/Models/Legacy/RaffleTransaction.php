@@ -23,6 +23,7 @@ class RaffleTransaction extends LegacyModel
         'gemini_amount',
         'txn_ref',
         'order_id',
+        'idempotency_key',
         'proof_url',
         'status',
         'type',
