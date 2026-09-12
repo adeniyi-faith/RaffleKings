@@ -304,9 +304,7 @@ add_action('rest_api_init', function () {
             }
             return new WP_REST_Response(['success' => false, 'message' => 'Function missing'], 500);
         },
-        'permission_callback' => function($request) {
-            $secret = $request->get_param('secret');
-            if ($secret === 'rk_admin_digest') return true;
+        'permission_callback' => function() {
             return current_user_can('manage_options');
         }
     ]);
