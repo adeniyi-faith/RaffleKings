@@ -5,6 +5,7 @@ namespace App\Http\Controllers\Api;
 use App\Http\Controllers\Controller;
 use App\Services\RaffleReadService;
 use Illuminate\Http\JsonResponse;
+use Illuminate\Http\Request;
 
 /**
  * Public raffle-listing/detail endpoints — no auth required, same as the
@@ -14,9 +15,17 @@ class RaffleController extends Controller
 {
     public function __construct(private readonly RaffleReadService $raffles) {}
 
-    public function index(): JsonResponse
+    /**
+     * Item 24: search/prize_type/price filters and sort, replacing the
+     * legacy raffles.php's client-side-only filtering over an unfiltered
+     * fetch (and its two dead "Cash"/"Gadgets" buttons — see
+     * RaffleReadService's docblock).
+     */
+    public function index(Request $request): JsonResponse
     {
-        return response()->json(['raffles' => $this->raffles->listActive()]);
+        return response()->json($this->raffles->listActive($request->only([
+            'search', 'prize_type', 'min_price', 'max_price', 'sort', 'page', 'per_page',
+        ])));
     }
 
     public function show(int $raffle): JsonResponse
