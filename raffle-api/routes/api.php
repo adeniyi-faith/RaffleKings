@@ -4,6 +4,7 @@ use App\Http\Controllers\Api\AuthBridgeController;
 use App\Http\Controllers\Api\BankAccountController;
 use App\Http\Controllers\Api\DrawController;
 use App\Http\Controllers\Api\RaffleController;
+use App\Http\Controllers\Api\ReferralController;
 use App\Http\Controllers\Api\TicketPurchaseController;
 use Illuminate\Support\Facades\Route;
 
@@ -24,6 +25,8 @@ Route::middleware('auth:wordpress')->group(function () {
     // frontend at this — it settles against the NEW wallets table, not
     // the legacy usermeta balances, until a deliberate cutover happens.
     Route::post('/tickets/purchase', [TicketPurchaseController::class, 'store']);
+
+    Route::get('/referrals/stats', [ReferralController::class, 'stats']);
 
     Route::get('/bank-accounts', [BankAccountController::class, 'index']);
     Route::post('/bank-accounts', [BankAccountController::class, 'store']);
