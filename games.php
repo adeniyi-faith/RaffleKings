@@ -163,7 +163,14 @@
                 <span>SPIN NOW</span>
                 <span class="bg-white/30 px-2 py-0.5 rounded-lg text-xs font-bold text-amber-900 uppercase tracking-wide group-hover:bg-white/40 transition-colors">-50 Pts</span>
             </button>
-            <p class="text-center text-[10px] text-gray-400 mt-3 font-medium">Guaranteed win on every 10th spin!</p>
+            <!--
+                Real, disclosed odds — the wheel's slice sizes below are drawn
+                proportional to these same numbers, not four equal quarters.
+                There used to be a false "guaranteed win on every 10th spin"
+                claim here; nothing in the backend ever tracked a spin count
+                or guaranteed anything, so it's gone.
+            -->
+            <p id="odds-disclosure" class="text-center text-[10px] text-gray-400 mt-3 font-medium">15 Pts: 60% &middot; 50 Pts: 30% &middot; 150 Pts: 8% &middot; 10x WIN: 2%</p>
         </div>
 
     </main>
@@ -208,13 +215,32 @@
     <!-- 4. LOGIC -->
     <script>
         // --- CONSTANTS ---
-        // Colors updated for better visibility in both modes
+        // Colors updated for better visibility in both modes.
+        //
+        // TRUST FIX: `weight` must match the real server-side odds in
+        // rk_execute_spin_logic() (api-gamification.php) exactly — 60/30/8/2
+        // out of 1000. The wheel used to draw four equal quarter-slices,
+        // visually implying a 25% chance each, while the real chance of the
+        // "10x WIN" slice was 2%. Slice size is now drawn proportional to
+        // `weight`, so what a user sees matches what they're actually playing.
         const PRIZES = [
-            { label: "15 Pts",  color: "#ef4444", text: "#ffffff" }, // Red
-            { label: "50 Pts",  color: "#3b82f6", text: "#ffffff" }, // Blue
-            { label: "150 Pts", color: "#eab308", text: "#ffffff" }, // Yellow
-            { label: "10x WIN", color: "#22c55e", text: "#ffffff" }  // Green
+            { label: "15 Pts",  color: "#ef4444", text: "#ffffff", weight: 600 }, // Red   — 60%
+            { label: "50 Pts",  color: "#3b82f6", text: "#ffffff", weight: 300 }, // Blue  — 30%
+            { label: "150 Pts", color: "#eab308", text: "#ffffff", weight: 80  }, // Yellow — 8%
+            { label: "10x WIN", color: "#22c55e", text: "#ffffff", weight: 20  }  // Green  — 2%
         ];
+        const PRIZES_TOTAL_WEIGHT = PRIZES.reduce((sum, p) => sum + p.weight, 0);
+
+        // Precompute each slice's [startAngle, arcSize) in radians, in PRIZES order.
+        const PRIZE_ARCS = (() => {
+            let cursor = 0;
+            return PRIZES.map(p => {
+                const arcSize = (p.weight / PRIZES_TOTAL_WEIGHT) * 2 * Math.PI;
+                const startAngle = cursor;
+                cursor += arcSize;
+                return { startAngle, arcSize };
+            });
+        })();
 
         // --- STATE ---
         let currentPoints = 0;
@@ -265,30 +291,30 @@
 
         function draw(rotationAngle) {
             if(!ctx) return;
-            const size = 280; 
+            const size = 280;
             const cx = size / 2;
             const cy = size / 2;
-            const radius = size / 2 - 2; 
-            const arc = (2 * Math.PI) / PRIZES.length;
+            const radius = size / 2 - 2;
 
             ctx.clearRect(0, 0, size, size);
-            
+
             ctx.save();
             ctx.translate(cx, cy);
             ctx.rotate(rotationAngle);
             ctx.translate(-cx, -cy);
 
             PRIZES.forEach((prize, i) => {
-                const angle = i * arc;
-                
-                // Slice
+                const { startAngle: angle, arcSize: arc } = PRIZE_ARCS[i];
+
+                // Slice — sized proportional to the real odds (see PRIZE_ARCS above),
+                // not an equal quarter for every prize.
                 ctx.beginPath();
                 ctx.moveTo(cx, cy);
                 ctx.arc(cx, cy, radius, angle, angle + arc);
                 ctx.fillStyle = prize.color;
                 ctx.fill();
                 // Add white border between slices
-                ctx.strokeStyle = "#ffffff"; 
+                ctx.strokeStyle = "#ffffff";
                 ctx.lineWidth = 4;
                 ctx.stroke();
 
@@ -351,12 +377,13 @@
                 }
 
                 // Animation Params
-                const winIndex = data.visual_index; 
-                const segmentAngle = (2 * Math.PI) / PRIZES.length;
+                const winIndex = data.visual_index;
+                const { startAngle: winStartAngle, arcSize: winArcSize } = PRIZE_ARCS[winIndex];
                 const offset = -Math.PI / 2; // Top
-                const targetAngle = offset - (winIndex * segmentAngle) - (segmentAngle / 2);
-                const randomOffset = (Math.random() - 0.5) * (segmentAngle * 0.8);
-                const spins = 5 * 2 * Math.PI; 
+                const targetAngle = offset - winStartAngle - (winArcSize / 2);
+                // Land somewhere inside the actual slice, not past its edges.
+                const randomOffset = (Math.random() - 0.5) * (winArcSize * 0.8);
+                const spins = 5 * 2 * Math.PI;
                 
                 const currentMod = currentRotation % (2 * Math.PI);
                 const totalRotation = spins + (targetAngle - currentMod) + randomOffset;

@@ -238,7 +238,6 @@ const app = {
     allRaffles: [],
     activeFilter: 'All',
     searchQuery: '',
-    viewingCount: 12,
     goldenBoxTimer: null,
     promoFooterInterval: null,
     isApplyingDiscount: false,
@@ -274,7 +273,6 @@ const app = {
             hotContainer: document.getElementById('hot-picks-container'),
             goldenHero: document.getElementById('golden-hero-box'),
             heroTimer: document.getElementById('hero-timer'),
-            viewingCounter: document.getElementById('viewing-counter'),
             heroSavingText: document.getElementById('hero-saving-text'),
             heroOldPrice: document.getElementById('hero-old-price'),
             heroNewPrice: document.getElementById('hero-new-price'),
@@ -401,7 +399,6 @@ const app = {
 
             const remainingSeconds = Math.ceil((DURATION - elapsed) / 1000);
             this.startGoldenTimer(remainingSeconds);
-            this.startViewingCounter();
         }
     },
 
@@ -435,17 +432,6 @@ const app = {
         };
         tick();
         this.goldenBoxTimer = setInterval(tick, 1000);
-    },
-
-    startViewingCounter: function() {
-        if (this.dom.viewingCounter) this.dom.viewingCounter.innerText = this.viewingCount;
-        setInterval(() => {
-            const change = Math.random() > 0.5 ? 1 : -1;
-            this.viewingCount += change;
-            if (this.viewingCount < 12) this.viewingCount = 12;
-            if (this.viewingCount > 25) this.viewingCount = 25;
-            if (this.dom.viewingCounter) this.dom.viewingCounter.innerText = this.viewingCount;
-        }, 4000);
     },
 
     hideGoldenBox: function() {
