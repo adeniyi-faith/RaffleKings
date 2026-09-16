@@ -212,6 +212,45 @@ where the migration actually is.
   endpoints. User management, raffle/prize management, referral/rewards
   views, and financial reconciliation aren't built yet.
 
+- `app/Services/DepositService.php` + the `deposits` table — real
+  deposits via Paystack (default) and Flutterwave (automatic backup),
+  replacing the "top up your wallet" gap that previously had no gateway
+  at all (only the Gemini AI screenshot manual-review path, which is
+  untouched and still there for anything neither gateway can handle).
+  `App\Services\Payments\PaystackGateway`/`FlutterwaveGateway` implement
+  a shared `App\Contracts\PaymentGateway` interface — `POST /api/deposits`
+  (authenticated) tries Paystack first and only falls back to Flutterwave
+  if Paystack's own initialization call throws (e.g. an outage), so a
+  user never sees "deposits are down" just because one provider is.
+  Once a deposit is created against a gateway, only that gateway is ever
+  consulted again for it. `POST /api/webhooks/paystack` and
+  `.../flutterwave` receive gateway callbacks — the webhook signature
+  only proves the event came from the gateway, it is never trusted for
+  the actual credit; `DepositService::confirm()` always re-verifies the
+  transaction directly against that same gateway's own API before
+  touching the `wallets` table, inside a row-locked transaction with a
+  `WalletLedgerService::recordCredit()` entry, same pattern as every
+  other balance mutation in this app. This is idempotent — a retried or
+  duplicate webhook for an already-settled deposit is a no-op, and a
+  confirmed payment for the wrong amount is flagged `amount_mismatch`
+  rather than credited on a guess. This is also the first live trigger
+  `ReferralCommissionService::payCommissionForFirstDeposit()` has ever
+  had — first-deposit referral commissions now actually fire.
+
+- **Filament is now installed** (`config/payments.php`'s item 13 work
+  above prompted a retry). The earlier install failure wasn't a real
+  dependency problem — a previous interrupted `composer require` left
+  `vendor/nesbot/carbon` in a state (uncommitted changes in what Composer
+  expected to be a clean git checkout) that broke Composer's git-source
+  fallback on every later attempt. Since `composer.lock` had actually
+  already resolved successfully in that failed run, the fix was
+  `rm -rf vendor && composer install` from the existing lock file — no
+  network resolution needed, just a clean download. `php artisan
+  filament:install --panels` then scaffolded
+  `App\Providers\Filament\AdminPanelProvider`. No Filament *resources*
+  (the actual admin pages) exist yet — the admin console is still the
+  JSON API described below until those are built.
+
 - `app/Services/SupportTicketService.php` + the `support_tickets`/
   `support_ticket_messages` tables — a real support ticket system,
   replacing the legacy site's `support.php`, whose "Submit Ticket"

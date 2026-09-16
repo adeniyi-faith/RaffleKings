@@ -59,4 +59,27 @@ return [
         'admin_chat_ids' => array_filter(explode(',', (string) env('TELEGRAM_ADMIN_CHAT_IDS', ''))),
     ],
 
+    /*
+    |--------------------------------------------------------------------------
+    | Payment gateways (item 13)
+    |--------------------------------------------------------------------------
+    |
+    | Paystack is the primary deposit gateway, Flutterwave the automatic
+    | backup — see config/payments.php and App\Services\DepositService.
+    | Flutterwave's `secret_hash` is a separate value YOU set in its
+    | dashboard for webhook verification, not the API secret key.
+    |
+    */
+
+    'paystack' => [
+        'secret_key' => env('PAYSTACK_SECRET_KEY'),
+        'public_key' => env('PAYSTACK_PUBLIC_KEY'),
+    ],
+
+    'flutterwave' => [
+        'secret_key' => env('FLUTTERWAVE_SECRET_KEY'),
+        'public_key' => env('FLUTTERWAVE_PUBLIC_KEY'),
+        'secret_hash' => env('FLUTTERWAVE_SECRET_HASH'),
+    ],
+
 ];
