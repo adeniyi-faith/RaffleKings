@@ -47,9 +47,12 @@
                 <button id="mobile-menu-btn" class="rounded-xl border border-gray-200 bg-gray-50 p-2 text-gray-600 transition hover:bg-gray-100 md:hidden" aria-label="Open navigation">
                     <svg class="h-6 w-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 12h16M4 18h16"/></svg>
                 </button>
-                <div>
-                    <p class="text-[10px] font-bold uppercase tracking-[0.3em] text-navy-900/60">RaffleKings</p>
-                    <h1 class="text-base font-bold text-navy-900 md:text-lg">Operations Command Center</h1>
+                <div class="flex items-center gap-2.5">
+                    <img src="assets/logo.png" alt="RaffleKings" class="h-8 w-8 flex-shrink-0 object-contain md:hidden">
+                    <div>
+                        <p class="text-[10px] font-bold uppercase tracking-[0.3em] text-navy-900/60">RaffleKings</p>
+                        <h1 class="text-base font-bold text-navy-900 md:text-lg">Operations Command Center</h1>
+                    </div>
                 </div>
             </div>
 

@@ -56,8 +56,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['rk_admin_login'])) {
 
     <div class="glass-panel relative w-full max-w-md rounded-3xl p-8 shadow-2xl shadow-black/40">
         <div class="mb-8 text-center">
-            <div class="mx-auto mb-4 flex h-14 w-14 items-center justify-center rounded-2xl bg-indigo-500/20 text-indigo-200 ring-1 ring-indigo-400/30">
-                <svg class="h-7 w-7" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.8" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z"/></svg>
+            <div class="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-2xl bg-white/95 shadow-lg ring-1 ring-indigo-400/30 overflow-hidden">
+                <img src="assets/logo.png" alt="RaffleKings" class="h-11 w-11 object-contain">
             </div>
             <h1 class="text-3xl font-black tracking-[0.3em] text-white">RAFFLEKINGS</h1>
             <p class="mt-2 text-sm text-slate-400">Secure Operations Platform</p>
