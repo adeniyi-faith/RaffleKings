@@ -21,6 +21,7 @@ use App\Http\Controllers\Api\RewardsController;
 use App\Http\Controllers\Api\SupportTicketController;
 use App\Http\Controllers\Api\TicketPriceQuoteController;
 use App\Http\Controllers\Api\TicketPurchaseController;
+use App\Http\Controllers\Api\TutorialController;
 use App\Http\Controllers\Api\WalletController;
 use App\Http\Controllers\Api\WithdrawalController;
 use Illuminate\Support\Facades\Route;
@@ -50,6 +51,13 @@ Route::get('/raffles/{raffle}/live-draw', [LiveDrawController::class, 'show']);
 
 // Public — the Spin & Win odds are meant to be shown to players.
 Route::get('/rewards/spin/odds', [RewardsController::class, 'spinOdds']);
+
+// Public — the Learning Hub (item 29), same as the legacy tutorials.php
+// (no login required to read help content). Marking an article helpful
+// is rate-limited since it's an honest counter, not something one
+// visitor should be able to inflate by clicking repeatedly.
+Route::get('/tutorials', [TutorialController::class, 'index']);
+Route::post('/tutorials/{tutorial}/helpful', [TutorialController::class, 'markHelpful'])->middleware('throttle:10,1');
 
 // Public — where the gateway's hosted checkout redirects the user's
 // browser back to after payment (see DepositController::callback()'s
