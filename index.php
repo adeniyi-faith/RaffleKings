@@ -111,18 +111,6 @@ $initial_raffles = array_map('rk_frontend_format_raffle', get_posts([
         </div>
     </section>
 
-    <!-- 2. Live Activity Ticker -->
-    <section class="px-5 mt-8">
-        <div class="bg-gray-900 dark:bg-black text-white rounded-xl py-3 px-4 flex items-center gap-3 shadow-lg relative overflow-hidden border border-gray-800 dark:border-gray-800">
-            <div class="flex flex-col items-center justify-center min-w-[20px]">
-                <div class="w-2 h-2 bg-green-500 rounded-full animate-pulse shadow-[0_0_8px_rgba(34,197,94,0.8)]"></div>
-            </div>
-            <div id="ticker-content" class="text-xs font-medium truncate flex-1 transition-all duration-500 opacity-100 tracking-wide">
-                🚀 <span class="text-blue-300 font-bold">@KingDavid</span> just bought 10 tickets!
-            </div>
-        </div>
-    </section>
-
     <!-- 3. Action Grid: Fintech Style -->
     <section class="px-5 py-6">
         <div class="flex items-center justify-between mb-4">
@@ -211,7 +199,7 @@ $initial_raffles = array_map('rk_frontend_format_raffle', get_posts([
         <div class="px-5 mb-4 flex justify-between items-end">
             <div>
                 <h2 class="text-lg font-bold text-gray-900 dark:text-white tracking-tight">Trending Now 🔥</h2>
-                <p class="text-[11px] text-gray-500 dark:text-gray-400 font-medium">1,200+ people are playing these</p>
+                <p class="text-[11px] text-gray-500 dark:text-gray-400 font-medium">Closing soon &mdash; don't miss out</p>
             </div>
             <a href="raffles.php" class="text-xs text-blue-600 dark:text-blue-400 font-bold bg-blue-50 dark:bg-blue-900/30 px-2 py-1 rounded hover:bg-blue-100 dark:hover:bg-blue-900/50 transition-colors">See All</a>
         </div>
@@ -241,9 +229,6 @@ $initial_raffles = array_map('rk_frontend_format_raffle', get_posts([
             lucide.createIcons();
         }
 
-        // --- 1. Start Ticker ---
-        initLiveTicker();
-
         // --- 2. Load Data Instantly ---
         if (ssrRaffles && ssrRaffles.length > 0) {
             renderTrending(ssrRaffles);
@@ -258,57 +243,6 @@ $initial_raffles = array_map('rk_frontend_format_raffle', get_posts([
         } else {
             console.warn("initCarousel function not found");
         }
-    }
-
-    // --- 1. LIVE TICKER ---
-    function initLiveTicker() {
-        const tickerEl = document.getElementById('ticker-content');
-        if(!tickerEl) return;
-
-        // Custom User List & Messages
-        const users = [
-            'Kotansibe', 'Abayhormy', 'DrOchellePaul1', 'kinzazo', 'MrPaul2', 'excellencyabia1', 'baysdam1', 'rago',
-            'Sangoamadioha1', 'toutlemonde', 'MGDIMA4', 'encryptjay', 'stevebent', 'Figger', 'philsbaba', 'incogni2o',
-            'Gavrelino123', 'Choice2332', 'illicit', 'MaxW11', 'logbosere', 'Judemarco31', 'XtraFortunes', 'Nigeriaismine',
-            'Precious201010', 'emmatex2020', 'waistbead', 'Truth234', 'AbahChukwuka', 'TBIZZY', 'sango147', 'tesuto1',
-            'DallasMike77', 'Obalgwe1', 'krayzieklay', 'pook', 'heybeebugatty', 'acekid109', 'drignet', 'RodgersAkpafu',
-            'NaijaRoyalty', 'moralex', 'Toyade888', 'Jamesbook', 'izzou', 'Medulah', 'Odukes', 'hotspec', 'EBUBS',
-            'Emmyjb', 'Abbasumaru', 'GaskiyaTV', 'Biggy505', 'Focusmind', 'Tigerguy', 'Broadmind', 'frickyt', 'Nosalucho008',
-            'favoured247', 'Alliswell248', 'AirBay', 'amarudeen', 'Olamide24909', 'Otunbakay', 'phadul', 'Fineyemo',
-            'collarfreak', 'alanto', 'DeepSight', 'ODDavid', 'Lapyte', 'banjul01', '1VOIZ', 'saturnjay', 'JomasisTech',
-            'celeb10', 'oluwaseyi0', 'Damlesky', 'wildrose21', 'tctrills'
-        ];
-
-        const formatMoney = (n) => '₦' + n.toLocaleString();
-        const rand = (arr) => arr[Math.floor(Math.random() * arr.length)];
-        let updates = [];
-
-        // Generate updates
-        const ticketCounts = [2, 3, 5, 5, 10, 10, 15, 20, 50];
-        for(let i=0; i<40; i++) updates.push(`🎟️ <span class="text-white font-bold">@${rand(users)}</span> bought <span class="text-green-300 font-bold">${rand(ticketCounts)} tickets</span>!`);
-
-        const withdrawalAmounts = [5000, 10000, 15000, 20000, 25000, 50000];
-        for(let i=0; i<10; i++) updates.push(`💸 <span class="text-yellow-300 font-bold">@${rand(users)}</span> withdrew <span class="text-white font-bold">${formatMoney(rand(withdrawalAmounts))}</span>`);
-
-        const topupAmounts = [1000, 2000, 5000, 10000, 50000];
-        for(let i=0; i<5; i++) updates.push(`🚀 <span class="text-blue-300 font-bold">@${rand(users)}</span> topped up <span class="text-white font-bold">${formatMoney(rand(topupAmounts))}</span>`);
-
-        updates = updates.sort(() => Math.random() - 0.5);
-
-        let index = 0;
-        tickerEl.innerHTML = updates[0];
-
-        setInterval(() => {
-            tickerEl.style.opacity = '0';
-            tickerEl.style.transform = 'translateY(10px)';
-
-            setTimeout(() => {
-                index = (index + 1) % updates.length;
-                tickerEl.innerHTML = updates[index];
-                tickerEl.style.opacity = '1';
-                tickerEl.style.transform = 'translateY(0)';
-            }, 300);
-        }, 3500);
     }
 
     // --- 2. FETCH & RENDER TRENDING (UPDATED FOR LOCAL PROXY) ---

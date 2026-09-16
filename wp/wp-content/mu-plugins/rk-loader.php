@@ -25,6 +25,7 @@ require_once RK_CORE_DIR . '/api-auth.php';
 // 3. Load Financial and Gamification logic
 require_once RK_CORE_DIR . '/api-financials.php';
 require_once RK_CORE_DIR . '/api-gamification.php';
+require_once RK_CORE_DIR . '/api-support.php';
 
 // 4. Load Background tasks and Admin UI
 require_once RK_CORE_DIR . '/cron-system.php';

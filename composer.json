@@ -1,0 +1,14 @@
+{
+    "name": "rafflekings/live-site",
+    "description": "Test tooling for the live RaffleKings PHP site (Phase 0 CI). This is separate from raffle-api/, the Laravel rewrite, which has its own composer.json.",
+    "type": "project",
+    "require-dev": {
+        "phpunit/phpunit": "^10.5"
+    },
+    "scripts": {
+        "test": "phpunit"
+    },
+    "config": {
+        "sort-packages": true
+    }
+}
