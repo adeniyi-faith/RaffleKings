@@ -12,8 +12,11 @@ use App\Models\Legacy\RaffleWinner;
 use App\Models\Legacy\WpUser;
 use App\Models\Raffle;
 use App\Models\RafflePrizeTier;
+use App\Notifications\DrawCompletedAdminAlert;
+use App\Notifications\WinnerAnnounced;
 use App\Services\ProvablyFairDrawService;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Facades\Notification;
 use Tests\TestCase;
 
 class ProvablyFairDrawServiceTest extends TestCase
@@ -217,5 +220,20 @@ class ProvablyFairDrawServiceTest extends TestCase
         $winnersB = collect($this->draws->runDraw($raffleB))->pluck('ticket_number')->all();
 
         $this->assertNotSame($winnersA, $winnersB);
+    }
+
+    public function test_running_a_draw_notifies_every_winner_and_sends_an_admin_alert(): void
+    {
+        Notification::fake();
+
+        $raffle = $this->makeRaffleWithTiers();
+        $this->draws->commitSeed($raffle);
+        $this->makeVerifiedEntry($raffle->legacy_post_id, 'winner1');
+
+        $this->draws->runDraw($raffle);
+
+        Notification::assertSentOnDemand(DrawCompletedAdminAlert::class);
+        $winnerUser = WpUser::where('user_login', 'winner1')->first();
+        Notification::assertSentTo($winnerUser, WinnerAnnounced::class);
     }
 }

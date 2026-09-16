@@ -157,6 +157,25 @@ where the migration actually is.
   table via `WalletLedgerService`, same pattern as everywhere else money
   moves in this app.
 
+- `app/Notifications/Channels/OneSignalChannel.php` + `TelegramChannel.php`
+  — queued notification channels for the same two providers the legacy
+  site already uses. Two real fixes over the legacy versions: Laravel's
+  HTTP client verifies TLS certificates by default (the legacy OneSignal
+  calls disable verification entirely — audit TD-37), and a failed send
+  throws instead of being silently discarded, so a queued job retries
+  (3 attempts, backoff) and — if it keeps failing — lands in Laravel's
+  own `failed_jobs` table (the "dead-letter list" item 17 calls for; no
+  bespoke table needed). Wired into two real triggers: `WinnerAnnounced`
+  (mail + push, sent to every winner right after `ProvablyFairDrawService::runDraw()`
+  commits — this also fixes the legacy winner-push bug, TD-31, by being
+  built against the real `wp_raffle_winners` schema from scratch) and
+  `DrawCompletedAdminAlert` (Telegram). `TicketPurchaseReceipt` (mail)
+  fires after `TicketPurchaseService`'s transaction commits. `WpUser` is
+  now `Notifiable` (`routeNotificationForMail()`/`routeNotificationForOneSignal()`
+  read the real `user_email` column / `rk_onesignal_id` usermeta).
+  `QUEUE_CONNECTION` defaults to `database` (works with zero extra
+  setup); switching to `redis` for production is a config change only.
+
 ## What is NOT done yet (do not assume otherwise)
 
 - The old PHP code (`api-financials.php`, etc.) still reads and writes
