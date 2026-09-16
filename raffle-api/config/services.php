@@ -82,4 +82,25 @@ return [
         'secret_hash' => env('FLUTTERWAVE_SECRET_HASH'),
     ],
 
+    /*
+    |--------------------------------------------------------------------------
+    | Cloudflare Turnstile (item 23)
+    |--------------------------------------------------------------------------
+    |
+    | The bot-protection widget the legacy registration page has fully
+    | wired up client- and server-side (site key, callback JS, and a
+    | working rk_verify_turnstile_token() in api-auth.php) but never
+    | actually turned on — the widget markup, the client token check, and
+    | the server verify call are all commented out. See
+    | App\Services\Auth\TurnstileVerifier. Leaving the secret key unset
+    | disables verification (useful for local dev/tests); production must
+    | set both.
+    |
+    */
+
+    'turnstile' => [
+        'site_key' => env('TURNSTILE_SITE_KEY'),
+        'secret_key' => env('TURNSTILE_SECRET_KEY'),
+    ],
+
 ];
