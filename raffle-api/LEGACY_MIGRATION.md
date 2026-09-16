@@ -144,6 +144,19 @@ where the migration actually is.
   referral links themselves are still created by the legacy registration
   flow.
 
+- `app/Services/PointsService.php` (+ `PointsLedgerService`, `DailyClaimService`,
+  `TaskClaimService`, `SpinService`, `PointRedemptionService`) and the
+  `user_points`/`point_ledger_entries`/`completed_tasks` tables — the
+  full points/streak/Spin & Win/redemption system, at `/api/rewards/*`.
+  Same reward schedule and rules as the legacy `rk_handle_daily_claim()`/
+  `rk_handle_task_claim()`/`rk_execute_spin_logic()`/`rk_handle_redeem_points()`
+  (`api-gamification.php`), with two real fixes: Spin & Win uses
+  `random_int()` (cryptographically strong) instead of `rand()`, and its
+  odds are a public endpoint (`GET /api/rewards/spin/odds`) instead of a
+  number buried in server code. Redemption credits the NEW `wallets`
+  table via `WalletLedgerService`, same pattern as everywhere else money
+  moves in this app.
+
 ## What is NOT done yet (do not assume otherwise)
 
 - The old PHP code (`api-financials.php`, etc.) still reads and writes
