@@ -212,6 +212,27 @@ where the migration actually is.
   endpoints. User management, raffle/prize management, referral/rewards
   views, and financial reconciliation aren't built yet.
 
+- `app/Services/SupportTicketService.php` + the `support_tickets`/
+  `support_ticket_messages` tables — a real support ticket system,
+  replacing the legacy site's `support.php`, whose "Submit Ticket"
+  handler literally has a comment reading `// Simulate submission` and
+  never makes a network call at all. This was the single most
+  user-harmful gap the whole audit found: a user believes their message
+  was sent, and it goes nowhere. User-facing routes at
+  `GET/POST /api/support/tickets`, `GET /api/support/tickets/{id}`,
+  `POST /api/support/tickets/{id}/reply` — a user can only see or reply
+  to their own tickets (checked by comparing the ticket's owner, and a
+  mismatch returns 404 rather than 403 so a user can't even tell someone
+  else's ticket ID exists). Admin routes at
+  `GET /api/admin/support/tickets` (paginated, filterable by
+  `?status=`), `GET .../{id}`, `POST .../{id}/reply`,
+  `PATCH .../{id}/status` — every admin reply and status change is
+  written to the same audit log as item 19's withdrawal/winner actions.
+  A new ticket queues `NewSupportTicketAdminAlert`; an admin reply queues
+  `SupportTicketReply` to the ticket's owner — both go through the same
+  queued-notification system as item 17 (retries, dead-letter list),
+  not a synchronous, easy-to-lose send.
+
 ## What is NOT done yet (do not assume otherwise)
 
 - The old PHP code (`api-financials.php`, etc.) still reads and writes

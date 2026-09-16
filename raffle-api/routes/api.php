@@ -1,6 +1,7 @@
 <?php
 
 use App\Http\Controllers\Api\Admin\AuditLogController;
+use App\Http\Controllers\Api\Admin\SupportTicketManagementController;
 use App\Http\Controllers\Api\Admin\WinnerManagementController;
 use App\Http\Controllers\Api\Admin\WithdrawalManagementController;
 use App\Http\Controllers\Api\AuthBridgeController;
@@ -9,6 +10,7 @@ use App\Http\Controllers\Api\DrawController;
 use App\Http\Controllers\Api\RaffleController;
 use App\Http\Controllers\Api\ReferralController;
 use App\Http\Controllers\Api\RewardsController;
+use App\Http\Controllers\Api\SupportTicketController;
 use App\Http\Controllers\Api\TicketPurchaseController;
 use App\Http\Controllers\Api\WithdrawalController;
 use Illuminate\Support\Facades\Route;
@@ -52,6 +54,11 @@ Route::middleware('auth:wordpress')->group(function () {
     // via Laravel's own throttle middleware instead of a bespoke transient-based limiter.
     Route::post('/withdrawals', [WithdrawalController::class, 'store'])->middleware('throttle:3,5');
 
+    Route::get('/support/tickets', [SupportTicketController::class, 'index']);
+    Route::post('/support/tickets', [SupportTicketController::class, 'store']);
+    Route::get('/support/tickets/{ticket}', [SupportTicketController::class, 'show']);
+    Route::post('/support/tickets/{ticket}/reply', [SupportTicketController::class, 'reply']);
+
     Route::middleware('admin')->prefix('admin')->group(function () {
         Route::post('/raffles/{raffle}/draw/commit', [DrawController::class, 'commit']);
         Route::post('/raffles/{raffle}/draw/run', [DrawController::class, 'run']);
@@ -64,5 +71,10 @@ Route::middleware('auth:wordpress')->group(function () {
         Route::patch('/winners/{winner}/visibility', [WinnerManagementController::class, 'setVisibility']);
 
         Route::get('/audit-logs', [AuditLogController::class, 'index']);
+
+        Route::get('/support/tickets', [SupportTicketManagementController::class, 'index']);
+        Route::get('/support/tickets/{ticket}', [SupportTicketManagementController::class, 'show']);
+        Route::post('/support/tickets/{ticket}/reply', [SupportTicketManagementController::class, 'reply']);
+        Route::patch('/support/tickets/{ticket}/status', [SupportTicketManagementController::class, 'setStatus']);
     });
 });
