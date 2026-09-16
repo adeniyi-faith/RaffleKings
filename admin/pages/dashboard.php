@@ -4,7 +4,7 @@
         <h1 class="mt-1 text-2xl font-bold tracking-tight text-navy-900 md:text-3xl">Dashboard</h1>
         <p class="mt-2 text-sm text-gray-500">System activity, performance metrics, and financial snapshots.</p>
     </div>
-    <div class="flex flex-wrap gap-3">
+    <div class="flex flex-col gap-3 sm:flex-row sm:flex-wrap">
         <button class="rounded-xl border border-gray-200 bg-white px-5 py-2.5 text-sm font-bold text-gray-700 transition hover:bg-gray-50 shadow-sm">Export Report</button>
         <button class="rounded-xl bg-navy-900 px-5 py-2.5 text-sm font-bold text-white shadow-sm shadow-navy-900/20 transition hover:bg-navy-800">New Campaign</button>
     </div>
@@ -60,12 +60,14 @@
                 <button class="px-3 py-1.5 hover:text-gray-700">Year</button>
             </div>
         </div>
-        <div class="mt-6 flex h-72 items-end gap-3 rounded-2xl bg-gray-50/50 p-5 border border-gray-100/50">
-            <?php foreach ([36, 58, 42, 76, 64, 88, 72, 95, 68, 84, 74, 92] as $height): ?>
-                <div class="flex flex-1 items-end rounded-t-sm bg-gray-100 h-full relative group">
-                    <div class="w-full rounded-t-sm bg-navy-900 transition-all group-hover:bg-navy-800" style="height: <?php echo esc_attr($height); ?>%"></div>
-                </div>
-            <?php endforeach; ?>
+        <div class="mt-6 overflow-x-auto rounded-2xl border border-gray-100/50 bg-gray-50/50 p-5">
+            <div class="flex h-64 min-w-[480px] items-end gap-3 sm:min-w-0">
+                <?php foreach ([36, 58, 42, 76, 64, 88, 72, 95, 68, 84, 74, 92] as $height): ?>
+                    <div class="flex flex-1 items-end rounded-t-sm bg-gray-100 h-full relative group">
+                        <div class="w-full rounded-t-sm bg-navy-900 transition-all group-hover:bg-navy-800" style="height: <?php echo esc_attr($height); ?>%"></div>
+                    </div>
+                <?php endforeach; ?>
+            </div>
         </div>
     </section>
 
