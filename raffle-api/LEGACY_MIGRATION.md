@@ -130,6 +130,20 @@ where the migration actually is.
   is still Phase 1 item 19, this is just enough to gate money/fairness-
   critical actions honestly until then.
 
+- `app/Services/ReferralCommissionService.php` + the `referral_commissions`
+  table — pays a referrer's commission on a referee's first deposit,
+  same rule as the legacy site (`rk_process_referral_commission()` in
+  `api-financials.php`) but with the rate in `config/referrals.php`
+  instead of hardcoded, and paid/pending status answered by one real row
+  per referee instead of a usermeta flag read under a different key than
+  it's written (audit TD-33 — structurally impossible to reintroduce now,
+  not just patched). `GET /api/referrals/stats` (authenticated) exposes
+  the corrected pending/paid breakdown. **Not yet wired to a live
+  trigger** — there's no deposit code path in Laravel yet (item 13);
+  `referrerOf()` still reads the legacy `referred_by` usermeta, since
+  referral links themselves are still created by the legacy registration
+  flow.
+
 ## What is NOT done yet (do not assume otherwise)
 
 - The old PHP code (`api-financials.php`, etc.) still reads and writes
