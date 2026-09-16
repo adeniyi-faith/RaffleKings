@@ -73,6 +73,77 @@ where the migration actually is.
   the controller's docblock before pointing anything at it; it settles
   against the NEW `wallets` table, same caveat as always.
 
+- `app/Models/Raffle.php`, `app/Models/RafflePrizeTier.php` + the
+  `raffles`/`raffle_prize_tiers` tables — a real, native replacement for
+  raffles-as-WordPress-posts. `php artisan legacy:import-raffles
+  [--dry-run]` pulls raffles across from `wp_posts`/`wp_postmeta`,
+  **including the "prize_structure" ACF repeater field the legacy draw
+  depends on** (`rk_run_raffle_draw()` in `api-gamification.php`) — that
+  field isn't registered anywhere in this codebase (database.php
+  disables ACF for the raffle CPT on purpose), so it only exists because
+  someone configured it directly in the ACF plugin UI. The import command
+  reconstructs it from postmeta directly, without needing ACF loaded.
+  Read-only against WordPress, safe to re-run. **Not yet the live read or
+  draw path** — `RaffleReadService`/`GET /api/raffles` still reads the
+  legacy CPT directly, and the draw engine doesn't exist in Laravel yet
+  (item 12).
+
+- `app/Models/WalletLedgerEntry.php` + the `wallet_ledger_entries` table,
+  `app/Services/WalletLedgerService.php` — a real, append-only ledger.
+  `TicketPurchaseService` now records a ledger entry for every debit in
+  the same database transaction as the balance mutation (including
+  rolling the ledger entry back on the TD-06 collision path). Run
+  `php artisan legacy:reconcile-wallet-ledger [--dry-run]` once after
+  `legacy:backfill-wallets` so every wallet has an honest opening-balance
+  entry — it does not invent a transaction history that doesn't exist,
+  it just marks "this was the balance when the ledger started."
+
+- `app/Services/BankAccountService.php` + `BankAccountController` — bank
+  account add/list/set-primary/delete on the real `bank_accounts` table,
+  at `/api/bank-accounts`. Keeps the legacy site's own rules (max 2
+  accounts, 10-digit Nigerian account numbers, auto-promoting a
+  replacement primary on delete) so nothing changes for users at cutover.
+- **Fixed a real bug in the auth bridge** (item 8): `WordPressSessionGuard`
+  was caching the first request's resolved user for the lifetime of the
+  guard instance, which Laravel's AuthManager can reuse across more than
+  one HTTP request — harmless under classic PHP-FPM (one process per
+  request), but a genuine risk under a long-running worker like Octane,
+  and an actual bug surfaced by the bank-account tests (deleting another
+  user's account "worked" because the guard still thought it was the
+  first user). Now re-checks which request it last resolved for on every
+  call — see the regression test in `WordPressSessionGuardTest`.
+
+- `app/Services/ProvablyFairDrawService.php` + the `raffle_draws` table —
+  a real provably-fair draw: a random server seed is committed (only its
+  hash shown) before the draw runs, a client seed is derived from the
+  actual eligible pool itself so neither side can steer the outcome, and
+  everything is recomputable afterward at `GET /api/raffles/{id}/draw`
+  (public). This replaces the legacy draw's cosmetic "verification hash"
+  (a hash of public fields with a hardcoded salt — audit TD-09) with
+  something an outsider can actually check. Winners are written to the
+  SAME `wp_raffle_winners` table the legacy draw uses, so nothing else
+  (Hall of Fame, the admin winner manager) needs to change or care which
+  engine ran the draw. Commit/run are admin-gated via a new, minimal
+  `App\Models\Legacy\WpUser::isAdministrator()` helper (reads the same
+  WordPress `administrator` capability every legacy admin check already
+  uses) and an `admin` middleware alias — a real role/permission system
+  is still Phase 1 item 19, this is just enough to gate money/fairness-
+  critical actions honestly until then.
+
+- `app/Services/ReferralCommissionService.php` + the `referral_commissions`
+  table — pays a referrer's commission on a referee's first deposit,
+  same rule as the legacy site (`rk_process_referral_commission()` in
+  `api-financials.php`) but with the rate in `config/referrals.php`
+  instead of hardcoded, and paid/pending status answered by one real row
+  per referee instead of a usermeta flag read under a different key than
+  it's written (audit TD-33 — structurally impossible to reintroduce now,
+  not just patched). `GET /api/referrals/stats` (authenticated) exposes
+  the corrected pending/paid breakdown. **Not yet wired to a live
+  trigger** — there's no deposit code path in Laravel yet (item 13);
+  `referrerOf()` still reads the legacy `referred_by` usermeta, since
+  referral links themselves are still created by the legacy registration
+  flow.
+
 ## What is NOT done yet (do not assume otherwise)
 
 - The old PHP code (`api-financials.php`, etc.) still reads and writes

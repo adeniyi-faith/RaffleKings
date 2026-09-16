@@ -8,7 +8,9 @@ use App\Models\Legacy\RaffleEntry;
 use App\Models\Legacy\RaffleTransaction;
 use App\Models\Legacy\WpUser;
 use App\Models\Wallet;
+use App\Models\WalletLedgerEntry;
 use App\Services\TicketPurchaseService;
+use App\Services\WalletLedgerService;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use InvalidArgumentException;
 use Tests\TestCase;
@@ -62,6 +64,15 @@ class TicketPurchaseServiceTest extends TestCase
         $this->assertSame('verified_final', $transaction->status);
         $this->assertSame(3, RaffleEntry::where('txn_id', $transaction->id)->count());
         $this->assertEquals(730, Wallet::where('user_id', $user->ID)->value('wallet_balance'));
+
+        // The debit is also permanently recorded in the ledger, tied
+        // back to this exact transaction — see WalletLedgerService.
+        $entry = WalletLedgerEntry::where('user_id', $user->ID)->first();
+        $this->assertSame('debit', $entry->direction);
+        $this->assertEquals(270, $entry->amount);
+        $this->assertSame('raffle_transaction', $entry->reference_type);
+        $this->assertSame($transaction->id, $entry->reference_id);
+        $this->assertEquals(-270, app(WalletLedgerService::class)->reconstructBalance($user->ID, 'wallet'));
     }
 
     public function test_it_rejects_a_submitted_amount_that_does_not_match_the_server_calculated_price(): void
@@ -147,6 +158,10 @@ class TicketPurchaseServiceTest extends TestCase
         } catch (TicketUnavailableException $e) {
             $this->assertSame([42], $e->unavailableNumbers);
         }
+
+        // The rollback covers the ledger entry too, not just the wallet
+        // row and the transaction record.
+        $this->assertSame(0, WalletLedgerEntry::where('user_id', $secondUser->ID)->count());
 
         // The critical assertion: the second user was NOT charged.
         $this->assertEquals(1000, Wallet::where('user_id', $secondUser->ID)->value('wallet_balance'));
