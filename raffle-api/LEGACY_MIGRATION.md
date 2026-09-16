@@ -212,6 +212,94 @@ where the migration actually is.
   endpoints. User management, raffle/prize management, referral/rewards
   views, and financial reconciliation aren't built yet.
 
+- `app/Services/DepositService.php` + the `deposits` table — real
+  deposits via Paystack (default) and Flutterwave (automatic backup),
+  replacing the "top up your wallet" gap that previously had no gateway
+  at all (only the Gemini AI screenshot manual-review path, which is
+  untouched and still there for anything neither gateway can handle).
+  `App\Services\Payments\PaystackGateway`/`FlutterwaveGateway` implement
+  a shared `App\Contracts\PaymentGateway` interface — `POST /api/deposits`
+  (authenticated) tries Paystack first and only falls back to Flutterwave
+  if Paystack's own initialization call throws (e.g. an outage), so a
+  user never sees "deposits are down" just because one provider is.
+  Once a deposit is created against a gateway, only that gateway is ever
+  consulted again for it. `POST /api/webhooks/paystack` and
+  `.../flutterwave` receive gateway callbacks — the webhook signature
+  only proves the event came from the gateway, it is never trusted for
+  the actual credit; `DepositService::confirm()` always re-verifies the
+  transaction directly against that same gateway's own API before
+  touching the `wallets` table, inside a row-locked transaction with a
+  `WalletLedgerService::recordCredit()` entry, same pattern as every
+  other balance mutation in this app. This is idempotent — a retried or
+  duplicate webhook for an already-settled deposit is a no-op, and a
+  confirmed payment for the wrong amount is flagged `amount_mismatch`
+  rather than credited on a guess. This is also the first live trigger
+  `ReferralCommissionService::payCommissionForFirstDeposit()` has ever
+  had — first-deposit referral commissions now actually fire.
+
+- **Filament is now installed** (`config/payments.php`'s item 13 work
+  above prompted a retry). The earlier install failure wasn't a real
+  dependency problem — a previous interrupted `composer require` left
+  `vendor/nesbot/carbon` in a state (uncommitted changes in what Composer
+  expected to be a clean git checkout) that broke Composer's git-source
+  fallback on every later attempt. Since `composer.lock` had actually
+  already resolved successfully in that failed run, the fix was
+  `rm -rf vendor && composer install` from the existing lock file — no
+  network resolution needed, just a clean download. `php artisan
+  filament:install --panels` then scaffolded
+  `App\Providers\Filament\AdminPanelProvider`.
+
+- **The Filament admin panel now has real pages, finishing item 19.**
+  `App\Models\Legacy\WpUser` implements Filament's `FilamentUser` and
+  `HasName` contracts — `canAccessPanel()` is the SAME `isAdministrator()`
+  check every `/api/admin/*` route already uses, and there is no separate
+  Filament login: the panel's auth guard is set to `wordpress`, so
+  visiting `/admin` while already logged into the legacy WordPress site
+  as an administrator is what grants access. Getting this working
+  surfaced a real bug: the WordPress "logged in" cookie is never
+  Laravel-encrypted (WordPress itself sets it), but any route running
+  through Laravel's default 'web' middleware group — which only started
+  mattering once a real page existed here — runs `EncryptCookies`, which
+  would try to decrypt it, fail, and silently strip it. Fixed by
+  excepting that cookie name globally in `bootstrap/app.php`. Filament's
+  `AuthenticateSession` middleware was also removed from the panel's
+  stack — it calls a `StatefulGuard` method (`viaRemember()`) our
+  cookie-only `WordPressSessionGuard` deliberately doesn't implement,
+  since there's no Laravel session login/logout to protect against
+  fixation on.
+
+  Three resources/pages:
+  - `App\Filament\Resources\Legacy\WpUserResource` — search/filter every
+    user, see their wallet + earnings balance and admin/banned status at
+    a glance, and ban/unban via a new `App\Services\UserManagementService`
+    (writes the same `rk_is_banned` usermeta key the legacy site already
+    reads, so a ban means the same thing on both systems during the
+    migration window; every change is audit-logged). No create/edit
+    forms — accounts and passwords are still owned by WordPress.
+  - `App\Filament\Resources\RaffleResource` (+ a `PrizeTiersRelationManager`)
+    — full CRUD on the native `raffles`/`raffle_prize_tiers` tables from
+    item 10, replacing the WordPress CPT + ACF repeater editing flow.
+  - `App\Filament\Pages\FinancialReconciliation` — the financial
+    reconciliation piece of item 19: lists every wallet next to what
+    `WalletLedgerService::reconstructBalance()` says that wallet's
+    balance should be from its own ledger entries alone, and flags any
+    row where they've drifted apart. Since every money-moving service in
+    this app (`TicketPurchaseService`, `WithdrawalService`,
+    `DepositService`, `ReferralCommissionService`, `PointRedemptionService`)
+    is required to write a ledger entry in the same transaction as any
+    balance mutation, a drift here means something touched a wallet
+    outside one of those single settlement paths — this page is the
+    thing that would actually catch that.
+
+  Testing note: Livewire's test harness (`Livewire::test(...)->callTableAction(...)`)
+  dispatches component actions through an internal request broker that
+  does not carry the outer test's cookies, so it can't exercise
+  `WordPressSessionGuard`'s per-request cookie resolution the way a real
+  browser action call does. The ban/unban action's actual behavior is
+  tested directly against `UserManagementService`
+  (`tests/Unit/UserManagementServiceTest.php`); the Filament test only
+  checks the action is offered/hidden for the right ban state.
+
 - `app/Services/SupportTicketService.php` + the `support_tickets`/
   `support_ticket_messages` tables — a real support ticket system,
   replacing the legacy site's `support.php`, whose "Submit Ticket"

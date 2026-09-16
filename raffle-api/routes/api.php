@@ -6,7 +6,9 @@ use App\Http\Controllers\Api\Admin\WinnerManagementController;
 use App\Http\Controllers\Api\Admin\WithdrawalManagementController;
 use App\Http\Controllers\Api\AuthBridgeController;
 use App\Http\Controllers\Api\BankAccountController;
+use App\Http\Controllers\Api\DepositController;
 use App\Http\Controllers\Api\DrawController;
+use App\Http\Controllers\Api\PaymentWebhookController;
 use App\Http\Controllers\Api\RaffleController;
 use App\Http\Controllers\Api\ReferralController;
 use App\Http\Controllers\Api\RewardsController;
@@ -28,6 +30,13 @@ Route::get('/raffles/{raffle}/draw', [DrawController::class, 'show']);
 // Public — the Spin & Win odds are meant to be shown to players.
 Route::get('/rewards/spin/odds', [RewardsController::class, 'spinOdds']);
 
+// Public — signed by the gateway itself (see PaymentWebhookController), not
+// by a logged-in session. Neither the signature nor the payload's own
+// claimed status is trusted to credit money; DepositService::confirm()
+// re-verifies directly with the gateway before settling anything.
+Route::post('/webhooks/paystack', [PaymentWebhookController::class, 'paystack']);
+Route::post('/webhooks/flutterwave', [PaymentWebhookController::class, 'flutterwave']);
+
 Route::middleware('auth:wordpress')->group(function () {
     Route::get('/me', [AuthBridgeController::class, 'me']);
 
@@ -43,6 +52,11 @@ Route::middleware('auth:wordpress')->group(function () {
     Route::post('/rewards/tasks/{task}/claim', [RewardsController::class, 'claimTask']);
     Route::post('/rewards/spin', [RewardsController::class, 'spin']);
     Route::post('/rewards/redeem', [RewardsController::class, 'redeem']);
+
+    // Settles against the same NEW `wallets` table as everything else in
+    // this app — see DepositService's docblock and LEGACY_MIGRATION.md.
+    Route::post('/deposits', [DepositController::class, 'store']);
+    Route::get('/deposits/{deposit}', [DepositController::class, 'show']);
 
     Route::get('/bank-accounts', [BankAccountController::class, 'index']);
     Route::post('/bank-accounts', [BankAccountController::class, 'store']);

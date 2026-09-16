@@ -15,6 +15,17 @@ return Application::configure(basePath: dirname(__DIR__))
     )
     ->withMiddleware(function (Middleware $middleware): void {
         $middleware->alias(['admin' => EnsureUserIsAdministrator::class]);
+
+        // The same "logged in" cookie WordPress itself sets (see
+        // App\Auth\WordPressSessionGuard) is never Laravel-encrypted.
+        // Left unexcepted here, any route running through the 'web'
+        // middleware group (Filament's admin panel, Livewire's own
+        // update endpoint) would try to decrypt it, fail, and silently
+        // strip it — locking every admin out. API routes never hit this
+        // middleware at all, which is why this was never needed there.
+        $middleware->encryptCookies(except: [
+            'wordpress_logged_in_'.env('WP_COOKIEHASH', ''),
+        ]);
     })
     ->withExceptions(function (Exceptions $exceptions): void {
         $exceptions->shouldRenderJsonWhen(
