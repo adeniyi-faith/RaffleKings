@@ -42,6 +42,15 @@ return [
             'driver' => 'session',
             'provider' => 'users',
         ],
+
+        // Verifies the SAME "logged in" cookie WordPress already set on
+        // login, so a user doesn't have to log in twice while both
+        // systems run side by side. See App\Auth\WordPressSessionGuard
+        // and App\Providers\WordPressAuthServiceProvider. No `provider`
+        // key — this guard resolves the WpUser itself.
+        'wordpress' => [
+            'driver' => 'wordpress_session',
+        ],
     ],
 
     /*
