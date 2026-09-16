@@ -113,6 +113,23 @@ where the migration actually is.
   first user). Now re-checks which request it last resolved for on every
   call — see the regression test in `WordPressSessionGuardTest`.
 
+- `app/Services/ProvablyFairDrawService.php` + the `raffle_draws` table —
+  a real provably-fair draw: a random server seed is committed (only its
+  hash shown) before the draw runs, a client seed is derived from the
+  actual eligible pool itself so neither side can steer the outcome, and
+  everything is recomputable afterward at `GET /api/raffles/{id}/draw`
+  (public). This replaces the legacy draw's cosmetic "verification hash"
+  (a hash of public fields with a hardcoded salt — audit TD-09) with
+  something an outsider can actually check. Winners are written to the
+  SAME `wp_raffle_winners` table the legacy draw uses, so nothing else
+  (Hall of Fame, the admin winner manager) needs to change or care which
+  engine ran the draw. Commit/run are admin-gated via a new, minimal
+  `App\Models\Legacy\WpUser::isAdministrator()` helper (reads the same
+  WordPress `administrator` capability every legacy admin check already
+  uses) and an `admin` middleware alias — a real role/permission system
+  is still Phase 1 item 19, this is just enough to gate money/fairness-
+  critical actions honestly until then.
+
 ## What is NOT done yet (do not assume otherwise)
 
 - The old PHP code (`api-financials.php`, etc.) still reads and writes
