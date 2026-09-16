@@ -11,6 +11,7 @@ import {
     Zap,
 } from 'lucide-react';
 import { formatNaira } from '../../lib/format';
+import { usePushPermission } from '../../hooks/usePushPermission';
 
 // Rebuild of rewards.php (item 28). What's preserved from the legacy
 // page: the blue hero with a points badge and a 7-day streak row, the
@@ -39,6 +40,7 @@ export default function RewardsIndex({ referralCode }) {
     const [busy, setBusy] = useState(null); // id of whatever action is in flight
     const [modal, setModal] = useState(null); // { title, message }
     const [copied, setCopied] = useState(false);
+    const { requestPermission } = usePushPermission();
 
     const referralLink = `${window.location.origin}/register?ref=${encodeURIComponent(referralCode)}`;
 
@@ -88,6 +90,24 @@ export default function RewardsIndex({ referralCode }) {
     async function claimTask(taskId) {
         setBusy(taskId);
         try {
+            // Item 31: the "Enable Notifications" reward is honestly tied
+            // to actually granting permission — a real browser prompt
+            // via OneSignal, not a reward for clicking a button. This
+            // never gates anything else (the daily streak claim above
+            // calls its own endpoint with no dependency on this at all),
+            // unlike the legacy daily-claim flow's push-permission trap.
+            if (taskId === 'push_notification') {
+                const granted = await requestPermission();
+
+                if (! granted) {
+                    setModal({
+                        title: 'Notifications not enabled',
+                        message: 'Please allow notifications in your browser to claim this reward.',
+                    });
+                    return;
+                }
+            }
+
             const result = await post(`/api/rewards/tasks/${taskId}/claim`);
             setModal({ title: 'Task Complete!', message: `You earned ${result.points_added} points.` });
             loadState();
