@@ -206,4 +206,23 @@ class RaffleControllerTest extends TestCase
 
         $response->assertOk()->assertJson(['prize_type' => 'other']);
     }
+
+    public function test_it_returns_the_taken_ticket_numbers_for_the_number_picker(): void
+    {
+        $raffle = $this->makeRaffle(['max' => '10']);
+        $buyer = WpUser::create(['user_login' => 'buyer3', 'user_pass' => 'x', 'user_email' => 'b3@example.com']);
+        RaffleEntry::create(['user_id' => $buyer->ID, 'raffle_id' => $raffle->ID, 'ticket_number' => 3, 'txn_id' => 1]);
+        RaffleEntry::create(['user_id' => $buyer->ID, 'raffle_id' => $raffle->ID, 'ticket_number' => 7, 'txn_id' => 1]);
+
+        $response = $this->getJson("/api/raffles/{$raffle->ID}/tickets");
+
+        $response->assertOk();
+        $this->assertEqualsCanonicalizing([3, 7], $response->json('taken_numbers'));
+        $this->assertSame(10, $response->json('max_tickets'));
+    }
+
+    public function test_ticket_availability_for_an_unknown_raffle_returns_404(): void
+    {
+        $this->getJson('/api/raffles/999999/tickets')->assertNotFound();
+    }
 }

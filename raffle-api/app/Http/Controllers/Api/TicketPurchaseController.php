@@ -12,16 +12,19 @@ use Illuminate\Http\JsonResponse;
 use InvalidArgumentException;
 
 /**
- * Exposes App\Services\TicketPurchaseService over HTTP.
+ * Exposes App\Services\TicketPurchaseService over HTTP — the new
+ * checkout flow's settlement call (item 25).
  *
- * IMPORTANT — same warning as the service itself: this settles a payment
- * against the NEW `wallets` table, not the wp_usermeta wallet_balance/
- * earnings_balance columns the LIVE checkout.php still reads and writes.
- * This route existing does not mean the legacy frontend should be pointed
- * at it yet. It exists so the settlement path is reachable over real HTTP
- * for testing and for the shadow-traffic comparison described in
- * OVERHAUL_CHECKLIST.md Phase 3, item 32 — the actual cutover (item 33)
- * is a separate, deliberate step.
+ * IMPORTANT: this settles against the NEW `wallets` table, not the
+ * wp_usermeta wallet_balance/earnings_balance columns the LEGACY
+ * checkout.php still reads and writes — the same table registration
+ * (item 23) and deposits (item 13) already exclusively use. A user who
+ * registers, deposits, and buys tickets entirely through the new
+ * frontend has one consistent balance across all three; that balance
+ * isn't visible to the still-live legacy PHP pages. See
+ * RegistrationService's docblock for the full reasoning. Phase 3's
+ * planned cutover (items 32-33) is what unifies this for every account,
+ * including ones created before the new frontend existed.
  */
 class TicketPurchaseController extends Controller
 {

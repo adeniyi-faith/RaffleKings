@@ -18,12 +18,16 @@ use App\Http\Controllers\Api\RewardsController;
 use App\Http\Controllers\Api\SupportTicketController;
 use App\Http\Controllers\Api\TicketPriceQuoteController;
 use App\Http\Controllers\Api\TicketPurchaseController;
+use App\Http\Controllers\Api\WalletController;
 use App\Http\Controllers\Api\WithdrawalController;
 use Illuminate\Support\Facades\Route;
 
 // Public — no auth, matches the legacy get_raffles/get_raffle actions.
 Route::get('/raffles', [RaffleController::class, 'index']);
 Route::get('/raffles/{raffle}', [RaffleController::class, 'show']);
+
+// Public — the taken ticket numbers for the number-selection grid (item 25).
+Route::get('/raffles/{raffle}/tickets', [RaffleController::class, 'tickets']);
 
 // Public — a server-computed price quote, so the frontend never has to
 // duplicate TicketPricingService's formula by hand (audit TD-20).
@@ -58,10 +62,13 @@ Route::post('/auth/reset-password', [PasswordResetController::class, 'reset'])->
 Route::middleware('auth:wordpress')->group(function () {
     Route::get('/me', [AuthBridgeController::class, 'me']);
 
-    // See TicketPurchaseController's docblock before pointing any real
-    // frontend at this — it settles against the NEW wallets table, not
-    // the legacy usermeta balances, until a deliberate cutover happens.
+    // The new checkout flow's settlement call (item 25) — see
+    // TicketPurchaseController's docblock for the wallets-table caveat.
     Route::post('/tickets/purchase', [TicketPurchaseController::class, 'store']);
+
+    // The authenticated user's balance on that same NEW wallets table —
+    // what the checkout payment-method cards show (item 25).
+    Route::get('/wallet', [WalletController::class, 'show']);
 
     Route::get('/referrals/stats', [ReferralController::class, 'stats']);
 
