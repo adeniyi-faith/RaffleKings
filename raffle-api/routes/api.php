@@ -7,6 +7,7 @@ use App\Http\Controllers\Api\RaffleController;
 use App\Http\Controllers\Api\ReferralController;
 use App\Http\Controllers\Api\RewardsController;
 use App\Http\Controllers\Api\TicketPurchaseController;
+use App\Http\Controllers\Api\WithdrawalController;
 use Illuminate\Support\Facades\Route;
 
 // Public — no auth, matches the legacy get_raffles/get_raffle actions.
@@ -42,6 +43,11 @@ Route::middleware('auth:wordpress')->group(function () {
     Route::post('/bank-accounts', [BankAccountController::class, 'store']);
     Route::patch('/bank-accounts/{bankAccount}/primary', [BankAccountController::class, 'setPrimary']);
     Route::delete('/bank-accounts/{bankAccount}', [BankAccountController::class, 'destroy']);
+
+    Route::get('/withdrawals/requirements', [WithdrawalController::class, 'requirements']);
+    // Same 3-per-5-minutes rate limit as the legacy rk_check_rate_limit('withdraw', 3, 300),
+    // via Laravel's own throttle middleware instead of a bespoke transient-based limiter.
+    Route::post('/withdrawals', [WithdrawalController::class, 'store'])->middleware('throttle:3,5');
 
     Route::middleware('admin')->group(function () {
         Route::post('/raffles/{raffle}/draw/commit', [DrawController::class, 'commit']);
