@@ -5,6 +5,7 @@ use App\Http\Controllers\Api\BankAccountController;
 use App\Http\Controllers\Api\DrawController;
 use App\Http\Controllers\Api\RaffleController;
 use App\Http\Controllers\Api\ReferralController;
+use App\Http\Controllers\Api\RewardsController;
 use App\Http\Controllers\Api\TicketPurchaseController;
 use Illuminate\Support\Facades\Route;
 
@@ -18,6 +19,9 @@ Route::get('/raffles/{raffle}', [RaffleController::class, 'show']);
 // legacy post id RaffleController above reads.
 Route::get('/raffles/{raffle}/draw', [DrawController::class, 'show']);
 
+// Public — the Spin & Win odds are meant to be shown to players.
+Route::get('/rewards/spin/odds', [RewardsController::class, 'spinOdds']);
+
 Route::middleware('auth:wordpress')->group(function () {
     Route::get('/me', [AuthBridgeController::class, 'me']);
 
@@ -27,6 +31,12 @@ Route::middleware('auth:wordpress')->group(function () {
     Route::post('/tickets/purchase', [TicketPurchaseController::class, 'store']);
 
     Route::get('/referrals/stats', [ReferralController::class, 'stats']);
+
+    Route::get('/rewards/state', [RewardsController::class, 'state']);
+    Route::post('/rewards/daily-claim', [RewardsController::class, 'claimDaily']);
+    Route::post('/rewards/tasks/{task}/claim', [RewardsController::class, 'claimTask']);
+    Route::post('/rewards/spin', [RewardsController::class, 'spin']);
+    Route::post('/rewards/redeem', [RewardsController::class, 'redeem']);
 
     Route::get('/bank-accounts', [BankAccountController::class, 'index']);
     Route::post('/bank-accounts', [BankAccountController::class, 'store']);
