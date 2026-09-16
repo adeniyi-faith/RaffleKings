@@ -57,6 +57,22 @@ where the migration actually is.
   This guard is meant to be replaced by Sanctum-issued tokens once
   WordPress is no longer the source of truth for auth — not before.
 
+- `app/Models/Legacy/WpPost.php`, `WpPostMeta.php`, `app/Services/RaffleReadService.php`
+  — read-only raffle listing/detail, exposed at `GET /api/raffles` and
+  `GET /api/raffles/{id}` (public, no auth). Raffles are still WordPress
+  posts of type `raffle` with price/max/prize/expiry as postmeta (see
+  `wp/wp-content/mu-plugins/rk-core/database.php`'s raffle metabox for the
+  canonical key list) — this only reads that, it doesn't replace it yet
+  (that's item 10). One deliberate behaviour change: `sold_tickets` /
+  `remaining_tickets` / `is_closed` are always derived from real
+  `wp_raffle_entries` rows, never trusted from the manually-set `sold`/
+  `is_sold_out` postmeta alone (fixes TD-13).
+- `POST /api/tickets/purchase` (`app/Http/Controllers/Api/TicketPurchaseController.php`)
+  — `TicketPurchaseService` is now reachable over real HTTP, behind
+  `auth:wordpress`. **Still not connected to the live frontend** — read
+  the controller's docblock before pointing anything at it; it settles
+  against the NEW `wallets` table, same caveat as always.
+
 ## What is NOT done yet (do not assume otherwise)
 
 - The old PHP code (`api-financials.php`, etc.) still reads and writes
@@ -66,12 +82,10 @@ where the migration actually is.
   `BankAccount` for real money until the old code's write paths are
   migrated to use the same tables (module by module, per the audit's
   roadmap §27/§28) — otherwise you'll have two different balances.
-- `TicketPurchaseService` still has no controller/route wired to it — the
-  auth bridge above unblocks this; it's next (`OVERHAUL_CHECKLIST.md`
-  Phase 1, item 9).
-- No raffle/prize-structure model exists in Laravel yet — the draw engine
-  still depends entirely on the WordPress custom-post-type + ACF field
-  described in the audit (§4.4).
+- No raffle/prize-structure model exists in Laravel yet — raffles are
+  still read-only here, and the draw engine still depends entirely on the
+  WordPress custom-post-type + ACF field described in the audit (§4.4).
+  Next real step per `OVERHAUL_CHECKLIST.md` is Phase 1 item 10.
 
 ## Running tests
 
