@@ -41,7 +41,9 @@ $nav_groups = [
 <aside id="sidebar" class="sidebar-transition fixed left-0 top-0 z-30 flex h-full w-72 -translate-x-full flex-col overflow-y-auto border-r border-navy-800 bg-navy-900 md:translate-x-0">
     <div class="p-6">
         <div class="flex items-center gap-3">
-            <div class="flex h-10 w-10 items-center justify-center rounded-xl bg-gold-500 text-base font-black text-navy-900 shadow-sm">RK</div>
+            <div class="flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-xl bg-white shadow-sm overflow-hidden">
+                <img src="assets/logo.png" alt="RaffleKings" class="h-8 w-8 object-contain">
+            </div>
             <div>
                 <h2 class="text-lg font-bold tracking-wider text-white">RaffleKings</h2>
                 <p class="text-[10px] uppercase tracking-widest text-gray-400">Admin Platform</p>
