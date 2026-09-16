@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
+use App\Models\Legacy\RaffleEntry;
 use App\Services\RaffleReadService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -37,5 +38,26 @@ class RaffleController extends Controller
         }
 
         return response()->json($found);
+    }
+
+    /**
+     * The taken ticket numbers for the number-selection grid (item 25) —
+     * public, since knowing which numbers are gone doesn't require being
+     * logged in, the same way seeing the raffle itself doesn't.
+     */
+    public function tickets(int $raffle): JsonResponse
+    {
+        $found = $this->raffles->find($raffle);
+
+        if (! $found) {
+            return response()->json(['message' => 'Raffle not found.'], 404);
+        }
+
+        $taken = RaffleEntry::where('raffle_id', $raffle)->pluck('ticket_number')->map(fn ($n) => (int) $n)->values();
+
+        return response()->json([
+            'max_tickets' => $found['max_tickets'],
+            'taken_numbers' => $taken,
+        ]);
     }
 }

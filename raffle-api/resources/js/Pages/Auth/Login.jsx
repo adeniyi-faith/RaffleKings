@@ -4,8 +4,9 @@ import Button from '../../Components/ui/Button';
 import { Card } from '../../Components/ui/Card';
 import { TextInput, PasswordInput } from '../../Components/ui/TextInput';
 import { apiPost } from '../../lib/api';
+import { safeRedirect } from '../../lib/safeRedirect';
 
-export default function Login() {
+export default function Login({ redirect }) {
     const [form, setForm] = useState({ username: '', password: '' });
     const [error, setError] = useState(null);
     const [submitting, setSubmitting] = useState(false);
@@ -19,7 +20,7 @@ export default function Login() {
 
         try {
             await apiPost('/api/auth/login', form);
-            router.visit('/');
+            router.visit(safeRedirect(redirect));
         } catch (err) {
             setError(err.message);
         } finally {
@@ -63,7 +64,10 @@ export default function Login() {
                         <a href="/forgot-password" className="text-gray-500 dark:text-gray-400">
                             Forgot password?
                         </a>
-                        <a href="/register" className="font-semibold text-app-primary">
+                        <a
+                            href={redirect ? `/register?redirect=${encodeURIComponent(redirect)}` : '/register'}
+                            className="font-semibold text-app-primary"
+                        >
                             Create account
                         </a>
                     </div>

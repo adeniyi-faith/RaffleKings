@@ -5,8 +5,9 @@ import { Card } from '../../Components/ui/Card';
 import { TextInput, PasswordInput } from '../../Components/ui/TextInput';
 import Turnstile from '../../Components/Turnstile';
 import { apiPost } from '../../lib/api';
+import { safeRedirect } from '../../lib/safeRedirect';
 
-export default function Register({ turnstileSiteKey, referralCode }) {
+export default function Register({ turnstileSiteKey, referralCode, redirect }) {
     const [form, setForm] = useState({ username: '', email: '', password: '' });
     const [turnstileToken, setTurnstileToken] = useState('');
     const [error, setError] = useState(null);
@@ -25,7 +26,7 @@ export default function Register({ turnstileSiteKey, referralCode }) {
                 referral_code: referralCode || null,
                 turnstile_token: turnstileToken || null,
             });
-            router.visit('/');
+            router.visit(safeRedirect(redirect));
         } catch (err) {
             setError(err.message);
         } finally {
