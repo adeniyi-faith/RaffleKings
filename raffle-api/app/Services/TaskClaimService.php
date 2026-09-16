@@ -29,6 +29,37 @@ class TaskClaimService
     public function __construct(private readonly PointsService $points) {}
 
     /**
+     * The task list with each one's reward and whether this user has
+     * already claimed it — what the Rewards hub (item 28) renders as
+     * "Quick Tasks", instead of the page guessing reward amounts or
+     * completion state on its own.
+     *
+     * @return list<array{task_id: string, points: int, completed: bool, repeatable: bool}>
+     */
+    public function catalog(WpUser $user): array
+    {
+        $doneIds = CompletedTask::query()->where('user_id', $user->ID)
+            ->whereNotIn('task_id', self::REPEATABLE_DAILY_TASKS)
+            ->pluck('task_id');
+
+        $doneToday = CompletedTask::query()->where('user_id', $user->ID)
+            ->whereIn('task_id', self::REPEATABLE_DAILY_TASKS)
+            ->whereDate('completed_at', now())
+            ->pluck('task_id');
+
+        return collect(self::REWARDS)->map(function ($points, $taskId) use ($doneIds, $doneToday) {
+            $repeatable = in_array($taskId, self::REPEATABLE_DAILY_TASKS, true);
+
+            return [
+                'task_id' => $taskId,
+                'points' => $points,
+                'completed' => $repeatable ? $doneToday->contains($taskId) : $doneIds->contains($taskId),
+                'repeatable' => $repeatable,
+            ];
+        })->values()->all();
+    }
+
+    /**
      * @return array{task_id: string, points_added: int, new_total_points: int}
      *
      * @throws UnknownTaskException
