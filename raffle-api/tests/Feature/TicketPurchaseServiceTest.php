@@ -2,10 +2,13 @@
 
 namespace Tests\Feature;
 
+use App\Events\RaffleTicketsUpdated;
 use App\Exceptions\InsufficientBalanceException;
 use App\Exceptions\TicketUnavailableException;
 use App\Models\Legacy\RaffleEntry;
 use App\Models\Legacy\RaffleTransaction;
+use App\Models\Legacy\WpPost;
+use App\Models\Legacy\WpPostMeta;
 use App\Models\Legacy\WpUser;
 use App\Models\Wallet;
 use App\Models\WalletLedgerEntry;
@@ -13,6 +16,7 @@ use App\Notifications\TicketPurchaseReceipt;
 use App\Services\TicketPurchaseService;
 use App\Services\WalletLedgerService;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Facades\Event;
 use Illuminate\Support\Facades\Notification;
 use InvalidArgumentException;
 use Tests\TestCase;
@@ -258,6 +262,52 @@ class TicketPurchaseServiceTest extends TestCase
         );
 
         Notification::assertSentTo($user, TicketPurchaseReceipt::class);
+    }
+
+    public function test_a_successful_purchase_broadcasts_a_live_ticket_count_update(): void
+    {
+        Event::fake([RaffleTicketsUpdated::class]);
+        $user = $this->makeUserWithWallet(walletBalance: 1000);
+
+        $raffle = WpPost::create(['post_title' => 'Live Raffle', 'post_type' => 'raffle', 'post_status' => 'publish', 'post_date' => now()]);
+        WpPostMeta::create(['post_id' => $raffle->ID, 'meta_key' => 'max', 'meta_value' => '10']);
+
+        $this->service->purchaseFromBalance(
+            user: $user,
+            raffleId: $raffle->ID,
+            ticketNumbers: [1],
+            unitPrice: 100,
+            isGoldenBox: false,
+            submittedAmount: 100,
+            fundingSource: 'wallet',
+            idempotencyKey: 'idem-broadcast',
+        );
+
+        Event::assertDispatched(RaffleTicketsUpdated::class, function (RaffleTicketsUpdated $event) use ($raffle) {
+            return $event->raffleId === $raffle->ID
+                && $event->soldTickets === 1
+                && $event->remainingTickets === 9
+                && $event->isClosed === false;
+        });
+    }
+
+    public function test_a_purchase_against_an_untracked_raffle_id_does_not_broadcast(): void
+    {
+        Event::fake([RaffleTicketsUpdated::class]);
+        $user = $this->makeUserWithWallet(walletBalance: 1000);
+
+        $this->service->purchaseFromBalance(
+            user: $user,
+            raffleId: 999999,
+            ticketNumbers: [1],
+            unitPrice: 100,
+            isGoldenBox: false,
+            submittedAmount: 100,
+            fundingSource: 'wallet',
+            idempotencyKey: 'idem-no-raffle',
+        );
+
+        Event::assertNotDispatched(RaffleTicketsUpdated::class);
     }
 
     public function test_a_replayed_idempotent_request_does_not_send_a_second_receipt(): void
