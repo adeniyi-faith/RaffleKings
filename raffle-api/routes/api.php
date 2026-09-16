@@ -15,6 +15,7 @@ use App\Http\Controllers\Api\DrawController;
 use App\Http\Controllers\Api\HallOfFameController;
 use App\Http\Controllers\Api\LiveDrawController;
 use App\Http\Controllers\Api\PaymentWebhookController;
+use App\Http\Controllers\Api\PushDeviceController;
 use App\Http\Controllers\Api\RaffleController;
 use App\Http\Controllers\Api\ReferralController;
 use App\Http\Controllers\Api\RewardsController;
@@ -99,6 +100,11 @@ Route::middleware('auth:wordpress')->group(function () {
     // see AccountReadService's docblock for how each is derived.
     Route::get('/account/tickets', [AccountController::class, 'tickets']);
     Route::get('/account/transactions', [AccountController::class, 'transactions']);
+
+    // Item 31 — saves the OneSignal player id a user's browser gets back
+    // after they actually grant push permission, so OneSignalChannel has
+    // someone real to deliver to. See PushDeviceController's docblock.
+    Route::post('/push/device', [PushDeviceController::class, 'store']);
 
     Route::get('/rewards/state', [RewardsController::class, 'state']);
     Route::post('/rewards/daily-claim', [RewardsController::class, 'claimDaily']);

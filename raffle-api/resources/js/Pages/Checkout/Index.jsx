@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { Head, router } from '@inertiajs/react';
-import { ArrowLeft, Wallet, Award, Check, ShieldCheck } from 'lucide-react';
+import { ArrowLeft, Wallet, Award, Check, Eye, ShieldCheck } from 'lucide-react';
+import { useLiveRaffle } from '../../hooks/useLiveRaffle';
 import { useTicketPriceQuote } from '../../hooks/useTicketPriceQuote';
 import { formatNaira } from '../../lib/format';
 
@@ -12,6 +13,14 @@ function generateIdempotencyKey() {
 
 export default function CheckoutIndex({ raffle, ticketNumbers, qty }) {
     const { quote, loading: quoteLoading } = useTicketPriceQuote(raffle.id, qty);
+
+    // Item 30: an honest "N viewing" count and live remaining-ticket
+    // number, replacing checkout.php's hardcoded "3 other people are
+    // viewing this raffle" exit-modal claim (this page is only ever
+    // reached by a logged-in user, per its own server-side guard, so
+    // the presence channel is always joined).
+    const { remainingTickets, viewerCount } = useLiveRaffle(raffle.id, raffle, true);
+
     const [wallet, setWallet] = useState(null);
     const [method, setMethod] = useState('wallet');
     const [status, setStatus] = useState('idle'); // idle | processing | success | error
@@ -78,9 +87,17 @@ export default function CheckoutIndex({ raffle, ticketNumbers, qty }) {
 
                 <div className="mx-auto max-w-lg p-5">
                     <div className="mb-6 rounded-2xl border border-gray-100 bg-white p-5 shadow-sm dark:border-gray-800 dark:bg-dark-card">
-                        <h3 className="mb-4 border-b border-gray-50 pb-2 text-xs font-bold uppercase tracking-wider text-gray-400 dark:border-gray-700 dark:text-gray-500">
-                            Order Summary
-                        </h3>
+                        <div className="mb-4 flex items-center justify-between border-b border-gray-50 pb-2 dark:border-gray-700">
+                            <h3 className="text-xs font-bold uppercase tracking-wider text-gray-400 dark:text-gray-500">Order Summary</h3>
+                            <div className="flex items-center gap-2 text-[10px] font-medium text-gray-400 dark:text-gray-500">
+                                <span>{remainingTickets} tickets left</span>
+                                {viewerCount !== null && (
+                                    <span className="flex items-center gap-1">
+                                        <Eye className="h-3 w-3" /> {viewerCount} viewing
+                                    </span>
+                                )}
+                            </div>
+                        </div>
 
                         <div className="mb-4 flex items-start justify-between">
                             <div>

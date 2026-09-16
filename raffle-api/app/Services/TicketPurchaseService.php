@@ -2,6 +2,7 @@
 
 namespace App\Services;
 
+use App\Events\RaffleTicketsUpdated;
 use App\Exceptions\InsufficientBalanceException;
 use App\Exceptions\TicketUnavailableException;
 use App\Models\Legacy\RaffleEntry;
@@ -44,6 +45,7 @@ class TicketPurchaseService
     public function __construct(
         private readonly TicketPricingService $pricing,
         private readonly WalletLedgerService $ledger,
+        private readonly RaffleReadService $raffles,
     ) {}
 
     /**
@@ -153,9 +155,11 @@ class TicketPurchaseService
                 return $transaction;
             });
 
-            // Fires AFTER the transaction commits — never inside it, so
-            // a receipt can't go out for a purchase that then rolls back.
+            // Both fire AFTER the transaction commits — never inside it,
+            // so a receipt or a live update can't go out for a purchase
+            // that then rolls back.
             $user->notify(new TicketPurchaseReceipt($transaction, count($ticketNumbers)));
+            $this->broadcastTicketsUpdated($raffleId);
 
             return $transaction;
         } catch (UniqueConstraintViolationException) {
@@ -198,6 +202,33 @@ class TicketPurchaseService
         } catch (UniqueConstraintViolationException) {
             throw new TicketUnavailableException($this->findUnavailable($raffleId, $ticketNumbers));
         }
+
+        $this->broadcastTicketsUpdated($raffleId);
+    }
+
+    /**
+     * Re-reads the raffle's own real sold/remaining/closed state (the
+     * SAME numbers RaffleReadService gives every other reader — this is
+     * not a separately-maintained counter that could drift from it) and
+     * broadcasts it. Silently does nothing if the raffle can't be found
+     * (e.g. a test exercising this service against a raffle id with no
+     * backing post) — a live update is a nice-to-have, never something
+     * a purchase should fail over.
+     */
+    private function broadcastTicketsUpdated(int $raffleId): void
+    {
+        $raffle = $this->raffles->find($raffleId);
+
+        if (! $raffle) {
+            return;
+        }
+
+        broadcast(new RaffleTicketsUpdated(
+            raffleId: $raffleId,
+            soldTickets: $raffle['sold_tickets'],
+            remainingTickets: $raffle['remaining_tickets'],
+            isClosed: $raffle['is_closed'],
+        ));
     }
 
     /**
