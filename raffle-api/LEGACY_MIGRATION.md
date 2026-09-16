@@ -98,6 +98,21 @@ where the migration actually is.
   entry — it does not invent a transaction history that doesn't exist,
   it just marks "this was the balance when the ledger started."
 
+- `app/Services/BankAccountService.php` + `BankAccountController` — bank
+  account add/list/set-primary/delete on the real `bank_accounts` table,
+  at `/api/bank-accounts`. Keeps the legacy site's own rules (max 2
+  accounts, 10-digit Nigerian account numbers, auto-promoting a
+  replacement primary on delete) so nothing changes for users at cutover.
+- **Fixed a real bug in the auth bridge** (item 8): `WordPressSessionGuard`
+  was caching the first request's resolved user for the lifetime of the
+  guard instance, which Laravel's AuthManager can reuse across more than
+  one HTTP request — harmless under classic PHP-FPM (one process per
+  request), but a genuine risk under a long-running worker like Octane,
+  and an actual bug surfaced by the bank-account tests (deleting another
+  user's account "worked" because the guard still thought it was the
+  first user). Now re-checks which request it last resolved for on every
+  call — see the regression test in `WordPressSessionGuardTest`.
+
 ## What is NOT done yet (do not assume otherwise)
 
 - The old PHP code (`api-financials.php`, etc.) still reads and writes

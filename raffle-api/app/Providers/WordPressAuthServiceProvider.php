@@ -11,7 +11,7 @@ class WordPressAuthServiceProvider extends ServiceProvider
 {
     public function boot(): void
     {
-        Auth::extend('wordpress_session', function ($app) {
+        Auth::extend('wordpress_session', function () {
             $cookieName = 'wordpress_logged_in_'.config('legacy.wp_cookiehash');
 
             return new WordPressSessionGuard(
@@ -19,7 +19,6 @@ class WordPressAuthServiceProvider extends ServiceProvider
                     config('legacy.wp_logged_in_key'),
                     config('legacy.wp_logged_in_salt'),
                 ),
-                $app['request'],
                 $cookieName,
             );
         });
