@@ -21,13 +21,13 @@ class WordPressSessionGuardTest extends TestCase
         return 'wordpress_logged_in_'.config('legacy.wp_cookiehash');
     }
 
-    private function makeAuthenticatedUser(): array
+    private function makeAuthenticatedUser(string $login = 'winnie'): array
     {
         $user = WpUser::create([
-            'user_login' => 'winnie',
+            'user_login' => $login,
             'user_pass' => 'irrelevant-hash-1234567890',
-            'user_email' => 'winnie@example.com',
-            'display_name' => 'Winnie',
+            'user_email' => "{$login}@example.com",
+            'display_name' => ucfirst($login),
         ]);
 
         $token = 'raw-session-token';
@@ -89,5 +89,24 @@ class WordPressSessionGuardTest extends TestCase
             ->getJson('/api/me');
 
         $response->assertUnauthorized();
+    }
+
+    /**
+     * Regression test: a guard instance can be reused across several
+     * simulated HTTP calls within one test (and, under a long-running
+     * worker like Octane, across several real requests) — it must never
+     * cache the FIRST request's resolved user and silently hand them
+     * back on a second request carrying a different user's cookie.
+     */
+    public function test_two_separate_requests_in_a_row_each_resolve_their_own_user(): void
+    {
+        [$first, $firstCookie] = $this->makeAuthenticatedUser('winnie');
+        [$second, $secondCookie] = $this->makeAuthenticatedUser('alex');
+
+        $this->withCredentials()->withUnencryptedCookies([$this->cookieName() => $firstCookie])
+            ->getJson('/api/me')->assertJson(['id' => $first->ID, 'user_login' => 'winnie']);
+
+        $this->withCredentials()->withUnencryptedCookies([$this->cookieName() => $secondCookie])
+            ->getJson('/api/me')->assertJson(['id' => $second->ID, 'user_login' => 'alex']);
     }
 }
