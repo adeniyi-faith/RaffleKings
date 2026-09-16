@@ -73,6 +73,21 @@ where the migration actually is.
   the controller's docblock before pointing anything at it; it settles
   against the NEW `wallets` table, same caveat as always.
 
+- `app/Models/Raffle.php`, `app/Models/RafflePrizeTier.php` + the
+  `raffles`/`raffle_prize_tiers` tables — a real, native replacement for
+  raffles-as-WordPress-posts. `php artisan legacy:import-raffles
+  [--dry-run]` pulls raffles across from `wp_posts`/`wp_postmeta`,
+  **including the "prize_structure" ACF repeater field the legacy draw
+  depends on** (`rk_run_raffle_draw()` in `api-gamification.php`) — that
+  field isn't registered anywhere in this codebase (database.php
+  disables ACF for the raffle CPT on purpose), so it only exists because
+  someone configured it directly in the ACF plugin UI. The import command
+  reconstructs it from postmeta directly, without needing ACF loaded.
+  Read-only against WordPress, safe to re-run. **Not yet the live read or
+  draw path** — `RaffleReadService`/`GET /api/raffles` still reads the
+  legacy CPT directly, and the draw engine doesn't exist in Laravel yet
+  (item 12).
+
 ## What is NOT done yet (do not assume otherwise)
 
 - The old PHP code (`api-financials.php`, etc.) still reads and writes
