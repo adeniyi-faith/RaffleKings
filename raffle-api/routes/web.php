@@ -142,6 +142,18 @@ Route::get('/account/bank-accounts', function (Request $request) use ($accountGu
     return $accountGuard($request) ?? Inertia::render('Account/BankAccounts');
 });
 
+// Rewards hub (item 28) — daily streak, tasks, Spin & Win, and Referrals
+// as one page. Same server-side login guard as the account section: the
+// legacy rewards.php gates on `is_user_logged_in()` too. `user_login` is
+// passed as this user's own referral code — the exact value
+// RegistrationService::captureReferrer() already matches a new signup's
+// `?ref=` against, so the link this page hands out actually works.
+Route::get('/rewards', function (Request $request) use ($accountGuard) {
+    return $accountGuard($request) ?? Inertia::render('Rewards/Index', [
+        'referralCode' => Auth::guard('wordpress')->user()->user_login,
+    ]);
+});
+
 // Hall of Fame (item 27) — public, same as the legacy winners.php (no
 // login check there). Data itself comes from GET /api/hall-of-fame.
 Route::get('/hall-of-fame', fn () => Inertia::render('HallOfFame'));
