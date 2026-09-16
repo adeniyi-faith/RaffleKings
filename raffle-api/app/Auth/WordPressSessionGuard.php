@@ -25,9 +25,20 @@ class WordPressSessionGuard implements Guard
 
     private bool $resolved = false;
 
+    /**
+     * Identifies WHICH request the cached resolution above belongs to.
+     * Laravel's AuthManager caches a guard instance for as long as the
+     * container lives — normally that's one HTTP request in classic
+     * PHP-FPM, but it is NOT one request in a test that makes several
+     * simulated calls in a row, or under a long-running worker (Octane).
+     * Re-checking this on every call is what stops a user resolved for
+     * one request from silently leaking into the next one that reuses
+     * this guard instance.
+     */
+    private ?int $resolvedForRequestId = null;
+
     public function __construct(
         private readonly WordPressAuthCookieValidator $validator,
-        private readonly Request $request,
         private readonly string $cookieName,
     ) {}
 
@@ -43,13 +54,17 @@ class WordPressSessionGuard implements Guard
 
     public function user(): ?Authenticatable
     {
-        if ($this->resolved) {
+        $request = app(Request::class);
+        $requestId = spl_object_id($request);
+
+        if ($this->resolved && $this->resolvedForRequestId === $requestId) {
             return $this->user;
         }
 
         $this->resolved = true;
+        $this->resolvedForRequestId = $requestId;
 
-        return $this->user = $this->validator->resolve($this->request->cookie($this->cookieName));
+        return $this->user = $this->validator->resolve($request->cookie($this->cookieName));
     }
 
     public function id(): int|string|null
@@ -76,6 +91,7 @@ class WordPressSessionGuard implements Guard
     {
         $this->user = $user;
         $this->resolved = true;
+        $this->resolvedForRequestId = spl_object_id(app(Request::class));
 
         return $this;
     }
