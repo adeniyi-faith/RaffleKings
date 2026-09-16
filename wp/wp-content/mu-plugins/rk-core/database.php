@@ -225,6 +225,26 @@ function rk_create_db_table() {
     ) $charset_collate;";
     dbDelta($sql_support_tickets);
 
+    // Table 10b: Admin Audit Log (Phase 0 item 5) — every mutating admin
+    // action (approvals, bans, balance edits, settings changes...) is
+    // logged here with who did it and when, so it's traceable to a person.
+    $table_audit = $wpdb->prefix . 'raffle_admin_audit_logs';
+    $sql_audit = "CREATE TABLE $table_audit (
+        id bigint(20) NOT NULL AUTO_INCREMENT,
+        admin_id mediumint(9) NOT NULL,
+        admin_name varchar(100),
+        action varchar(100) NOT NULL,
+        target_type varchar(50),
+        target_id varchar(50),
+        details text,
+        ip_address varchar(45),
+        created_at datetime DEFAULT CURRENT_TIMESTAMP,
+        PRIMARY KEY  (id),
+        KEY admin_idx (admin_id),
+        KEY action_idx (action)
+    ) $charset_collate;";
+    dbDelta($sql_audit);
+
     // Table 11: Support Ticket Messages (the back-and-forth thread)
     $table_support_messages = $wpdb->prefix . 'raffle_support_messages';
     $sql_support_messages = "CREATE TABLE $table_support_messages (
