@@ -4,6 +4,9 @@ use App\Http\Controllers\Api\Admin\AuditLogController;
 use App\Http\Controllers\Api\Admin\SupportTicketManagementController;
 use App\Http\Controllers\Api\Admin\WinnerManagementController;
 use App\Http\Controllers\Api\Admin\WithdrawalManagementController;
+use App\Http\Controllers\Api\Auth\LoginController;
+use App\Http\Controllers\Api\Auth\PasswordResetController;
+use App\Http\Controllers\Api\Auth\RegisterController;
 use App\Http\Controllers\Api\AuthBridgeController;
 use App\Http\Controllers\Api\BankAccountController;
 use App\Http\Controllers\Api\DepositController;
@@ -41,6 +44,16 @@ Route::get('/rewards/spin/odds', [RewardsController::class, 'spinOdds']);
 // re-verifies directly with the gateway before settling anything.
 Route::post('/webhooks/paystack', [PaymentWebhookController::class, 'paystack']);
 Route::post('/webhooks/flutterwave', [PaymentWebhookController::class, 'flutterwave']);
+
+// Public — registration/login/password-reset (item 23), rebuilt on
+// Laravel but still authenticating against wp_users; see
+// RegistrationService/LoginService/PasswordResetService docblocks.
+Route::post('/auth/register', [RegisterController::class, 'store'])->middleware('throttle:auth-register');
+Route::post('/auth/login', [LoginController::class, 'store'])->middleware('throttle:auth-login');
+Route::post('/auth/logout', [LoginController::class, 'destroy']);
+Route::post('/auth/forgot-password', [PasswordResetController::class, 'requestCode'])->middleware('throttle:auth-forgot-password');
+Route::post('/auth/verify-reset-code', [PasswordResetController::class, 'verifyCode'])->middleware('throttle:auth-otp-guess');
+Route::post('/auth/reset-password', [PasswordResetController::class, 'reset'])->middleware('throttle:auth-otp-guess');
 
 Route::middleware('auth:wordpress')->group(function () {
     Route::get('/me', [AuthBridgeController::class, 'me']);
