@@ -14,6 +14,17 @@ return Application::configure(basePath: dirname(__DIR__))
         commands: __DIR__.'/../routes/console.php',
         health: '/up',
     )
+    // Registered separately from `channels:` above (which would auto-wire
+    // `/broadcasting/auth` behind Laravel's default `web` guard) so that
+    // Echo's channel-authorization request is checked against the SAME
+    // `wordpress` guard every other part of this app already bridges
+    // (item 27 — Live Draw's presence channel). Without this, a user
+    // logged in only via the WordPress session cookie would never be
+    // recognized when joining a private/presence channel.
+    ->withBroadcasting(
+        __DIR__.'/../routes/channels.php',
+        ['middleware' => ['web', 'auth:wordpress']],
+    )
     ->withMiddleware(function (Middleware $middleware): void {
         $middleware->alias(['admin' => EnsureUserIsAdministrator::class]);
         $middleware->web(append: [HandleInertiaRequests::class]);

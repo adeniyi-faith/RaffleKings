@@ -1,6 +1,7 @@
 <?php
 
 use App\Models\Legacy\RaffleEntry;
+use App\Models\Raffle;
 use App\Services\RaffleReadService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
@@ -139,6 +140,41 @@ Route::get('/account/withdraw', function (Request $request) use ($accountGuard) 
 
 Route::get('/account/bank-accounts', function (Request $request) use ($accountGuard) {
     return $accountGuard($request) ?? Inertia::render('Account/BankAccounts');
+});
+
+// Hall of Fame (item 27) — public, same as the legacy winners.php (no
+// login check there). Data itself comes from GET /api/hall-of-fame.
+Route::get('/hall-of-fame', fn () => Inertia::render('HallOfFame'));
+
+// Live Draw (item 27) — public viewing, same as the legacy livedraw.php
+// (anyone with the link could watch; only posting a comment/reaction
+// requires a real login, enforced server-side on those endpoints, not
+// here). {raffle} binds to the NATIVE App\Models\Raffle, same as the
+// draw-verification endpoints below — not the legacy post id
+// RaffleController reads for discovery/checkout.
+Route::get('/raffles/{raffle}/live-draw', function (Raffle $raffle) {
+    return Inertia::render('LiveDraw/Show', [
+        'raffle' => [
+            'id' => $raffle->id,
+            'title' => $raffle->title,
+            'grand_prize' => $raffle->grand_prize,
+        ],
+        'reverb' => [
+            'key' => config('broadcasting.connections.reverb.key'),
+            'host' => config('broadcasting.connections.reverb.options.host'),
+            'port' => config('broadcasting.connections.reverb.options.port'),
+            'scheme' => config('broadcasting.connections.reverb.options.scheme'),
+        ],
+    ]);
+});
+
+// "Verify this draw yourself" (item 27's real requirement, built on the
+// item 14 provably-fair engine) — public, against the same
+// GET /api/raffles/{id}/draw DrawController already exposes.
+Route::get('/raffles/{raffle}/verify', function (Raffle $raffle) {
+    return Inertia::render('LiveDraw/Verify', [
+        'raffle' => ['id' => $raffle->id, 'title' => $raffle->title],
+    ]);
 });
 
 if (app()->environment(['local', 'testing'])) {
