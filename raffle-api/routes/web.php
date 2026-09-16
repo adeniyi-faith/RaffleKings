@@ -154,6 +154,17 @@ Route::get('/rewards', function (Request $request) use ($accountGuard) {
     ]);
 });
 
+// Help & Support (item 29) — same server-side login guard as the account
+// section: legacy support.php's ticket panel needs a real logged-in user
+// too, its "Simulate submission" no-op notwithstanding (see
+// SupportTicketService's docblock for that bug). The Learning Hub itself
+// is public content, same as the legacy tutorials.php.
+Route::get('/support', function (Request $request) use ($accountGuard) {
+    return $accountGuard($request) ?? Inertia::render('Support/Index');
+});
+
+Route::get('/support/tutorials', fn () => Inertia::render('Support/Tutorials'));
+
 // Hall of Fame (item 27) — public, same as the legacy winners.php (no
 // login check there). Data itself comes from GET /api/hall-of-fame.
 Route::get('/hall-of-fame', fn () => Inertia::render('HallOfFame'));

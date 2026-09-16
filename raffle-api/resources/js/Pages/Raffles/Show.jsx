@@ -1,10 +1,11 @@
 import { useState } from 'react';
 import { Head, Link, router, usePage } from '@inertiajs/react';
-import { Clock, Trophy, Gift, Zap, Lock, ArrowRight, ArrowLeft, TrendingUp } from 'lucide-react';
+import { Clock, Trophy, Gift, Zap, Lock, ArrowRight, ArrowLeft, TrendingUp, Eye } from 'lucide-react';
 import { Card } from '../../Components/ui/Card';
 import ProgressBar from '../../Components/ui/ProgressBar';
 import TicketBundleSelector from '../../Components/raffles/TicketBundleSelector';
 import { useCountdown } from '../../hooks/useCountdown';
+import { useLiveRaffle } from '../../hooks/useLiveRaffle';
 import { useTicketPriceQuotes } from '../../hooks/useTicketPriceQuotes';
 import { useTicketPriceQuote } from '../../hooks/useTicketPriceQuote';
 import { formatNaira } from '../../lib/format';
@@ -21,7 +22,13 @@ export default function RaffleShow({ raffle }) {
     const activeQuote = quotes[selectedQty] || (selectedQty === bulkQty ? bulkQuote : null);
 
     const timeLeft = useCountdown(raffle.expiry);
-    const progressPct = raffle.max_tickets > 0 ? Math.min(100, Math.round((raffle.sold_tickets / raffle.max_tickets) * 100)) : 0;
+
+    // Item 30: a live sold/remaining count and an honest "N viewing"
+    // number — replacing the audit's fabricated per-raffle "viewing
+    // count" (raffles.php) with a real one, sourced the instant anyone,
+    // anywhere, actually buys a ticket for this raffle.
+    const { soldTickets, remainingTickets, isClosed, viewerCount } = useLiveRaffle(raffle.id, raffle, !! auth.user);
+    const progressPct = raffle.max_tickets > 0 ? Math.min(100, Math.round((soldTickets / raffle.max_tickets) * 100)) : 0;
 
     function handleProceed() {
         const qty = selectedQty;
@@ -53,25 +60,30 @@ export default function RaffleShow({ raffle }) {
                     <div
                         className={[
                             'relative overflow-hidden rounded-3xl p-6 text-center text-white shadow-xl transition-all duration-500',
-                            raffle.is_closed
+                            isClosed
                                 ? 'bg-gradient-to-br from-gray-700 to-gray-900'
                                 : 'bg-gradient-to-br from-green-600 to-emerald-800 shadow-green-900/20',
                         ].join(' ')}
                     >
                         <div className="absolute right-0 top-0 h-40 w-40 -translate-y-1/2 translate-x-1/2 rounded-full bg-white/10 blur-3xl" />
 
-                        <div className="mb-3 flex items-center justify-center gap-2">
+                        <div className="mb-3 flex flex-wrap items-center justify-center gap-2">
                             <span
                                 className={[
                                     'rounded-full px-3 py-1 text-[10px] font-bold shadow-sm',
-                                    raffle.is_closed ? 'bg-red-600 text-white' : 'animate-pulse bg-yellow-400 text-green-900',
+                                    isClosed ? 'bg-red-600 text-white' : 'animate-pulse bg-yellow-400 text-green-900',
                                 ].join(' ')}
                             >
-                                {raffle.is_closed ? 'RAFFLE CLOSED' : 'LIVE POOL ACTIVE'}
+                                {isClosed ? 'RAFFLE CLOSED' : 'LIVE POOL ACTIVE'}
                             </span>
-                            {! raffle.is_closed && timeLeft && (
+                            {! isClosed && timeLeft && (
                                 <span className="flex items-center gap-1 rounded-full border border-white/20 bg-black/30 px-3 py-1 text-[10px] font-bold text-white backdrop-blur-md">
                                     <Clock className="h-3 w-3" /> {timeLeft}
+                                </span>
+                            )}
+                            {viewerCount !== null && (
+                                <span className="flex items-center gap-1 rounded-full border border-white/20 bg-black/30 px-3 py-1 text-[10px] font-bold text-white backdrop-blur-md">
+                                    <Eye className="h-3 w-3" /> {viewerCount} viewing
                                 </span>
                             )}
                         </div>
@@ -88,13 +100,13 @@ export default function RaffleShow({ raffle }) {
 
                         <div className="mb-2 h-2 w-full overflow-hidden rounded-full bg-black/20">
                             <div
-                                className="h-full rounded-full bg-yellow-400 shadow-[0_0_10px_rgba(250,204,21,0.6)]"
-                                style={{ width: `${raffle.is_closed ? 100 : progressPct}%` }}
+                                className="h-full rounded-full bg-yellow-400 shadow-[0_0_10px_rgba(250,204,21,0.6)] transition-all duration-500"
+                                style={{ width: `${isClosed ? 100 : progressPct}%` }}
                             />
                         </div>
                         <div className="flex justify-between text-[10px] font-medium text-green-100 opacity-90">
-                            <span>{raffle.sold_tickets} Sold</span>
-                            <span>{raffle.remaining_tickets} Left</span>
+                            <span>{soldTickets} Sold</span>
+                            <span>{remainingTickets} Left</span>
                         </div>
                     </div>
                 </section>
@@ -136,7 +148,7 @@ export default function RaffleShow({ raffle }) {
                     </Card>
                 </section>
 
-                {raffle.is_closed ? (
+                {isClosed ? (
                     <section className="px-5 py-10 text-center">
                         <div className="mx-auto mb-5 flex h-20 w-20 items-center justify-center rounded-full border-4 border-gray-50 bg-gray-100 shadow-inner dark:border-gray-800 dark:bg-dark-card">
                             <Lock className="h-10 w-10 text-gray-400 dark:text-gray-500" />
@@ -163,7 +175,7 @@ export default function RaffleShow({ raffle }) {
                 )}
             </div>
 
-            {! raffle.is_closed && (
+            {! isClosed && (
                 <div className="fixed bottom-0 left-0 z-50 w-full border-t border-gray-100 bg-white/95 p-4 shadow-[0_-5px_20px_rgba(0,0,0,0.05)] backdrop-blur-md dark:border-dark-border dark:bg-dark-bg/95">
                     <div className="mx-auto flex max-w-md items-center gap-4">
                         <div className="flex-1">
