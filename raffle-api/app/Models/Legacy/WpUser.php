@@ -2,6 +2,9 @@
 
 namespace App\Models\Legacy;
 
+use Filament\Models\Contracts\FilamentUser;
+use Filament\Models\Contracts\HasName;
+use Filament\Panel;
 use Illuminate\Contracts\Auth\Authenticatable;
 use Illuminate\Notifications\Notifiable;
 
@@ -14,8 +17,15 @@ use Illuminate\Notifications\Notifiable;
  * Implements Authenticatable so this model — not Laravel's stock `User`
  * model — is what `Auth::user()` returns once authenticated via the
  * `wordpress_session` guard (see App\Auth\WordPressSessionGuard).
+ *
+ * Also implements FilamentUser so the SAME model, resolved by the SAME
+ * guard, is who Filament's admin panel (App\Providers\Filament\
+ * AdminPanelProvider) sees as the current user — there is no separate
+ * Filament login form or password; canAccessPanel() below is the one
+ * gate, same isAdministrator() check every other admin-only endpoint
+ * in this app already uses.
  */
-class WpUser extends LegacyModel implements Authenticatable
+class WpUser extends LegacyModel implements Authenticatable, FilamentUser, HasName
 {
     use Notifiable;
 
@@ -75,6 +85,12 @@ class WpUser extends LegacyModel implements Authenticatable
      * here respects exactly who's actually an admin today, not a new,
      * separate notion of one.
      */
+    /** Reads the same rk_is_banned usermeta flag the legacy site sets. */
+    public function isBanned(): bool
+    {
+        return $this->metaValue('rk_is_banned') === '1';
+    }
+
     public function isAdministrator(): bool
     {
         $raw = $this->metaValue(config('legacy.wp_prefix').'capabilities');
@@ -142,5 +158,19 @@ class WpUser extends LegacyModel implements Authenticatable
     public function routeNotificationForOneSignal(): ?string
     {
         return $this->metaValue('rk_onesignal_id') ?: null;
+    }
+
+    // -- Filament\Models\Contracts\FilamentUser ------------------------
+
+    public function canAccessPanel(Panel $panel): bool
+    {
+        return $this->isAdministrator();
+    }
+
+    // -- Filament\Models\Contracts\HasName ------------------------------
+
+    public function getFilamentName(): string
+    {
+        return $this->display_name ?: $this->user_login;
     }
 }
