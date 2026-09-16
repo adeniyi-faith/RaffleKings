@@ -1,7 +1,9 @@
 <?php
 
+use App\Models\Legacy\RaffleEntry;
 use App\Services\RaffleReadService;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Route;
 use Inertia\Inertia;
 
@@ -20,7 +22,9 @@ Route::get('/register', function (Request $request) {
     ]);
 });
 
-Route::get('/login', fn () => Inertia::render('Auth/Login'));
+Route::get('/login', fn (Request $request) => Inertia::render('Auth/Login', [
+    'redirect' => $request->query('redirect'),
+]));
 
 Route::get('/forgot-password', fn () => Inertia::render('Auth/ForgotPassword'));
 
@@ -39,6 +43,64 @@ Route::get('/raffles', function (Request $request, RaffleReadService $raffles) {
         'initial' => $raffles->listActive($request->only([
             'search', 'prize_type', 'min_price', 'max_price', 'sort', 'page',
         ])),
+    ]);
+});
+
+// Raffle details (item 25) — public, same as the raffle itself.
+Route::get('/raffles/{raffle}', function (int $raffle, RaffleReadService $raffles) {
+    $found = $raffles->find($raffle);
+
+    abort_if(! $found, 404);
+
+    return Inertia::render('Raffles/Show', ['raffle' => $found]);
+});
+
+// Number selection — requires a real login (item 25 fix: this used to be
+// gated by a client-side `localStorage.getItem('token')` check that was
+// always null, so it silently misrouted every user, logged in or not, to
+// the registration page instead of checkout). Anyone not authenticated
+// via the real `wordpress` guard is bounced to /login with a redirect
+// back here, not deep into the flow with nothing to show for it.
+Route::get('/raffles/{raffle}/numbers', function (Request $request, int $raffle, RaffleReadService $raffles) {
+    if (Auth::guard('wordpress')->guest()) {
+        return redirect('/login?redirect='.urlencode($request->fullUrl()));
+    }
+
+    $found = $raffles->find($raffle);
+    abort_if(! $found || $found['is_closed'], 404);
+
+    $qty = max(1, (int) $request->query('qty', 1));
+
+    $taken = RaffleEntry::where('raffle_id', $raffle)->pluck('ticket_number')->map(fn ($n) => (int) $n)->values();
+
+    return Inertia::render('Raffles/SelectNumbers', [
+        'raffle' => $found,
+        'qty' => $qty,
+        'takenNumbers' => $taken,
+        'maxTickets' => $found['max_tickets'],
+    ]);
+});
+
+// Checkout (item 25) — same real-login guard as number selection.
+Route::get('/checkout', function (Request $request, RaffleReadService $raffles) {
+    if (Auth::guard('wordpress')->guest()) {
+        return redirect('/login?redirect='.urlencode($request->fullUrl()));
+    }
+
+    $raffleId = (int) $request->query('raffle_id');
+    $found = $raffles->find($raffleId);
+
+    abort_if(! $found, 404);
+
+    $qty = max(1, (int) $request->query('qty', 1));
+    $numbers = array_values(array_filter(array_map('intval', explode(',', (string) $request->query('numbers', '')))));
+
+    abort_if(count($numbers) !== $qty, 422, 'Selected ticket numbers do not match the chosen quantity.');
+
+    return Inertia::render('Checkout/Index', [
+        'raffle' => $found,
+        'qty' => $qty,
+        'ticketNumbers' => $numbers,
     ]);
 });
 
