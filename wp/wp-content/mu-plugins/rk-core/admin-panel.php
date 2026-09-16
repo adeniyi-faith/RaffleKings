@@ -130,8 +130,9 @@ function rk_render_financials_page() {
             $txn = $wpdb->get_row($wpdb->prepare("SELECT * FROM $table_txn WHERE id = %d", $txn_id));
             if (!$txn || !in_array($txn->status, ['pending', 'manual_review'])) continue;
 
-            // Logic for Deposits
-            if ($txn->type === 'deposit_manual') {
+            // Logic for Deposits (wallet top-ups) and bank-transfer ticket purchases —
+            // both land here in 'pending'/'manual_review' until an admin confirms them.
+            if (in_array($txn->type, ['wallet_deposit', 'deposit_manual'])) {
                 if ($action === 'bulk_approve') {
                     $wpdb->update($table_txn, ['status' => 'verified_final'], ['id' => $txn_id]);
                     // Credit Wallet
@@ -144,7 +145,32 @@ function rk_render_financials_page() {
                     $wpdb->update($table_txn, ['status' => 'rejected', 'description' => $new_desc], ['id' => $txn_id]);
                 }
             }
-            
+
+            // Logic for bank-transfer TICKET purchases (TD-05): approving one must
+            // actually issue the tickets, not just flip a status flag.
+            elseif ($txn->type === 'ticket_purchase') {
+                if ($action === 'bulk_approve') {
+                    if (function_exists('rk_issue_ticket_entries') && $txn->pending_raffle_id && $txn->pending_numbers) {
+                        $wpdb->query('START TRANSACTION');
+                        try {
+                            rk_issue_ticket_entries($txn->user_id, (int) $txn->pending_raffle_id, $txn->pending_numbers, $txn_id);
+                            $wpdb->update($table_txn, ['status' => 'verified_final'], ['id' => $txn_id]);
+                            $wpdb->query('COMMIT');
+                        } catch (Exception $e) {
+                            $wpdb->query('ROLLBACK');
+                            echo '<div class="notice notice-error"><p>Could not issue tickets for transaction #' . $txn_id . ': ' . esc_html($e->getMessage()) . '</p></div>';
+                            continue;
+                        }
+                    } else {
+                        $wpdb->update($table_txn, ['status' => 'verified_final'], ['id' => $txn_id]);
+                    }
+                } elseif ($action === 'bulk_reject') {
+                    $new_desc = $txn->description;
+                    if (!empty($bulk_reason)) $new_desc .= " | Admin Note: " . $bulk_reason;
+                    $wpdb->update($table_txn, ['status' => 'rejected', 'description' => $new_desc], ['id' => $txn_id]);
+                }
+            }
+
             // Logic for Withdrawals
             elseif ($txn->type === 'withdrawal') {
                 if ($action === 'bulk_approve') {
@@ -174,7 +200,7 @@ function rk_render_financials_page() {
         
         // Allow action on both pending and manual_review
         if ($txn && in_array($txn->status, ['pending', 'manual_review'])) {
-            if ($txn->type === 'deposit_manual') {
+            if (in_array($txn->type, ['wallet_deposit', 'deposit_manual'])) {
                 if ($action === 'approve') {
                     $wpdb->update($table_txn, ['status' => 'verified_final'], ['id' => $txn_id]);
                     $current = (float) get_user_meta($txn->user_id, 'wallet_balance', true);
@@ -186,6 +212,35 @@ function rk_render_financials_page() {
                     if (!empty($single_reason)) $new_desc .= " | Admin Note: " . $single_reason;
                     $wpdb->update($table_txn, ['status' => 'rejected', 'description' => $new_desc], ['id' => $txn_id]);
                     echo '<div class="notice notice-warning is-dismissible"><p>Deposit Rejected.</p></div>';
+                }
+            }
+            // TD-05: approving a bank-transfer TICKET purchase must actually issue
+            // the tickets, not just flip its status — this route never did that before.
+            elseif ($txn->type === 'ticket_purchase') {
+                if ($action === 'approve') {
+                    $issued = true;
+                    if (function_exists('rk_issue_ticket_entries') && $txn->pending_raffle_id && $txn->pending_numbers) {
+                        $wpdb->query('START TRANSACTION');
+                        try {
+                            rk_issue_ticket_entries($txn->user_id, (int) $txn->pending_raffle_id, $txn->pending_numbers, $txn_id);
+                            $wpdb->update($table_txn, ['status' => 'verified_final'], ['id' => $txn_id]);
+                            $wpdb->query('COMMIT');
+                        } catch (Exception $e) {
+                            $wpdb->query('ROLLBACK');
+                            $issued = false;
+                            echo '<div class="notice notice-error is-dismissible"><p>Could not issue tickets: ' . esc_html($e->getMessage()) . ' The purchase is still in review — reject and refund the buyer manually if the numbers can\'t be reissued.</p></div>';
+                        }
+                    } else {
+                        $wpdb->update($table_txn, ['status' => 'verified_final'], ['id' => $txn_id]);
+                    }
+                    if ($issued) {
+                        echo '<div class="notice notice-success is-dismissible"><p>Ticket Purchase Approved.</p></div>';
+                    }
+                } else {
+                    $new_desc = $txn->description;
+                    if (!empty($single_reason)) $new_desc .= " | Admin Note: " . $single_reason;
+                    $wpdb->update($table_txn, ['status' => 'rejected', 'description' => $new_desc], ['id' => $txn_id]);
+                    echo '<div class="notice notice-warning is-dismissible"><p>Ticket Purchase Rejected. Refund the buyer\'s bank transfer manually — no wallet balance was touched.</p></div>';
                 }
             }
             elseif ($txn->type === 'withdrawal') {
@@ -208,7 +263,12 @@ function rk_render_financials_page() {
 
     // --- FETCH DATA ---
     // 1. PENDING ITEMS (Top Section) - UPDATED: Include manual_review
-    $deposits = $wpdb->get_results("SELECT * FROM $table_txn WHERE type = 'deposit_manual' AND status IN ('pending', 'manual_review') ORDER BY created_at ASC");
+    // TD-28 FIX: this used to filter on type = 'deposit_manual', a value the
+    // payment handler never actually writes (real rows are 'wallet_deposit'
+    // for top-ups and 'ticket_purchase' for bank-transfer ticket buys), so
+    // this queue was silently always empty no matter how many deposits were
+    // really waiting on review.
+    $deposits = $wpdb->get_results("SELECT * FROM $table_txn WHERE type IN ('wallet_deposit', 'ticket_purchase', 'deposit_manual') AND status IN ('pending', 'manual_review') ORDER BY created_at ASC");
     $withdrawals = $wpdb->get_results("SELECT * FROM $table_txn WHERE type = 'withdrawal' AND status = 'pending' ORDER BY created_at ASC");
     
     // 2. RECENT REJECTIONS (Middle Section)
@@ -326,14 +386,19 @@ function rk_render_financials_page() {
 
                             <div style="display: flex; justify-content: space-between; padding-right: 30px;">
                                 <div>
-                                    <strong><?php echo $user ? $user->display_name : 'Unknown'; ?></strong> <br>
+                                    <strong><?php echo $user ? $user->display_name : 'Unknown'; ?></strong>
+                                    <span style="font-size: 10px; font-weight: bold; color: #fff; background: <?php echo $d->type === 'ticket_purchase' ? '#2563eb' : '#16a34a'; ?>; padding: 2px 6px; border-radius: 4px; margin-left: 4px;"><?php echo $d->type === 'ticket_purchase' ? 'TICKET PURCHASE' : 'WALLET TOP-UP'; ?></span>
+                                    <br>
                                     <span style="font-size: 18px; font-weight: bold; color: #16a34a;">₦<?php echo number_format($d->claimed_amount); ?></span>
+                                    <?php if ($d->type === 'ticket_purchase' && $d->pending_numbers): ?>
+                                        <div style="font-size: 11px; color: #666;">Raffle #<?php echo (int) $d->pending_raffle_id; ?> — Numbers: <?php echo esc_html($d->pending_numbers); ?></div>
+                                    <?php endif; ?>
                                 </div>
                                 <div style="text-align: right; font-size: 12px; color: #666;">
                                     <?php echo date('M j, H:i', strtotime($d->created_at)); ?>
                                 </div>
                             </div>
-                            
+
                             <!-- AI NOTES DISPLAY -->
                             <?php if ($ai_note): ?>
                                 <div style="margin: 8px 0; background: #fffbe6; border: 1px solid #ffe58f; padding: 8px; border-radius: 4px; color: #d48806; font-size: 12px;">
