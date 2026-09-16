@@ -208,7 +208,37 @@ function rk_create_db_table() {
         PRIMARY KEY  (id)
     ) $charset_collate;";
     dbDelta($sql_site_notices);
-    
+
+    // Table 10: Support Tickets (Phase 0 item 3 — replaces the fake, client-only
+    // "Submit Ticket" flow on support.php with a real, persisted queue).
+    $table_support_tickets = $wpdb->prefix . 'raffle_support_tickets';
+    $sql_support_tickets = "CREATE TABLE $table_support_tickets (
+        id mediumint(9) NOT NULL AUTO_INCREMENT,
+        user_id mediumint(9) NOT NULL,
+        category varchar(50) NOT NULL DEFAULT 'General Inquiry',
+        subject varchar(255) NOT NULL,
+        status varchar(20) NOT NULL DEFAULT 'open',
+        created_at datetime DEFAULT CURRENT_TIMESTAMP,
+        updated_at datetime DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+        PRIMARY KEY  (id),
+        KEY user_tickets (user_id)
+    ) $charset_collate;";
+    dbDelta($sql_support_tickets);
+
+    // Table 11: Support Ticket Messages (the back-and-forth thread)
+    $table_support_messages = $wpdb->prefix . 'raffle_support_messages';
+    $sql_support_messages = "CREATE TABLE $table_support_messages (
+        id bigint(20) NOT NULL AUTO_INCREMENT,
+        ticket_id mediumint(9) NOT NULL,
+        sender_type varchar(10) NOT NULL DEFAULT 'user',
+        sender_id mediumint(9) NOT NULL DEFAULT 0,
+        message text NOT NULL,
+        created_at datetime DEFAULT CURRENT_TIMESTAMP,
+        PRIMARY KEY  (id),
+        KEY ticket_thread (ticket_id)
+    ) $charset_collate;";
+    dbDelta($sql_support_messages);
+
     // =========================================================
     // SEEDING DEFAULT TEMPLATES (Updated with Temu Push)
     // =========================================================

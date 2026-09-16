@@ -13,7 +13,7 @@
     <section class="p-5 pb-2">
         <a href="tutorials.php" class="bg-gradient-to-r from-blue-600 to-indigo-700 rounded-2xl p-5 text-white shadow-lg shadow-blue-500/20 relative overflow-hidden block group active:scale-[0.98] transition-transform">
             <div class="absolute right-0 bottom-0 w-24 h-24 bg-white/10 rounded-full blur-2xl translate-y-1/4 translate-x-1/4"></div>
-            
+
             <div class="relative z-10 flex items-center justify-between">
                 <div>
                     <span class="bg-white/20 text-white text-[9px] font-bold px-2 py-0.5 rounded mb-2 inline-block">NEW USER?</span>
@@ -37,47 +37,17 @@
             </button>
         </div>
 
-        <div class="space-y-3" id="ticket-list">
-            
-            <!-- Ticket 1: Answered -->
-            <div onclick="toggleTicket('ticket-1')" class="bg-white border border-gray-100 p-4 rounded-xl shadow-sm active:bg-gray-50 transition-colors cursor-pointer">
-                <div class="flex justify-between items-start mb-2">
-                    <div class="flex items-center gap-2">
-                        <div class="w-2 h-2 rounded-full bg-green-500"></div>
-                        <h4 class="text-sm font-bold text-gray-800">Withdrawal Delay</h4>
-                    </div>
-                    <span class="text-[10px] text-gray-400">2 hrs ago</span>
-                </div>
-                <p class="text-xs text-gray-500 line-clamp-1">I requested a withdrawal of ₦5,000 but haven't received it.</p>
-                
-                <!-- Expanded Content (Hidden by default) -->
-                <div id="ticket-1" class="hidden mt-3 pt-3 border-t border-gray-50">
-                    <div class="bg-blue-50 rounded-lg p-3 mb-2">
-                        <p class="text-[10px] font-bold text-blue-800 mb-1">Support Team</p>
-                        <p class="text-xs text-blue-700">Hi Kingsley, we verified your transaction. It was processed at 10:45 AM. Please check your GTBank app again.</p>
-                    </div>
-                    <div class="text-right">
-                        <button class="text-[10px] font-bold text-gray-400 border border-gray-200 px-3 py-1 rounded-full hover:bg-gray-50">Reply</button>
-                    </div>
-                </div>
-            </div>
-
-            <!-- Ticket 2: Pending -->
-            <div class="bg-white border border-gray-100 p-4 rounded-xl shadow-sm opacity-70">
-                <div class="flex justify-between items-start mb-2">
-                    <div class="flex items-center gap-2">
-                        <div class="w-2 h-2 rounded-full bg-yellow-500"></div>
-                        <h4 class="text-sm font-bold text-gray-800">Scholarship Verification</h4>
-                    </div>
-                    <span class="text-[10px] text-gray-400">Yesterday</span>
-                </div>
-                <p class="text-xs text-gray-500">My niece doesn't have a Matric Number yet...</p>
-                <div class="mt-2 inline-block bg-yellow-50 text-yellow-700 text-[9px] font-bold px-2 py-0.5 rounded">
-                    Awaiting Reply
-                </div>
-            </div>
-
+        <div id="ticket-skeleton" class="space-y-3">
+            <div class="bg-white border border-gray-100 p-4 rounded-xl h-20 animate-pulse"></div>
+            <div class="bg-white border border-gray-100 p-4 rounded-xl h-20 animate-pulse"></div>
         </div>
+
+        <div id="no-tickets" class="hidden text-center py-10 text-gray-400">
+            <i data-lucide="inbox" class="w-10 h-10 mx-auto mb-2"></i>
+            <p class="text-xs">No conversations yet. Tap "New Ticket" if you need help.</p>
+        </div>
+
+        <div class="space-y-3 hidden" id="ticket-list"></div>
     </section>
 
 </div>
@@ -91,14 +61,16 @@
 <div id="support-overlay" onclick="closeSupportSheet()" class="fixed inset-0 bg-black/60 z-50 hidden transition-opacity opacity-0 backdrop-blur-sm"></div>
 
 <div id="support-sheet" class="fixed bottom-0 left-0 w-full bg-white rounded-t-3xl z-50 transform translate-y-full transition-transform duration-300 ease-out sm:max-w-md sm:left-1/2 sm:-translate-x-1/2 safe-bottom shadow-2xl">
-    
+
     <div class="w-full flex justify-center pt-3 pb-1" onclick="closeSupportSheet()">
         <div class="w-12 h-1.5 bg-gray-200 rounded-full"></div>
     </div>
 
     <div class="p-6 pt-2">
         <h3 class="text-lg font-bold text-gray-900 mb-4">Open New Ticket</h3>
-        
+
+        <div id="ticket-form-error" class="hidden mb-3 text-xs font-bold text-red-600 bg-red-50 p-2 rounded-lg"></div>
+
         <form onsubmit="submitTicket(event)">
             <div class="space-y-4">
                 <div>
@@ -117,22 +89,16 @@
                 </div>
             </div>
 
-            <button type="submit" class="w-full mt-6 bg-app-primary text-white py-3.5 rounded-xl font-bold shadow-lg shadow-blue-500/30 active:scale-[0.98] transition-transform flex items-center justify-center gap-2">
+            <button type="submit" id="ticket-submit-btn" class="w-full mt-6 bg-app-primary text-white py-3.5 rounded-xl font-bold shadow-lg shadow-blue-500/30 active:scale-[0.98] transition-transform flex items-center justify-center gap-2">
                 Submit Ticket <i data-lucide="send" class="w-4 h-4"></i>
             </button>
         </form>
     </div>
 </div>
 
+<script src="config.js"></script>
 <script>
-    function toggleTicket(id) {
-        const el = document.getElementById(id);
-        if (el.classList.contains('hidden')) {
-            el.classList.remove('hidden');
-        } else {
-            el.classList.add('hidden');
-        }
-    }
+    lucide.createIcons();
 
     const overlay = document.getElementById('support-overlay');
     const sheet = document.getElementById('support-sheet');
@@ -154,46 +120,197 @@
         }, 300);
     }
 
-    function submitTicket(e) {
-        e.preventDefault();
-        const msg = document.getElementById('ticket-msg').value;
-        const category = document.getElementById('ticket-category').value;
-        
-        if(!msg) {
-            alert("Please describe your issue.");
+    function timeAgo(dateStr) {
+        // Server times are stored/returned in WordPress local time (not UTC).
+        const then = new Date(dateStr.replace(' ', 'T'));
+        const diffMs = Date.now() - then.getTime();
+        const mins = Math.floor(diffMs / 60000);
+        if (mins < 1) return 'Just now';
+        if (mins < 60) return mins + 'm ago';
+        const hrs = Math.floor(mins / 60);
+        if (hrs < 24) return hrs + 'h ago';
+        const days = Math.floor(hrs / 24);
+        return days + 'd ago';
+    }
+
+    function escapeHtml(str) {
+        const div = document.createElement('div');
+        div.textContent = str || '';
+        return div.innerHTML;
+    }
+
+    function statusDot(status) {
+        if (status === 'resolved' || status === 'closed') return 'bg-gray-400';
+        if (status === 'open') return 'bg-yellow-500';
+        if (status === 'answered') return 'bg-blue-500';
+        return 'bg-green-500';
+    }
+
+    function renderTicketCard(t) {
+        const wrapper = document.createElement('div');
+        wrapper.className = 'bg-white border border-gray-100 p-4 rounded-xl shadow-sm active:bg-gray-50 transition-colors cursor-pointer';
+        wrapper.dataset.ticketId = t.id;
+        wrapper.innerHTML = `
+            <div class="flex justify-between items-start mb-2">
+                <div class="flex items-center gap-2">
+                    <div class="w-2 h-2 rounded-full ${statusDot(t.status)}"></div>
+                    <h4 class="text-sm font-bold text-gray-800">${escapeHtml(t.subject || t.category)}</h4>
+                </div>
+                <span class="text-[10px] text-gray-400">${timeAgo(t.updated_at)}</span>
+            </div>
+            <p class="text-xs text-gray-500 line-clamp-1">${escapeHtml(t.last_message)}</p>
+            <div id="ticket-body-${t.id}" class="hidden mt-3 pt-3 border-t border-gray-50"></div>
+        `;
+        wrapper.addEventListener('click', () => toggleTicket(t.id));
+        return wrapper;
+    }
+
+    async function apiFetch(url, options = {}) {
+        const res = await fetch(url, Object.assign({ credentials: 'same-origin' }, options));
+        if (res.status === 401) {
+            localStorage.clear();
+            window.location.href = 'login.php';
+            throw new Error('Not logged in');
+        }
+        const payload = await res.json();
+        if (!res.ok || payload.success === false) {
+            throw new Error(payload.message || 'Request failed');
+        }
+        return payload.data !== undefined ? payload.data : payload;
+    }
+
+    let ticketsCache = [];
+
+    async function loadTickets() {
+        const skeleton = document.getElementById('ticket-skeleton');
+        const noTickets = document.getElementById('no-tickets');
+        const list = document.getElementById('ticket-list');
+
+        try {
+            const tickets = await apiFetch(API_CONFIG.SUPPORT_TICKETS);
+            ticketsCache = Array.isArray(tickets) ? tickets : [];
+
+            skeleton.classList.add('hidden');
+            list.innerHTML = '';
+
+            if (ticketsCache.length === 0) {
+                noTickets.classList.remove('hidden');
+                list.classList.add('hidden');
+                return;
+            }
+
+            noTickets.classList.add('hidden');
+            list.classList.remove('hidden');
+            ticketsCache.forEach(t => list.appendChild(renderTicketCard(t)));
+        } catch (err) {
+            skeleton.classList.add('hidden');
+            noTickets.classList.remove('hidden');
+            noTickets.querySelector('p').textContent = 'Could not load your tickets. Pull to refresh.';
+        }
+    }
+
+    async function toggleTicket(id) {
+        const body = document.getElementById('ticket-body-' + id);
+        if (!body) return;
+
+        if (!body.classList.contains('hidden')) {
+            body.classList.add('hidden');
             return;
         }
 
-        // Simulate submission
-        closeSupportSheet();
-        
-        // Optimistically add to list with correct category title
-        const list = document.getElementById('ticket-list');
-        const newTicketId = 'ticket-' + Date.now();
-        
-        const newTicket = `
-            <div onclick="toggleTicket('${newTicketId}')" class="bg-white border border-blue-200 p-4 rounded-xl shadow-sm animate-pulse cursor-pointer">
-                <div class="flex justify-between items-start mb-2">
-                    <div class="flex items-center gap-2">
-                        <div class="w-2 h-2 rounded-full bg-blue-500 animate-ping"></div>
-                        <h4 class="text-sm font-bold text-gray-800">${category}</h4>
-                    </div>
-                    <span class="text-[10px] text-gray-400">Just now</span>
-                </div>
-                <p class="text-xs text-gray-500 line-clamp-1">${msg}</p>
-                
-                <!-- Hidden Details -->
-                <div id="${newTicketId}" class="hidden mt-3 pt-2 border-t border-gray-50">
-                    <div class="mt-2 inline-block bg-blue-50 text-blue-700 text-[9px] font-bold px-2 py-0.5 rounded">Sending to support...</div>
-                    <p class="text-xs text-gray-600 mt-2">${msg}</p>
-                </div>
-            </div>
-        `;
-        list.insertAdjacentHTML('afterbegin', newTicket);
-        
-        // Reset form
-        document.getElementById('ticket-msg').value = '';
+        body.classList.remove('hidden');
+        body.innerHTML = '<p class="text-xs text-gray-400">Loading conversation...</p>';
+
+        try {
+            const ticket = await apiFetch(API_CONFIG.SUPPORT_TICKET + '&id=' + encodeURIComponent(id));
+            body.innerHTML = '';
+
+            (ticket.messages || []).forEach(m => {
+                const isAdmin = m.sender_type === 'admin';
+                const bubble = document.createElement('div');
+                bubble.className = (isAdmin ? 'bg-blue-50' : 'bg-gray-50') + ' rounded-lg p-3 mb-2';
+                bubble.innerHTML = `
+                    <p class="text-[10px] font-bold ${isAdmin ? 'text-blue-800' : 'text-gray-500'} mb-1">${isAdmin ? 'Support Team' : 'You'}</p>
+                    <p class="text-xs ${isAdmin ? 'text-blue-700' : 'text-gray-700'}">${escapeHtml(m.message)}</p>
+                `;
+                body.appendChild(bubble);
+            });
+
+            const replyRow = document.createElement('div');
+            replyRow.className = 'flex gap-2 mt-2';
+            replyRow.innerHTML = `
+                <input type="text" placeholder="Type a reply..." class="flex-1 bg-gray-50 border border-gray-200 rounded-full px-3 py-2 text-xs outline-none focus:ring-2 focus:ring-app-primary/20">
+                <button class="text-[10px] font-bold text-white bg-app-primary px-4 py-2 rounded-full">Send</button>
+            `;
+            const input = replyRow.querySelector('input');
+            const sendBtn = replyRow.querySelector('button');
+            sendBtn.addEventListener('click', async (e) => {
+                e.stopPropagation();
+                const msg = input.value.trim();
+                if (!msg) return;
+                sendBtn.disabled = true;
+                try {
+                    await apiFetch(API_CONFIG.REPLY_SUPPORT_TICKET, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ id, message: msg })
+                    });
+                    input.value = '';
+                    body.classList.add('hidden');
+                    await loadTickets();
+                    toggleTicket(id);
+                } catch (err) {
+                    alert(err.message || 'Could not send reply.');
+                } finally {
+                    sendBtn.disabled = false;
+                }
+            });
+            replyRow.addEventListener('click', (e) => e.stopPropagation());
+            body.appendChild(replyRow);
+        } catch (err) {
+            body.innerHTML = '<p class="text-xs text-red-500">Could not load this conversation.</p>';
+        }
     }
+
+    async function submitTicket(e) {
+        e.preventDefault();
+        const msg = document.getElementById('ticket-msg').value.trim();
+        const category = document.getElementById('ticket-category').value;
+        const errBox = document.getElementById('ticket-form-error');
+        const btn = document.getElementById('ticket-submit-btn');
+
+        errBox.classList.add('hidden');
+
+        if (!msg) {
+            errBox.textContent = 'Please describe your issue.';
+            errBox.classList.remove('hidden');
+            return;
+        }
+
+        btn.disabled = true;
+        btn.innerHTML = 'Sending...';
+
+        try {
+            await apiFetch(API_CONFIG.CREATE_SUPPORT_TICKET, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ category, message: msg })
+            });
+
+            closeSupportSheet();
+            document.getElementById('ticket-msg').value = '';
+            await loadTickets();
+        } catch (err) {
+            errBox.textContent = err.message || 'Could not submit ticket. Please try again.';
+            errBox.classList.remove('hidden');
+        } finally {
+            btn.disabled = false;
+            btn.innerHTML = 'Submit Ticket <i data-lucide="send" class="w-4 h-4"></i>';
+            lucide.createIcons();
+        }
+    }
+
+    document.addEventListener('DOMContentLoaded', loadTickets);
 </script>
 
 <?php include 'footer.php'; ?>

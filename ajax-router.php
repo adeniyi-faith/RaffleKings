@@ -307,6 +307,12 @@ $routes = [
     'referral_stats' => ['public' => false, 'method' => 'GET', 'callback' => fn() => rk_get_referral_stats(rk_ajax_request('GET', '/raffle/v1/referral-stats'))],
     'push_device_save' => ['public' => false, 'method' => 'POST', 'callback' => fn() => rk_save_push_device(rk_ajax_request('POST', '/raffle/v1/save-device'))],
     'save_device' => ['public' => false, 'method' => 'POST', 'callback' => fn() => rk_save_push_device(rk_ajax_request('POST', '/raffle/v1/save-device'))],
+
+    // Support tickets (Phase 0 item 3)
+    'support_tickets' => ['public' => false, 'method' => 'GET', 'callback' => 'rk_get_support_tickets'],
+    'support_ticket' => ['public' => false, 'method' => 'GET', 'callback' => fn() => rk_get_support_ticket(rk_ajax_request('GET', '/raffle/v1/support-ticket'))],
+    'create_support_ticket' => ['public' => false, 'method' => 'POST', 'callback' => fn() => rk_create_support_ticket(rk_ajax_request('POST', '/raffle/v1/support-ticket'))],
+    'reply_support_ticket' => ['public' => false, 'method' => 'POST', 'callback' => fn() => rk_reply_support_ticket(rk_ajax_request('POST', '/raffle/v1/support-ticket/reply'))],
 ];
 
 if (!$action || !isset($routes[$action])) {
