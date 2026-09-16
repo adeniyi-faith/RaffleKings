@@ -361,7 +361,7 @@
                         <div>
                             <p class="text-xs font-bold text-yellow-800">High Risk of Loss</p>
                             <p class="text-left text-[10px] text-yellow-700 leading-snug">
-                                3 other people are viewing this raffle right now. If you leave, your numbers will be returned to the pool instantly.
+                                If you leave, your numbers will be returned to the pool instantly.
                             </p>
                         </div>
                     </div>
