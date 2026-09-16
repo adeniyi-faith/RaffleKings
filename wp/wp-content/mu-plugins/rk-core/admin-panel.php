@@ -102,6 +102,9 @@ function rk_register_admin_pages() {
     // *** NEW: Site Alerts ***
     add_submenu_page('raffle-ops', 'Site Alerts', 'Site Alerts', 'manage_options', 'raffle-site-alerts', 'rk_render_site_alerts_page');
 
+    // *** NEW: Support Tickets (Phase 0 item 3) ***
+    add_submenu_page('raffle-ops', 'Support Tickets', 'Support Tickets', 'manage_options', 'raffle-support', 'rk_render_support_page');
+
     // Logs & Tools
     add_submenu_page('raffle-ops', 'Live Comments', 'Live Comments', 'manage_options', 'raffle-comments', 'rk_render_comments_page');
     add_submenu_page('raffle-ops', 'Transaction Monitor', 'Transactions', 'manage_options', 'raffle-transactions', 'rk_render_transactions_page');
