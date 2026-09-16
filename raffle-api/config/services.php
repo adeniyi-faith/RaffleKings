@@ -35,4 +35,28 @@ return [
         ],
     ],
 
+    /*
+    |--------------------------------------------------------------------------
+    | Push & Admin-Alert Notifications
+    |--------------------------------------------------------------------------
+    |
+    | Same providers the legacy site already uses (OneSignal for push,
+    | Telegram for admin alerts) — see App\Notifications\Channels for the
+    | queued channel implementations. Unlike the legacy versions, these
+    | go through Laravel's own HTTP client, which verifies TLS
+    | certificates by default (the legacy OneSignal calls disable
+    | verification entirely — audit TD-37).
+    |
+    */
+
+    'onesignal' => [
+        'app_id' => env('ONESIGNAL_APP_ID'),
+        'api_key' => env('ONESIGNAL_API_KEY'),
+    ],
+
+    'telegram' => [
+        'bot_token' => env('TELEGRAM_BOT_TOKEN'),
+        'admin_chat_ids' => array_filter(explode(',', (string) env('TELEGRAM_ADMIN_CHAT_IDS', ''))),
+    ],
+
 ];

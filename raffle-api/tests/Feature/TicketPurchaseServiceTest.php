@@ -9,9 +9,11 @@ use App\Models\Legacy\RaffleTransaction;
 use App\Models\Legacy\WpUser;
 use App\Models\Wallet;
 use App\Models\WalletLedgerEntry;
+use App\Notifications\TicketPurchaseReceipt;
 use App\Services\TicketPurchaseService;
 use App\Services\WalletLedgerService;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Facades\Notification;
 use InvalidArgumentException;
 use Tests\TestCase;
 
@@ -237,5 +239,39 @@ class TicketPurchaseServiceTest extends TestCase
         $this->expectException(InvalidArgumentException::class);
 
         $this->service->recordEntriesForVerifiedTransaction($transaction, raffleId: 9, ticketNumbers: [1]);
+    }
+
+    public function test_a_successful_purchase_sends_a_receipt_notification(): void
+    {
+        Notification::fake();
+        $user = $this->makeUserWithWallet(walletBalance: 1000);
+
+        $this->service->purchaseFromBalance(
+            user: $user,
+            raffleId: 5,
+            ticketNumbers: [1],
+            unitPrice: 100,
+            isGoldenBox: false,
+            submittedAmount: 100,
+            fundingSource: 'wallet',
+            idempotencyKey: 'idem-receipt',
+        );
+
+        Notification::assertSentTo($user, TicketPurchaseReceipt::class);
+    }
+
+    public function test_a_replayed_idempotent_request_does_not_send_a_second_receipt(): void
+    {
+        Notification::fake();
+        $user = $this->makeUserWithWallet(walletBalance: 1000);
+        $args = [
+            'user' => $user, 'raffleId' => 5, 'ticketNumbers' => [1], 'unitPrice' => 100,
+            'isGoldenBox' => false, 'submittedAmount' => 100, 'fundingSource' => 'wallet', 'idempotencyKey' => 'idem-once',
+        ];
+
+        $this->service->purchaseFromBalance(...$args);
+        $this->service->purchaseFromBalance(...$args);
+
+        Notification::assertSentToTimes($user, TicketPurchaseReceipt::class, 1);
     }
 }

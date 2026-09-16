@@ -144,6 +144,95 @@ where the migration actually is.
   referral links themselves are still created by the legacy registration
   flow.
 
+- `app/Services/PointsService.php` (+ `PointsLedgerService`, `DailyClaimService`,
+  `TaskClaimService`, `SpinService`, `PointRedemptionService`) and the
+  `user_points`/`point_ledger_entries`/`completed_tasks` tables — the
+  full points/streak/Spin & Win/redemption system, at `/api/rewards/*`.
+  Same reward schedule and rules as the legacy `rk_handle_daily_claim()`/
+  `rk_handle_task_claim()`/`rk_execute_spin_logic()`/`rk_handle_redeem_points()`
+  (`api-gamification.php`), with two real fixes: Spin & Win uses
+  `random_int()` (cryptographically strong) instead of `rand()`, and its
+  odds are a public endpoint (`GET /api/rewards/spin/odds`) instead of a
+  number buried in server code. Redemption credits the NEW `wallets`
+  table via `WalletLedgerService`, same pattern as everywhere else money
+  moves in this app.
+
+- `app/Notifications/Channels/OneSignalChannel.php` + `TelegramChannel.php`
+  — queued notification channels for the same two providers the legacy
+  site already uses. Two real fixes over the legacy versions: Laravel's
+  HTTP client verifies TLS certificates by default (the legacy OneSignal
+  calls disable verification entirely — audit TD-37), and a failed send
+  throws instead of being silently discarded, so a queued job retries
+  (3 attempts, backoff) and — if it keeps failing — lands in Laravel's
+  own `failed_jobs` table (the "dead-letter list" item 17 calls for; no
+  bespoke table needed). Wired into two real triggers: `WinnerAnnounced`
+  (mail + push, sent to every winner right after `ProvablyFairDrawService::runDraw()`
+  commits — this also fixes the legacy winner-push bug, TD-31, by being
+  built against the real `wp_raffle_winners` schema from scratch) and
+  `DrawCompletedAdminAlert` (Telegram). `TicketPurchaseReceipt` (mail)
+  fires after `TicketPurchaseService`'s transaction commits. `WpUser` is
+  now `Notifiable` (`routeNotificationForMail()`/`routeNotificationForOneSignal()`
+  read the real `user_email` column / `rk_onesignal_id` usermeta).
+  `QUEUE_CONNECTION` defaults to `database` (works with zero extra
+  setup); switching to `redis` for production is a config change only.
+
+- `app/Services/WithdrawalService.php` + the `withdrawal_requests` table
+  — same rules as the legacy `rk_handle_withdrawal()`
+  (`api-financials.php`): ₦2,000 minimum, and a ₦1,000 one-time
+  "account verification" fee for anyone whose lifetime deposits are
+  below ₦1,000 (same "smart balance" deduction logic if the balance
+  can't cover both amount and fee). `GET /api/withdrawals/requirements`
+  is the real fix here — it lets a client know whether the fee applies
+  *before* the user submits, instead of finding out only at the moment
+  they try to cash out. "Lifetime deposits" reads `WalletLedgerEntry`
+  rows with `reason = 'deposit'` — that's the contract any future
+  payment-gateway integration (item 13) needs to follow for this to
+  keep working correctly.
+
+- `app/Services/AdminAuditLogService.php` + the `admin_audit_logs` table
+  — the audit log the legacy site has never had (audit TD-15). Every
+  mutating admin action below writes exactly one row here.
+- `app/Services/WinnerManagementService.php` — admin credit/visibility
+  actions on `wp_raffle_winners`, with the winner row locked for the
+  duration of the check-and-credit (fixes TD-12, the legacy double-
+  credit race) and every action logged.
+- `WithdrawalService::markPaid()`/`reject()` — admin actions on
+  withdrawal requests, also logged. Rejecting refunds exactly what was
+  deducted for that specific request; it does not reverse a
+  verification-fee credit, which represents the account having been
+  verified independent of any one request's outcome.
+- Admin API routes live under `/api/admin/*`, gated by the same `admin`
+  middleware from item 14: `GET /withdrawals`, `POST
+  /withdrawals/{id}/mark-paid`, `POST /withdrawals/{id}/reject`, `POST
+  /winners/{id}/credit`, `PATCH /winners/{id}/visibility`, `GET
+  /audit-logs`. **This is a JSON API, not a UI** — installing Filament
+  (the audit's recommendation) hit repeated proxy timeouts pulling its
+  dependency tree in this environment; try again with better network
+  conditions, or build a different admin frontend against these same
+  endpoints. User management, raffle/prize management, referral/rewards
+  views, and financial reconciliation aren't built yet.
+
+- `app/Services/SupportTicketService.php` + the `support_tickets`/
+  `support_ticket_messages` tables — a real support ticket system,
+  replacing the legacy site's `support.php`, whose "Submit Ticket"
+  handler literally has a comment reading `// Simulate submission` and
+  never makes a network call at all. This was the single most
+  user-harmful gap the whole audit found: a user believes their message
+  was sent, and it goes nowhere. User-facing routes at
+  `GET/POST /api/support/tickets`, `GET /api/support/tickets/{id}`,
+  `POST /api/support/tickets/{id}/reply` — a user can only see or reply
+  to their own tickets (checked by comparing the ticket's owner, and a
+  mismatch returns 404 rather than 403 so a user can't even tell someone
+  else's ticket ID exists). Admin routes at
+  `GET /api/admin/support/tickets` (paginated, filterable by
+  `?status=`), `GET .../{id}`, `POST .../{id}/reply`,
+  `PATCH .../{id}/status` — every admin reply and status change is
+  written to the same audit log as item 19's withdrawal/winner actions.
+  A new ticket queues `NewSupportTicketAdminAlert`; an admin reply queues
+  `SupportTicketReply` to the ticket's owner — both go through the same
+  queued-notification system as item 17 (retries, dead-letter list),
+  not a synchronous, easy-to-lose send.
+
 ## What is NOT done yet (do not assume otherwise)
 
 - The old PHP code (`api-financials.php`, etc.) still reads and writes

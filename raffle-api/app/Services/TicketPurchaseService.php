@@ -8,6 +8,7 @@ use App\Models\Legacy\RaffleEntry;
 use App\Models\Legacy\RaffleTransaction;
 use App\Models\Legacy\WpUser;
 use App\Models\Wallet;
+use App\Notifications\TicketPurchaseReceipt;
 use Illuminate\Database\UniqueConstraintViolationException;
 use Illuminate\Support\Facades\DB;
 use InvalidArgumentException;
@@ -101,7 +102,7 @@ class TicketPurchaseService
         $transactionType = $fundingSource === 'wallet' ? 'ticket_purchase_wallet' : 'ticket_purchase_earnings';
 
         try {
-            return DB::transaction(function () use (
+            $transaction = DB::transaction(function () use (
                 $user, $raffleId, $ticketNumbers, $submittedAmount,
                 $balanceColumn, $transactionType, $idempotencyKey, $fundingSource
             ) {
@@ -151,6 +152,12 @@ class TicketPurchaseService
 
                 return $transaction;
             });
+
+            // Fires AFTER the transaction commits — never inside it, so
+            // a receipt can't go out for a purchase that then rolls back.
+            $user->notify(new TicketPurchaseReceipt($transaction, count($ticketNumbers)));
+
+            return $transaction;
         } catch (UniqueConstraintViolationException) {
             // The transaction above has already been rolled back by this
             // point — no balance was actually debited. Work out which of

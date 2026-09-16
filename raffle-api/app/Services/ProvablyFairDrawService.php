@@ -9,12 +9,17 @@ use App\Exceptions\NoPrizeStructureException;
 use App\Models\Legacy\RaffleEntry;
 use App\Models\Legacy\RaffleTransaction;
 use App\Models\Legacy\RaffleWinner;
+use App\Models\Legacy\WpUser;
 use App\Models\Raffle;
 use App\Models\RaffleDraw;
 use App\Models\RafflePrizeTier;
+use App\Notifications\DrawCompletedAdminAlert;
+use App\Notifications\WinnerAnnounced;
+use Illuminate\Notifications\AnonymousNotifiable;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Notification;
 
 /**
  * A provably-fair replacement for the legacy draw
@@ -114,13 +119,31 @@ class ProvablyFairDrawService
 
         $winners = $this->assignPrizes($legacyRaffleId, $shuffled, $prizeTiers);
 
-        return DB::transaction(function () use ($winners, $draw, $clientSeed) {
+        $created = DB::transaction(function () use ($winners, $draw, $clientSeed) {
             $created = array_map(fn ($winner) => RaffleWinner::create($winner), $winners);
 
             $draw->update(['client_seed' => $clientSeed, 'executed_at' => now()]);
 
             return $created;
         });
+
+        // Notifications fire AFTER the transaction commits — never
+        // inside it, so a winner can't be told they won a draw that
+        // then gets rolled back.
+        $this->notifyWinnersAndAdmins($raffle->id, $created);
+
+        return $created;
+    }
+
+    /** @param  RaffleWinner[]  $winners */
+    private function notifyWinnersAndAdmins(int $raffleId, array $winners): void
+    {
+        foreach ($winners as $winner) {
+            $user = WpUser::find($winner->user_id);
+            $user?->notify(new WinnerAnnounced($winner));
+        }
+
+        Notification::send(new AnonymousNotifiable, new DrawCompletedAdminAlert($raffleId, count($winners)));
     }
 
     /**
