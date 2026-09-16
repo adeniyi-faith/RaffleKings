@@ -165,37 +165,72 @@ function rk_handle_payment_ai($request) {
     $table_entries = $wpdb->prefix . 'raffle_entries';
 
     // *** CASE 1: SPENDING WALLET PAYMENT ***
+    // SECURITY FIX: the balance debit, the transaction record, and the ticket
+    // entries now all happen inside ONE database transaction. Previously the
+    // debit was committed on its own, then tickets were inserted separately —
+    // if a ticket number was taken by someone else in that gap (a real
+    // collision on the raffle_ticket unique key) or any insert failed, the
+    // user was left charged with no ticket and no automatic rollback.
     if ($type === 'wallet_payment') {
-        $new_bal = rk_update_balance_safe($user_id, $amount, 'subtract');
-        if (is_wp_error($new_bal)) return $new_bal;
+        $wpdb->query('START TRANSACTION');
+        try {
+            $current = $wpdb->get_var($wpdb->prepare(
+                "SELECT meta_value FROM {$wpdb->usermeta}
+                 WHERE user_id = %d AND meta_key = 'wallet_balance'
+                 FOR UPDATE",
+                $user_id
+            ));
+            $current = $current !== null ? (float) $current : 0;
+            $new_bal = $current - $amount;
 
-        $proof_note = 'wallet_debit';
-        if ($is_golden_box) $proof_note .= ' (Golden Box Applied)';
+            if ($new_bal < 0) {
+                throw new Exception('Insufficient balance');
+            }
 
-        $wpdb->insert($table_txn, [
-            'user_id' => $user_id, 
-            'claimed_amount' => $amount, 
-            'status' => 'verified_final', 
-            'type' => 'ticket_purchase_wallet', 
-            'proof_url' => $proof_note, 
-            'created_at' => current_time('mysql')
-        ]);
-        $txn_id = $wpdb->insert_id;
-        
-        if ($raffle_id > 0 && !empty($numbers_str)) {
-            $numbers = explode(',', $numbers_str);
-            foreach ($numbers as $num) {
-                $num = intval(trim($num));
-                if ($num > 0) {
-                    $wpdb->insert($table_entries, [
-                        'user_id' => $user_id, 
-                        'raffle_id' => $raffle_id, 
-                        'ticket_number' => $num, 
-                        'txn_id' => $txn_id, 
-                        'created_at' => current_time('mysql')
-                    ]);
+            update_user_meta($user_id, 'wallet_balance', $new_bal);
+
+            $proof_note = 'wallet_debit';
+            if ($is_golden_box) $proof_note .= ' (Golden Box Applied)';
+
+            $txn_inserted = $wpdb->insert($table_txn, [
+                'user_id' => $user_id,
+                'claimed_amount' => $amount,
+                'status' => 'verified_final',
+                'type' => 'ticket_purchase_wallet',
+                'proof_url' => $proof_note,
+                'created_at' => current_time('mysql')
+            ]);
+            if ($txn_inserted === false) {
+                throw new Exception('Failed to record the transaction. Please try again.');
+            }
+            $txn_id = $wpdb->insert_id;
+
+            if ($raffle_id > 0 && !empty($numbers_str)) {
+                $numbers = explode(',', $numbers_str);
+                foreach ($numbers as $num) {
+                    $num = intval(trim($num));
+                    if ($num > 0) {
+                        $entry_inserted = $wpdb->insert($table_entries, [
+                            'user_id' => $user_id,
+                            'raffle_id' => $raffle_id,
+                            'ticket_number' => $num,
+                            'txn_id' => $txn_id,
+                            'created_at' => current_time('mysql')
+                        ]);
+                        if ($entry_inserted === false) {
+                            throw new Exception('Number ' . $num . ' was just taken by another buyer. Please pick different numbers.');
+                        }
+                    }
                 }
             }
+
+            $wpdb->query('COMMIT');
+        } catch (Exception $e) {
+            $wpdb->query('ROLLBACK');
+            return new WP_Error('purchase_failed', $e->getMessage(), ['status' => 409]);
+        }
+
+        if ($raffle_id > 0 && !empty($numbers_str)) {
             // 🔥 TRIGGER RECEIPT EMAIL
             rk_send_purchase_receipt($user_id, $amount, $raffle_id, $ticket_count, $numbers_str);
         }
@@ -203,49 +238,65 @@ function rk_handle_payment_ai($request) {
     }
 
     // *** CASE 2: EARNINGS/BONUS WALLET PAYMENT ***
+    // Same fix as CASE 1: debit, transaction record, and ticket entries are
+    // one atomic unit — a ticket-number collision rolls the debit back too.
     if ($type === 'earnings_payment') {
         $wpdb->query('START TRANSACTION');
-        $current_earn = $wpdb->get_var($wpdb->prepare(
-            "SELECT meta_value FROM {$wpdb->usermeta} WHERE user_id = %d AND meta_key = 'earnings_balance' FOR UPDATE", 
-            $user_id
-        ));
-        $current_earn = (float)$current_earn;
+        try {
+            $current_earn = $wpdb->get_var($wpdb->prepare(
+                "SELECT meta_value FROM {$wpdb->usermeta} WHERE user_id = %d AND meta_key = 'earnings_balance' FOR UPDATE",
+                $user_id
+            ));
+            $current_earn = (float) $current_earn;
 
-        if ($current_earn < $amount) {
-            $wpdb->query('ROLLBACK');
-            return new WP_Error('insufficient_funds', 'Insufficient winnings/bonus balance.', ['status' => 400]);
-        }
-        
-        update_user_meta($user_id, 'earnings_balance', $current_earn - $amount);
-        $wpdb->query('COMMIT');
-        
-        $proof_note = 'earnings_debit';
-        if ($is_golden_box) $proof_note .= ' (Golden Box Applied)';
+            if ($current_earn < $amount) {
+                throw new Exception('Insufficient winnings/bonus balance.');
+            }
 
-        $wpdb->insert($table_txn, [
-            'user_id' => $user_id, 
-            'claimed_amount' => $amount, 
-            'status' => 'verified_final', 
-            'type' => 'ticket_purchase_earnings', 
-            'proof_url' => $proof_note, 
-            'created_at' => current_time('mysql')
-        ]);
-        $txn_id = $wpdb->insert_id;
-        
-        if ($raffle_id > 0 && !empty($numbers_str)) {
-            $numbers = explode(',', $numbers_str);
-            foreach ($numbers as $num) {
-                $num = intval(trim($num));
-                if ($num > 0) {
-                    $wpdb->insert($table_entries, [
-                        'user_id' => $user_id, 
-                        'raffle_id' => $raffle_id, 
-                        'ticket_number' => $num, 
-                        'txn_id' => $txn_id, 
-                        'created_at' => current_time('mysql')
-                    ]);
+            update_user_meta($user_id, 'earnings_balance', $current_earn - $amount);
+
+            $proof_note = 'earnings_debit';
+            if ($is_golden_box) $proof_note .= ' (Golden Box Applied)';
+
+            $txn_inserted = $wpdb->insert($table_txn, [
+                'user_id' => $user_id,
+                'claimed_amount' => $amount,
+                'status' => 'verified_final',
+                'type' => 'ticket_purchase_earnings',
+                'proof_url' => $proof_note,
+                'created_at' => current_time('mysql')
+            ]);
+            if ($txn_inserted === false) {
+                throw new Exception('Failed to record the transaction. Please try again.');
+            }
+            $txn_id = $wpdb->insert_id;
+
+            if ($raffle_id > 0 && !empty($numbers_str)) {
+                $numbers = explode(',', $numbers_str);
+                foreach ($numbers as $num) {
+                    $num = intval(trim($num));
+                    if ($num > 0) {
+                        $entry_inserted = $wpdb->insert($table_entries, [
+                            'user_id' => $user_id,
+                            'raffle_id' => $raffle_id,
+                            'ticket_number' => $num,
+                            'txn_id' => $txn_id,
+                            'created_at' => current_time('mysql')
+                        ]);
+                        if ($entry_inserted === false) {
+                            throw new Exception('Number ' . $num . ' was just taken by another buyer. Please pick different numbers.');
+                        }
+                    }
                 }
             }
+
+            $wpdb->query('COMMIT');
+        } catch (Exception $e) {
+            $wpdb->query('ROLLBACK');
+            return new WP_Error('purchase_failed', $e->getMessage(), ['status' => 409]);
+        }
+
+        if ($raffle_id > 0 && !empty($numbers_str)) {
             // 🔥 TRIGGER RECEIPT EMAIL
             rk_send_purchase_receipt($user_id, $amount, $raffle_id, $ticket_count, $numbers_str);
         }
