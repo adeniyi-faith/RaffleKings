@@ -42,7 +42,7 @@ class DrawControllerTest extends TestCase
         $raffle = $this->makeRaffleWithTiers();
         $this->actingAsWordPressUser();
 
-        $this->postJson("/api/raffles/{$raffle->id}/draw/commit")->assertStatus(403);
+        $this->postJson("/api/admin/raffles/{$raffle->id}/draw/commit")->assertStatus(403);
     }
 
     public function test_an_administrator_can_commit_and_run_a_draw(): void
@@ -54,11 +54,11 @@ class DrawControllerTest extends TestCase
 
         $this->actingAsAdministrator();
 
-        $this->postJson("/api/raffles/{$raffle->id}/draw/commit")
+        $this->postJson("/api/admin/raffles/{$raffle->id}/draw/commit")
             ->assertCreated()
             ->assertJson(['has_run' => false]);
 
-        $this->postJson("/api/raffles/{$raffle->id}/draw/run")
+        $this->postJson("/api/admin/raffles/{$raffle->id}/draw/run")
             ->assertCreated()
             ->assertJson(['winner_count' => 1]);
     }
@@ -67,7 +67,7 @@ class DrawControllerTest extends TestCase
     {
         $raffle = $this->makeRaffleWithTiers();
         $this->actingAsAdministrator();
-        $this->postJson("/api/raffles/{$raffle->id}/draw/commit")->assertCreated();
+        $this->postJson("/api/admin/raffles/{$raffle->id}/draw/commit")->assertCreated();
 
         // No auth for this one — it's public.
         $response = $this->getJson("/api/raffles/{$raffle->id}/draw");
@@ -85,8 +85,8 @@ class DrawControllerTest extends TestCase
         RaffleEntry::create(['user_id' => $buyer->ID, 'raffle_id' => 500, 'ticket_number' => 1, 'txn_id' => $txn->id]);
 
         $this->actingAsAdministrator();
-        $this->postJson("/api/raffles/{$raffle->id}/draw/commit")->assertCreated();
-        $this->postJson("/api/raffles/{$raffle->id}/draw/run")->assertCreated();
+        $this->postJson("/api/admin/raffles/{$raffle->id}/draw/commit")->assertCreated();
+        $this->postJson("/api/admin/raffles/{$raffle->id}/draw/run")->assertCreated();
 
         $response = $this->getJson("/api/raffles/{$raffle->id}/draw");
 

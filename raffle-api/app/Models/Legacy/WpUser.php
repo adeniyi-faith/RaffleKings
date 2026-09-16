@@ -3,6 +3,7 @@
 namespace App\Models\Legacy;
 
 use Illuminate\Contracts\Auth\Authenticatable;
+use Illuminate\Notifications\Notifiable;
 
 /**
  * Maps to WordPress's own wp_users table. This is the ONLY source of truth
@@ -16,6 +17,8 @@ use Illuminate\Contracts\Auth\Authenticatable;
  */
 class WpUser extends LegacyModel implements Authenticatable
 {
+    use Notifiable;
+
     protected static string $unprefixedTable = 'users';
 
     protected $primaryKey = 'ID';
@@ -124,5 +127,20 @@ class WpUser extends LegacyModel implements Authenticatable
     public function getRememberTokenName(): string
     {
         return '';
+    }
+
+    // -- Illuminate\Notifications\Notifiable routing -------------------
+    // WordPress's own column/meta names, not Laravel's usual "email"
+    // attribute or a Sanctum-style device-token column.
+
+    public function routeNotificationForMail(): string
+    {
+        return $this->user_email;
+    }
+
+    /** Reads the same OneSignal player id the legacy site saves via rk_save_push_device(). */
+    public function routeNotificationForOneSignal(): ?string
+    {
+        return $this->metaValue('rk_onesignal_id') ?: null;
     }
 }
