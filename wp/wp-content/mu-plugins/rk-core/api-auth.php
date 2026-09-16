@@ -366,6 +366,14 @@ function rk_handle_verify_reset_code($request) {
     $email = sanitize_email($request->get_param('email'));
     $otp = sanitize_text_field($request->get_param('otp'));
     if (empty($email) || empty($otp)) return new WP_Error('missing_fields', 'Email and reset code are required', ['status' => 400]);
+
+    // SECURITY: a 6-digit OTP is only ~1,000,000 combinations — without a guess limit
+    // it can be brute-forced in minutes. Cap attempts per email, independent of IP.
+    if (function_exists('rk_check_rate_limit')) {
+        $limit_check = rk_check_rate_limit('reset_otp_guess_' . md5($email), 5, 900);
+        if (is_wp_error($limit_check)) return $limit_check;
+    }
+
     $user = get_user_by('email', $email);
     if (!$user) return new WP_Error('not_found', 'User not found', ['status' => 404]);
     $stored_otp = get_user_meta($user->ID, 'rk_reset_otp', true);
@@ -571,11 +579,18 @@ function rk_handle_forgot_password($request) {
     $email = sanitize_email($request->get_param('email'));
     if (!is_email($email)) return new WP_Error('invalid_email', 'Invalid email address', ['status' => 400]);
 
+    // SECURITY: cap how often a reset code can be requested for one email/IP,
+    // so this endpoint can't be used to spam a victim's inbox or hammer the mail queue.
+    if (function_exists('rk_check_rate_limit')) {
+        $limit_check = rk_check_rate_limit('forgot_password_' . md5($email), 3, 300);
+        if (is_wp_error($limit_check)) return $limit_check;
+    }
+
     $user = get_user_by('email', $email);
     if (!$user) return new WP_Error('not_found', 'User not found', ['status' => 404]);
 
-    // Generate 6-digit OTP
-    $otp = rand(100000, 999999);
+    // Generate 6-digit OTP using a cryptographically secure source (not rand()).
+    $otp = random_int(100000, 999999);
     $expiry = time() + (15 * 60); // 15 mins
 
     update_user_meta($user->ID, 'rk_reset_otp', $otp);

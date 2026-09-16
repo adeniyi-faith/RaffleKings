@@ -12,6 +12,7 @@ const FRONTEND_URL = "https://rafflekings.com.ng";
 const API_CONFIG = {
     REGISTER: ajaxAction('register'),
     LOGIN: ajaxAction('login'),
+    LOGOUT: ajaxAction('logout'),
     USER_ME: ajaxAction('get_profile'),
 
     // Auth & Password Reset
