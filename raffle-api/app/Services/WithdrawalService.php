@@ -12,6 +12,7 @@ use App\Models\Wallet;
 use App\Models\WalletLedgerEntry;
 use App\Models\WithdrawalRequest;
 use Illuminate\Support\Facades\DB;
+use RuntimeException;
 
 /**
  * Withdrawal requests against the earnings balance — same rules as the
@@ -35,7 +36,10 @@ use Illuminate\Support\Facades\DB;
  */
 class WithdrawalService
 {
-    public function __construct(private readonly WalletLedgerService $ledger) {}
+    public function __construct(
+        private readonly WalletLedgerService $ledger,
+        private readonly AdminAuditLogService $auditLog,
+    ) {}
 
     /**
      * What a withdrawal will cost this user right now — safe to call
@@ -137,6 +141,73 @@ class WithdrawalService
                 'status' => 'pending',
             ]);
         });
+    }
+
+    /**
+     * Admin confirms the bank transfer was actually sent. Logged to the
+     * admin audit log — fixes audit TD-15 ("no admin action audit log
+     * anywhere... approvals... are unlogged").
+     *
+     * @throws RuntimeException if the request isn't pending
+     */
+    public function markPaid(WpUser $admin, WithdrawalRequest $withdrawal): WithdrawalRequest
+    {
+        if ($withdrawal->status !== 'pending') {
+            throw new RuntimeException("Withdrawal #{$withdrawal->id} is not pending (status: {$withdrawal->status}).");
+        }
+
+        $withdrawal->update(['status' => 'paid']);
+
+        $this->auditLog->record($admin, 'withdrawal.paid', WithdrawalRequest::class, $withdrawal->id, [
+            'amount_sent' => (float) $withdrawal->amount_to_send,
+            'user_id' => $withdrawal->user_id,
+        ]);
+
+        return $withdrawal;
+    }
+
+    /**
+     * Admin declines the request — refunds exactly what was taken for
+     * THIS request (amount_to_send + fee_amount) back to earnings.
+     * Deliberately does NOT reverse a verification-fee credit into the
+     * user's wallet balance, if one happened: that credit represents
+     * the account having been verified, a fact independent of whether
+     * this particular request is later approved or rejected.
+     *
+     * @throws RuntimeException if the request isn't pending
+     */
+    public function reject(WpUser $admin, WithdrawalRequest $withdrawal, ?string $reason = null): WithdrawalRequest
+    {
+        if ($withdrawal->status !== 'pending') {
+            throw new RuntimeException("Withdrawal #{$withdrawal->id} is not pending (status: {$withdrawal->status}).");
+        }
+
+        DB::transaction(function () use ($withdrawal) {
+            $wallet = Wallet::query()->where('user_id', $withdrawal->user_id)->lockForUpdate()->first();
+            $refund = (float) $withdrawal->amount_to_send + (float) $withdrawal->fee_amount;
+
+            $wallet->earnings_balance = (float) $wallet->earnings_balance + $refund;
+            $wallet->save();
+
+            $this->ledger->recordCredit(
+                userId: $withdrawal->user_id,
+                balanceType: 'earnings',
+                amount: $refund,
+                reason: 'withdrawal_rejected',
+                referenceType: 'withdrawal_request',
+                referenceId: $withdrawal->id,
+            );
+
+            $withdrawal->update(['status' => 'rejected']);
+        });
+
+        $this->auditLog->record($admin, 'withdrawal.rejected', WithdrawalRequest::class, $withdrawal->id, [
+            'reason' => $reason,
+            'refunded' => (float) $withdrawal->amount_to_send + (float) $withdrawal->fee_amount,
+            'user_id' => $withdrawal->user_id,
+        ]);
+
+        return $withdrawal;
     }
 
     /**

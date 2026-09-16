@@ -147,4 +147,38 @@ class WithdrawalServiceTest extends TestCase
         $this->assertEquals(100, Wallet::where('user_id', $user->ID)->value('earnings_balance'));
         $this->assertSame(0, WithdrawalRequest::count());
     }
+
+    public function test_an_admin_can_mark_a_pending_withdrawal_paid(): void
+    {
+        [$user, $account] = $this->makeVerifiedUser();
+        $withdrawal = $this->withdrawals->request($user, 3000, $account->id);
+        $admin = WpUser::create(['user_login' => 'admin'.uniqid(), 'user_pass' => 'x', 'user_email' => uniqid().'@example.com']);
+
+        $this->withdrawals->markPaid($admin, $withdrawal);
+
+        $this->assertSame('paid', $withdrawal->fresh()->status);
+    }
+
+    public function test_an_already_paid_withdrawal_cannot_be_marked_paid_again(): void
+    {
+        [$user, $account] = $this->makeVerifiedUser();
+        $withdrawal = $this->withdrawals->request($user, 3000, $account->id);
+        $admin = WpUser::create(['user_login' => 'admin'.uniqid(), 'user_pass' => 'x', 'user_email' => uniqid().'@example.com']);
+        $this->withdrawals->markPaid($admin, $withdrawal);
+
+        $this->expectException(\RuntimeException::class);
+        $this->withdrawals->markPaid($admin, $withdrawal->fresh());
+    }
+
+    public function test_rejecting_a_withdrawal_refunds_the_full_deducted_amount(): void
+    {
+        [$user, $account] = $this->makeVerifiedUser(earnings: 10000);
+        $withdrawal = $this->withdrawals->request($user, 3000, $account->id);
+        $admin = WpUser::create(['user_login' => 'admin'.uniqid(), 'user_pass' => 'x', 'user_email' => uniqid().'@example.com']);
+
+        $this->withdrawals->reject($admin, $withdrawal, 'wrong bank details');
+
+        $this->assertSame('rejected', $withdrawal->fresh()->status);
+        $this->assertEquals(10000, Wallet::where('user_id', $user->ID)->value('earnings_balance'));
+    }
 }
