@@ -176,6 +176,19 @@ where the migration actually is.
   `QUEUE_CONNECTION` defaults to `database` (works with zero extra
   setup); switching to `redis` for production is a config change only.
 
+- `app/Services/WithdrawalService.php` + the `withdrawal_requests` table
+  — same rules as the legacy `rk_handle_withdrawal()`
+  (`api-financials.php`): ₦2,000 minimum, and a ₦1,000 one-time
+  "account verification" fee for anyone whose lifetime deposits are
+  below ₦1,000 (same "smart balance" deduction logic if the balance
+  can't cover both amount and fee). `GET /api/withdrawals/requirements`
+  is the real fix here — it lets a client know whether the fee applies
+  *before* the user submits, instead of finding out only at the moment
+  they try to cash out. "Lifetime deposits" reads `WalletLedgerEntry`
+  rows with `reason = 'deposit'` — that's the contract any future
+  payment-gateway integration (item 13) needs to follow for this to
+  keep working correctly.
+
 ## What is NOT done yet (do not assume otherwise)
 
 - The old PHP code (`api-financials.php`, etc.) still reads and writes

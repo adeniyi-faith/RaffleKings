@@ -60,7 +60,9 @@ class SpinServiceTest extends TestCase
 
     public function test_a_spin_always_returns_one_of_the_four_documented_outcomes(): void
     {
-        $user = $this->makeUserWithPoints(500);
+        // Comfortably covers 20 spins even in the all-loss worst case
+        // (each loss nets -35 points: 50 cost, 15 paid back).
+        $user = $this->makeUserWithPoints(2000);
         $validOutcomes = array_column($this->spin->odds(), 'outcome');
 
         for ($i = 0; $i < 20; $i++) {
