@@ -42,6 +42,7 @@ class TicketPurchaseService
 {
     public function __construct(
         private readonly TicketPricingService $pricing,
+        private readonly WalletLedgerService $ledger,
     ) {}
 
     /**
@@ -102,7 +103,7 @@ class TicketPurchaseService
         try {
             return DB::transaction(function () use (
                 $user, $raffleId, $ticketNumbers, $submittedAmount,
-                $balanceColumn, $transactionType, $idempotencyKey
+                $balanceColumn, $transactionType, $idempotencyKey, $fundingSource
             ) {
                 // Lock this user's wallet row for the duration of the
                 // transaction — a concurrent purchase or transfer by the
@@ -129,6 +130,18 @@ class TicketPurchaseService
                     'proof_url' => $balanceColumn === 'wallet_balance' ? 'wallet_debit' : 'earnings_debit',
                     'idempotency_key' => $idempotencyKey,
                 ]);
+
+                // Every balance mutation gets a permanent ledger entry,
+                // in the same transaction as the mutation itself — see
+                // WalletLedgerService.
+                $this->ledger->recordDebit(
+                    userId: $user->ID,
+                    balanceType: $fundingSource,
+                    amount: $submittedAmount,
+                    reason: 'ticket_purchase',
+                    referenceType: 'raffle_transaction',
+                    referenceId: $transaction->id,
+                );
 
                 // Ticket allocation happens INSIDE the same transaction as
                 // the debit above. If this throws, the debit and the

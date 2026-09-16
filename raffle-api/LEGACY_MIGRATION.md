@@ -88,6 +88,16 @@ where the migration actually is.
   legacy CPT directly, and the draw engine doesn't exist in Laravel yet
   (item 12).
 
+- `app/Models/WalletLedgerEntry.php` + the `wallet_ledger_entries` table,
+  `app/Services/WalletLedgerService.php` — a real, append-only ledger.
+  `TicketPurchaseService` now records a ledger entry for every debit in
+  the same database transaction as the balance mutation (including
+  rolling the ledger entry back on the TD-06 collision path). Run
+  `php artisan legacy:reconcile-wallet-ledger [--dry-run]` once after
+  `legacy:backfill-wallets` so every wallet has an honest opening-balance
+  entry — it does not invent a transaction history that doesn't exist,
+  it just marks "this was the balance when the ledger started."
+
 ## What is NOT done yet (do not assume otherwise)
 
 - The old PHP code (`api-financials.php`, etc.) still reads and writes
