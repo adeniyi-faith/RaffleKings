@@ -247,9 +247,58 @@ where the migration actually is.
   `rm -rf vendor && composer install` from the existing lock file — no
   network resolution needed, just a clean download. `php artisan
   filament:install --panels` then scaffolded
-  `App\Providers\Filament\AdminPanelProvider`. No Filament *resources*
-  (the actual admin pages) exist yet — the admin console is still the
-  JSON API described below until those are built.
+  `App\Providers\Filament\AdminPanelProvider`.
+
+- **The Filament admin panel now has real pages, finishing item 19.**
+  `App\Models\Legacy\WpUser` implements Filament's `FilamentUser` and
+  `HasName` contracts — `canAccessPanel()` is the SAME `isAdministrator()`
+  check every `/api/admin/*` route already uses, and there is no separate
+  Filament login: the panel's auth guard is set to `wordpress`, so
+  visiting `/admin` while already logged into the legacy WordPress site
+  as an administrator is what grants access. Getting this working
+  surfaced a real bug: the WordPress "logged in" cookie is never
+  Laravel-encrypted (WordPress itself sets it), but any route running
+  through Laravel's default 'web' middleware group — which only started
+  mattering once a real page existed here — runs `EncryptCookies`, which
+  would try to decrypt it, fail, and silently strip it. Fixed by
+  excepting that cookie name globally in `bootstrap/app.php`. Filament's
+  `AuthenticateSession` middleware was also removed from the panel's
+  stack — it calls a `StatefulGuard` method (`viaRemember()`) our
+  cookie-only `WordPressSessionGuard` deliberately doesn't implement,
+  since there's no Laravel session login/logout to protect against
+  fixation on.
+
+  Three resources/pages:
+  - `App\Filament\Resources\Legacy\WpUserResource` — search/filter every
+    user, see their wallet + earnings balance and admin/banned status at
+    a glance, and ban/unban via a new `App\Services\UserManagementService`
+    (writes the same `rk_is_banned` usermeta key the legacy site already
+    reads, so a ban means the same thing on both systems during the
+    migration window; every change is audit-logged). No create/edit
+    forms — accounts and passwords are still owned by WordPress.
+  - `App\Filament\Resources\RaffleResource` (+ a `PrizeTiersRelationManager`)
+    — full CRUD on the native `raffles`/`raffle_prize_tiers` tables from
+    item 10, replacing the WordPress CPT + ACF repeater editing flow.
+  - `App\Filament\Pages\FinancialReconciliation` — the financial
+    reconciliation piece of item 19: lists every wallet next to what
+    `WalletLedgerService::reconstructBalance()` says that wallet's
+    balance should be from its own ledger entries alone, and flags any
+    row where they've drifted apart. Since every money-moving service in
+    this app (`TicketPurchaseService`, `WithdrawalService`,
+    `DepositService`, `ReferralCommissionService`, `PointRedemptionService`)
+    is required to write a ledger entry in the same transaction as any
+    balance mutation, a drift here means something touched a wallet
+    outside one of those single settlement paths — this page is the
+    thing that would actually catch that.
+
+  Testing note: Livewire's test harness (`Livewire::test(...)->callTableAction(...)`)
+  dispatches component actions through an internal request broker that
+  does not carry the outer test's cookies, so it can't exercise
+  `WordPressSessionGuard`'s per-request cookie resolution the way a real
+  browser action call does. The ban/unban action's actual behavior is
+  tested directly against `UserManagementService`
+  (`tests/Unit/UserManagementServiceTest.php`); the Filament test only
+  checks the action is offered/hidden for the right ban state.
 
 - `app/Services/SupportTicketService.php` + the `support_tickets`/
   `support_ticket_messages` tables — a real support ticket system,

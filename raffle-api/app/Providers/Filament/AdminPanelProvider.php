@@ -3,7 +3,6 @@
 namespace App\Providers\Filament;
 
 use Filament\Http\Middleware\Authenticate;
-use Filament\Http\Middleware\AuthenticateSession;
 use Filament\Http\Middleware\DisableBladeIconComponents;
 use Filament\Http\Middleware\DispatchServingFilamentEvent;
 use Filament\Pages;
@@ -18,6 +17,22 @@ use Illuminate\Routing\Middleware\SubstituteBindings;
 use Illuminate\Session\Middleware\StartSession;
 use Illuminate\View\Middleware\ShareErrorsFromSession;
 
+/**
+ * No `->login()` here on purpose — there is no separate Filament
+ * password. An admin logs in through the same legacy WordPress login
+ * every other part of this app already bridges (see
+ * App\Auth\WordPressSessionGuard); visiting /admin while logged in with
+ * an administrator account (WpUser::isAdministrator()) is what grants
+ * access, same as every existing `/api/admin/*` route. The cookie this
+ * relies on is excepted from EncryptCookies globally in bootstrap/app.php
+ * — WordPress sets it, so it was never Laravel-encrypted to begin with.
+ *
+ * No AuthenticateSession middleware either — it calls a StatefulGuard
+ * method (viaRemember()) our WordPressSessionGuard deliberately doesn't
+ * implement, since there is no Laravel session login/logout to protect
+ * against fixation on; the guard re-validates the WordPress cookie on
+ * every request instead.
+ */
 class AdminPanelProvider extends PanelProvider
 {
     public function panel(Panel $panel): Panel
@@ -26,7 +41,7 @@ class AdminPanelProvider extends PanelProvider
             ->default()
             ->id('admin')
             ->path('admin')
-            ->login()
+            ->authGuard('wordpress')
             ->colors([
                 'primary' => Color::Amber,
             ])
@@ -44,7 +59,6 @@ class AdminPanelProvider extends PanelProvider
                 EncryptCookies::class,
                 AddQueuedCookiesToResponse::class,
                 StartSession::class,
-                AuthenticateSession::class,
                 ShareErrorsFromSession::class,
                 VerifyCsrfToken::class,
                 SubstituteBindings::class,
