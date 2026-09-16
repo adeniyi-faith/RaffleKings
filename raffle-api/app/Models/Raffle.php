@@ -25,12 +25,23 @@ class Raffle extends Model
         'grand_prize',
         'expiry',
         'status',
+        // Item 27 — Live Draw event controls (Filament RaffleResource).
+        'is_live_draw_enabled',
+        'live_draw_status',
+        'live_draw_pace_ms',
+        'live_draw_theme_color',
+        'live_draw_scheduled_at',
+        'live_draw_started_at',
     ];
 
     protected $casts = [
         'price' => 'decimal:2',
         'max_tickets' => 'integer',
         'expiry' => 'date',
+        'is_live_draw_enabled' => 'boolean',
+        'live_draw_pace_ms' => 'integer',
+        'live_draw_scheduled_at' => 'datetime',
+        'live_draw_started_at' => 'datetime',
     ];
 
     public function prizeTiers(): HasMany

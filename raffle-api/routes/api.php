@@ -12,6 +12,8 @@ use App\Http\Controllers\Api\AuthBridgeController;
 use App\Http\Controllers\Api\BankAccountController;
 use App\Http\Controllers\Api\DepositController;
 use App\Http\Controllers\Api\DrawController;
+use App\Http\Controllers\Api\HallOfFameController;
+use App\Http\Controllers\Api\LiveDrawController;
 use App\Http\Controllers\Api\PaymentWebhookController;
 use App\Http\Controllers\Api\RaffleController;
 use App\Http\Controllers\Api\ReferralController;
@@ -39,6 +41,12 @@ Route::get('/raffles/{raffle}/price-quote', [TicketPriceQuoteController::class, 
 // {raffle} here binds to the NATIVE App\Models\Raffle (item 10), not the
 // legacy post id RaffleController above reads.
 Route::get('/raffles/{raffle}/draw', [DrawController::class, 'show']);
+
+// Public — Hall of Fame (item 27), and a live-draw page's initial
+// state/catch-up fetch. Posting a comment/reaction still requires a
+// real login — see the `auth:wordpress` group below.
+Route::get('/hall-of-fame', [HallOfFameController::class, 'index']);
+Route::get('/raffles/{raffle}/live-draw', [LiveDrawController::class, 'show']);
 
 // Public — the Spin & Win odds are meant to be shown to players.
 Route::get('/rewards/spin/odds', [RewardsController::class, 'spinOdds']);
@@ -110,9 +118,19 @@ Route::middleware('auth:wordpress')->group(function () {
     Route::get('/support/tickets/{ticket}', [SupportTicketController::class, 'show']);
     Route::post('/support/tickets/{ticket}/reply', [SupportTicketController::class, 'reply']);
 
+    // Live comments/reactions (item 27) — any logged-in viewer, same
+    // guard as everything else in this group. Rate-limited like the
+    // legacy site's own chat/comment actions to keep one viewer from
+    // flooding everyone else's feed.
+    Route::post('/raffles/{raffle}/live-draw/comments', [LiveDrawController::class, 'storeComment'])
+        ->middleware('throttle:20,1');
+    Route::post('/raffles/{raffle}/live-draw/reactions', [LiveDrawController::class, 'storeReaction'])
+        ->middleware('throttle:60,1');
+
     Route::middleware('admin')->prefix('admin')->group(function () {
         Route::post('/raffles/{raffle}/draw/commit', [DrawController::class, 'commit']);
         Route::post('/raffles/{raffle}/draw/run', [DrawController::class, 'run']);
+        Route::post('/raffles/{raffle}/live-draw/start', [LiveDrawController::class, 'startReveal']);
 
         Route::get('/withdrawals', [WithdrawalManagementController::class, 'index']);
         Route::post('/withdrawals/{withdrawal}/mark-paid', [WithdrawalManagementController::class, 'markPaid']);
