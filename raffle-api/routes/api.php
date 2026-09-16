@@ -1,5 +1,8 @@
 <?php
 
+use App\Http\Controllers\Api\Admin\AuditLogController;
+use App\Http\Controllers\Api\Admin\WinnerManagementController;
+use App\Http\Controllers\Api\Admin\WithdrawalManagementController;
 use App\Http\Controllers\Api\AuthBridgeController;
 use App\Http\Controllers\Api\BankAccountController;
 use App\Http\Controllers\Api\DrawController;
@@ -49,8 +52,17 @@ Route::middleware('auth:wordpress')->group(function () {
     // via Laravel's own throttle middleware instead of a bespoke transient-based limiter.
     Route::post('/withdrawals', [WithdrawalController::class, 'store'])->middleware('throttle:3,5');
 
-    Route::middleware('admin')->group(function () {
+    Route::middleware('admin')->prefix('admin')->group(function () {
         Route::post('/raffles/{raffle}/draw/commit', [DrawController::class, 'commit']);
         Route::post('/raffles/{raffle}/draw/run', [DrawController::class, 'run']);
+
+        Route::get('/withdrawals', [WithdrawalManagementController::class, 'index']);
+        Route::post('/withdrawals/{withdrawal}/mark-paid', [WithdrawalManagementController::class, 'markPaid']);
+        Route::post('/withdrawals/{withdrawal}/reject', [WithdrawalManagementController::class, 'reject']);
+
+        Route::post('/winners/{winner}/credit', [WinnerManagementController::class, 'credit']);
+        Route::patch('/winners/{winner}/visibility', [WinnerManagementController::class, 'setVisibility']);
+
+        Route::get('/audit-logs', [AuditLogController::class, 'index']);
     });
 });

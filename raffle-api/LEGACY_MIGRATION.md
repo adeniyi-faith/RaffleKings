@@ -189,6 +189,29 @@ where the migration actually is.
   payment-gateway integration (item 13) needs to follow for this to
   keep working correctly.
 
+- `app/Services/AdminAuditLogService.php` + the `admin_audit_logs` table
+  — the audit log the legacy site has never had (audit TD-15). Every
+  mutating admin action below writes exactly one row here.
+- `app/Services/WinnerManagementService.php` — admin credit/visibility
+  actions on `wp_raffle_winners`, with the winner row locked for the
+  duration of the check-and-credit (fixes TD-12, the legacy double-
+  credit race) and every action logged.
+- `WithdrawalService::markPaid()`/`reject()` — admin actions on
+  withdrawal requests, also logged. Rejecting refunds exactly what was
+  deducted for that specific request; it does not reverse a
+  verification-fee credit, which represents the account having been
+  verified independent of any one request's outcome.
+- Admin API routes live under `/api/admin/*`, gated by the same `admin`
+  middleware from item 14: `GET /withdrawals`, `POST
+  /withdrawals/{id}/mark-paid`, `POST /withdrawals/{id}/reject`, `POST
+  /winners/{id}/credit`, `PATCH /winners/{id}/visibility`, `GET
+  /audit-logs`. **This is a JSON API, not a UI** — installing Filament
+  (the audit's recommendation) hit repeated proxy timeouts pulling its
+  dependency tree in this environment; try again with better network
+  conditions, or build a different admin frontend against these same
+  endpoints. User management, raffle/prize management, referral/rewards
+  views, and financial reconciliation aren't built yet.
+
 ## What is NOT done yet (do not assume otherwise)
 
 - The old PHP code (`api-financials.php`, etc.) still reads and writes
