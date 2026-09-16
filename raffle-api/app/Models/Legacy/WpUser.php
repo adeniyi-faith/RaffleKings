@@ -62,6 +62,29 @@ class WpUser extends LegacyModel implements Authenticatable
         return $this->meta()->where('meta_key', $key)->value('meta_value');
     }
 
+    /**
+     * True if this is a real WordPress "administrator" — the same role
+     * every admin-only action in the legacy site checks via WordPress's
+     * own current_user_can('manage_options')/('administrator'). There is
+     * no separate admin role system in this Laravel app yet (that's
+     * OVERHAUL_CHECKLIST.md Phase 1 item 19's job); this reads the same
+     * capabilities WordPress already assigns, so an admin-gated route
+     * here respects exactly who's actually an admin today, not a new,
+     * separate notion of one.
+     */
+    public function isAdministrator(): bool
+    {
+        $raw = $this->metaValue(config('legacy.wp_prefix').'capabilities');
+
+        if (! $raw) {
+            return false;
+        }
+
+        $capabilities = @unserialize($raw, ['allowed_classes' => false]);
+
+        return is_array($capabilities) && ! empty($capabilities['administrator']);
+    }
+
     // -- Illuminate\Contracts\Auth\Authenticatable ---------------------
     // WordPress's own column names, not Laravel's usual id/password/
     // remember_token conventions. No remember-me support is implemented
