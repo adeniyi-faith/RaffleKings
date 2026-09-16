@@ -104,6 +104,43 @@ Route::get('/checkout', function (Request $request, RaffleReadService $raffles) 
     ]);
 });
 
+// Account section (item 26) — My Tickets, Transactions, Wallet (top-up),
+// Withdraw, Bank Accounts. Same server-side auth guard and redirect-with-
+// return pattern as the number-selection/checkout routes above (item 25's
+// fix for the dead client-side `localStorage.getItem('token')` check):
+// every one of these pages currently does an `is_user_logged_in()` +
+// redirect in the legacy PHP, so the Laravel routes must refuse to ever
+// render for a guest too, not just gate the API calls underneath them.
+$accountGuard = function (Request $request) {
+    if (Auth::guard('wordpress')->guest()) {
+        return redirect('/login?redirect='.urlencode($request->fullUrl()));
+    }
+
+    return null;
+};
+
+Route::get('/account/tickets', function (Request $request) use ($accountGuard) {
+    return $accountGuard($request) ?? Inertia::render('Account/Tickets');
+});
+
+Route::get('/account/transactions', function (Request $request) use ($accountGuard) {
+    return $accountGuard($request) ?? Inertia::render('Account/Transactions');
+});
+
+// Wallet balance itself comes from GET /api/wallet (real-time), same
+// as the checkout payment-method cards (item 25) — nothing to SSR here.
+Route::get('/account/wallet', function (Request $request) use ($accountGuard) {
+    return $accountGuard($request) ?? Inertia::render('Account/Wallet');
+});
+
+Route::get('/account/withdraw', function (Request $request) use ($accountGuard) {
+    return $accountGuard($request) ?? Inertia::render('Account/Withdraw');
+});
+
+Route::get('/account/bank-accounts', function (Request $request) use ($accountGuard) {
+    return $accountGuard($request) ?? Inertia::render('Account/BankAccounts');
+});
+
 if (app()->environment(['local', 'testing'])) {
     // A living demo of the Phase 2 item 22 shared component library — not
     // a page real users see, just a way to visually verify every component

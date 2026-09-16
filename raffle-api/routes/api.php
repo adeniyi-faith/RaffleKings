@@ -1,5 +1,6 @@
 <?php
 
+use App\Http\Controllers\Api\AccountController;
 use App\Http\Controllers\Api\Admin\AuditLogController;
 use App\Http\Controllers\Api\Admin\SupportTicketManagementController;
 use App\Http\Controllers\Api\Admin\WinnerManagementController;
@@ -42,6 +43,12 @@ Route::get('/raffles/{raffle}/draw', [DrawController::class, 'show']);
 // Public — the Spin & Win odds are meant to be shown to players.
 Route::get('/rewards/spin/odds', [RewardsController::class, 'spinOdds']);
 
+// Public — where the gateway's hosted checkout redirects the user's
+// browser back to after payment (see DepositController::callback()'s
+// docblock for the real gap this closes: this route never existed
+// before item 26, so a real payer would have hit a 404).
+Route::get('/deposits/callback', [DepositController::class, 'callback']);
+
 // Public — signed by the gateway itself (see PaymentWebhookController), not
 // by a logged-in session. Neither the signature nor the payload's own
 // claimed status is trusted to credit money; DepositService::confirm()
@@ -71,6 +78,11 @@ Route::middleware('auth:wordpress')->group(function () {
     Route::get('/wallet', [WalletController::class, 'show']);
 
     Route::get('/referrals/stats', [ReferralController::class, 'stats']);
+
+    // The account section (item 26) — "My Tickets" and "Transactions",
+    // see AccountReadService's docblock for how each is derived.
+    Route::get('/account/tickets', [AccountController::class, 'tickets']);
+    Route::get('/account/transactions', [AccountController::class, 'transactions']);
 
     Route::get('/rewards/state', [RewardsController::class, 'state']);
     Route::post('/rewards/daily-claim', [RewardsController::class, 'claimDaily']);
