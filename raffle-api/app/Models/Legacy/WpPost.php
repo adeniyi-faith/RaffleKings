@@ -38,6 +38,12 @@ class WpPost extends LegacyModel
         return $query->where('post_type', 'raffle')->where('post_status', 'publish');
     }
 
+    /** The "tutorial" CPT (rk-core/database.php) — the Learning Hub's content (item 29). */
+    public function scopeTutorials($query)
+    {
+        return $query->where('post_type', 'tutorial')->where('post_status', 'publish');
+    }
+
     public function metaValue(string $key): ?string
     {
         return $this->meta()->where('meta_key', $key)->value('meta_value');
