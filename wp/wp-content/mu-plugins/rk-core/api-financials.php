@@ -86,6 +86,35 @@ function rk_update_balance_safe($user_id, $amount, $operation = 'add') {
     }
 }
 
+/**
+ * Issue the raffle ticket entries a transaction paid for. Must be called
+ * inside an open $wpdb transaction (START TRANSACTION already run by the
+ * caller) — throws on any ticket-number collision so the caller can roll
+ * the whole operation back instead of leaving a paid-but-ticketless order.
+ */
+function rk_issue_ticket_entries($user_id, $raffle_id, $numbers_str, $txn_id) {
+    global $wpdb;
+    if ($raffle_id <= 0 || empty($numbers_str)) return;
+
+    $table_entries = $wpdb->prefix . 'raffle_entries';
+    $numbers = explode(',', $numbers_str);
+    foreach ($numbers as $num) {
+        $num = intval(trim($num));
+        if ($num > 0) {
+            $entry_inserted = $wpdb->insert($table_entries, [
+                'user_id' => $user_id,
+                'raffle_id' => $raffle_id,
+                'ticket_number' => $num,
+                'txn_id' => $txn_id,
+                'created_at' => current_time('mysql')
+            ]);
+            if ($entry_inserted === false) {
+                throw new Exception('Number ' . $num . ' was just taken by another buyer. Please pick different numbers.');
+            }
+        }
+    }
+}
+
 function rk_get_balance() {
     $user_id = get_current_user_id();
     return [
@@ -438,18 +467,52 @@ function rk_handle_payment_ai($request) {
     // --- END FAIL-SAFE AI LOGIC ---
 
     // DB Persistence (Happens regardless of AI outcome)
-    $wpdb->insert($table_txn, [
-        'user_id' => $user_id, 
-        'claimed_amount' => $amount, 
-        'gemini_amount' => $extracted_amount, 
-        'proof_url' => $proof_url, 
-        'status' => $status, 
-        'type' => $type, 
-        'txn_ref' => $extracted_txn_id, 
-        'order_id' => $order_id, 
+    // SECURITY FIX (TD-05): a bank-transfer ticket purchase used to be recorded
+    // here with no memory of which raffle/numbers it was for, so even once
+    // verified — automatically by the AI check, or manually by an admin — no
+    // ticket was ever actually issued. The chosen raffle/numbers are now saved
+    // on the transaction row itself, and tickets are issued below the moment
+    // the transaction is verified (here if the AI check passes immediately,
+    // or from the admin approval action otherwise).
+    $txn_insert_data = [
+        'user_id' => $user_id,
+        'claimed_amount' => $amount,
+        'gemini_amount' => $extracted_amount,
+        'proof_url' => $proof_url,
+        'status' => $status,
+        'type' => $type,
+        'txn_ref' => $extracted_txn_id,
+        'order_id' => $order_id,
         'created_at' => current_time('mysql')
-    ]);
+    ];
+    if ($type === 'ticket_purchase' && $raffle_id > 0 && !empty($numbers_str)) {
+        $txn_insert_data['pending_raffle_id'] = $raffle_id;
+        $txn_insert_data['pending_numbers'] = $numbers_str;
+    }
+    $wpdb->insert($table_txn, $txn_insert_data);
     $txn_id = $wpdb->insert_id;
+
+    // Needed so the admin "NEEDS REVIEW" note (last_txn_ai_notes) actually shows
+    // why this one wasn't auto-verified — this call was missing entirely before.
+    update_user_meta($user_id, 'last_txn_ai_notes', $ai_notes);
+
+    if ($is_success && $type === 'ticket_purchase' && $raffle_id > 0 && !empty($numbers_str)) {
+        $wpdb->query('START TRANSACTION');
+        try {
+            rk_issue_ticket_entries($user_id, $raffle_id, $numbers_str, $txn_id);
+            $wpdb->query('COMMIT');
+        } catch (Exception $e) {
+            // Numbers collided after the AI already verified the payment — the
+            // money is real, so keep the record, just fall back to manual
+            // review instead of silently dropping the ticket.
+            $wpdb->query('ROLLBACK');
+            $is_success = false;
+            $status = 'manual_review';
+            $ai_notes .= ' [Ticket issue failed: ' . $e->getMessage() . ']';
+            $msg = 'Payment verified, but your selected numbers were just taken. Our team will contact you to pick new ones.';
+            $wpdb->update($table_txn, ['status' => $status], ['id' => $txn_id]);
+        }
+    }
 
     // ✅ TRIGGER TELEGRAM NOTIFICATION FOR DEPOSITS
     if (in_array($type, ['wallet_deposit', 'ticket_purchase'])) {

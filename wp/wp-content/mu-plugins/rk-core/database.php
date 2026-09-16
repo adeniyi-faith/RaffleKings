@@ -85,6 +85,8 @@ function rk_create_db_table() {
         proof_url varchar(255),
         status varchar(50) DEFAULT 'pending',
         type varchar(50),
+        pending_raffle_id mediumint(9) DEFAULT NULL,
+        pending_numbers varchar(500) DEFAULT NULL,
         created_at datetime DEFAULT CURRENT_TIMESTAMP,
         PRIMARY KEY  (id)
     ) $charset_collate;";
