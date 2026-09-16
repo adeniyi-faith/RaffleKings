@@ -1,0 +1,42 @@
+name: Rollback RaffleKings
+
+# Phase 0 item 4: "a bad deploy can be reverted in minutes" — run this
+# workflow by hand (Actions tab -> Rollback RaffleKings -> Run workflow)
+# instead of SSHing into the server and guessing at git commands under
+# pressure. Defaults to the commit that was live immediately before the
+# most recent deploy (tagged pre-deploy-backup by deploy.yml); pass a
+# specific commit SHA or tag in `ref` to go further back.
+on:
+  workflow_dispatch:
+    inputs:
+      ref:
+        description: 'Commit SHA or tag to roll back to'
+        required: false
+        default: 'pre-deploy-backup'
+
+jobs:
+  rollback:
+    runs-on: ubuntu-latest
+    environment: production
+    steps:
+      - name: Reset the live server to the target ref
+        uses: appleboy/ssh-action@master
+        with:
+          host: ${{ secrets.CPANEL_HOST }}
+          username: ${{ secrets.CPANEL_USERNAME }}
+          password: ${{ secrets.CPANEL_PASSWORD }}
+          port: 22
+          script: |
+            set -e
+            cd /home2/worldin6/public_html/rafflekings.com.ng
+
+            TARGET="${{ github.event.inputs.ref }}"
+
+            # Keep a marker of what we're rolling back FROM, in case the
+            # rollback itself needs undoing.
+            git tag -f pre-rollback-backup HEAD
+
+            git fetch origin --tags --force
+            git reset --hard "$TARGET"
+
+            echo "Rolled back to $(git rev-parse --short HEAD) (target: $TARGET). Previous state tagged as pre-rollback-backup."
