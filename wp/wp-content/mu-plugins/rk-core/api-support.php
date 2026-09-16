@@ -245,6 +245,9 @@ function rk_render_support_page() {
                     rk_send_email($user->user_email, "We replied to your support ticket", $message);
                 }
             }
+            if (function_exists('rk_log_admin_action')) {
+                rk_log_admin_action('support_ticket_reply', 'support_ticket', $ticket_id);
+            }
             echo '<div class="notice notice-success is-dismissible"><p>Reply sent.</p></div>';
         }
 
@@ -252,6 +255,9 @@ function rk_render_support_page() {
             $status = sanitize_text_field($_POST['rk_support_status']);
             if (in_array($status, ['open', 'answered', 'resolved', 'closed'])) {
                 $wpdb->update($table_tickets, ['status' => $status, 'updated_at' => current_time('mysql')], ['id' => $ticket_id]);
+                if (function_exists('rk_log_admin_action')) {
+                    rk_log_admin_action('support_ticket_status_change', 'support_ticket', $ticket_id, ['status' => $status]);
+                }
             }
         }
     }
