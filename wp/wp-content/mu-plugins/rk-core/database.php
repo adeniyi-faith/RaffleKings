@@ -333,6 +333,7 @@ function rk_raffle_meta_callback($post) {
     $prize_list = get_post_meta($post->ID, 'prize_list', true);
     $expiry = get_post_meta($post->ID, 'expiry', true);
     $is_sold_out = get_post_meta($post->ID, 'is_sold_out', true);
+    $prize_type = get_post_meta($post->ID, 'prize_type', true) ?: 'other';
 
     echo '<table class="form-table">';
     
@@ -347,6 +348,19 @@ function rk_raffle_meta_callback($post) {
 
     echo '<tr><th><label for="grand_prize">Grand Prize</label></th>';
     echo '<td><input type="text" id="grand_prize" name="rk_meta[grand_prize]" value="' . esc_attr($grand_prize) . '" class="regular-text"></td></tr>';
+
+    // Replaces the dormant, never-actually-wired-up raffle_category
+    // taxonomy (registered in rk_register_cpts() above but never given an
+    // admin UI or read anywhere) — this is the real prize-type filter the
+    // frontend's raffle discovery page (OVERHAUL_CHECKLIST.md item 24)
+    // reads, instead of the two hardcoded "Cash"/"Gadgets" buttons that
+    // used to silently fall back to matching the raffle's title text.
+    $prize_type_options = ['cash' => 'Cash', 'gadgets' => 'Gadgets', 'vouchers' => 'Vouchers', 'other' => 'Other'];
+    echo '<tr><th><label for="prize_type">Prize Type</label></th><td><select id="prize_type" name="rk_meta[prize_type]">';
+    foreach ($prize_type_options as $value => $label) {
+        echo '<option value="' . esc_attr($value) . '" ' . selected($prize_type, $value, false) . '>' . esc_html($label) . '</option>';
+    }
+    echo '</select></td></tr>';
 
     echo '<tr><th><label for="prize_list">Secondary Prizes (One per line)</label></th>';
     echo '<td><textarea id="prize_list" name="rk_meta[prize_list]" rows="4" class="large-text">' . esc_textarea($prize_list) . '</textarea><p class="description">Format: Tier Name: Prize Description (e.g., 2nd Prize: ₦50,000)</p></td></tr>';
@@ -386,7 +400,7 @@ function rk_register_raffle_meta_in_rest() {
         'get_callback' => function($object) {
             $post_id = $object['id'];
             $meta = [];
-            $keys = ['price', 'max', 'sold', 'grand_prize', 'prize_list', 'expiry', 'is_sold_out'];
+            $keys = ['price', 'max', 'sold', 'grand_prize', 'prize_list', 'expiry', 'is_sold_out', 'prize_type'];
             foreach ($keys as $key) {
                 $meta[$key] = get_post_meta($post_id, $key, true);
             }
