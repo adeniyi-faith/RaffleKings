@@ -95,6 +95,38 @@ function rk_ajax_require_login() {
     }
 }
 
+/**
+ * SECURITY FIX: CSRF protection for every state-changing (non-GET) action.
+ *
+ * Auth here is a plain WordPress session cookie, which the browser attaches
+ * automatically — including to a request a malicious third-party page tricks
+ * the browser into sending. Without this check, any site on the internet
+ * could submit a hidden form/fetch to this router and it would run as the
+ * logged-in visitor: buying tickets, withdrawing funds, saving a bank
+ * account, etc.
+ *
+ * A same-origin browser request always carries an Origin or Referer header
+ * that matches this site's own host; a cross-site forged request cannot
+ * forge that header to match. This is checked for every mutating action,
+ * not only the money-moving ones, since any of them can be abused.
+ */
+function rk_ajax_verify_csrf() {
+    $origin = $_SERVER['HTTP_ORIGIN'] ?? '';
+    $referer = $_SERVER['HTTP_REFERER'] ?? '';
+    $source = $origin ?: $referer;
+
+    if (!$source) {
+        rk_ajax_error('Request could not be verified. Please refresh the page and try again.', 'csrf_failed', 403);
+    }
+
+    $source_host = parse_url($source, PHP_URL_HOST);
+    $site_host = parse_url(home_url(), PHP_URL_HOST) ?: ($_SERVER['HTTP_HOST'] ?? '');
+
+    if (!$source_host || !$site_host || strcasecmp($source_host, $site_host) !== 0) {
+        rk_ajax_error('Cross-site request blocked.', 'csrf_failed', 403);
+    }
+}
+
 function rk_ajax_request($method = 'POST', $route = '/rk/local') {
     global $body_data, $raw_body;
 
@@ -275,6 +307,12 @@ $routes = [
     'referral_stats' => ['public' => false, 'method' => 'GET', 'callback' => fn() => rk_get_referral_stats(rk_ajax_request('GET', '/raffle/v1/referral-stats'))],
     'push_device_save' => ['public' => false, 'method' => 'POST', 'callback' => fn() => rk_save_push_device(rk_ajax_request('POST', '/raffle/v1/save-device'))],
     'save_device' => ['public' => false, 'method' => 'POST', 'callback' => fn() => rk_save_push_device(rk_ajax_request('POST', '/raffle/v1/save-device'))],
+
+    // Support tickets (Phase 0 item 3)
+    'support_tickets' => ['public' => false, 'method' => 'GET', 'callback' => 'rk_get_support_tickets'],
+    'support_ticket' => ['public' => false, 'method' => 'GET', 'callback' => fn() => rk_get_support_ticket(rk_ajax_request('GET', '/raffle/v1/support-ticket'))],
+    'create_support_ticket' => ['public' => false, 'method' => 'POST', 'callback' => fn() => rk_create_support_ticket(rk_ajax_request('POST', '/raffle/v1/support-ticket'))],
+    'reply_support_ticket' => ['public' => false, 'method' => 'POST', 'callback' => fn() => rk_reply_support_ticket(rk_ajax_request('POST', '/raffle/v1/support-ticket/reply'))],
 ];
 
 if (!$action || !isset($routes[$action])) {
@@ -282,6 +320,9 @@ if (!$action || !isset($routes[$action])) {
 }
 
 $route = $routes[$action];
+if (($route['method'] ?? 'POST') !== 'GET') {
+    rk_ajax_verify_csrf();
+}
 if (empty($route['public'])) {
     rk_ajax_require_login();
 }

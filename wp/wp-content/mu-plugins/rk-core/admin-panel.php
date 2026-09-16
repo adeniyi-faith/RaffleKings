@@ -102,6 +102,9 @@ function rk_register_admin_pages() {
     // *** NEW: Site Alerts ***
     add_submenu_page('raffle-ops', 'Site Alerts', 'Site Alerts', 'manage_options', 'raffle-site-alerts', 'rk_render_site_alerts_page');
 
+    // *** NEW: Support Tickets (Phase 0 item 3) ***
+    add_submenu_page('raffle-ops', 'Support Tickets', 'Support Tickets', 'manage_options', 'raffle-support', 'rk_render_support_page');
+
     // Logs & Tools
     add_submenu_page('raffle-ops', 'Live Comments', 'Live Comments', 'manage_options', 'raffle-comments', 'rk_render_comments_page');
     add_submenu_page('raffle-ops', 'Transaction Monitor', 'Transactions', 'manage_options', 'raffle-transactions', 'rk_render_transactions_page');
@@ -111,6 +114,82 @@ function rk_register_admin_pages() {
     
     // UPDATED: Settings Page
     add_submenu_page('raffle-ops', 'Settings', 'Settings', 'manage_options', 'raffle-settings', 'rk_render_settings_page');
+
+    // *** NEW: Admin Audit Log (Phase 0 item 5) ***
+    add_submenu_page('raffle-ops', 'Admin Audit Log', 'Admin Audit Log', 'manage_options', 'raffle-audit-log', 'rk_render_admin_audit_log_page');
+}
+
+// 19. ADMIN AUDIT LOG PAGE (Phase 0 item 5)
+function rk_render_admin_audit_log_page() {
+    global $wpdb;
+    $table = $wpdb->prefix . 'raffle_admin_audit_logs';
+
+    $paged = isset($_GET['paged']) ? max(1, intval($_GET['paged'])) : 1;
+    $per_page = 50;
+    $offset = ($paged - 1) * $per_page;
+
+    $filter_admin = isset($_GET['filter_admin']) ? sanitize_text_field($_GET['filter_admin']) : '';
+    $where = "1=1";
+    $args = [];
+    if ($filter_admin) {
+        $where = "admin_name LIKE %s";
+        $args[] = '%' . $wpdb->esc_like($filter_admin) . '%';
+    }
+
+    $total = $args ? $wpdb->get_var($wpdb->prepare("SELECT COUNT(*) FROM $table WHERE $where", $args)) : $wpdb->get_var("SELECT COUNT(*) FROM $table");
+    $total_pages = ceil($total / $per_page);
+
+    $query = "SELECT * FROM $table WHERE $where ORDER BY id DESC LIMIT %d OFFSET %d";
+    $args[] = $per_page;
+    $args[] = $offset;
+    $logs = $wpdb->get_results($wpdb->prepare($query, $args));
+    ?>
+    <div class="wrap">
+        <h1>🛡️ Admin Audit Log</h1>
+        <p>Every approval, ban, and balance edit made through this admin panel, traceable to a person and a time.</p>
+
+        <form method="GET" style="margin: 15px 0;">
+            <input type="hidden" name="page" value="raffle-audit-log">
+            <input type="text" name="filter_admin" value="<?php echo esc_attr($filter_admin); ?>" placeholder="Filter by admin name...">
+            <button type="submit" class="button">Filter</button>
+        </form>
+
+        <table class="wp-list-table widefat fixed striped">
+            <thead>
+                <tr>
+                    <th style="width:150px;">When</th>
+                    <th style="width:150px;">Admin</th>
+                    <th>Action</th>
+                    <th>Target</th>
+                    <th>Details</th>
+                    <th style="width:110px;">IP</th>
+                </tr>
+            </thead>
+            <tbody>
+                <?php if (empty($logs)): ?>
+                    <tr><td colspan="6">No audit log entries yet.</td></tr>
+                <?php else: foreach ($logs as $l): ?>
+                    <tr>
+                        <td><?php echo esc_html($l->created_at); ?></td>
+                        <td><?php echo esc_html($l->admin_name); ?> (#<?php echo (int) $l->admin_id; ?>)</td>
+                        <td><strong><?php echo esc_html($l->action); ?></strong></td>
+                        <td><?php echo esc_html($l->target_type); ?><?php echo $l->target_id ? ' #' . esc_html($l->target_id) : ''; ?></td>
+                        <td style="max-width:320px; overflow-wrap:break-word; font-size:12px; color:#555;"><?php echo esc_html($l->details); ?></td>
+                        <td style="font-size:11px; color:#888;"><?php echo esc_html($l->ip_address); ?></td>
+                    </tr>
+                <?php endforeach; endif; ?>
+            </tbody>
+        </table>
+
+        <?php if ($total_pages > 1): ?>
+            <div style="margin-top:15px;">
+                <?php for ($p = 1; $p <= $total_pages; $p++): ?>
+                    <a href="?page=raffle-audit-log&paged=<?php echo $p; ?>&filter_admin=<?php echo urlencode($filter_admin); ?>" class="button <?php echo $p === $paged ? 'button-primary' : ''; ?>"><?php echo $p; ?></a>
+                <?php endfor; ?>
+            </div>
+        <?php endif; ?>
+    </div>
+    <?php
 }
 
 // 1b. FINANCIAL OPERATIONS CENTER (NEW FEATURE)
@@ -130,8 +209,9 @@ function rk_render_financials_page() {
             $txn = $wpdb->get_row($wpdb->prepare("SELECT * FROM $table_txn WHERE id = %d", $txn_id));
             if (!$txn || !in_array($txn->status, ['pending', 'manual_review'])) continue;
 
-            // Logic for Deposits
-            if ($txn->type === 'deposit_manual') {
+            // Logic for Deposits (wallet top-ups) and bank-transfer ticket purchases —
+            // both land here in 'pending'/'manual_review' until an admin confirms them.
+            if (in_array($txn->type, ['wallet_deposit', 'deposit_manual'])) {
                 if ($action === 'bulk_approve') {
                     $wpdb->update($table_txn, ['status' => 'verified_final'], ['id' => $txn_id]);
                     // Credit Wallet
@@ -144,7 +224,32 @@ function rk_render_financials_page() {
                     $wpdb->update($table_txn, ['status' => 'rejected', 'description' => $new_desc], ['id' => $txn_id]);
                 }
             }
-            
+
+            // Logic for bank-transfer TICKET purchases (TD-05): approving one must
+            // actually issue the tickets, not just flip a status flag.
+            elseif ($txn->type === 'ticket_purchase') {
+                if ($action === 'bulk_approve') {
+                    if (function_exists('rk_issue_ticket_entries') && $txn->pending_raffle_id && $txn->pending_numbers) {
+                        $wpdb->query('START TRANSACTION');
+                        try {
+                            rk_issue_ticket_entries($txn->user_id, (int) $txn->pending_raffle_id, $txn->pending_numbers, $txn_id);
+                            $wpdb->update($table_txn, ['status' => 'verified_final'], ['id' => $txn_id]);
+                            $wpdb->query('COMMIT');
+                        } catch (Exception $e) {
+                            $wpdb->query('ROLLBACK');
+                            echo '<div class="notice notice-error"><p>Could not issue tickets for transaction #' . $txn_id . ': ' . esc_html($e->getMessage()) . '</p></div>';
+                            continue;
+                        }
+                    } else {
+                        $wpdb->update($table_txn, ['status' => 'verified_final'], ['id' => $txn_id]);
+                    }
+                } elseif ($action === 'bulk_reject') {
+                    $new_desc = $txn->description;
+                    if (!empty($bulk_reason)) $new_desc .= " | Admin Note: " . $bulk_reason;
+                    $wpdb->update($table_txn, ['status' => 'rejected', 'description' => $new_desc], ['id' => $txn_id]);
+                }
+            }
+
             // Logic for Withdrawals
             elseif ($txn->type === 'withdrawal') {
                 if ($action === 'bulk_approve') {
@@ -158,6 +263,10 @@ function rk_render_financials_page() {
                     $current_earn = (float) get_user_meta($txn->user_id, 'earnings_balance', true);
                     update_user_meta($txn->user_id, 'earnings_balance', $current_earn + $txn->claimed_amount);
                 }
+            }
+
+            if (function_exists('rk_log_admin_action')) {
+                rk_log_admin_action('financials_bulk_' . $action, $txn->type, $txn_id, ['user_id' => $txn->user_id, 'amount' => $txn->claimed_amount, 'reason' => $bulk_reason]);
             }
             $processed_count++;
         }
@@ -174,7 +283,7 @@ function rk_render_financials_page() {
         
         // Allow action on both pending and manual_review
         if ($txn && in_array($txn->status, ['pending', 'manual_review'])) {
-            if ($txn->type === 'deposit_manual') {
+            if (in_array($txn->type, ['wallet_deposit', 'deposit_manual'])) {
                 if ($action === 'approve') {
                     $wpdb->update($table_txn, ['status' => 'verified_final'], ['id' => $txn_id]);
                     $current = (float) get_user_meta($txn->user_id, 'wallet_balance', true);
@@ -186,6 +295,35 @@ function rk_render_financials_page() {
                     if (!empty($single_reason)) $new_desc .= " | Admin Note: " . $single_reason;
                     $wpdb->update($table_txn, ['status' => 'rejected', 'description' => $new_desc], ['id' => $txn_id]);
                     echo '<div class="notice notice-warning is-dismissible"><p>Deposit Rejected.</p></div>';
+                }
+            }
+            // TD-05: approving a bank-transfer TICKET purchase must actually issue
+            // the tickets, not just flip its status — this route never did that before.
+            elseif ($txn->type === 'ticket_purchase') {
+                if ($action === 'approve') {
+                    $issued = true;
+                    if (function_exists('rk_issue_ticket_entries') && $txn->pending_raffle_id && $txn->pending_numbers) {
+                        $wpdb->query('START TRANSACTION');
+                        try {
+                            rk_issue_ticket_entries($txn->user_id, (int) $txn->pending_raffle_id, $txn->pending_numbers, $txn_id);
+                            $wpdb->update($table_txn, ['status' => 'verified_final'], ['id' => $txn_id]);
+                            $wpdb->query('COMMIT');
+                        } catch (Exception $e) {
+                            $wpdb->query('ROLLBACK');
+                            $issued = false;
+                            echo '<div class="notice notice-error is-dismissible"><p>Could not issue tickets: ' . esc_html($e->getMessage()) . ' The purchase is still in review — reject and refund the buyer manually if the numbers can\'t be reissued.</p></div>';
+                        }
+                    } else {
+                        $wpdb->update($table_txn, ['status' => 'verified_final'], ['id' => $txn_id]);
+                    }
+                    if ($issued) {
+                        echo '<div class="notice notice-success is-dismissible"><p>Ticket Purchase Approved.</p></div>';
+                    }
+                } else {
+                    $new_desc = $txn->description;
+                    if (!empty($single_reason)) $new_desc .= " | Admin Note: " . $single_reason;
+                    $wpdb->update($table_txn, ['status' => 'rejected', 'description' => $new_desc], ['id' => $txn_id]);
+                    echo '<div class="notice notice-warning is-dismissible"><p>Ticket Purchase Rejected. Refund the buyer\'s bank transfer manually — no wallet balance was touched.</p></div>';
                 }
             }
             elseif ($txn->type === 'withdrawal') {
@@ -203,12 +341,21 @@ function rk_render_financials_page() {
                     echo '<div class="notice notice-warning is-dismissible"><p>Withdrawal Rejected & Refunded.</p></div>';
                 }
             }
+
+            if (function_exists('rk_log_admin_action')) {
+                rk_log_admin_action('financials_single_' . $action, $txn->type, $txn_id, ['user_id' => $txn->user_id, 'amount' => $txn->claimed_amount, 'reason' => $single_reason]);
+            }
         }
     }
 
     // --- FETCH DATA ---
     // 1. PENDING ITEMS (Top Section) - UPDATED: Include manual_review
-    $deposits = $wpdb->get_results("SELECT * FROM $table_txn WHERE type = 'deposit_manual' AND status IN ('pending', 'manual_review') ORDER BY created_at ASC");
+    // TD-28 FIX: this used to filter on type = 'deposit_manual', a value the
+    // payment handler never actually writes (real rows are 'wallet_deposit'
+    // for top-ups and 'ticket_purchase' for bank-transfer ticket buys), so
+    // this queue was silently always empty no matter how many deposits were
+    // really waiting on review.
+    $deposits = $wpdb->get_results("SELECT * FROM $table_txn WHERE type IN ('wallet_deposit', 'ticket_purchase', 'deposit_manual') AND status IN ('pending', 'manual_review') ORDER BY created_at ASC");
     $withdrawals = $wpdb->get_results("SELECT * FROM $table_txn WHERE type = 'withdrawal' AND status = 'pending' ORDER BY created_at ASC");
     
     // 2. RECENT REJECTIONS (Middle Section)
@@ -326,14 +473,19 @@ function rk_render_financials_page() {
 
                             <div style="display: flex; justify-content: space-between; padding-right: 30px;">
                                 <div>
-                                    <strong><?php echo $user ? $user->display_name : 'Unknown'; ?></strong> <br>
+                                    <strong><?php echo $user ? $user->display_name : 'Unknown'; ?></strong>
+                                    <span style="font-size: 10px; font-weight: bold; color: #fff; background: <?php echo $d->type === 'ticket_purchase' ? '#2563eb' : '#16a34a'; ?>; padding: 2px 6px; border-radius: 4px; margin-left: 4px;"><?php echo $d->type === 'ticket_purchase' ? 'TICKET PURCHASE' : 'WALLET TOP-UP'; ?></span>
+                                    <br>
                                     <span style="font-size: 18px; font-weight: bold; color: #16a34a;">₦<?php echo number_format($d->claimed_amount); ?></span>
+                                    <?php if ($d->type === 'ticket_purchase' && $d->pending_numbers): ?>
+                                        <div style="font-size: 11px; color: #666;">Raffle #<?php echo (int) $d->pending_raffle_id; ?> — Numbers: <?php echo esc_html($d->pending_numbers); ?></div>
+                                    <?php endif; ?>
                                 </div>
                                 <div style="text-align: right; font-size: 12px; color: #666;">
                                     <?php echo date('M j, H:i', strtotime($d->created_at)); ?>
                                 </div>
                             </div>
-                            
+
                             <!-- AI NOTES DISPLAY -->
                             <?php if ($ai_note): ?>
                                 <div style="margin: 8px 0; background: #fffbe6; border: 1px solid #ffe58f; padding: 8px; border-radius: 4px; color: #d48806; font-size: 12px;">
@@ -598,6 +750,9 @@ function rk_render_withdrawals_page() {
                     update_user_meta($row->user_id, 'earnings_balance', $current_earn + $row->claimed_amount);
                     $wpdb->update($table, ['status' => 'rejected'], ['id' => $id]);
                 }
+                if (function_exists('rk_log_admin_action')) {
+                    rk_log_admin_action('withdrawal_bulk_' . $action, 'withdrawal', $id, ['user_id' => $row->user_id, 'amount' => $row->claimed_amount]);
+                }
                 $count++;
             }
         }
@@ -605,7 +760,8 @@ function rk_render_withdrawals_page() {
     }
 
     // Single Actions Logic
-    if (isset($_POST['w_action_id']) && isset($_POST['w_action'])) {
+    // Same form/nonce as the bulk actions above (see wp_nonce_field('rk_w_bulk_actions') below).
+    if (isset($_POST['w_action_id']) && isset($_POST['w_action']) && check_admin_referer('rk_w_bulk_actions')) {
         $id = intval($_POST['w_action_id']);
         $row = $wpdb->get_row("SELECT * FROM $table WHERE id = $id");
 
@@ -618,6 +774,9 @@ function rk_render_withdrawals_page() {
                 update_user_meta($row->user_id, 'earnings_balance', $current_earn + $row->claimed_amount);
                 $wpdb->update($table, ['status' => 'rejected'], ['id' => $id]);
                 echo '<div class="notice notice-warning"><p>Withdrawal Rejected & Refunded to Earnings.</p></div>';
+            }
+            if (function_exists('rk_log_admin_action')) {
+                rk_log_admin_action('withdrawal_single_' . sanitize_text_field($_POST['w_action']), 'withdrawal', $id, ['user_id' => $row->user_id, 'amount' => $row->claimed_amount]);
             }
         }
     }
@@ -852,12 +1011,19 @@ function rk_render_site_alerts_page() {
             'dismiss_sec' => intval($_POST['dismiss_sec']),
             'is_active' => 1
         ]);
+        if (function_exists('rk_log_admin_action')) {
+            rk_log_admin_action('site_alert_create', 'site_notice', $wpdb->insert_id, ['title' => $_POST['title']]);
+        }
         echo '<div class="notice notice-success"><p>Alert Created Successfully!</p></div>';
     }
 
     // Handle Delete
     if (isset($_POST['delete_alert']) && check_admin_referer('rk_delete_alert_nonce')) {
-        $wpdb->delete($table, ['id' => intval($_POST['alert_id'])]);
+        $alert_id = intval($_POST['alert_id']);
+        $wpdb->delete($table, ['id' => $alert_id]);
+        if (function_exists('rk_log_admin_action')) {
+            rk_log_admin_action('site_alert_delete', 'site_notice', $alert_id);
+        }
         echo '<div class="notice notice-success"><p>Alert Deleted.</p></div>';
     }
 
@@ -1065,6 +1231,9 @@ function rk_render_bonus_manager_page() {
             echo '<div class="notice notice-error"><p>Error: Logic function not found. Ensure cron-system.php is included.</p></div>';
         } else {
             rk_run_daily_retention_logic();
+            if (function_exists('rk_log_admin_action')) {
+                rk_log_admin_action('bonus_run_manual', 'bonus_system');
+            }
             echo '<div class="notice notice-success"><p>🚀 Bonus System Logic Executed Manually!</p></div>';
         }
     }
@@ -1081,6 +1250,9 @@ function rk_render_bonus_manager_page() {
                 ['title' => $title, 'body_text' => $body], 
                 ['bucket_type' => $b]
             );
+        }
+        if (function_exists('rk_log_admin_action')) {
+            rk_log_admin_action('bonus_templates_update', 'notification_templates');
         }
         echo '<div class="notice notice-success"><p>✅ Notification Templates Updated.</p></div>';
     }
@@ -1506,6 +1678,10 @@ function rk_render_user_manager_page() {
                 'order_id' => "Admin " . strtoupper($action) . " " . strtoupper($type)
             ]);
 
+            if (function_exists('rk_log_admin_action')) {
+                rk_log_admin_action('user_balance_' . $action, 'user', $uid, ['balance_type' => $type, 'amount' => $amount]);
+            }
+
             echo '<div class="notice notice-success"><p>Balance Updated Successfully!</p></div>';
             // Refresh user
             $user = get_userdata($uid);
@@ -1530,6 +1706,12 @@ function rk_render_user_manager_page() {
         // Update Expiry Date (Optional)
         $ban_expiry = sanitize_text_field($_POST['ban_expiry']);
         update_user_meta($uid, 'rk_ban_expiry', $ban_expiry);
+
+        if (function_exists('rk_log_admin_action')) {
+            rk_log_admin_action('user_restrictions_update', 'user', $uid, [
+                'is_banned' => $is_banned, 'ban_withdraw' => $ban_withdraw, 'ban_transfer' => $ban_transfer, 'ban_expiry' => $ban_expiry,
+            ]);
+        }
 
         echo '<div class="notice notice-success"><p>User Restrictions Updated.</p></div>';
         $user = get_userdata($uid); // Refresh
@@ -1701,6 +1883,10 @@ function rk_render_referrals_page() {
 
                 $pts = (int) get_user_meta($referrer->ID, 'rk_points', true);
                 update_user_meta($referrer->ID, 'rk_points', $pts + 500);
+
+                if (function_exists('rk_log_admin_action')) {
+                    rk_log_admin_action('referral_manual_link', 'user', $referee->ID, ['referrer_id' => $referrer->ID]);
+                }
 
                 echo '<div class="notice notice-success"><p>Success! Users linked. 500 Points awarded to referrer.</p></div>';
             }
@@ -2199,8 +2385,11 @@ function rk_render_transactions_page() {
                 }
                 // *** END BONUS LOGIC ***
 
+                if (function_exists('rk_log_admin_action')) {
+                    rk_log_admin_action('transaction_approve', $row->type, $id, ['user_id' => $row->user_id, 'amount' => $row->claimed_amount]);
+                }
                 echo '<div class="notice notice-success"><p>Transaction Approved, Wallet Funded & Bonus Applied!</p></div>';
-            
+
             // REJECT (Pending items)
             } elseif ($_POST['rk_action'] === 'reject' && $row->status !== 'verified_final') {
                 $wpdb->update($table, ['status' => 'rejected'], ['id' => $id]);
@@ -2220,6 +2409,9 @@ function rk_render_transactions_page() {
                     $wpdb->update($table, ['status' => 'reversed'], ['id' => $bonus_txn->id]);
                 }
 
+                if (function_exists('rk_log_admin_action')) {
+                    rk_log_admin_action('transaction_reject', $row->type, $id, ['user_id' => $row->user_id, 'amount' => $row->claimed_amount]);
+                }
                 echo '<div class="notice notice-error"><p>Transaction Rejected. Any associated bonuses have been reversed.</p></div>';
 
             // *** REVOKE (Verified items) ***
@@ -2247,6 +2439,9 @@ function rk_render_transactions_page() {
                     $wpdb->update($table, ['status' => 'reversed'], ['id' => $bonus_txn->id]);
                 }
 
+                if (function_exists('rk_log_admin_action')) {
+                    rk_log_admin_action('transaction_revoke', $row->type, $id, ['user_id' => $row->user_id, 'amount' => $row->claimed_amount]);
+                }
                 echo '<div class="notice notice-error"><p>🚨 PAYMENT REVOKED. Funds deducted and tickets deleted.</p></div>';
             }
         }
@@ -2359,6 +2554,9 @@ function rk_render_audit_page() {
             }
             
             $wpdb->delete($table_entries, ['txn_id' => $id]);
+            if (function_exists('rk_log_admin_action')) {
+                rk_log_admin_action('audit_transaction_revoke', $row->type, $id, ['user_id' => $row->user_id, 'amount' => $row->claimed_amount]);
+            }
             echo '<div class="notice notice-error"><p>Transaction REVOKED. Tickets deleted.</p></div>';
         }
     }
@@ -2634,6 +2832,9 @@ function rk_render_comments_page() {
     if (isset($_POST['delete_comment_id'])) {
         $id = intval($_POST['delete_comment_id']);
         $wpdb->delete($table, ['id' => $id]);
+        if (function_exists('rk_log_admin_action')) {
+            rk_log_admin_action('live_comment_delete', 'live_comment', $id);
+        }
         echo '<div class="notice notice-success"><p>Comment Deleted.</p></div>';
     }
     $comments = $wpdb->get_results("SELECT * FROM $table ORDER BY created_at DESC LIMIT 50");
@@ -2698,7 +2899,11 @@ function rk_render_settings_page() {
         if (isset($_POST['rk_admin_email'])) {
             update_option('rk_notification_email', sanitize_email($_POST['rk_admin_email']));
         }
-        
+
+        if (function_exists('rk_log_admin_action')) {
+            rk_log_admin_action('settings_save', 'site_settings');
+        }
+
         echo '<div class="notice notice-success is-dismissible"><p>Settings Saved Successfully!</p></div>';
     }
 

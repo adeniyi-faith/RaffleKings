@@ -1,15 +1,58 @@
 name: Deploy RaffleKings
 
+# Phase 0 item 4: this used to be a single step that SSHed into cPanel and
+# ran `git pull` on every push to main, with no test gate and no way to
+# undo a bad deploy except manually SSHing in. Now:
+#   1. `test` re-runs the same checks as CI, against the exact commit being
+#      deployed (not just "the PR that merged looked green").
+#   2. `deploy` only runs if `test` passes, and tags the server's pre-deploy
+#      commit before pulling, so a bad deploy can be undone by running the
+#      Rollback workflow instead of an ad-hoc SSH session.
 on:
   push:
     branches:
       - main
 
 jobs:
-  deploy:
+  test:
     runs-on: ubuntu-latest
     steps:
-      - name: SSH into cPanel and Pull
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up PHP
+        uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.2'
+          tools: composer:v2
+          coverage: none
+
+      - name: Syntax-check every PHP file in the live app
+        run: |
+          set -e
+          status=0
+          while IFS= read -r -d '' file; do
+            php -l "$file" || status=1
+          done < <(find . \
+            -path ./raffle-api -prune -o \
+            -path './*/vendor' -prune -o \
+            -path ./node_modules -prune -o \
+            -path ./.git -prune -o \
+            -name '*.php' -print0)
+          exit $status
+
+      - name: Install Composer dependencies
+        run: composer install --no-interaction --no-progress --prefer-dist
+
+      - name: Run PHPUnit
+        run: vendor/bin/phpunit
+
+  deploy:
+    needs: test
+    runs-on: ubuntu-latest
+    environment: production
+    steps:
+      - name: Deploy over SSH (tag pre-deploy state, then pull)
         uses: appleboy/ssh-action@master
         with:
           host: ${{ secrets.CPANEL_HOST }}
@@ -17,5 +60,16 @@ jobs:
           password: ${{ secrets.CPANEL_PASSWORD }}
           port: 22
           script: |
+            set -e
             cd /home2/worldin6/public_html/rafflekings.com.ng
-            git pull origin main
+
+            # Move a rollback marker to whatever commit is live right now,
+            # BEFORE pulling the new one. The Rollback workflow resets to
+            # this tag by default, so "undo the last deploy" always means
+            # "go back to what was live a moment ago".
+            git tag -f pre-deploy-backup HEAD
+
+            git fetch origin main
+            git reset --hard origin/main
+
+            echo "Deployed $(git rev-parse --short HEAD). Previous commit tagged as pre-deploy-backup ($(git rev-parse --short pre-deploy-backup))."

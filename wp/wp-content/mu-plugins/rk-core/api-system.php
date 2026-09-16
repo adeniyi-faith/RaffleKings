@@ -38,6 +38,36 @@ function rk_check_rate_limit($action, $limit = 5, $seconds = 60) {
 }
 
 // ==========================================
+// *** ADMIN AUDIT LOG (Phase 0 item 5) ***
+// ==========================================
+/**
+ * Record one mutating admin action: who did it, what it was, what it was
+ * done to, and when — so every approval, ban, and balance edit is
+ * traceable to a person and a time instead of an anonymous DB change.
+ */
+function rk_log_admin_action($action, $target_type = '', $target_id = '', $details = '') {
+    global $wpdb;
+
+    $admin_id = get_current_user_id();
+    $admin = $admin_id ? get_userdata($admin_id) : null;
+
+    if (is_array($details) || is_object($details)) {
+        $details = wp_json_encode($details);
+    }
+
+    $wpdb->insert($wpdb->prefix . 'raffle_admin_audit_logs', [
+        'admin_id' => $admin_id,
+        'admin_name' => $admin ? $admin->display_name : 'Unknown',
+        'action' => $action,
+        'target_type' => $target_type,
+        'target_id' => (string) $target_id,
+        'details' => (string) $details,
+        'ip_address' => $_SERVER['REMOTE_ADDR'] ?? '',
+        'created_at' => current_time('mysql'),
+    ]);
+}
+
+// ==========================================
 // *** SYSTEM LOGGING ***
 // ==========================================
 function rk_handle_system_log($request) {

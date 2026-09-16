@@ -1,0 +1,48 @@
+name: CI
+
+# Phase 0 item 4: the live PHP site had no tests at all and deployed
+# straight to production on every push to main. This workflow is the gate —
+# deploy.yml requires it to pass before it will touch the live server.
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up PHP
+        uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.2'
+          tools: composer:v2
+          coverage: none
+
+      - name: Syntax-check every PHP file in the live app
+        # Catches fatal parse errors before they ever reach production — the
+        # cheapest, highest-value check available given the app has no
+        # framework-level static analysis set up yet. Skips vendor/ and the
+        # separate raffle-api/ Laravel app, which lints itself.
+        run: |
+          set -e
+          status=0
+          while IFS= read -r -d '' file; do
+            php -l "$file" || status=1
+          done < <(find . \
+            -path ./raffle-api -prune -o \
+            -path './*/vendor' -prune -o \
+            -path ./node_modules -prune -o \
+            -path ./.git -prune -o \
+            -name '*.php' -print0)
+          exit $status
+
+      - name: Install Composer dependencies
+        run: composer install --no-interaction --no-progress --prefer-dist
+
+      - name: Run PHPUnit
+        run: vendor/bin/phpunit

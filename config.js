@@ -12,6 +12,7 @@ const FRONTEND_URL = "https://rafflekings.com.ng";
 const API_CONFIG = {
     REGISTER: ajaxAction('register'),
     LOGIN: ajaxAction('login'),
+    LOGOUT: ajaxAction('logout'),
     USER_ME: ajaxAction('get_profile'),
 
     // Auth & Password Reset
@@ -62,7 +63,13 @@ const API_CONFIG = {
     LIVE_COMMENTS: ajaxAction('live_comments'),
 
     // System Health
-    SYSTEM_LOG: ajaxAction('system_log')
+    SYSTEM_LOG: ajaxAction('system_log'),
+
+    // Support Tickets
+    SUPPORT_TICKETS: ajaxAction('support_tickets'),
+    SUPPORT_TICKET: ajaxAction('support_ticket'),
+    CREATE_SUPPORT_TICKET: ajaxAction('create_support_ticket'),
+    REPLY_SUPPORT_TICKET: ajaxAction('reply_support_ticket')
 };
 
 // APP SETTINGS
