@@ -26,3 +26,8 @@ config.php
 wp/wp-config.php
 error_log
 .DS_Store
+
+# Root-level test tooling (Phase 0 item 4) — composer deps are fetched in CI
+/vendor/
+composer.lock
+.phpunit.result.cache

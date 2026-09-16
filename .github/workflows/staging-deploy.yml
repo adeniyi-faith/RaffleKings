@@ -1,0 +1,69 @@
+name: Deploy RaffleKings (Staging)
+
+# Phase 0 item 4: a staging deploy target, separate from production, so a
+# change can be seen running for real before it goes live. Push to the
+# `staging` branch (or merge main into it) to deploy here; it goes through
+# the same test gate as production.
+#
+# Requires these repo/environment secrets to be set for the "staging"
+# GitHub environment before this can run: CPANEL_STAGING_HOST,
+# CPANEL_STAGING_USERNAME, CPANEL_STAGING_PASSWORD, and
+# CPANEL_STAGING_PATH (the staging site's directory on the server).
+on:
+  push:
+    branches:
+      - staging
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up PHP
+        uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.2'
+          tools: composer:v2
+          coverage: none
+
+      - name: Syntax-check every PHP file in the live app
+        run: |
+          set -e
+          status=0
+          while IFS= read -r -d '' file; do
+            php -l "$file" || status=1
+          done < <(find . \
+            -path ./raffle-api -prune -o \
+            -path './*/vendor' -prune -o \
+            -path ./node_modules -prune -o \
+            -path ./.git -prune -o \
+            -name '*.php' -print0)
+          exit $status
+
+      - name: Install Composer dependencies
+        run: composer install --no-interaction --no-progress --prefer-dist
+
+      - name: Run PHPUnit
+        run: vendor/bin/phpunit
+
+  deploy-staging:
+    needs: test
+    runs-on: ubuntu-latest
+    environment: staging
+    steps:
+      - name: Deploy to the staging site over SSH
+        uses: appleboy/ssh-action@master
+        with:
+          host: ${{ secrets.CPANEL_STAGING_HOST }}
+          username: ${{ secrets.CPANEL_STAGING_USERNAME }}
+          password: ${{ secrets.CPANEL_STAGING_PASSWORD }}
+          port: 22
+          script: |
+            set -e
+            cd "${{ secrets.CPANEL_STAGING_PATH }}"
+            git tag -f pre-deploy-backup HEAD
+            git fetch origin staging
+            git reset --hard origin/staging
+            echo "Deployed $(git rev-parse --short HEAD) to staging."
