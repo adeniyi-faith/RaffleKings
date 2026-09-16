@@ -3,7 +3,28 @@
 @source '../../vendor/laravel/framework/src/Illuminate/Pagination/resources/views/*.blade.php';
 @source '../../storage/framework/views/*.php';
 
+/*
+ * Class-based dark mode (`.dark` on <html>), matching the legacy site's
+ * `darkMode: 'class'` Tailwind config and its localStorage/prefers-color-scheme
+ * toggle in components/layout/meta.php — so `dark:` variants behave the same
+ * way in the new component library.
+ */
+@custom-variant dark (&:where(.dark, .dark *));
+
 @theme {
-    --font-sans: 'Instrument Sans', ui-sans-serif, system-ui, sans-serif, 'Apple Color Emoji', 'Segoe UI Emoji',
-        'Segoe UI Symbol', 'Noto Color Emoji';
+    --font-sans: 'Inter', 'Instrument Sans', ui-sans-serif, system-ui, sans-serif, 'Apple Color Emoji',
+        'Segoe UI Emoji', 'Segoe UI Symbol', 'Noto Color Emoji';
+
+    /*
+     * The legacy site defined this same palette as an inline `tailwind.config`
+     * copy-pasted into checkout.php, register-special.php, and
+     * components/layout/meta.php — with drift between the copies (checkout.php
+     * was missing app-secondary). This is the one place it's now defined.
+     */
+    --color-app-primary: #2563eb;
+    --color-app-secondary: #1e40af;
+    --color-app-bg: #f8fafc;
+    --color-dark-bg: #0f172a;
+    --color-dark-card: #1e293b;
+    --color-dark-border: #334155;
 }

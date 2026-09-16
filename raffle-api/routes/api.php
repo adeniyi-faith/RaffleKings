@@ -13,6 +13,7 @@ use App\Http\Controllers\Api\RaffleController;
 use App\Http\Controllers\Api\ReferralController;
 use App\Http\Controllers\Api\RewardsController;
 use App\Http\Controllers\Api\SupportTicketController;
+use App\Http\Controllers\Api\TicketPriceQuoteController;
 use App\Http\Controllers\Api\TicketPurchaseController;
 use App\Http\Controllers\Api\WithdrawalController;
 use Illuminate\Support\Facades\Route;
@@ -20,6 +21,10 @@ use Illuminate\Support\Facades\Route;
 // Public — no auth, matches the legacy get_raffles/get_raffle actions.
 Route::get('/raffles', [RaffleController::class, 'index']);
 Route::get('/raffles/{raffle}', [RaffleController::class, 'show']);
+
+// Public — a server-computed price quote, so the frontend never has to
+// duplicate TicketPricingService's formula by hand (audit TD-20).
+Route::get('/raffles/{raffle}/price-quote', [TicketPriceQuoteController::class, 'show']);
 
 // Public — anyone can see a draw's commitment/verification, real proof
 // unlike the legacy "verification hash" (see DrawController's docblock).
