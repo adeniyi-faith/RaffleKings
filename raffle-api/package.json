@@ -19,7 +19,9 @@
     },
     "dependencies": {
         "@inertiajs/react": "2.3.28",
+        "laravel-echo": "2.1.5",
         "lucide-react": "0.545.0",
+        "pusher-js": "8.4.0",
         "react": "19.3.0",
         "react-dom": "19.3.0"
     }
