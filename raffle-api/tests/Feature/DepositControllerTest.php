@@ -71,4 +71,32 @@ class DepositControllerTest extends TestCase
 
         $this->postJson('/api/deposits', ['amount' => 5000])->assertStatus(502);
     }
+
+    /**
+     * Item 26 discovered a real gap: `initialize()` already passed a
+     * `/api/deposits/callback` URL to the gateway as where to send the
+     * user's browser back to, but no route ever received it — a real
+     * payer would have hit a 404 right after paying. This proves the
+     * fix: the callback re-verifies (idempotently) and lands the user
+     * back on the wallet page with the deposit id to show its status.
+     */
+    public function test_the_gateway_callback_confirms_the_deposit_and_redirects_to_the_wallet_page(): void
+    {
+        Http::fake([
+            'api.paystack.co/transaction/initialize' => Http::response(['status' => true, 'data' => ['authorization_url' => 'https://paystack.test/pay/abc']]),
+            'api.paystack.co/transaction/verify/*' => Http::response(['status' => true, 'data' => ['status' => 'success', 'amount' => 500000, 'currency' => 'NGN', 'id' => 999]]),
+        ]);
+        $user = $this->actingAsWordPressUser();
+        $deposit = app(DepositService::class)->initialize($user, 5000, 'https://app.test/api/deposits/callback');
+
+        $response = $this->get('/api/deposits/callback?reference='.$deposit->reference);
+
+        $response->assertRedirect('/account/wallet?deposit='.$deposit->id);
+        $this->assertSame('successful', $deposit->fresh()->status);
+    }
+
+    public function test_the_gateway_callback_with_an_unknown_reference_redirects_without_error(): void
+    {
+        $this->get('/api/deposits/callback?reference=does-not-exist')->assertRedirect('/account/wallet');
+    }
 }

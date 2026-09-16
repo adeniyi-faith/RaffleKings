@@ -80,6 +80,28 @@ class RaffleReadService
         return $this->hydrate(collect([$post]))->first();
     }
 
+    /**
+     * Batch lookup for pages that need several specific raffles at once
+     * (e.g. the account "My Tickets" list grouping a user's entries by
+     * raffle) without re-fetching every raffle in the system. Returns a
+     * collection keyed by raffle id; an id with no matching raffle (e.g.
+     * one whose post was later deleted) is simply absent from the result
+     * rather than raising an error, so callers can fall back gracefully.
+     *
+     * @param  array<int, int>  $raffleIds
+     * @return Collection<int, array>
+     */
+    public function findMany(array $raffleIds): Collection
+    {
+        if (empty($raffleIds)) {
+            return collect();
+        }
+
+        $posts = WpPost::query()->raffles()->whereIn('ID', $raffleIds)->get();
+
+        return $this->hydrate($posts)->keyBy('id');
+    }
+
     /** @param  Collection<int, WpPost>  $posts */
     private function hydrate(Collection $posts): Collection
     {
