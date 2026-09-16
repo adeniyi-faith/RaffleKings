@@ -27,12 +27,26 @@ class RewardsController extends Controller
         private readonly PointRedemptionService $redemption,
     ) {}
 
+    /**
+     * Everything the Rewards hub (item 28) needs for one page load: points
+     * balance, daily-streak position, the task catalog with per-task
+     * completion, and the public spin odds/cost — so the page can render
+     * daily streak, tasks, and Spin & Win as real, working features
+     * instead of the static "Coming Soon" markup they used to be stuck
+     * behind despite the backend for all three already existing (item 16).
+     */
     public function state(Request $request): JsonResponse
     {
         /** @var WpUser $user */
         $user = $request->user();
 
-        return response()->json(['points' => $this->points->balance($user)]);
+        return response()->json([
+            'points' => $this->points->balance($user),
+            ...$this->dailyClaim->state($user),
+            'daily_schedule' => $this->dailyClaim->schedule(),
+            'tasks' => $this->taskClaim->catalog($user),
+            'spin' => ['cost' => 50, 'odds' => $this->spin->odds()],
+        ]);
     }
 
     /** Public — the odds are meant to be shown to players, not hidden. */

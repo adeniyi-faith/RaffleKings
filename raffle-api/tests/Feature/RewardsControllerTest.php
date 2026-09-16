@@ -26,6 +26,32 @@ class RewardsControllerTest extends TestCase
         $this->getJson('/api/rewards/state')->assertOk()->assertJson(['points' => 0]);
     }
 
+    public function test_the_state_endpoint_reports_streak_tasks_and_spin_odds(): void
+    {
+        $this->actingAsWordPressUser();
+
+        $response = $this->getJson('/api/rewards/state');
+
+        $response->assertOk();
+        $response->assertJson(['streak' => 1, 'is_claimed_today' => false]);
+        $response->assertJsonCount(4, 'tasks');
+        $response->assertJsonFragment(['task_id' => 'join_community', 'points' => 1300, 'completed' => false]);
+        $response->assertJsonCount(4, 'spin.odds');
+    }
+
+    public function test_the_state_endpoint_reflects_a_claimed_daily_reward_and_task(): void
+    {
+        $this->actingAsWordPressUser();
+        $this->postJson('/api/rewards/daily-claim')->assertOk();
+        $this->postJson('/api/rewards/tasks/join_community/claim')->assertOk();
+
+        $response = $this->getJson('/api/rewards/state');
+
+        $response->assertOk();
+        $response->assertJson(['streak' => 1, 'is_claimed_today' => true]);
+        $response->assertJsonFragment(['task_id' => 'join_community', 'completed' => true]);
+    }
+
     public function test_an_authenticated_user_can_claim_their_daily_reward(): void
     {
         $this->actingAsWordPressUser();
