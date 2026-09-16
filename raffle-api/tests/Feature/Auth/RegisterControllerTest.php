@@ -3,8 +3,9 @@
 namespace Tests\Feature\Auth;
 
 use App\Auth\WordPressAuthCookieValidator;
-use App\Models\Legacy\RaffleTransaction;
 use App\Models\Legacy\WpUser;
+use App\Models\Wallet;
+use App\Models\WalletLedgerEntry;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Tests\TestCase;
 
@@ -50,7 +51,7 @@ class RegisterControllerTest extends TestCase
         $this->assertSame($user->ID, $resolved->ID);
     }
 
-    public function test_it_grants_the_same_welcome_bonus_the_legacy_site_gives(): void
+    public function test_it_grants_the_same_welcome_bonus_amount_the_legacy_site_gives_on_the_new_wallet(): void
     {
         $this->postJson('/api/auth/register', [
             'username' => 'bonushunter',
@@ -59,15 +60,17 @@ class RegisterControllerTest extends TestCase
         ])->assertCreated();
 
         $user = WpUser::where('user_login', 'bonushunter')->first();
+        $wallet = Wallet::where('user_id', $user->ID)->first();
 
-        $this->assertSame('300', $user->metaValue('wallet_balance'));
-        $this->assertSame('0', $user->metaValue('earnings_balance'));
-        $this->assertSame('1', $user->metaValue('rk_welcome_bonus_given'));
+        $this->assertNotNull($wallet);
+        $this->assertSame(300.0, (float) $wallet->wallet_balance);
+        $this->assertSame(0.0, (float) $wallet->earnings_balance);
 
         $this->assertTrue(
-            RaffleTransaction::where('user_id', $user->ID)
-                ->where('txn_ref', 'WELCOME-'.$user->ID)
-                ->where('type', 'signup_bonus')
+            WalletLedgerEntry::where('user_id', $user->ID)
+                ->where('reason', 'signup_bonus')
+                ->where('direction', 'credit')
+                ->where('amount', 300)
                 ->exists()
         );
     }
