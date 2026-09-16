@@ -26,7 +26,7 @@ already there and the ground rules for touching the shared database.
 
 ## Phase 1 — Laravel backend foundation (`raffle-api/`)
 
-- [ ] **8. Build the WordPress-session auth bridge**: a custom Laravel guard that reads the existing `wp_users`/session cookie, so a user's login keeps working identically while both systems run side by side. This unblocks every other Laravel route.
+- [x] **8. Build the WordPress-session auth bridge**: a custom Laravel guard that reads the existing `wp_users`/session cookie, so a user's login keeps working identically while both systems run side by side. This unblocks every other Laravel route. *(Done — `app/Auth/WordPressAuthCookieValidator.php`, `app/Auth/WordPressSessionGuard.php`, the `wordpress` guard, and a working `/api/me` proof-of-concept route, all covered by tests.)*
 - [ ] **9. Wire `TicketPurchaseService` to real controllers and routes**, plus build the raffle-listing and raffle-detail read endpoints (replacing the WordPress CPT read path for the frontend). This is the first real, live Laravel feature.
 - [ ] **10. Model raffles and prize structures natively in Laravel**, replacing the WordPress custom-post-type + external ACF field dependency the current draw logic relies on. Include a migration that reads today's raffle/prize data out of WordPress once, correctly, for a one-time cutover.
 - [ ] **11. Build the real ledger + wallet service**: an append-only debit/credit ledger table with the `wallets` table as a fast-read balance cache derived from it, plus a migration/backfill that reconciles every existing `usermeta` balance into it exactly once.

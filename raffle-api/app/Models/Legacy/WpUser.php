@@ -2,13 +2,19 @@
 
 namespace App\Models\Legacy;
 
+use Illuminate\Contracts\Auth\Authenticatable;
+
 /**
  * Maps to WordPress's own wp_users table. This is the ONLY source of truth
  * for accounts and passwords — do not create a parallel Laravel "users"
  * table for real accounts, and do not re-hash or replace WP's password
  * column here. See WpUserMeta for wallet balance, bans, etc.
+ *
+ * Implements Authenticatable so this model — not Laravel's stock `User`
+ * model — is what `Auth::user()` returns once authenticated via the
+ * `wordpress_session` guard (see App\Auth\WordPressSessionGuard).
  */
-class WpUser extends LegacyModel
+class WpUser extends LegacyModel implements Authenticatable
 {
     protected static string $unprefixedTable = 'users';
 
@@ -54,5 +60,46 @@ class WpUser extends LegacyModel
     public function metaValue(string $key): ?string
     {
         return $this->meta()->where('meta_key', $key)->value('meta_value');
+    }
+
+    // -- Illuminate\Contracts\Auth\Authenticatable ---------------------
+    // WordPress's own column names, not Laravel's usual id/password/
+    // remember_token conventions. No remember-me support is implemented
+    // (WordPress doesn't use Laravel's remember-token mechanism), so
+    // those two methods are safe no-ops.
+
+    public function getAuthIdentifierName(): string
+    {
+        return $this->getKeyName();
+    }
+
+    public function getAuthIdentifier(): mixed
+    {
+        return $this->getKey();
+    }
+
+    public function getAuthPasswordName(): string
+    {
+        return 'user_pass';
+    }
+
+    public function getAuthPassword(): string
+    {
+        return (string) $this->user_pass;
+    }
+
+    public function getRememberToken(): ?string
+    {
+        return null;
+    }
+
+    public function setRememberToken($value): void
+    {
+        // Intentional no-op — see class docblock.
+    }
+
+    public function getRememberTokenName(): string
+    {
+        return '';
     }
 }

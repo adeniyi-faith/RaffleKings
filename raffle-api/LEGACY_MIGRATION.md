@@ -36,6 +36,26 @@ where the migration actually is.
   `usermeta` values into the new tables. **Read-only against
   `wp_usermeta`** — safe to run repeatedly, does not delete or modify
   anything WordPress/rk-core still relies on.
+- `app/Services/TicketPricingService.php`, `app/Services/TicketPurchaseService.php`
+  — a tested, atomic "settle a payment and hand out tickets" path against
+  the new `wallets` table (fixes TD-06). Not yet reachable from any route
+  — see below.
+- **The WordPress-session auth bridge** (`app/Auth/WordPressAuthCookieValidator.php`,
+  `app/Auth/WordPressSessionGuard.php`, registered as the `wordpress`
+  guard in `config/auth.php`). This answers the open question below:
+  option (a) was chosen — it verifies the exact same "logged in" cookie
+  WordPress already sets on `wp_signon()`, re-implementing WordPress's own
+  cookie algorithm (including checking the user's live `session_tokens`
+  usermeta, so a real WordPress logout also invalidates access here) —
+  it does **not** bootstrap WordPress itself, since WP core isn't even
+  present in this repository (only `wp-content`). Copy `WP_LOGGED_IN_KEY`,
+  `WP_LOGGED_IN_SALT`, and `WP_COOKIEHASH` from the real server into
+  `.env` (see `.env.example` for exactly how to find each one). Protect
+  any new route with `Route::middleware('auth:wordpress')`; see
+  `routes/api.php` → `AuthBridgeController::me()` for a working example
+  that returns the real `App\Models\Legacy\WpUser` behind the cookie.
+  This guard is meant to be replaced by Sanctum-issued tokens once
+  WordPress is no longer the source of truth for auth — not before.
 
 ## What is NOT done yet (do not assume otherwise)
 
@@ -46,14 +66,12 @@ where the migration actually is.
   `BankAccount` for real money until the old code's write paths are
   migrated to use the same tables (module by module, per the audit's
   roadmap §27/§28) — otherwise you'll have two different balances.
-- No authentication is wired up yet. Auth still belongs to WordPress
-  (`wp_signon`, session cookies). Decide whether this API will (a) verify
-  the same WP session cookie, or (b) issue its own tokens (Sanctum) after
-  checking credentials against `wp_users` — before building on top of it.
-- No controllers/routes for the raffle/payment logic itself exist yet —
-  only the data layer (models + migrations). Next real step per the
-  roadmap is the payments settlement path (audit §11, TD-05/TD-06), since
-  that's the highest-risk module.
+- `TicketPurchaseService` still has no controller/route wired to it — the
+  auth bridge above unblocks this; it's next (`OVERHAUL_CHECKLIST.md`
+  Phase 1, item 9).
+- No raffle/prize-structure model exists in Laravel yet — the draw engine
+  still depends entirely on the WordPress custom-post-type + ACF field
+  described in the audit (§4.4).
 
 ## Running tests
 
