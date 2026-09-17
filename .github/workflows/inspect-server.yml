@@ -40,3 +40,7 @@ jobs:
             echo
             echo "=== Does the wp subfolder still look intact? ==="
             ls -la wp/wp-config.php 2>&1 || echo "(missing!)"
+            echo
+            echo "=== Restoring the 3 files the raffle-api tar accidentally overwrote ==="
+            git checkout -- .gitignore composer.json phpunit.xml 2>&1
+            git status --short 2>&1 || true
