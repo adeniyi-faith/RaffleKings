@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { Head, router } from '@inertiajs/react';
+import { ArrowRight, Lock, Mail, Zap } from 'lucide-react';
 import Button from '../../Components/ui/Button';
 import { Card } from '../../Components/ui/Card';
 import { TextInput, PasswordInput } from '../../Components/ui/TextInput';
@@ -32,46 +33,63 @@ export default function Login({ redirect }) {
         <>
             <Head title="Log in" />
             <div className="flex min-h-screen items-center justify-center bg-app-bg px-4 py-12 dark:bg-dark-bg">
-                <Card className="w-full max-w-sm">
-                    <h1 className="mb-6 text-xl font-bold">Welcome back</h1>
-
-                    {error && (
-                        <div className="mb-4 rounded-lg bg-red-50 px-3 py-2 text-sm text-red-700 dark:bg-red-900/20 dark:text-red-400">
-                            {error}
+                <div className="w-full max-w-sm">
+                    <div className="mb-8 text-center">
+                        <div className="mx-auto mb-6 flex h-16 w-16 rotate-3 items-center justify-center rounded-2xl bg-white shadow-lg dark:bg-dark-card">
+                            <Zap className="h-8 w-8 fill-current text-app-primary" />
                         </div>
-                    )}
+                        <h1 className="text-2xl font-extrabold text-gray-900 dark:text-white">Resume Mission</h1>
+                        <p className="mt-2 text-sm text-gray-500 dark:text-gray-400">Welcome back, winner.</p>
+                    </div>
 
-                    <form onSubmit={handleSubmit} className="space-y-4">
-                        <TextInput
-                            label="Email or username"
-                            value={form.username}
-                            onChange={update('username')}
-                            required
-                        />
-                        <PasswordInput
-                            label="Password"
-                            value={form.password}
-                            onChange={update('password')}
-                            required
-                        />
+                    <Card className="rounded-3xl p-8 shadow-xl shadow-gray-200/50 dark:shadow-none">
+                        {error && (
+                            <div className="mb-4 flex items-center justify-center gap-2 rounded-lg border border-red-100 bg-red-50 p-3 text-center text-xs font-bold text-red-600 dark:border-red-900/40 dark:bg-red-900/20 dark:text-red-400">
+                                {error}
+                            </div>
+                        )}
 
-                        <Button type="submit" disabled={submitting}>
-                            {submitting ? 'Logging in…' : 'Login Now'}
-                        </Button>
-                    </form>
+                        <form onSubmit={handleSubmit} className="space-y-5">
+                            <TextInput
+                                label="Email or username"
+                                icon={Mail}
+                                value={form.username}
+                                onChange={update('username')}
+                                required
+                            />
+                            <PasswordInput
+                                label="Password"
+                                icon={Lock}
+                                value={form.password}
+                                onChange={update('password')}
+                                required
+                            />
+                            <div className="-mt-3 flex justify-end">
+                                <a href="/forgot-password" className="text-xs font-bold text-app-primary hover:text-app-secondary">
+                                    Forgot password?
+                                </a>
+                            </div>
 
-                    <div className="mt-4 flex items-center justify-between text-xs">
-                        <a href="/forgot-password" className="text-gray-500 dark:text-gray-400">
-                            Forgot password?
-                        </a>
+                            <Button type="submit" variant="inverted" disabled={submitting}>
+                                {submitting ? 'Logging in…' : (
+                                    <>
+                                        Login Now <ArrowRight className="h-4 w-4" />
+                                    </>
+                                )}
+                            </Button>
+                        </form>
+                    </Card>
+
+                    <p className="mt-8 text-center text-sm text-gray-500 dark:text-gray-400">
+                        Don&apos;t have an identity yet?{' '}
                         <a
                             href={redirect ? `/register?redirect=${encodeURIComponent(redirect)}` : '/register'}
-                            className="font-semibold text-app-primary"
+                            className="font-bold text-app-primary hover:underline"
                         >
-                            Create account
+                            Create One
                         </a>
-                    </div>
-                </Card>
+                    </p>
+                </div>
             </div>
         </>
     );
