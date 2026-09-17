@@ -28,6 +28,12 @@ class LoginController extends Controller
         $cookieName = app('wordpress.auth_cookie_name');
         $cookie = $this->cookies->make($cookieName, $result['cookie']['value'], $result['cookie']['expiration']);
 
+        // Phase 3 item 34: issue a real, usable Sanctum token alongside
+        // the existing WordPress cookie — not a replacement for it yet
+        // (see WordPressOrSanctumGuard's docblock for why), but a fully
+        // working second way to authenticate starting now.
+        $token = $result['user']->createToken('login', ['*'], now()->addDays(30))->plainTextToken;
+
         return response()->json([
             'user' => [
                 'id' => $result['user']->ID,
@@ -35,6 +41,7 @@ class LoginController extends Controller
                 'user_email' => $result['user']->user_email,
                 'display_name' => $result['user']->display_name,
             ],
+            'token' => $token,
         ])->withCookie($cookie);
     }
 
@@ -51,6 +58,12 @@ class LoginController extends Controller
                 $this->login->logout($user, $token);
             }
         }
+
+        // Revoke only the Sanctum token this specific request actually
+        // presented (if any) — never every token the user has ever
+        // issued, so logging out on one device doesn't sign them out
+        // everywhere else that's using a different token.
+        $user?->currentAccessToken()?->delete();
 
         return response()->json(['message' => 'Logged out.'])->withCookie($this->cookies->forget($cookieName));
     }

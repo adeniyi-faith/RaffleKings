@@ -7,6 +7,7 @@ use Filament\Models\Contracts\HasName;
 use Filament\Panel;
 use Illuminate\Contracts\Auth\Authenticatable;
 use Illuminate\Notifications\Notifiable;
+use Laravel\Sanctum\HasApiTokens;
 
 /**
  * Maps to WordPress's own wp_users table. This is the ONLY source of truth
@@ -16,7 +17,11 @@ use Illuminate\Notifications\Notifiable;
  *
  * Implements Authenticatable so this model — not Laravel's stock `User`
  * model — is what `Auth::user()` returns once authenticated via the
- * `wordpress_session` guard (see App\Auth\WordPressSessionGuard).
+ * `wordpress_session` guard (see App\Auth\WordPressSessionGuard) or the
+ * newer `App\Auth\WordPressOrSanctumGuard` it's now wrapped in (Phase 3
+ * item 34) — both resolve to this same model, so nothing downstream of
+ * `Auth::user()`/`$request->user()` needs to know or care which one
+ * actually authenticated a given request.
  *
  * Also implements FilamentUser so the SAME model, resolved by the SAME
  * guard, is who Filament's admin panel (App\Providers\Filament\
@@ -24,10 +29,15 @@ use Illuminate\Notifications\Notifiable;
  * Filament login form or password; canAccessPanel() below is the one
  * gate, same isAdministrator() check every other admin-only endpoint
  * in this app already uses.
+ *
+ * HasApiTokens (Sanctum) lets this model issue/hold personal access
+ * tokens — see App\Auth\WordPressOrSanctumGuard and
+ * LoginController/RegisterController, which now issue one alongside the
+ * existing WordPress cookie on every successful login.
  */
 class WpUser extends LegacyModel implements Authenticatable, FilamentUser, HasName
 {
-    use Notifiable;
+    use HasApiTokens, Notifiable;
 
     protected static string $unprefixedTable = 'users';
 

@@ -8,9 +8,12 @@ use App\Models\Legacy\WpUser;
 use App\Models\Legacy\WpUserMeta;
 use App\Models\ReferralCommission;
 use App\Models\Wallet;
+use App\Notifications\DepositConfirmed;
+use App\Notifications\ReferralCommissionEarned;
 use App\Services\DepositService;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Http;
+use Illuminate\Support\Facades\Notification;
 use Tests\TestCase;
 
 class DepositServiceTest extends TestCase
@@ -102,11 +105,30 @@ class DepositServiceTest extends TestCase
             ]),
         ]);
 
+        Notification::fake();
+
         $confirmed = $this->deposits->confirm('paystack', $deposit->reference);
 
         $this->assertSame('successful', $confirmed->status);
         $this->assertSame('998877', $confirmed->gateway_transaction_id);
         $this->assertEquals(5000, Wallet::where('user_id', $user->ID)->value('wallet_balance'));
+
+        Notification::assertSentTo($user, DepositConfirmed::class);
+    }
+
+    public function test_a_failed_or_mismatched_confirmation_does_not_notify(): void
+    {
+        Http::fake(['api.paystack.co/transaction/initialize' => Http::response(['status' => true, 'data' => ['authorization_url' => 'https://paystack.test/pay/abc']])]);
+        $user = $this->makeUser();
+        $deposit = $this->deposits->initialize($user, 5000, 'https://app.test/callback');
+
+        Http::fake(['api.paystack.co/transaction/verify/*' => Http::response(['data' => ['status' => 'failed', 'amount' => 0, 'currency' => 'NGN']])]);
+
+        Notification::fake();
+
+        $this->deposits->confirm('paystack', $deposit->reference);
+
+        Notification::assertNothingSent();
     }
 
     public function test_confirming_the_same_deposit_twice_only_credits_once(): void
@@ -166,8 +188,12 @@ class DepositServiceTest extends TestCase
         $deposit = $this->deposits->initialize($referee, 5000, 'https://app.test/callback');
 
         Http::fake(['api.paystack.co/transaction/verify/*' => Http::response(['data' => ['status' => 'success', 'amount' => 500000, 'currency' => 'NGN', 'id' => 111]])]);
+
+        Notification::fake();
+
         $this->deposits->confirm('paystack', $deposit->reference);
 
         $this->assertSame(1, ReferralCommission::where('referrer_user_id', $referrer->ID)->count());
+        Notification::assertSentTo($referrer, ReferralCommissionEarned::class);
     }
 }

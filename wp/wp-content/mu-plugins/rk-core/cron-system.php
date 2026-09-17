@@ -1,28 +1,50 @@
 <?php
 /**
  * Automated Tasks & Cron Jobs
- * 1. Daily Retention Bonus System ("The Trap") - ACTIVE
+ * 1. Daily Retention Bonus System ("The Trap") - RETIRED (Phase 3 item 35)
  * 2. Automatic Receipt Cleanup (Privacy & Storage) - ACTIVE
- * 3. DYNAMIC TEMU CLICKBAIT ENGINE (DUAL CHANNEL: EMAIL + PUSH)
+ * 3. DYNAMIC TEMU CLICKBAIT ENGINE (DUAL CHANNEL: EMAIL + PUSH) - RETIRED (Phase 3 item 35)
  * 4. ADMIN DIGEST SYSTEM
+ *
+ * OVERHAUL_CHECKLIST.md Phase 3 item 35 — "the trap"
+ * (rk_run_the_trap_system(), below) mass-credits wallet_balance directly
+ * to whichever users didn't win yesterday, and the hourly
+ * "aggressive push" engine (rk_run_temu_push_engine()) sends manufactured
+ * urgency ("your streak is about to end", "your points are expiring",
+ * "your balance is low") to nag users back in — the same manipulative
+ * pattern as the fake "people viewing this" counters and fake live-draw
+ * schedule Phase 0 item 7 and Phase 2 item 27 already tore out elsewhere
+ * in this app, just running as a background job instead of page copy.
+ * Per the product owner's explicit direction, this is retired outright
+ * rather than rebuilt honestly on the new stack: no Laravel scheduled
+ * job replaces it. The two schedule hooks below are removed so neither
+ * cron event fires again; the function bodies are left in place,
+ * unreachable, rather than deleted, so the retirement itself — and
+ * exactly what it removed — stays visible in this file rather than only
+ * in git history. The unrelated receipt-cleanup job stays untouched.
  */
 
 // 1. SCHEDULE EVENTS
+// rk_daily_retention_event stays scheduled — rk_run_receipt_cleanup
+// (a legitimate, unrelated maintenance task) still needs it to fire.
+// Only what's HOOKED to it changed; see below.
 if (!wp_next_scheduled('rk_daily_retention_event')) {
     wp_schedule_event(strtotime('06:00:00'), 'daily', 'rk_daily_retention_event'); // Runs at 6 AM
 }
-if (!wp_next_scheduled('rk_aggressive_push_event')) {
-    wp_schedule_event(time(), 'hourly', 'rk_aggressive_push_event'); 
-}
+// rk_aggressive_push_event intentionally NOT re-scheduled — nothing
+// else uses it — see the item 35 note above. Clears out any instance a
+// previous deploy already queued in wp_options, so a stale scheduled
+// event can't fire once more before this deploy takes effect.
+wp_clear_scheduled_hook('rk_aggressive_push_event');
 if (!wp_next_scheduled('rk_temu_clickbait_event')) {
     wp_schedule_event(time(), 'hourly', 'rk_temu_clickbait_event');
 }
 
 // Hooking the events
-add_action('rk_daily_retention_event', 'rk_run_the_trap_system');
 add_action('rk_daily_retention_event', 'rk_run_receipt_cleanup');
 // add_action('rk_daily_retention_event', 'rk_send_admin_template_digest');
-add_action('rk_aggressive_push_event', 'rk_run_temu_push_engine');
+// rk_run_the_trap_system() and rk_run_temu_push_engine() intentionally
+// not hooked to anything — see the item 35 note above.
 // add_action('rk_temu_clickbait_event', 'rk_run_clickbait_engine');
 
 // ================================================================

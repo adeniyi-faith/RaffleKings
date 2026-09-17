@@ -95,8 +95,27 @@ function rk_execute_spin_logic($request) {
     // BAN CHECK
     if (is_wp_error($status = rk_check_user_status($user_id, 'spin'))) return $status;
 
+    // Phase 3 item 35c — locked (via the points row itself, not a
+    // MySQL-specific GET_LOCK()), ledgered spin on the unified points
+    // tables (rewards-bridge.php) when the flag is on.
+    if (rk_rewards_unified_enabled()) {
+        try {
+            $result = rk_points_bridge_spin($user_id);
+        } catch (Exception $e) {
+            return new WP_Error('insufficient_points', 'You need 50 points to spin.', ['status' => 400]);
+        }
+
+        return [
+            'success' => true,
+            'payout' => $result['payout'],
+            'new_balance' => $result['new_balance'],
+            'visual_index' => $result['visual_index'],
+            'is_unlimited' => true,
+        ];
+    }
+
     global $wpdb;
-    
+
     // 0. ACQUIRE LOCK (5 second timeout)
     $lock_name = "spin_user_{$user_id}";
     $lock_acquired = $wpdb->get_var($wpdb->prepare("SELECT GET_LOCK(%s, 5)", $lock_name));
@@ -201,6 +220,20 @@ function rk_handle_redeem_points($request) {
     // BAN CHECK
     if (is_wp_error($status = rk_check_user_status($user_id, 'redeem'))) return $status;
 
+    // Phase 3 item 35c — locked debit + a real credit into the SAME
+    // unified wallet item 33 built, when the flag is on (see
+    // rewards-bridge.php's rk_points_bridge_redeem() docblock for why
+    // this also requires the wallet flag specifically).
+    if (rk_rewards_unified_enabled()) {
+        try {
+            $result = rk_points_bridge_redeem($user_id);
+        } catch (Exception $e) {
+            return new WP_Error('low_points', $e->getMessage(), ['status' => 400]);
+        }
+
+        return ['success' => true] + $result;
+    }
+
     global $wpdb;
     $conversion_rate = 10; // 10 Points = 1 Naira
     $current_points = (int) get_user_meta($user_id, 'rk_points', true);
@@ -254,6 +287,39 @@ function rk_run_raffle_draw($request) {
     $raffle_id = intval($params['raffle_id']);
 
     if (!$raffle_id) return new WP_Error('missing_id', 'Raffle ID required', ['status' => 400]);
+
+    // Phase 3 item 35: while the flag is on, this delegates entirely to
+    // the provably-fair engine (draw-bridge.php — a port of
+    // App\Services\ProvablyFairDrawService) instead of the plain
+    // shuffle() below. Winners land in the SAME wp_raffle_winners table
+    // either way. A raffle must be committed first (see the "Commit
+    // Seed" admin action / rk_draw_bridge_commit_seed()) — if it hasn't
+    // been, this returns a clear error rather than silently running the
+    // old engine instead.
+    if (rk_draw_engine_unified_enabled()) {
+        $admin_user = wp_get_current_user();
+        try {
+            // The legacy admin UI has one button ("GENERATE WINNERS"),
+            // not a separate commit step — commit right before running
+            // so the seed is still fixed strictly BEFORE the eligible
+            // pool is read a few lines later inside rk_draw_bridge_run_draw()
+            // (what actually matters for the security property: the
+            // operator can't see the pool and then choose a seed to
+            // suit it), while keeping the same one-click flow admins
+            // already know. Idempotent either way — a raffle already
+            // committed elsewhere (e.g. a future Laravel admin action)
+            // is left alone.
+            rk_draw_bridge_commit_seed($raffle_id);
+            $result = rk_draw_bridge_run_draw($raffle_id);
+        } catch (Exception $e) {
+            return new WP_Error('draw_failed', $e->getMessage(), ['status' => 400]);
+        }
+
+        error_log("DRAW EXECUTED (unified engine): Raffle #$raffle_id by {$admin_user->user_login} ({$admin_user->ID})");
+        do_action('rk_draw_completed', $raffle_id, $result['winner_count'], $admin_user->user_login);
+
+        return ['success' => true, 'winner_count' => $result['winner_count'], 'message' => 'Winners generated successfully (Hidden). Go to Winners Manager to approve.'];
+    }
 
     // SECURITY FIX: Check if draw already ran for this raffle
     $existing_winners = $wpdb->get_var($wpdb->prepare(
@@ -409,6 +475,23 @@ function rk_credit_raffle_winner($request) {
 
     if (!$win_id || $amount <= 0) return new WP_Error('invalid', 'Invalid ID or Amount', ['status' => 400]);
 
+    // Phase 3 item 35: closes the wallet-vs-usermeta divergence found
+    // while researching the draw-engine cutover — see
+    // wallet-bridge.php's rk_wallet_credit_winner() docblock for the
+    // real double-credit race it also fixes.
+    if (rk_wallets_unified_enabled()) {
+        try {
+            $result = rk_wallet_credit_winner($win_id, $amount);
+        } catch (Exception $e) {
+            $status = $e->getMessage() === 'Winner record not found' ? 404 : 400;
+            return new WP_Error($status === 404 ? 'not_found' : 'paid', $e->getMessage(), ['status' => $status]);
+        }
+
+        do_action('rk_winner_credited', $result['user_id'], $result['prize_name'], $amount);
+
+        return ['success' => true, 'message' => 'User Credited ₦' . number_format($amount)];
+    }
+
     $winners_table = $wpdb->prefix . 'raffle_winners';
     $winner_record = $wpdb->get_row($wpdb->prepare("SELECT * FROM $winners_table WHERE id = %d", $win_id));
 
@@ -450,6 +533,45 @@ function rk_credit_raffle_winner($request) {
     do_action('rk_winner_credited', $user_id, $winner_record->prize_name, $amount);
 
     return ['success' => true, 'message' => 'User Credited ₦' . number_format($amount)];
+}
+
+/**
+ * OVERHAUL_CHECKLIST.md Phase 3 item 35d — rk_winner_credited has fired
+ * from rk_credit_raffle_winner() (and, since item 35a, from
+ * wallet-bridge.php's rk_wallet_credit_winner()) since before this
+ * migration started, with NO listener anywhere — the inline comment
+ * above it ("Trigger winner notification email") was aspirational; a
+ * winner credited through either path got no notification of any kind.
+ * This is that listener — a real one, on both email and Telegram, using
+ * the same rk_send_email()/rk_send_telegram_alert() helpers every other
+ * legacy notification already uses.
+ */
+add_action('rk_winner_credited', 'rk_notify_winner_credited', 10, 3);
+
+function rk_notify_winner_credited($user_id, $prize_name, $amount) {
+    $user = get_userdata($user_id);
+    if (!$user) return;
+
+    if (function_exists('rk_send_email')) {
+        $subject = "💰 You've been credited ₦" . number_format($amount) . "!";
+        $body = "
+            <div style='font-family: sans-serif; color: #333;'>
+                <h2 style='color: #16a34a;'>Prize Credited!</h2>
+                <p>Hi " . esc_html($user->display_name) . ",</p>
+                <p>Your prize (<strong>" . esc_html($prize_name) . "</strong>) has been credited: <strong>₦" . number_format($amount) . "</strong> added to your earnings balance.</p>
+            </div>
+        ";
+        rk_send_email($user->user_email, $subject, $body);
+    }
+
+    if (function_exists('rk_send_telegram_alert')) {
+        rk_send_telegram_alert(
+            "💰 <b>WINNER CREDITED</b>\n" .
+            "👤 User: " . esc_html($user->display_name) . "\n" .
+            "🏆 Prize: " . esc_html($prize_name) . "\n" .
+            "💵 Amount: ₦" . number_format($amount)
+        );
+    }
 }
 
 function rk_get_draw_results($request) {
@@ -757,7 +879,19 @@ function rk_get_request_params($request) {
 function rk_handle_daily_claim($request) {
     $user_id = get_current_user_id();
     if (!$user_id) return new WP_Error('no_auth', 'Not logged in', ['status' => 401]);
-    
+
+    // Phase 3 item 35c — locked, ledgered claim on the unified points
+    // tables (rewards-bridge.php) when the flag is on.
+    if (rk_rewards_unified_enabled()) {
+        try {
+            $result = rk_points_bridge_daily_claim($user_id);
+        } catch (Exception $e) {
+            return new WP_Error('already_claimed', $e->getMessage(), ['status' => 400]);
+        }
+
+        return ['success' => true] + $result;
+    }
+
     $rewards = [50, 70, 100, 150, 200, 300, 1000];
     
     // FETCH REAL DB STATE
@@ -812,18 +946,44 @@ function rk_handle_daily_claim($request) {
 function rk_get_rewards_state($request) {
     $user_id = get_current_user_id();
     if (!$user_id) return new WP_Error('no_auth', 'Not logged in', ['status' => 401]);
-    
-    $points = (int) get_user_meta($user_id, 'rk_points', true);
-    $db_streak = (int) get_user_meta($user_id, 'rk_streak_count', true);
-    $last_claim = get_user_meta($user_id, 'rk_last_claim_date', true);
-    $completed_tasks = rk_normalize_completed_tasks(get_user_meta($user_id, 'rk_completed_tasks', true));
-    
-    // Referral Data
+
+    // Referral Data (unaffected by the rewards-unification flag — the
+    // referral count itself is still legacy-owned data either way).
     $user_info = get_userdata($user_id);
     $frontend_base = defined('RK_FRONTEND_URL') ? RK_FRONTEND_URL : 'https://rafflekings.com.ng';
     $referral_link = $frontend_base . '/?ref=' . ($user_info ? $user_info->user_login : '');
     $referral_count = (int) get_user_meta($user_id, 'rk_referral_count', true);
-    
+
+    // Phase 3 item 35c — read from the unified points tables when the
+    // flag is on. rk_points_bridge_daily_state() already computes the
+    // same "visual streak" prediction the block below derives by hand.
+    if (rk_rewards_unified_enabled()) {
+        global $wpdb;
+        $points = rk_points_read_balance($user_id);
+        $row = $wpdb->get_row($wpdb->prepare('SELECT streak_count, last_claim_date FROM user_points WHERE user_id = %d', $user_id), ARRAY_A);
+        $db_streak = $row ? (int) $row['streak_count'] : 0;
+        $last_claim = $row ? $row['last_claim_date'] : null;
+        $daily_state = rk_points_bridge_daily_state($user_id);
+        $completed_tasks = array_map(fn ($t) => $t['task_id'], array_filter(rk_points_bridge_task_catalog($user_id), fn ($t) => $t['completed'] && !$t['repeatable']));
+
+        return [
+            'points' => $points,
+            'streak' => $daily_state['streak'],
+            'db_streak' => $db_streak,
+            'is_claimed_today' => $daily_state['is_claimed_today'],
+            'last_claim' => $last_claim,
+            'completed_tasks' => array_values($completed_tasks),
+            'referral_link' => $referral_link,
+            'referral_count' => $referral_count,
+            'server_time' => current_time('c'),
+        ];
+    }
+
+    $points = (int) get_user_meta($user_id, 'rk_points', true);
+    $db_streak = (int) get_user_meta($user_id, 'rk_streak_count', true);
+    $last_claim = get_user_meta($user_id, 'rk_last_claim_date', true);
+    $completed_tasks = rk_normalize_completed_tasks(get_user_meta($user_id, 'rk_completed_tasks', true));
+
     // --- ROBUST VISUAL STREAK LOGIC ---
     // The DB stores the *last completed* streak.
     // The Frontend needs to know the *current active* target.
@@ -879,6 +1039,21 @@ function rk_handle_task_claim($request) {
     if (!$user_id) return new WP_Error('no_auth', 'Not logged in', ['status' => 401]);
     $params = rk_get_request_params($request);
     $task_id = isset($params['task_id']) ? sanitize_text_field($params['task_id']) : '';
+
+    // Phase 3 item 35c — locked, ledgered claim on the unified tables
+    // (rewards-bridge.php) when the flag is on.
+    if (rk_rewards_unified_enabled()) {
+        try {
+            $result = rk_points_bridge_task_claim($user_id, $task_id);
+        } catch (Exception $e) {
+            $code = str_starts_with($e->getMessage(), 'Unknown task') ? 'invalid_task' : 'already_completed';
+
+            return new WP_Error($code, $e->getMessage(), ['status' => 400]);
+        }
+
+        return ['success' => true, 'points_added' => $result['points_added'], 'new_total' => $result['new_total_points']];
+    }
+
     $task_rewards = ['push_notification' => 1500, 'join_community' => 1300, 'whatsapp_follow' => 800, 'whatsapp_share' => 500];
     if (!array_key_exists($task_id, $task_rewards)) return new WP_Error('invalid_task', 'Unknown Task', ['status' => 400]);
     $completed = rk_normalize_completed_tasks(get_user_meta($user_id, 'rk_completed_tasks', true));
