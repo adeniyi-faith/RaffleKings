@@ -201,6 +201,80 @@ jobs:
             tar xzf deploy.tar.gz
             rm deploy.tar.gz
 
+      - name: Write the .env file from secrets
+        # Writes the app's private settings file fresh on every deploy,
+        # from GitHub's own secret store -- never hand-edited on the
+        # server, never pasted anywhere else, never checked into this
+        # repo. Requires these secrets to exist in the "production"
+        # environment: APP_KEY (a fixed random value, unrelated to the
+        # server itself), RAFFLE_DB_HOST, RAFFLE_DB_DATABASE,
+        # RAFFLE_DB_USERNAME, RAFFLE_DB_PASSWORD, WP_LOGGED_IN_KEY,
+        # WP_LOGGED_IN_SALT, WP_COOKIEHASH (all copied from wp-config.php
+        # on the server, plus one derived hash -- see .env.example's own
+        # comments for exactly where each one comes from). Until those
+        # secrets exist, this writes blank values for them, same as the
+        # .env.example template did.
+        uses: appleboy/ssh-action@master
+        with:
+          host: ${{ secrets.CPANEL_HOST }}
+          username: ${{ secrets.CPANEL_USERNAME }}
+          password: ${{ secrets.CPANEL_PASSWORD }}
+          port: 22
+          script: |
+            set -e
+            cd ${{ env.DEPLOY_PATH }}
+            cat > .env <<'ENVEOF'
+            APP_NAME=RaffleKings
+            APP_ENV=production
+            APP_KEY=${{ secrets.APP_KEY }}
+            APP_DEBUG=false
+            APP_URL=https://rafflekings.com.ng
+
+            APP_LOCALE=en
+            APP_FALLBACK_LOCALE=en
+
+            BCRYPT_ROUNDS=12
+
+            LOG_CHANNEL=stack
+            LOG_STACK=single
+            LOG_LEVEL=error
+
+            DB_CONNECTION=mysql
+            DB_HOST=${{ secrets.RAFFLE_DB_HOST }}
+            DB_PORT=3306
+            DB_DATABASE=${{ secrets.RAFFLE_DB_DATABASE }}
+            DB_USERNAME=${{ secrets.RAFFLE_DB_USERNAME }}
+            DB_PASSWORD=${{ secrets.RAFFLE_DB_PASSWORD }}
+
+            WP_TABLE_PREFIX=wp_
+            WP_LOGGED_IN_KEY=${{ secrets.WP_LOGGED_IN_KEY }}
+            WP_LOGGED_IN_SALT=${{ secrets.WP_LOGGED_IN_SALT }}
+            WP_COOKIEHASH=${{ secrets.WP_COOKIEHASH }}
+
+            REFERRAL_COMMISSION_RATE=0.5
+
+            WITHDRAWAL_MINIMUM_AMOUNT=2000
+            WITHDRAWAL_VERIFICATION_THRESHOLD=1000
+            WITHDRAWAL_VERIFICATION_FEE=1000
+
+            SESSION_DRIVER=database
+            SESSION_LIFETIME=120
+            SESSION_ENCRYPT=false
+            SESSION_PATH=/
+            SESSION_DOMAIN=null
+
+            BROADCAST_CONNECTION=log
+            FILESYSTEM_DISK=local
+            QUEUE_CONNECTION=database
+            CACHE_STORE=database
+
+            MAIL_MAILER=log
+            MAIL_FROM_ADDRESS="hello@rafflekings.com.ng"
+            MAIL_FROM_NAME="${APP_NAME}"
+
+            VITE_APP_NAME="${APP_NAME}"
+            ENVEOF
+
       - name: Run post-deploy Laravel commands
         uses: appleboy/ssh-action@master
         with:
