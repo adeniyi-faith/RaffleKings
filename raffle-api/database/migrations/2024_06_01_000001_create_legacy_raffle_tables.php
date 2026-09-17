@@ -115,6 +115,41 @@ return new class extends Migration
             $table->index('user_id', 'user_activity');
         });
 
+        $this->createIfMissing('raffle_support_tickets', function (Blueprint $table) {
+            $table->increments('id');
+            $table->unsignedMediumInteger('user_id');
+            $table->string('category', 50)->default('General Inquiry');
+            $table->string('subject', 255);
+            $table->string('status', 20)->default('open');
+            $table->dateTime('created_at')->useCurrent();
+            $table->dateTime('updated_at')->useCurrent()->useCurrentOnUpdate();
+            $table->index('user_id', 'user_tickets');
+        });
+
+        $this->createIfMissing('raffle_support_messages', function (Blueprint $table) {
+            $table->bigIncrements('id');
+            $table->unsignedMediumInteger('ticket_id');
+            $table->string('sender_type', 10)->default('user');
+            $table->unsignedMediumInteger('sender_id')->default(0);
+            $table->text('message');
+            $table->dateTime('created_at')->useCurrent();
+            $table->index('ticket_id', 'ticket_thread');
+        });
+
+        $this->createIfMissing('raffle_admin_audit_logs', function (Blueprint $table) {
+            $table->bigIncrements('id');
+            $table->unsignedMediumInteger('admin_id');
+            $table->string('admin_name', 100)->nullable();
+            $table->string('action', 100);
+            $table->string('target_type', 50)->nullable();
+            $table->string('target_id', 50)->nullable();
+            $table->text('details')->nullable();
+            $table->string('ip_address', 45)->nullable();
+            $table->dateTime('created_at')->useCurrent();
+            $table->index('admin_id', 'admin_idx');
+            $table->index('action', 'action_idx');
+        });
+
         $this->createIfMissing('raffle_site_notices', function (Blueprint $table) {
             $table->increments('id');
             $table->string('title', 100)->nullable();

@@ -65,6 +65,34 @@ function rk_log_admin_action($action, $target_type = '', $target_id = '', $detai
         'ip_address' => $_SERVER['REMOTE_ADDR'] ?? '',
         'created_at' => current_time('mysql'),
     ]);
+    $legacy_log_id = $wpdb->insert_id;
+
+    // Phase 3 item 36 — also write into the NEW Laravel-owned
+    // admin_audit_logs table (App\Services\AdminAuditLogService), so
+    // legacy admin actions show up in the same audit trail as actions
+    // taken through the new console instead of only existing in a
+    // second, separate table nothing else reads. Unconditional (no
+    // instant-rollback flag) since this is pure, append-only reporting
+    // — there is no real balance/state for a flag to protect, and never
+    // let a logging failure break the real admin action it's recording.
+    try {
+        $wpdb->insert('admin_audit_logs', [
+            'admin_user_id' => $admin_id,
+            'action' => $action ?: 'legacy_action',
+            'subject_type' => $target_type !== '' ? (string) $target_type : 'legacy',
+            'subject_id' => ctype_digit((string) $target_id) ? (int) $target_id : 0,
+            'context' => wp_json_encode([
+                'legacy_audit_log_id' => $legacy_log_id,
+                'admin_name' => $admin ? $admin->display_name : 'Unknown',
+                'details' => (string) $details,
+                'ip_address' => $_SERVER['REMOTE_ADDR'] ?? '',
+                'raw_target_id' => (string) $target_id,
+            ]),
+            'created_at' => current_time('mysql'),
+        ]);
+    } catch (Throwable $e) {
+        error_log('rk_log_admin_action: failed to mirror into the new admin_audit_logs table: ' . $e->getMessage());
+    }
 }
 
 // ==========================================
