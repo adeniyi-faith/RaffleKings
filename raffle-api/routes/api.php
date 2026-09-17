@@ -2,6 +2,7 @@
 
 use App\Http\Controllers\Api\AccountController;
 use App\Http\Controllers\Api\Admin\AuditLogController;
+use App\Http\Controllers\Api\Admin\DepositApprovalController;
 use App\Http\Controllers\Api\Admin\SupportTicketManagementController;
 use App\Http\Controllers\Api\Admin\WinnerManagementController;
 use App\Http\Controllers\Api\Admin\WithdrawalManagementController;
@@ -149,6 +150,10 @@ Route::middleware('auth:wordpress')->group(function () {
         Route::get('/withdrawals', [WithdrawalManagementController::class, 'index']);
         Route::post('/withdrawals/{withdrawal}/mark-paid', [WithdrawalManagementController::class, 'markPaid']);
         Route::post('/withdrawals/{withdrawal}/reject', [WithdrawalManagementController::class, 'reject']);
+
+        Route::get('/deposits', [DepositApprovalController::class, 'index']);
+        Route::post('/deposits/{transaction}/approve', [DepositApprovalController::class, 'approve']);
+        Route::post('/deposits/{transaction}/reject', [DepositApprovalController::class, 'reject']);
 
         Route::post('/winners/{winner}/credit', [WinnerManagementController::class, 'credit']);
         Route::patch('/winners/{winner}/visibility', [WinnerManagementController::class, 'setVisibility']);
