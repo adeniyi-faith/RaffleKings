@@ -125,6 +125,11 @@ $accountGuard = function (Request $request) {
     return null;
 };
 
+// Profile hub (matching the legacy profile.php) -- unlike the rest of
+// the account section, this one is public: a guest sees a "create an
+// account" card instead of the wallet cards, same as the legacy page.
+Route::get('/profile', fn () => Inertia::render('Account/Profile'));
+
 Route::get('/account/tickets', function (Request $request) use ($accountGuard) {
     return $accountGuard($request) ?? Inertia::render('Account/Tickets');
 });
