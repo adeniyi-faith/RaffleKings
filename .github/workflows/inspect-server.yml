@@ -73,3 +73,12 @@ jobs:
             echo
             echo "=== composer.json 'name' + autoload (did the tarball overwrite this?) ==="
             grep -E '"name"|"App\\\\\\\\"' composer.json 2>&1 || true
+            echo
+            echo "=== Live HTTP status for the pages that were 500ing (read-only GETs) ==="
+            for path in / /raffles /login /admin; do
+              code=$(curl -s -o /dev/null -w '%{http_code}' "https://rafflekings.com.ng${path}" || echo "curl-failed")
+              echo "GET ${path} -> ${code}"
+            done
+            echo
+            echo "=== Newest lines of storage/logs/laravel.log after those requests ==="
+            tail -n 40 storage/logs/laravel.log 2>&1 || echo "(no laravel.log)"
