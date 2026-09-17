@@ -19,3 +19,4 @@ if (!function_exists('add_filter')) {
 }
 
 require_once __DIR__ . '/../wp/wp-content/mu-plugins/rk-core/api-financials.php';
+require_once __DIR__ . '/../wp/wp-content/mu-plugins/rk-core/draw-bridge.php';

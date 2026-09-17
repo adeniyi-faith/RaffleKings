@@ -255,6 +255,39 @@ function rk_run_raffle_draw($request) {
 
     if (!$raffle_id) return new WP_Error('missing_id', 'Raffle ID required', ['status' => 400]);
 
+    // Phase 3 item 35: while the flag is on, this delegates entirely to
+    // the provably-fair engine (draw-bridge.php — a port of
+    // App\Services\ProvablyFairDrawService) instead of the plain
+    // shuffle() below. Winners land in the SAME wp_raffle_winners table
+    // either way. A raffle must be committed first (see the "Commit
+    // Seed" admin action / rk_draw_bridge_commit_seed()) — if it hasn't
+    // been, this returns a clear error rather than silently running the
+    // old engine instead.
+    if (rk_draw_engine_unified_enabled()) {
+        $admin_user = wp_get_current_user();
+        try {
+            // The legacy admin UI has one button ("GENERATE WINNERS"),
+            // not a separate commit step — commit right before running
+            // so the seed is still fixed strictly BEFORE the eligible
+            // pool is read a few lines later inside rk_draw_bridge_run_draw()
+            // (what actually matters for the security property: the
+            // operator can't see the pool and then choose a seed to
+            // suit it), while keeping the same one-click flow admins
+            // already know. Idempotent either way — a raffle already
+            // committed elsewhere (e.g. a future Laravel admin action)
+            // is left alone.
+            rk_draw_bridge_commit_seed($raffle_id);
+            $result = rk_draw_bridge_run_draw($raffle_id);
+        } catch (Exception $e) {
+            return new WP_Error('draw_failed', $e->getMessage(), ['status' => 400]);
+        }
+
+        error_log("DRAW EXECUTED (unified engine): Raffle #$raffle_id by {$admin_user->user_login} ({$admin_user->ID})");
+        do_action('rk_draw_completed', $raffle_id, $result['winner_count'], $admin_user->user_login);
+
+        return ['success' => true, 'winner_count' => $result['winner_count'], 'message' => 'Winners generated successfully (Hidden). Go to Winners Manager to approve.'];
+    }
+
     // SECURITY FIX: Check if draw already ran for this raffle
     $existing_winners = $wpdb->get_var($wpdb->prepare(
         "SELECT COUNT(*) FROM {$wpdb->prefix}raffle_winners WHERE raffle_id = %d",
@@ -408,6 +441,23 @@ function rk_credit_raffle_winner($request) {
     $amount = floatval($params['amount']);
 
     if (!$win_id || $amount <= 0) return new WP_Error('invalid', 'Invalid ID or Amount', ['status' => 400]);
+
+    // Phase 3 item 35: closes the wallet-vs-usermeta divergence found
+    // while researching the draw-engine cutover — see
+    // wallet-bridge.php's rk_wallet_credit_winner() docblock for the
+    // real double-credit race it also fixes.
+    if (rk_wallets_unified_enabled()) {
+        try {
+            $result = rk_wallet_credit_winner($win_id, $amount);
+        } catch (Exception $e) {
+            $status = $e->getMessage() === 'Winner record not found' ? 404 : 400;
+            return new WP_Error($status === 404 ? 'not_found' : 'paid', $e->getMessage(), ['status' => $status]);
+        }
+
+        do_action('rk_winner_credited', $result['user_id'], $result['prize_name'], $amount);
+
+        return ['success' => true, 'message' => 'User Credited ₦' . number_format($amount)];
+    }
 
     $winners_table = $wpdb->prefix . 'raffle_winners';
     $winner_record = $wpdb->get_row($wpdb->prepare("SELECT * FROM $winners_table WHERE id = %d", $win_id));

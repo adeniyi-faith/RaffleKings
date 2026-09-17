@@ -26,17 +26,26 @@
  * item 33 names): ticket purchases (wallet_payment/earnings_payment),
  * deposit confirmation + the 30% cashback bonus, withdrawals, the
  * earnings->wallet transfer, the admin manual balance-adjustment tool,
- * and every place a balance is displayed.
+ * every place a balance is displayed, and — added in Phase 3 item 35,
+ * as the "one real blocker" its own research turned up before the draw
+ * engine could safely cut over — raffle-winner crediting
+ * (rk_credit_raffle_winner() in api-gamification.php, via
+ * rk_wallet_credit_winner() below). Winner crediting is a wallet
+ * operation regardless of which engine (legacy shuffle() or the new
+ * provably-fair one in draw-bridge.php) actually picked the winner, so
+ * it's gated on THIS flag, not draw-bridge.php's separate
+ * rk_draw_engine_unified_enabled() — a site can unify wallets without
+ * yet trusting the new draw engine, or vice versa, independently.
  *
  * DELIBERATELY OUT OF SCOPE here (left reading/writing wp_usermeta
- * unchanged, even with the flag ON — these are items 35/36's job, not
- * this one's): referral commission crediting (rk_process_referral_
- * commission), points redemption, raffle-winner crediting, and the cron
+ * unchanged, even with the flag ON — these are item 35's remaining
+ * parts / item 36's job, not this one's): referral commission crediting
+ * (rk_process_referral_commission), points redemption, and the cron
  * mass-credit job. Until those are migrated too, a user's TRUE balance
  * while the flag is on is: (this table) + (whatever those still-legacy
  * paths independently add to wp_usermeta, which won't yet be reflected
  * here). This is a known, documented gap — not a discovered bug — and
- * is exactly why those items are their own separate checklist entries.
+ * is exactly why those are their own separate checklist work.
  */
 
 if (!defined('ABSPATH')) {
@@ -283,6 +292,63 @@ function rk_wallet_transfer_earnings_to_wallet($user_id, $amount) {
         $wpdb->query('COMMIT');
 
         return ['wallet' => $new_wallet, 'earnings' => $new_earnings];
+    } catch (Exception $e) {
+        $wpdb->query('ROLLBACK');
+        throw $e;
+    }
+}
+
+/**
+ * Credits a raffle winner's earnings balance. Mirrors
+ * App\Services\WinnerManagementService::credit() — most importantly,
+ * locking the wp_raffle_winners ROW ITSELF for the duration of the
+ * transaction, not just the balance row. The legacy
+ * rk_credit_raffle_winner() this replaces checked `is_credited` BEFORE
+ * opening its transaction and only set it AFTER committing the balance
+ * change — a real gap (two concurrent admin clicks on the same winner
+ * could both pass the check and both credit) this closes, the same
+ * class of bug already fixed for ticket purchases as TD-06/TD-12.
+ *
+ * @throws Exception if the winner record doesn't exist or was already credited.
+ * @return array{user_id:int, prize_name:string, new_balance:float}
+ */
+function rk_wallet_credit_winner($win_id, $amount) {
+    global $wpdb;
+    $winners_table = $wpdb->prefix . 'raffle_winners';
+
+    $wpdb->query('START TRANSACTION');
+    try {
+        $winner = $wpdb->get_row($wpdb->prepare("SELECT * FROM $winners_table WHERE id = %d FOR UPDATE", $win_id), ARRAY_A);
+
+        if (!$winner) {
+            throw new Exception('Winner record not found');
+        }
+        if ((int) $winner['is_credited'] === 1) {
+            throw new Exception('Already Credited');
+        }
+
+        $user_id = (int) $winner['user_id'];
+        $row = rk_wallet_lock_row($user_id);
+        $new_balance = round((float) $row['earnings_balance'] + $amount, 2);
+
+        $wpdb->update('wallets', ['earnings_balance' => $new_balance, 'updated_at' => current_time('mysql')], ['user_id' => $user_id]);
+        rk_wallet_record_ledger($user_id, 'earnings', 'credit', $amount, 'winner_credit', 'raffle_winner', $win_id);
+
+        $wpdb->update($winners_table, ['is_credited' => 1], ['id' => $win_id]);
+
+        $wpdb->insert($wpdb->prefix . 'raffle_transactions', [
+            'user_id' => $user_id,
+            'claimed_amount' => $amount,
+            'status' => 'verified_final',
+            'type' => 'prize_win',
+            'proof_url' => 'admin_credit',
+            'txn_ref' => 'WIN-' . $win_id,
+            'created_at' => current_time('mysql'),
+        ]);
+
+        $wpdb->query('COMMIT');
+
+        return ['user_id' => $user_id, 'prize_name' => $winner['prize_name'], 'new_balance' => $new_balance];
     } catch (Exception $e) {
         $wpdb->query('ROLLBACK');
         throw $e;
