@@ -5,6 +5,7 @@ namespace App\Console\Commands;
 use App\Models\BankAccount;
 use App\Models\Legacy\WpUserMeta;
 use App\Models\Wallet;
+use App\Models\WalletLedgerEntry;
 use Illuminate\Console\Command;
 
 /**
@@ -12,7 +13,8 @@ use Illuminate\Console\Command;
  * and rk_bank_accounts out of wp_usermeta into the new wallets/bank_accounts
  * tables, per the audit's TD-26 recommendation.
  *
- * Safe to run more than once — it upserts wallets by user_id and only
+ * Safe to run more than once, PROVIDED the wallet hasn't started seeing
+ * real activity of its own yet — it upserts wallets by user_id and only
  * inserts a bank account if an identical one (same user/bank/account
  * number) isn't already present.
  *
@@ -21,8 +23,21 @@ use Illuminate\Console\Command;
  * working unchanged until you deliberately switch its write paths over —
  * do that module by module, not by dropping usermeta afterward.
  *
+ * IMPORTANT (Phase 3 item 33): once wallet-bridge.php's
+ * rk_wallets_unified_enabled() flag is turned ON for real traffic, this
+ * command becomes UNSAFE to run unscoped — it is a full-snapshot
+ * overwrite of each `wallets` row from whatever wp_usermeta currently
+ * holds, not an incremental sync. Legacy usermeta stops being updated for
+ * users going through the unified path (see wallet-bridge.php), so
+ * re-running this would stomp a real, current `wallets` balance with a
+ * now-stale legacy number. To prevent that: any user whose ledger already
+ * has an entry for a reason OTHER than 'opening_balance' (i.e. has seen
+ * real activity recorded by WalletLedgerService — a purchase, a deposit,
+ * a withdrawal, a transfer) is skipped entirely, not just left alone —
+ * their `wallets` row is not touched even to update it.
+ *
  * Usage:
- *   php artisan legacy:backfill-wallets            # backfill everyone
+ *   php artisan legacy:backfill-wallets            # backfill everyone eligible
  *   php artisan legacy:backfill-wallets --dry-run   # report counts only
  */
 class BackfillWalletsFromUserMeta extends Command
@@ -49,8 +64,21 @@ class BackfillWalletsFromUserMeta extends Command
             ->groupBy('user_id');
 
         $count = 0;
+        $skipped = 0;
 
         foreach ($balances as $userId => $rows) {
+            $hasRealActivity = WalletLedgerEntry::query()
+                ->where('user_id', $userId)
+                ->where('reason', '!=', 'opening_balance')
+                ->exists();
+
+            if ($hasRealActivity) {
+                $this->warn("user {$userId}: skipped — wallet already has real activity, backfilling would overwrite it");
+                $skipped++;
+
+                continue;
+            }
+
             $wallet = $rows->firstWhere('meta_key', 'wallet_balance');
             $earnings = $rows->firstWhere('meta_key', 'earnings_balance');
 
@@ -73,7 +101,7 @@ class BackfillWalletsFromUserMeta extends Command
             $count++;
         }
 
-        $this->info("Wallets: {$count} user(s) processed".($dryRun ? ' (dry run, nothing written)' : '.'));
+        $this->info("Wallets: {$count} user(s) processed, {$skipped} skipped (already have real activity)".($dryRun ? ' (dry run, nothing written)' : '.'));
     }
 
     private function backfillBankAccounts(bool $dryRun): void

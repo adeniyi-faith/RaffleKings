@@ -38,7 +38,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_GET['action']) && $_GET['ac
 }
 
 // 3. ZERO-LATENCY SSR: FETCH DATA NATIVELY
-$wallet_balance = (float) get_user_meta($user_id, 'wallet_balance', true);
+$wallet_balance = rk_wallets_unified_enabled() ? rk_wallet_read_balance($user_id, 'wallet') : (float) get_user_meta($user_id, 'wallet_balance', true);
 $bank_name = get_option('rk_bank_name', 'Moniepoint');
 $account_number = get_option('rk_account_number', 'Not Set');
 $account_name = get_option('rk_account_name', 'Raffle Kings');

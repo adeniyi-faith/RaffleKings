@@ -68,8 +68,8 @@ $earnings_bal = 0;
 
 if ($is_logged_in) {
     $uid = get_current_user_id();
-    $wallet_bal = (float) get_user_meta($uid, 'wallet_balance', true);
-    $earnings_bal = (float) get_user_meta($uid, 'earnings_balance', true);
+    $wallet_bal = rk_wallets_unified_enabled() ? rk_wallet_read_balance($uid, 'wallet') : (float) get_user_meta($uid, 'wallet_balance', true);
+    $earnings_bal = rk_wallets_unified_enabled() ? rk_wallet_read_balance($uid, 'earnings') : (float) get_user_meta($uid, 'earnings_balance', true);
 }
 
 include 'header.php';
