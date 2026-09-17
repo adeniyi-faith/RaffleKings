@@ -80,5 +80,5 @@ jobs:
               echo "GET ${path} -> ${code}"
             done
             echo
-            echo "=== Newest lines of storage/logs/laravel.log after those requests ==="
-            tail -n 40 storage/logs/laravel.log 2>&1 || echo "(no laravel.log)"
+            echo "=== Newest error message (not just stack trace) from laravel.log ==="
+            tail -n 400 storage/logs/laravel.log 2>&1 | grep -E '^\[.*production\.(ERROR|CRITICAL)' | tail -n 5 || echo "(no matching error line)"
