@@ -64,3 +64,12 @@ jobs:
             echo
             echo "=== php artisan about (routes/config sanity) ==="
             php artisan about 2>&1 || true
+            echo
+            echo "=== WordPress's own \$table_prefix (from wp/wp-config.php) ==="
+            grep -E '^\s*\$table_prefix' wp/wp-config.php 2>&1 || echo "(not found)"
+            echo
+            echo "=== What tables actually exist in the configured DB (first 40) ==="
+            php artisan tinker --execute="foreach (array_slice(array_map('current', DB::select('SHOW TABLES')), 0, 40) as \$t) { echo \$t, PHP_EOL; }" 2>&1 || true
+            echo
+            echo "=== composer.json 'name' + autoload (did the tarball overwrite this?) ==="
+            grep -E '"name"|"App\\\\\\\\"' composer.json 2>&1 || true
