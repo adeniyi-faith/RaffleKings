@@ -2,6 +2,7 @@
 
 use App\Http\Controllers\Api\AccountController;
 use App\Http\Controllers\Api\Admin\AuditLogController;
+use App\Http\Controllers\Api\Admin\AuditReconciliationController;
 use App\Http\Controllers\Api\Admin\DepositApprovalController;
 use App\Http\Controllers\Api\Admin\SupportTicketManagementController;
 use App\Http\Controllers\Api\Admin\TransactionMonitorController;
@@ -158,6 +159,8 @@ Route::middleware('auth:wordpress')->group(function () {
 
         Route::get('/transactions', [TransactionMonitorController::class, 'index']);
         Route::post('/transactions/{transaction}/revoke', [TransactionMonitorController::class, 'revoke']);
+
+        Route::post('/audit/reconcile', [AuditReconciliationController::class, 'store']);
 
         Route::post('/winners/{winner}/credit', [WinnerManagementController::class, 'credit']);
         Route::patch('/winners/{winner}/visibility', [WinnerManagementController::class, 'setVisibility']);
