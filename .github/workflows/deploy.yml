@@ -8,10 +8,16 @@ name: Deploy RaffleKings
 #   2. `deploy` only runs if `test` passes, and tags the server's pre-deploy
 #      commit before pulling, so a bad deploy can be undone by running the
 #      Rollback workflow instead of an ad-hoc SSH session.
+# Manual-only for now: this used to auto-deploy on every push to main,
+# but that folder (/home2/worldin6/public_html/rafflekings.com.ng) is
+# being handed over to the new raffle-api app (see
+# raffle-api-deploy.yml), which manages that same folder from now on.
+# Running this after that swap would try to git-reset a folder that's no
+# longer a WordPress git checkout, and fight the new app for the same
+# files. Kept as workflow_dispatch in case the old site ever needs a
+# manual redeploy before the swap happens.
 on:
-  push:
-    branches:
-      - main
+  workflow_dispatch: {}
 
 jobs:
   test:
