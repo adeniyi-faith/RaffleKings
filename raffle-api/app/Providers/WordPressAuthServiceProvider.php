@@ -4,6 +4,7 @@ namespace App\Providers;
 
 use App\Auth\WordPressAuthCookieIssuer;
 use App\Auth\WordPressAuthCookieValidator;
+use App\Auth\WordPressOrSanctumGuard;
 use App\Auth\WordPressSessionGuard;
 use Illuminate\Cookie\Middleware\EncryptCookies;
 use Illuminate\Support\Facades\Auth;
@@ -23,13 +24,24 @@ class WordPressAuthServiceProvider extends ServiceProvider
 
     public function boot(): void
     {
+        // Phase 3 item 34: the 'wordpress' guard now tries a Sanctum
+        // token first and falls back to the original WordPress-cookie
+        // check — see WordPressOrSanctumGuard's own docblock for why a
+        // hard cutover isn't safe yet. Kept as the SAME driver name
+        // ('wordpress_session') and guard name ('wordpress' in
+        // config/auth.php) specifically so every existing
+        // `auth:wordpress` route, `Auth::guard('wordpress')` call, and
+        // Filament's `authGuard('wordpress')` keeps working with zero
+        // changes anywhere else — this is purely additive.
         Auth::extend('wordpress_session', function () {
-            return new WordPressSessionGuard(
-                new WordPressAuthCookieValidator(
-                    config('legacy.wp_logged_in_key'),
-                    config('legacy.wp_logged_in_salt'),
+            return new WordPressOrSanctumGuard(
+                new WordPressSessionGuard(
+                    new WordPressAuthCookieValidator(
+                        config('legacy.wp_logged_in_key'),
+                        config('legacy.wp_logged_in_salt'),
+                    ),
+                    $this->app->make('wordpress.auth_cookie_name'),
                 ),
-                $this->app->make('wordpress.auth_cookie_name'),
             );
         });
 

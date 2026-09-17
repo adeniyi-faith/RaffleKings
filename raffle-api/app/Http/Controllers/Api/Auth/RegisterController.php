@@ -39,6 +39,9 @@ class RegisterController extends Controller
         $cookieName = app('wordpress.auth_cookie_name');
         $cookie = $this->cookies->make($cookieName, $result['cookie']['value'], $result['cookie']['expiration']);
 
+        // Phase 3 item 34 — same dual issuance as LoginController.
+        $token = $result['user']->createToken('login', ['*'], now()->addDays(30))->plainTextToken;
+
         return response()->json([
             'user' => [
                 'id' => $result['user']->ID,
@@ -46,6 +49,7 @@ class RegisterController extends Controller
                 'user_email' => $result['user']->user_email,
                 'display_name' => $result['user']->display_name,
             ],
+            'token' => $token,
         ], 201)->withCookie($cookie);
     }
 }
