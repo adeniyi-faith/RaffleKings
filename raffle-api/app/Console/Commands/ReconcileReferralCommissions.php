@@ -22,15 +22,30 @@ use Illuminate\Console\Command;
  * referrer's payout, not a link back to the referee's deposit) — the
  * only durable signal that a referee's commission was ever paid is the
  * `rk_referral_commission_paid` usermeta flag set on the REFEREE. So
- * this reconstructs, best-effort, from that flag: for every referee
- * with the flag set and a real `referred_by`, it treats their EARLIEST
- * verified deposit/purchase as the deposit that must have triggered the
+ * this reconstructs from that flag: for every referee with the flag set
+ * and a real `referred_by`, it treats their EARLIEST verified
+ * deposit/purchase as the deposit that must have triggered the
  * commission (the only deposit rk_process_referral_commission() could
- * have been called against, since it only ever fires once per referee),
- * and derives the commission at the same 0.50 rate legacy has always
- * hardcoded. This is an honest reconstruction of "what the balance
- * already reflects," not an invented precise history — the same
- * philosophy ReconcileWalletLedger's own docblock describes.
+ * have been called against, since it only ever fires once per referee).
+ *
+ * That guess is NOT trusted blindly. The referrer's OWN
+ * wp_raffle_transactions row (type='referral_commission',
+ * proof_url='system_referral') is the actual record of what was really
+ * paid — rk_process_referral_commission() always writes one, with a
+ * real `claimed_amount`, right when the commission is paid. This
+ * command only creates a `referral_commissions` row when the guessed
+ * deposit's amount, at the legacy-hardcoded 50% rate, matches one of
+ * the referrer's own recorded commission transactions (within a kobo) —
+ * i.e. corroborated by real evidence the money actually moved that
+ * amount, not just "some verified deposit happened to exist." A referee
+ * whose guess can't be corroborated this way is left alone and flagged
+ * for manual review rather than inserting an unverified row — this
+ * command would rather under-reconcile than silently record a wrong
+ * commission_amount/deposit link. (A referrer transaction's own
+ * `order_id` — 'From: {display name at the time}' — is logged
+ * alongside each corroborated match for a human to double-check by
+ * name too, but isn't required to match, since a display name can
+ * change after the fact while the amount can't.)
  *
  * Idempotent: skips any referee that already has a `referral_commissions`
  * row (whether from a previous run of this command or from a real
@@ -75,6 +90,7 @@ class ReconcileReferralCommissions extends Command
 
         $created = 0;
         $skippedNoDeposit = 0;
+        $skippedUnconfirmed = 0;
         $skippedAlreadyExists = 0;
 
         foreach ($paidRefereeIds as $refereeId) {
@@ -104,16 +120,38 @@ class ReconcileReferralCommissions extends Command
                 continue;
             }
 
-            $commission = round((float) $firstDeposit->claimed_amount * self::LEGACY_COMMISSION_RATE, 2);
+            $expectedCommission = round((float) $firstDeposit->claimed_amount * self::LEGACY_COMMISSION_RATE, 2);
+
+            $matchingPayout = RaffleTransaction::query()
+                ->where('user_id', $referrerId)
+                ->where('type', 'referral_commission')
+                ->whereBetween('claimed_amount', [$expectedCommission - 0.01, $expectedCommission + 0.01])
+                ->first();
+
+            if (! $matchingPayout) {
+                $this->warn(sprintf(
+                    'referee %d: earliest deposit (%.2f, txn #%d) implies a %.2f commission, but referrer %d has no recorded referral_commission payout of that amount — skipped, needs manual review',
+                    $refereeId,
+                    $firstDeposit->claimed_amount,
+                    $firstDeposit->id,
+                    $expectedCommission,
+                    $referrerId,
+                ));
+                $skippedUnconfirmed++;
+
+                continue;
+            }
 
             $this->line(sprintf(
-                '%s referrer %d <- referee %d: deposit %.2f (txn #%d) -> commission %.2f',
+                '%s referrer %d <- referee %d: deposit %.2f (txn #%d) -> commission %.2f, corroborated by referrer\'s own payout txn #%d (%s)',
                 $dryRun ? '[dry-run]' : '[reconcile]',
                 $referrerId,
                 $refereeId,
                 $firstDeposit->claimed_amount,
                 $firstDeposit->id,
-                $commission,
+                $expectedCommission,
+                $matchingPayout->id,
+                $matchingPayout->order_id,
             ));
 
             if (! $dryRun) {
@@ -121,7 +159,7 @@ class ReconcileReferralCommissions extends Command
                     'referrer_user_id' => $referrerId,
                     'referee_user_id' => $refereeId,
                     'deposit_amount' => $firstDeposit->claimed_amount,
-                    'commission_amount' => $commission,
+                    'commission_amount' => $matchingPayout->claimed_amount,
                     'commission_rate' => self::LEGACY_COMMISSION_RATE,
                     'deposit_transaction_id' => $firstDeposit->id,
                 ]);
@@ -131,11 +169,12 @@ class ReconcileReferralCommissions extends Command
         }
 
         $this->info(sprintf(
-            '%s %d commission(s) reconciled, %d already had a row, %d skipped (no matching deposit found — needs manual review).',
+            '%s %d commission(s) reconciled (corroborated by a real recorded payout), %d already had a row, %d skipped (no deposit found), %d skipped (deposit found but no matching payout amount — needs manual review).',
             $dryRun ? 'Dry run complete —' : 'Done —',
             $created,
             $skippedAlreadyExists,
             $skippedNoDeposit,
+            $skippedUnconfirmed,
         ));
 
         return self::SUCCESS;

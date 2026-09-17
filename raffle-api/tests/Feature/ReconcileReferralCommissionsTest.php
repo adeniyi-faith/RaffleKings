@@ -49,6 +49,11 @@ class ReconcileReferralCommissionsTest extends TestCase
             'user_id' => $referee->ID, 'claimed_amount' => 9000, 'status' => 'verified_final',
             'type' => 'wallet_deposit', 'created_at' => now()->subDay(),
         ]);
+        // The referrer's own recorded payout — corroborates the 50%-of-2000 guess.
+        RaffleTransaction::create([
+            'user_id' => $referrer->ID, 'claimed_amount' => 1000, 'status' => 'verified_final',
+            'type' => 'referral_commission', 'order_id' => 'From: Referee', 'created_at' => now()->subDays(5),
+        ]);
 
         Artisan::call('legacy:reconcile-referrals');
 
@@ -71,11 +76,40 @@ class ReconcileReferralCommissionsTest extends TestCase
             'user_id' => $referee->ID, 'claimed_amount' => 1000, 'status' => 'verified_final',
             'type' => 'wallet_deposit', 'created_at' => now(),
         ]);
+        RaffleTransaction::create([
+            'user_id' => $referrer->ID, 'claimed_amount' => 500, 'status' => 'verified_final',
+            'type' => 'referral_commission', 'created_at' => now(),
+        ]);
 
         Artisan::call('legacy:reconcile-referrals');
         Artisan::call('legacy:reconcile-referrals');
 
         $this->assertSame(1, ReferralCommission::where('referee_user_id', $referee->ID)->count());
+    }
+
+    public function test_a_guess_with_no_corroborating_referrer_payout_is_skipped_not_recorded(): void
+    {
+        $referrer = $this->makeUser('referrer6');
+        $referee = $this->makeUser('referee6');
+
+        WpUserMeta::create(['user_id' => $referee->ID, 'meta_key' => 'referred_by', 'meta_value' => (string) $referrer->ID]);
+        WpUserMeta::create(['user_id' => $referee->ID, 'meta_key' => 'rk_referral_commission_paid', 'meta_value' => '1']);
+        RaffleTransaction::create([
+            'user_id' => $referee->ID, 'claimed_amount' => 2000, 'status' => 'verified_final',
+            'type' => 'wallet_deposit', 'created_at' => now(),
+        ]);
+        // The referrer has SOME referral_commission payout, but not one
+        // matching 50% of 2000 (1000) — e.g. it belongs to a different
+        // referee entirely. The guess must not be trusted just because
+        // *a* payout of *some* amount exists.
+        RaffleTransaction::create([
+            'user_id' => $referrer->ID, 'claimed_amount' => 275, 'status' => 'verified_final',
+            'type' => 'referral_commission', 'created_at' => now(),
+        ]);
+
+        Artisan::call('legacy:reconcile-referrals');
+
+        $this->assertSame(0, ReferralCommission::where('referee_user_id', $referee->ID)->count());
     }
 
     public function test_a_referee_with_no_matching_deposit_is_skipped_not_guessed(): void
@@ -128,6 +162,10 @@ class ReconcileReferralCommissionsTest extends TestCase
         RaffleTransaction::create([
             'user_id' => $referee->ID, 'claimed_amount' => 1000, 'status' => 'verified_final',
             'type' => 'wallet_deposit', 'created_at' => now(),
+        ]);
+        RaffleTransaction::create([
+            'user_id' => $referrer->ID, 'claimed_amount' => 500, 'status' => 'verified_final',
+            'type' => 'referral_commission', 'created_at' => now(),
         ]);
 
         Artisan::call('legacy:reconcile-referrals', ['--dry-run' => true]);

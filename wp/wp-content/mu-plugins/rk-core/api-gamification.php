@@ -535,6 +535,45 @@ function rk_credit_raffle_winner($request) {
     return ['success' => true, 'message' => 'User Credited ₦' . number_format($amount)];
 }
 
+/**
+ * OVERHAUL_CHECKLIST.md Phase 3 item 35d — rk_winner_credited has fired
+ * from rk_credit_raffle_winner() (and, since item 35a, from
+ * wallet-bridge.php's rk_wallet_credit_winner()) since before this
+ * migration started, with NO listener anywhere — the inline comment
+ * above it ("Trigger winner notification email") was aspirational; a
+ * winner credited through either path got no notification of any kind.
+ * This is that listener — a real one, on both email and Telegram, using
+ * the same rk_send_email()/rk_send_telegram_alert() helpers every other
+ * legacy notification already uses.
+ */
+add_action('rk_winner_credited', 'rk_notify_winner_credited', 10, 3);
+
+function rk_notify_winner_credited($user_id, $prize_name, $amount) {
+    $user = get_userdata($user_id);
+    if (!$user) return;
+
+    if (function_exists('rk_send_email')) {
+        $subject = "💰 You've been credited ₦" . number_format($amount) . "!";
+        $body = "
+            <div style='font-family: sans-serif; color: #333;'>
+                <h2 style='color: #16a34a;'>Prize Credited!</h2>
+                <p>Hi " . esc_html($user->display_name) . ",</p>
+                <p>Your prize (<strong>" . esc_html($prize_name) . "</strong>) has been credited: <strong>₦" . number_format($amount) . "</strong> added to your earnings balance.</p>
+            </div>
+        ";
+        rk_send_email($user->user_email, $subject, $body);
+    }
+
+    if (function_exists('rk_send_telegram_alert')) {
+        rk_send_telegram_alert(
+            "💰 <b>WINNER CREDITED</b>\n" .
+            "👤 User: " . esc_html($user->display_name) . "\n" .
+            "🏆 Prize: " . esc_html($prize_name) . "\n" .
+            "💵 Amount: ₦" . number_format($amount)
+        );
+    }
+}
+
 function rk_get_draw_results($request) {
     global $wpdb;
     $raffle_id = $request->get_param('raffle_id');

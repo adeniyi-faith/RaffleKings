@@ -10,9 +10,13 @@ use App\Models\BankAccount;
 use App\Models\Legacy\WpUser;
 use App\Models\Wallet;
 use App\Models\WithdrawalRequest;
+use App\Notifications\WithdrawalProcessed;
+use App\Notifications\WithdrawalRequestSubmittedAdminAlert;
 use App\Services\WalletLedgerService;
 use App\Services\WithdrawalService;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Notifications\AnonymousNotifiable;
+use Illuminate\Support\Facades\Notification;
 use Tests\TestCase;
 
 class WithdrawalServiceTest extends TestCase
@@ -62,11 +66,15 @@ class WithdrawalServiceTest extends TestCase
     {
         [$user, $account] = $this->makeVerifiedUser(earnings: 10000);
 
+        Notification::fake();
+
         $withdrawal = $this->withdrawals->request($user, 3000, $account->id);
 
         $this->assertEquals(0, $withdrawal->fee_amount);
         $this->assertEquals(3000, $withdrawal->amount_to_send);
         $this->assertEquals(7000, Wallet::where('user_id', $user->ID)->value('earnings_balance'));
+
+        Notification::assertSentTo(new AnonymousNotifiable, WithdrawalRequestSubmittedAdminAlert::class);
     }
 
     public function test_below_the_minimum_is_refused(): void
@@ -154,9 +162,12 @@ class WithdrawalServiceTest extends TestCase
         $withdrawal = $this->withdrawals->request($user, 3000, $account->id);
         $admin = WpUser::create(['user_login' => 'admin'.uniqid(), 'user_pass' => 'x', 'user_email' => uniqid().'@example.com']);
 
+        Notification::fake();
+
         $this->withdrawals->markPaid($admin, $withdrawal);
 
         $this->assertSame('paid', $withdrawal->fresh()->status);
+        Notification::assertSentTo($user, WithdrawalProcessed::class);
     }
 
     public function test_an_already_paid_withdrawal_cannot_be_marked_paid_again(): void
@@ -176,9 +187,12 @@ class WithdrawalServiceTest extends TestCase
         $withdrawal = $this->withdrawals->request($user, 3000, $account->id);
         $admin = WpUser::create(['user_login' => 'admin'.uniqid(), 'user_pass' => 'x', 'user_email' => uniqid().'@example.com']);
 
+        Notification::fake();
+
         $this->withdrawals->reject($admin, $withdrawal, 'wrong bank details');
 
         $this->assertSame('rejected', $withdrawal->fresh()->status);
         $this->assertEquals(10000, Wallet::where('user_id', $user->ID)->value('earnings_balance'));
+        Notification::assertSentTo($user, WithdrawalProcessed::class);
     }
 }
