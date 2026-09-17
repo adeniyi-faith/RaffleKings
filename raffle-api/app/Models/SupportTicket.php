@@ -8,7 +8,7 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
 
 class SupportTicket extends Model
 {
-    protected $fillable = ['user_id', 'subject', 'status'];
+    protected $fillable = ['user_id', 'subject', 'status', 'legacy_ticket_id'];
 
     public function user()
     {

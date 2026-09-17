@@ -751,6 +751,18 @@ function rk_render_withdrawals_page() {
     global $wpdb;
     $table = $wpdb->prefix . 'raffle_transactions';
 
+    // Phase 3 item 36 — toggle for whether the new admin queue's own
+    // withdrawal_requests table gets a linked row for every legacy
+    // withdrawal request created from here on. This is a dual-write, not a
+    // redirect — this page keeps reading/writing wp_raffle_transactions
+    // exactly as before either way.
+    if (isset($_POST['rk_toggle_withdrawals_unified'])) {
+        check_admin_referer('rk_toggle_withdrawals_unified');
+        update_option('rk_withdrawals_unified_enabled', isset($_POST['rk_withdrawals_unified_enabled']) ? '1' : '0');
+        echo '<div class="notice notice-success"><p>Withdrawal sync setting updated.</p></div>';
+    }
+    $withdrawals_unified = rk_withdrawals_unified_enabled();
+
     // --- CSV EXPORT LOGIC ---
     if (isset($_GET['rk_export_withdrawals'])) {
         // Handled by rk_process_csv_export hook
@@ -774,11 +786,13 @@ function rk_render_withdrawals_page() {
             if ($row && $row->status === 'pending') {
                 if ($action === 'bulk_approve') {
                     $wpdb->update($table, ['status' => 'completed'], ['id' => $id]);
+                    if ($withdrawals_unified) rk_withdrawal_bridge_sync_status_from_legacy($id, 'paid');
                     if (function_exists('rk_send_withdrawal_confirmation')) rk_send_withdrawal_confirmation($row->user_id, $row->claimed_amount);
                 } elseif ($action === 'bulk_reject') {
                     $current_earn = (float) get_user_meta($row->user_id, 'earnings_balance', true);
                     update_user_meta($row->user_id, 'earnings_balance', $current_earn + $row->claimed_amount);
                     $wpdb->update($table, ['status' => 'rejected'], ['id' => $id]);
+                    if ($withdrawals_unified) rk_withdrawal_bridge_sync_status_from_legacy($id, 'rejected');
                 }
                 if (function_exists('rk_log_admin_action')) {
                     rk_log_admin_action('withdrawal_bulk_' . $action, 'withdrawal', $id, ['user_id' => $row->user_id, 'amount' => $row->claimed_amount]);
@@ -798,11 +812,13 @@ function rk_render_withdrawals_page() {
         if ($row && $row->status === 'pending') {
             if ($_POST['w_action'] === 'paid') {
                 $wpdb->update($table, ['status' => 'verified_final'], ['id' => $id]);
+                if ($withdrawals_unified) rk_withdrawal_bridge_sync_status_from_legacy($id, 'paid');
                 echo '<div class="notice notice-success"><p>Withdrawal Marked as PAID.</p></div>';
             } elseif ($_POST['w_action'] === 'reject') {
                 $current_earn = get_user_meta($row->user_id, 'earnings_balance', true) ?: 0;
                 update_user_meta($row->user_id, 'earnings_balance', $current_earn + $row->claimed_amount);
                 $wpdb->update($table, ['status' => 'rejected'], ['id' => $id]);
+                if ($withdrawals_unified) rk_withdrawal_bridge_sync_status_from_legacy($id, 'rejected');
                 echo '<div class="notice notice-warning"><p>Withdrawal Rejected & Refunded to Earnings.</p></div>';
             }
             if (function_exists('rk_log_admin_action')) {
@@ -822,6 +838,15 @@ function rk_render_withdrawals_page() {
                 <span class="dashicons dashicons-download" style="margin-top:4px;"></span> Export Pending to CSV
             </a>
         </div>
+
+        <form method="post" style="margin-bottom: 15px;">
+            <?php wp_nonce_field('rk_toggle_withdrawals_unified'); ?>
+            <label>
+                <input type="checkbox" name="rk_withdrawals_unified_enabled" value="1" onchange="this.form.submit()" <?php checked($withdrawals_unified); ?>>
+                <strong>Mirror new requests into the new admin queue's withdrawal_requests table</strong>
+                (Phase 3 item 36 — run <code>php artisan legacy:import-withdrawal-requests</code> first)
+            </label>
+        </form>
 
         <form method="POST">
             <?php wp_nonce_field('rk_w_bulk_actions'); ?>

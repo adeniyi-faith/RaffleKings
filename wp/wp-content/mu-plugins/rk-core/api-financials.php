@@ -864,6 +864,12 @@ function rk_handle_withdrawal($request) {
             'created_at' => current_time('mysql')
         ]);
 
+        // Phase 3 item 36: mirror this into the new admin queue's own
+        // withdrawal_requests table, independent of the wallet flag above.
+        if ($request_inserted !== false && rk_withdrawals_unified_enabled()) {
+            rk_withdrawal_bridge_link_request($wpdb->insert_id, $user_id, $account_id, $amount, $fee, $amount_to_send);
+        }
+
         if ($wallets_unified) {
             // rk_wallet_apply() above already committed its own debit/credit —
             // there is no single outer transaction to roll back here. If the
