@@ -8,9 +8,14 @@ use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Route;
 use Inertia\Inertia;
 
-Route::get('/', function () {
+// Homepage (faithfully rebuilt to match the legacy index.php: hero
+// carousel, Play & Win action grid, Trending Now rail) — same trending
+// data source (top 10, closing-soon first) as the legacy homepage's
+// SSR-preloaded $initial_raffles, via the same RaffleReadService the
+// /raffles page already uses.
+Route::get('/', function (RaffleReadService $raffles) {
     return Inertia::render('Home', [
-        'message' => 'The new Inertia + React frontend build pipeline is live.',
+        'trending' => $raffles->listActive(['sort' => 'closing_soon', 'per_page' => 10])['raffles'],
     ]);
 });
 
