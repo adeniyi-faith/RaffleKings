@@ -61,7 +61,7 @@ export default function Header() {
                     )}
                 </button>
 
-                <Link href={user ? '/account/wallet' : '/login'} className="relative block transition-transform active:scale-90">
+                <Link href="/profile" className="relative block transition-transform active:scale-90">
                     <div className="h-9 w-9 overflow-hidden rounded-full border-2 border-yellow-500 bg-gray-200 shadow-sm dark:bg-gray-700">
                         <img src={avatar} className="h-full w-full object-cover" alt="Profile" />
                     </div>

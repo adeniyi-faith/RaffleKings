@@ -9,12 +9,15 @@ const ITEMS = [
     { href: '/raffles', icon: Ticket, label: 'Raffles' },
     { href: '/hall-of-fame', icon: Trophy, label: 'Winners' },
     { href: '/rewards', icon: Gift, label: 'My Rewards' },
+    // Same as the legacy bottom-nav.php: always /profile, guest or not --
+    // the profile page itself (not this nav) is what adapts to whether
+    // anyone's logged in.
+    { href: '/profile', icon: User, label: 'Profile' },
 ];
 
 export default function BottomNav() {
-    const { url, props } = usePage();
-    const user = props.auth?.user;
-    const items = [...ITEMS, { href: user ? '/account/wallet' : '/login', icon: User, label: 'Profile' }];
+    const { url } = usePage();
+    const items = ITEMS;
 
     return (
         <nav className="fixed bottom-0 left-0 z-50 flex h-[calc(4.5rem+env(safe-area-inset-bottom))] w-full items-start justify-around border-t border-gray-100 bg-white px-2 pb-2 pt-3 shadow-[0_-5px_20px_rgba(0,0,0,0.03)] backdrop-blur-md transition-colors duration-200 dark:border-dark-border dark:bg-dark-bg/95 dark:shadow-none">
