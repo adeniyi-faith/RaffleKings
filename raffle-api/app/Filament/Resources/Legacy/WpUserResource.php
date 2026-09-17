@@ -6,11 +6,13 @@ use App\Filament\Resources\Legacy\WpUserResource\Pages;
 use App\Models\Legacy\WpUser;
 use App\Models\Wallet;
 use App\Services\UserManagementService;
+use Filament\Forms;
 use Filament\Forms\Form;
 use Filament\Notifications\Notification;
 use Filament\Resources\Resource;
 use Filament\Tables;
 use Filament\Tables\Table;
+use InvalidArgumentException;
 
 /**
  * No create/edit forms — accounts and passwords are still owned by the
@@ -85,6 +87,64 @@ class WpUserResource extends Resource
                     ->action(function (WpUser $record) {
                         app(UserManagementService::class)->unban(auth('wordpress')->user(), $record);
                         Notification::make()->title("#{$record->ID} unbanned.")->success()->send();
+                    }),
+                Tables\Actions\Action::make('adjustBalance')
+                    ->label('Adjust balance')
+                    ->color('warning')
+                    ->icon('heroicon-o-banknotes')
+                    ->form([
+                        Forms\Components\Select::make('type')
+                            ->label('Balance')
+                            ->options(['wallet' => 'Spending wallet', 'earnings' => 'Earnings', 'points' => 'Points'])
+                            ->required(),
+                        Forms\Components\Select::make('direction')
+                            ->options(['add' => 'Add (+)', 'subtract' => 'Subtract (-)'])
+                            ->required(),
+                        Forms\Components\TextInput::make('amount')
+                            ->numeric()
+                            ->minValue(0.01)
+                            ->required(),
+                    ])
+                    ->action(function (WpUser $record, array $data) {
+                        try {
+                            app(UserManagementService::class)->adjustBalance(auth('wordpress')->user(), $record, $data['type'], (float) $data['amount'], $data['direction']);
+                        } catch (InvalidArgumentException $e) {
+                            Notification::make()->title($e->getMessage())->danger()->send();
+
+                            return;
+                        }
+                        Notification::make()->title("#{$record->ID}'s balance updated.")->success()->send();
+                    }),
+                Tables\Actions\Action::make('restrictions')
+                    ->label('Restrictions')
+                    ->color('gray')
+                    ->icon('heroicon-o-shield-exclamation')
+                    ->fillForm(fn (WpUser $record) => [
+                        'is_banned' => $record->isBanned(),
+                        'ban_withdraw' => $record->metaValue('rk_ban_withdraw') === '1',
+                        'ban_transfer' => $record->metaValue('rk_ban_transfer') === '1',
+                        'ban_expiry' => $record->metaValue('rk_ban_expiry') ?: null,
+                    ])
+                    ->form([
+                        Forms\Components\Checkbox::make('is_banned')->label('Full account ban (login blocked)'),
+                        Forms\Components\Checkbox::make('ban_withdraw')
+                            ->label('Block withdrawals')
+                            ->helperText('Not currently enforced anywhere — see the field\'s own tooltip in the legacy admin panel.'),
+                        Forms\Components\Checkbox::make('ban_transfer')
+                            ->label('Block transfers')
+                            ->helperText('Not currently enforced anywhere — see the field\'s own tooltip in the legacy admin panel.'),
+                        Forms\Components\DatePicker::make('ban_expiry')->label('Restriction expiry (optional)'),
+                    ])
+                    ->action(function (WpUser $record, array $data) {
+                        app(UserManagementService::class)->updateRestrictions(
+                            auth('wordpress')->user(),
+                            $record,
+                            (bool) ($data['is_banned'] ?? false),
+                            (bool) ($data['ban_withdraw'] ?? false),
+                            (bool) ($data['ban_transfer'] ?? false),
+                            $data['ban_expiry'] ?? null,
+                        );
+                        Notification::make()->title("#{$record->ID}'s restrictions updated.")->success()->send();
                     }),
             ]);
     }
