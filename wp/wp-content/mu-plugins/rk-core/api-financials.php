@@ -115,6 +115,49 @@ function rk_issue_ticket_entries($user_id, $raffle_id, $numbers_str, $txn_id) {
     }
 }
 
+/**
+ * OVERHAUL_CHECKLIST.md Phase 3 item 32 — the shadow-traffic period.
+ * Called right after a real wallet/earnings ticket purchase has already
+ * committed, so this can NEVER affect the real transaction or its
+ * response — it only records what actually happened so the new Laravel
+ * app (raffle-api/app/Console/Commands/ProcessShadowPurchaseComparisons.php)
+ * can, on its own schedule, work out what its settlement path
+ * (TicketPricingService/TicketPurchaseService) would have produced for
+ * the same inputs and flag it if the two disagree. Writes into a table
+ * Laravel owns (raffle-api/database/migrations/..._create_shadow_purchase_
+ * comparisons_table.php) — deliberately NOT prefixed with $wpdb->prefix,
+ * since that table was never created with the wp_ prefix. Every failure
+ * mode here is swallowed: a shadow-logging bug must never turn into a
+ * failed or slowed-down real purchase.
+ */
+function rk_queue_shadow_purchase_comparison($user_id, $raffle_id, $numbers_str, $ticket_count, $unit_price, $is_golden_box, $funding_source, $amount, $new_balance) {
+    try {
+        global $wpdb;
+
+        $numbers = array_values(array_filter(array_map('intval', explode(',', $numbers_str))));
+        if (empty($numbers)) return;
+
+        $wpdb->insert('shadow_purchase_comparisons', [
+            'user_id' => $user_id,
+            'raffle_id' => $raffle_id,
+            'ticket_numbers' => wp_json_encode($numbers),
+            'quantity' => $ticket_count,
+            'unit_price' => $unit_price,
+            'is_golden_box' => $is_golden_box ? 1 : 0,
+            'funding_source' => $funding_source,
+            'legacy_charged_amount' => $amount,
+            'legacy_new_balance' => $new_balance,
+            'status' => 'pending',
+            'created_at' => current_time('mysql'),
+        ]);
+    } catch (Throwable $e) {
+        // Never let shadow-comparison logging affect a real purchase.
+        if (function_exists('error_log')) {
+            error_log('rk_queue_shadow_purchase_comparison failed: ' . $e->getMessage());
+        }
+    }
+}
+
 function rk_get_balance() {
     $user_id = get_current_user_id();
     return [
@@ -262,6 +305,8 @@ function rk_handle_payment_ai($request) {
         if ($raffle_id > 0 && !empty($numbers_str)) {
             // 🔥 TRIGGER RECEIPT EMAIL
             rk_send_purchase_receipt($user_id, $amount, $raffle_id, $ticket_count, $numbers_str);
+            // Phase 3 item 32: shadow-compare against the new Laravel settlement path.
+            rk_queue_shadow_purchase_comparison($user_id, $raffle_id, $numbers_str, $ticket_count, $raffle_price, $is_golden_box, 'wallet', $amount, $new_bal);
         }
         return ['success' => true, 'message' => 'Success', 'new_balance' => $new_bal];
     }
@@ -328,6 +373,8 @@ function rk_handle_payment_ai($request) {
         if ($raffle_id > 0 && !empty($numbers_str)) {
             // 🔥 TRIGGER RECEIPT EMAIL
             rk_send_purchase_receipt($user_id, $amount, $raffle_id, $ticket_count, $numbers_str);
+            // Phase 3 item 32: shadow-compare against the new Laravel settlement path.
+            rk_queue_shadow_purchase_comparison($user_id, $raffle_id, $numbers_str, $ticket_count, $raffle_price, $is_golden_box, 'earnings', $amount, $current_earn - $amount);
         }
         return ['success' => true, 'message' => 'Success', 'new_balance' => $current_earn - $amount];
     }
