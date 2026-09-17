@@ -56,6 +56,11 @@ function rk_get_support_tickets($request) {
     $user_id = get_current_user_id();
     if (!$user_id) return new WP_Error('no_auth', 'Not logged in', ['status' => 401]);
 
+    // Phase 3 item 36 — read from the unified support tables when the flag is on.
+    if (rk_support_unified_enabled()) {
+        return rk_support_bridge_list_tickets($user_id);
+    }
+
     global $wpdb;
     $table_tickets = $wpdb->prefix . 'raffle_support_tickets';
 
@@ -79,6 +84,13 @@ function rk_get_support_ticket($request) {
 
     $ticket_id = (int) $request->get_param('id');
     if (!$ticket_id) return new WP_Error('missing_id', 'Ticket ID is required', ['status' => 400]);
+
+    // Phase 3 item 36 — read from the unified support tables when the flag is on.
+    if (rk_support_unified_enabled()) {
+        $ticket = rk_support_bridge_get_ticket_for_user($ticket_id, $user_id);
+
+        return $ticket ?? new WP_Error('not_found', 'Ticket not found', ['status' => 404]);
+    }
 
     global $wpdb;
     $table_tickets = $wpdb->prefix . 'raffle_support_tickets';
@@ -111,6 +123,23 @@ function rk_create_support_ticket($request) {
     }
     if (mb_strlen($message) > 2000) {
         return new WP_Error('message_too_long', 'Message is too long (max 2000 characters).', ['status' => 400]);
+    }
+
+    // Phase 3 item 36 — write into the unified support tables when the flag is on.
+    if (rk_support_unified_enabled()) {
+        $ticket = rk_support_bridge_create_ticket($user_id, $category, $message);
+
+        $user = get_userdata($user_id);
+        if (function_exists('rk_send_telegram_alert')) {
+            rk_send_telegram_alert(
+                "🎫 <b>New Support Ticket</b>\n" .
+                "From: " . ($user ? esc_html($user->display_name) . ' (' . esc_html($user->user_email) . ')' : 'User #' . $user_id) . "\n" .
+                "Category: " . esc_html($category) . "\n" .
+                "Message: " . esc_html(mb_substr($message, 0, 300))
+            );
+        }
+
+        return ['success' => true, 'message' => 'Ticket submitted. Our team will reply soon.', 'ticket' => $ticket];
     }
 
     global $wpdb;
@@ -173,6 +202,25 @@ function rk_reply_support_ticket($request) {
     if (empty($message)) return new WP_Error('missing_message', 'Message cannot be empty.', ['status' => 400]);
     if (mb_strlen($message) > 2000) return new WP_Error('message_too_long', 'Message is too long (max 2000 characters).', ['status' => 400]);
 
+    // Phase 3 item 36 — write into the unified support tables when the flag is on.
+    if (rk_support_unified_enabled()) {
+        $ticket = rk_support_bridge_reply($ticket_id, $user_id, $message, false);
+        if (!$ticket) {
+            return new WP_Error('not_found', 'Ticket not found', ['status' => 404]);
+        }
+
+        $user = get_userdata($user_id);
+        if (function_exists('rk_send_telegram_alert')) {
+            rk_send_telegram_alert(
+                "🎫 <b>Support Ticket Reply</b> (#$ticket_id)\n" .
+                "From: " . ($user ? esc_html($user->display_name) : 'User #' . $user_id) . "\n" .
+                "Message: " . esc_html(mb_substr($message, 0, 300))
+            );
+        }
+
+        return ['success' => true, 'message' => 'Reply sent.', 'ticket' => $ticket];
+    }
+
     global $wpdb;
     $table_tickets = $wpdb->prefix . 'raffle_support_tickets';
     $table_messages = $wpdb->prefix . 'raffle_support_messages';
@@ -221,24 +269,45 @@ function rk_render_support_page() {
     $table_tickets = $wpdb->prefix . 'raffle_support_tickets';
     $table_messages = $wpdb->prefix . 'raffle_support_messages';
 
+    // Phase 3 item 36 — same instant-rollback toggle pattern as every
+    // other bridge. See support-bridge.php's own docblock for exactly
+    // what this does and doesn't cover, and why (unlike the wallet
+    // flag) it's a full redirect rather than a dual-write.
+    if (isset($_POST['rk_toggle_support_unified'])) {
+        check_admin_referer('rk_toggle_support_unified');
+        update_option('rk_support_unified_enabled', isset($_POST['rk_support_unified_enabled']) ? '1' : '0');
+        echo '<div class="notice notice-success"><p>Support ticket setting updated.</p></div>';
+    }
+
+    // Phase 3 item 36 — unified: whichever filing cabinet the ticket really
+    // lives in, an admin reply/status-change goes through support-bridge.php.
+    $unified = rk_support_unified_enabled();
+
     if (isset($_POST['rk_support_ticket_id']) && check_admin_referer('rk_support_action')) {
         $ticket_id = intval($_POST['rk_support_ticket_id']);
         $admin_id = get_current_user_id();
 
         if (!empty($_POST['rk_support_reply'])) {
             $reply = sanitize_textarea_field($_POST['rk_support_reply']);
-            $wpdb->insert($table_messages, [
-                'ticket_id' => $ticket_id,
-                'sender_type' => 'admin',
-                'sender_id' => $admin_id,
-                'message' => $reply,
-                'created_at' => current_time('mysql'),
-            ]);
-            $wpdb->update($table_tickets, ['status' => 'answered', 'updated_at' => current_time('mysql')], ['id' => $ticket_id]);
 
-            $ticket = $wpdb->get_row($wpdb->prepare("SELECT * FROM $table_tickets WHERE id = %d", $ticket_id));
-            if ($ticket) {
-                $user = get_userdata($ticket->user_id);
+            if ($unified) {
+                $ticket_after_reply = rk_support_bridge_reply($ticket_id, $admin_id, $reply, true);
+                $reply_user_id = $ticket_after_reply['id'] ? $wpdb->get_var($wpdb->prepare('SELECT user_id FROM support_tickets WHERE id = %d', $ticket_id)) : null;
+            } else {
+                $wpdb->insert($table_messages, [
+                    'ticket_id' => $ticket_id,
+                    'sender_type' => 'admin',
+                    'sender_id' => $admin_id,
+                    'message' => $reply,
+                    'created_at' => current_time('mysql'),
+                ]);
+                $wpdb->update($table_tickets, ['status' => 'answered', 'updated_at' => current_time('mysql')], ['id' => $ticket_id]);
+                $ticket_row = $wpdb->get_row($wpdb->prepare("SELECT * FROM $table_tickets WHERE id = %d", $ticket_id));
+                $reply_user_id = $ticket_row ? $ticket_row->user_id : null;
+            }
+
+            if ($reply_user_id) {
+                $user = get_userdata($reply_user_id);
                 if ($user && function_exists('rk_send_email')) {
                     $body = "<p>Hi " . esc_html($user->display_name) . ",</p><p>We replied to your support ticket:</p><blockquote>" . nl2br(esc_html($reply)) . "</blockquote>";
                     $message = function_exists('rk_get_email_html') ? rk_get_email_html("Support Reply", $body, "View Ticket →", (defined('RK_FRONTEND_URL') ? RK_FRONTEND_URL : '') . "/support.php") : $body;
@@ -253,8 +322,15 @@ function rk_render_support_page() {
 
         if (isset($_POST['rk_support_status']) && $_POST['rk_support_status'] !== '') {
             $status = sanitize_text_field($_POST['rk_support_status']);
-            if (in_array($status, ['open', 'answered', 'resolved', 'closed'])) {
-                $wpdb->update($table_tickets, ['status' => $status, 'updated_at' => current_time('mysql')], ['id' => $ticket_id]);
+            // The status dropdown below still submits legacy's 'answered' value either way.
+            if ($unified && $status === 'answered') $status = 'pending';
+            $valid_statuses = $unified ? ['open', 'pending', 'resolved', 'closed'] : ['open', 'answered', 'resolved', 'closed'];
+            if (in_array($status, $valid_statuses)) {
+                if ($unified) {
+                    rk_support_bridge_set_status($ticket_id, $status);
+                } else {
+                    $wpdb->update($table_tickets, ['status' => $status, 'updated_at' => current_time('mysql')], ['id' => $ticket_id]);
+                }
                 if (function_exists('rk_log_admin_action')) {
                     rk_log_admin_action('support_ticket_status_change', 'support_ticket', $ticket_id, ['status' => $status]);
                 }
@@ -263,15 +339,47 @@ function rk_render_support_page() {
     }
 
     $filter_status = isset($_GET['filter_status']) ? sanitize_text_field($_GET['filter_status']) : 'open';
-    $where = "1=1";
-    if ($filter_status && $filter_status !== 'all') {
-        $where = $wpdb->prepare("status = %s", $filter_status);
+
+    if ($unified) {
+        $bridge_tickets = rk_support_bridge_admin_list($filter_status);
+        $tickets = array_map(fn ($t) => (object) [
+            'id' => $t['id'],
+            'subject' => $t['subject'],
+            'status' => $t['status'],
+            'user_id' => $wpdb->get_var($wpdb->prepare('SELECT user_id FROM support_tickets WHERE id = %d', $t['id'])),
+        ], $bridge_tickets);
+        $messages_by_ticket = [];
+        foreach ($bridge_tickets as $t) {
+            $messages_by_ticket[$t['id']] = array_map(fn ($m) => (object) $m, $t['messages']);
+        }
+    } else {
+        $where = "1=1";
+        if ($filter_status && $filter_status !== 'all') {
+            $where = $wpdb->prepare("status = %s", $filter_status);
+        }
+        $tickets = $wpdb->get_results("SELECT * FROM $table_tickets WHERE $where ORDER BY updated_at DESC LIMIT 100");
     }
-    $tickets = $wpdb->get_results("SELECT * FROM $table_tickets WHERE $where ORDER BY updated_at DESC LIMIT 100");
     ?>
     <div class="wrap">
         <h1>\xf0\x9f\x8e\xab Support Tickets</h1>
         <p>Real conversations from support.php — replies email the user and post back to their ticket thread.</p>
+
+        <div class="notice notice-<?php echo $unified ? 'warning' : 'info'; ?>" style="padding:12px 15px;">
+            <form method="post" style="margin:0;">
+                <?php wp_nonce_field('rk_toggle_support_unified'); ?>
+                <label>
+                    <input type="checkbox" name="rk_support_unified_enabled" value="1" onchange="this.form.submit()" <?php checked($unified); ?>>
+                    <strong>Read and reply from the unified support tickets</strong>
+                    (Phase 3 item 36 — run <code>php artisan legacy:import-support-tickets</code> first)
+                </label>
+                <input type="hidden" name="rk_toggle_support_unified" value="1">
+                <noscript><button type="submit" class="button">Save</button></noscript>
+                <p style="margin:6px 0 0;color:#666;">
+                    Currently <strong><?php echo $unified ? 'ON — this page reads/writes the new support_tickets tables' : 'OFF — the legacy wp_raffle_support_tickets tables are still in full control'; ?></strong>.
+                    Unchecking this is an instant rollback, no deploy required.
+                </p>
+            </form>
+        </div>
 
         <div style="margin: 15px 0;">
             <a href="?page=raffle-support&filter_status=open" class="button <?php echo $filter_status === 'open' ? 'button-primary' : ''; ?>">Open</a>
@@ -284,9 +392,9 @@ function rk_render_support_page() {
             <div style="background:white; padding:20px; text-align:center; color:#888;">No tickets in this view.</div>
         <?php else: foreach ($tickets as $t):
             $user = get_userdata($t->user_id);
-            $messages = $wpdb->get_results($wpdb->prepare("SELECT * FROM $table_messages WHERE ticket_id = %d ORDER BY created_at ASC, id ASC", $t->id));
+            $messages = $unified ? ($messages_by_ticket[$t->id] ?? []) : $wpdb->get_results($wpdb->prepare("SELECT * FROM $table_messages WHERE ticket_id = %d ORDER BY created_at ASC, id ASC", $t->id));
         ?>
-            <div style="background:white; padding:18px; margin-bottom:15px; border-left:4px solid <?php echo $t->status === 'open' ? '#f59e0b' : ($t->status === 'answered' ? '#2563eb' : '#16a34a'); ?>; box-shadow:0 1px 2px rgba(0,0,0,0.1);">
+            <div style="background:white; padding:18px; margin-bottom:15px; border-left:4px solid <?php echo $t->status === 'open' ? '#f59e0b' : (in_array($t->status, ['answered', 'pending'], true) ? '#2563eb' : '#16a34a'); ?>; box-shadow:0 1px 2px rgba(0,0,0,0.1);">
                 <div style="display:flex; justify-content:space-between;">
                     <div>
                         <strong>#<?php echo (int) $t->id; ?> — <?php echo esc_html($t->subject); ?></strong><br>

@@ -9,7 +9,7 @@ class SupportTicketMessage extends Model
 {
     public $timestamps = false;
 
-    protected $fillable = ['support_ticket_id', 'author_id', 'is_from_admin', 'message', 'created_at'];
+    protected $fillable = ['support_ticket_id', 'author_id', 'is_from_admin', 'message', 'created_at', 'legacy_message_id'];
 
     protected $casts = [
         'is_from_admin' => 'boolean',

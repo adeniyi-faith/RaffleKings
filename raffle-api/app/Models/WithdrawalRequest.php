@@ -14,6 +14,7 @@ class WithdrawalRequest extends Model
         'fee_amount',
         'amount_to_send',
         'status',
+        'legacy_transaction_id',
     ];
 
     protected $casts = [
