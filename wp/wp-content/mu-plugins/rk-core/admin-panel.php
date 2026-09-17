@@ -2380,7 +2380,7 @@ function rk_render_transactions_page() {
                 
                 // --- MANUAL TRIGGER REFERRAL COMMISSION ---
                 if (function_exists('rk_process_referral_commission')) {
-                    rk_process_referral_commission($row->user_id, $row->claimed_amount);
+                    rk_process_referral_commission($row->user_id, $row->claimed_amount, $id);
                 }
 
                 // *** MANUAL APPROVAL CASHBACK BONUS (30%) ***
@@ -2956,6 +2956,10 @@ function rk_render_settings_page() {
         if (isset($_POST['rk_admin_email'])) {
             update_option('rk_notification_email', sanitize_email($_POST['rk_admin_email']));
         }
+        // Phase 3 item 35c — same instant-rollback toggle pattern as
+        // the Financials/Draw Control pages. See rewards-bridge.php's
+        // own docblock for exactly what this does and doesn't cover.
+        update_option('rk_rewards_unified_enabled', isset($_POST['rk_rewards_unified_enabled']) ? '1' : '0');
 
         if (function_exists('rk_log_admin_action')) {
             rk_log_admin_action('settings_save', 'site_settings');
@@ -3003,6 +3007,22 @@ function rk_render_settings_page() {
                         <td>
                             <input name="rk_min_withdraw" type="number" id="rk_min_withdraw" value="<?php echo esc_attr($min_withdraw); ?>" class="regular-text">
                             <p class="description">Minimum earnings balance required to request a payout.</p>
+                        </td>
+                    </tr>
+
+                    <!-- REWARDS CUTOVER (Phase 3 item 35c) -->
+                    <tr>
+                        <th scope="row"><label for="rk_rewards_unified_enabled">Unified Rewards Engine</label></th>
+                        <td>
+                            <label>
+                                <input name="rk_rewards_unified_enabled" type="checkbox" id="rk_rewards_unified_enabled" value="1" <?php checked(rk_rewards_unified_enabled()); ?>>
+                                Settle daily claims, tasks, Spin & Win, and point redemption on the new unified points engine
+                            </label>
+                            <p class="description">
+                                Currently <strong><?php echo rk_rewards_unified_enabled() ? 'ON' : 'OFF — the legacy wp_usermeta points path is still in full control'; ?></strong>.
+                                Run <code>php artisan legacy:reconcile-points</code> before turning this on, or real users' points/streak history will appear reset to zero.
+                                Point redemption also requires the Financials page's unified-wallet toggle to be on.
+                            </p>
                         </td>
                     </tr>
 

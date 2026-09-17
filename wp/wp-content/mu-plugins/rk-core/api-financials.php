@@ -619,7 +619,7 @@ function rk_handle_payment_ai($request) {
 
     // *** 🔥 FIX: TRIGGER REFERRAL COMMISSION (If Verified) ***
     if ($status === 'verified_final') {
-        rk_process_referral_commission($user_id, $amount);
+        rk_process_referral_commission($user_id, $amount, $txn_id);
     }
 
     // *** CASHBACK BONUS LOGIC (30%) ***
@@ -1200,8 +1200,19 @@ add_action('rk_withdrawal_processed', 'rk_send_withdrawal_confirmation', 10, 2);
  * Process Referral Commission (50% on First Deposit)
  * Called automatically after a successful deposit.
  */
-function rk_process_referral_commission($user_id, $deposit_amount) {
+function rk_process_referral_commission($user_id, $deposit_amount, $deposit_txn_id = null) {
     global $wpdb;
+
+    // Phase 3 item 35b — pays into the SAME referral_commissions +
+    // unified-wallet tables the Laravel ReferralCommissionService uses,
+    // when the flag is on. See referral-bridge.php's own docblock for
+    // why this reuses rk_wallets_unified_enabled() rather than a
+    // separate flag, and why a backfill has to run before turning it on.
+    if (rk_wallets_unified_enabled()) {
+        rk_referral_bridge_process_commission($user_id, $deposit_amount, $deposit_txn_id);
+
+        return;
+    }
 
     // 1. Check if user has a referrer
     $referrer_id = get_user_meta($user_id, 'referred_by', true);

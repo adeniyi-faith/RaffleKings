@@ -20,6 +20,8 @@ require_once RK_CORE_DIR . '/api-system.php';
 require_once RK_CORE_DIR . '/database.php';
 require_once RK_CORE_DIR . '/wallet-bridge.php';
 require_once RK_CORE_DIR . '/draw-bridge.php';
+require_once RK_CORE_DIR . '/referral-bridge.php';
+require_once RK_CORE_DIR . '/rewards-bridge.php';
 
 // 2. Load Authentication and User management
 require_once RK_CORE_DIR . '/api-auth.php';
