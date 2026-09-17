@@ -19,4 +19,13 @@ if (!function_exists('add_filter')) {
 }
 
 require_once __DIR__ . '/../wp/wp-content/mu-plugins/rk-core/api-financials.php';
+if (!function_exists('get_option')) {
+    function get_option($key, $default = false) { return $default; }
+}
+if (!function_exists('update_option')) {
+    function update_option($key, $value) { return true; }
+}
+
+require_once __DIR__ . '/../wp/wp-content/mu-plugins/rk-core/wallet-bridge.php';
 require_once __DIR__ . '/../wp/wp-content/mu-plugins/rk-core/draw-bridge.php';
+require_once __DIR__ . '/../wp/wp-content/mu-plugins/rk-core/rewards-bridge.php';
