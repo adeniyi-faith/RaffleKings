@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { Head, router } from '@inertiajs/react';
+import { Lock, Mail, User, UserPlus } from 'lucide-react';
 import Button from '../../Components/ui/Button';
 import { Card } from '../../Components/ui/Card';
 import { TextInput, PasswordInput } from '../../Components/ui/TextInput';
@@ -38,11 +39,16 @@ export default function Register({ turnstileSiteKey, referralCode, redirect }) {
         <>
             <Head title="Create account" />
             <div className="flex min-h-screen items-center justify-center bg-app-bg px-4 py-12 dark:bg-dark-bg">
-                <Card className="w-full max-w-sm">
-                    <h1 className="mb-1 text-xl font-bold">Create your account</h1>
-                    <p className="mb-6 text-sm text-gray-500 dark:text-gray-400">
-                        Join RaffleKings and get a ₦300 welcome bonus.
-                    </p>
+                <Card className="w-full max-w-sm rounded-3xl p-8 shadow-xl shadow-gray-200/50 dark:shadow-none">
+                    <div className="mb-6 text-center">
+                        <div className="mx-auto mb-3 flex h-12 w-12 items-center justify-center rounded-2xl bg-blue-100 text-blue-600 dark:bg-blue-900/30 dark:text-blue-400">
+                            <UserPlus className="h-6 w-6" />
+                        </div>
+                        <h1 className="text-xl font-extrabold text-gray-900 dark:text-white">Create Identity</h1>
+                        <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">
+                            Join RaffleKings and get a ₦300 welcome bonus.
+                        </p>
+                    </div>
 
                     {error && (
                         <div className="mb-4 rounded-lg bg-red-50 px-3 py-2 text-sm text-red-700 dark:bg-red-900/20 dark:text-red-400">
@@ -53,6 +59,7 @@ export default function Register({ turnstileSiteKey, referralCode, redirect }) {
                     <form onSubmit={handleSubmit} className="space-y-4">
                         <TextInput
                             label="Username"
+                            icon={User}
                             value={form.username}
                             onChange={update('username')}
                             required
@@ -60,6 +67,7 @@ export default function Register({ turnstileSiteKey, referralCode, redirect }) {
                         />
                         <TextInput
                             label="Email address"
+                            icon={Mail}
                             type="email"
                             value={form.email}
                             onChange={update('email')}
@@ -67,6 +75,7 @@ export default function Register({ turnstileSiteKey, referralCode, redirect }) {
                         />
                         <PasswordInput
                             label="Password"
+                            icon={Lock}
                             value={form.password}
                             onChange={update('password')}
                             required

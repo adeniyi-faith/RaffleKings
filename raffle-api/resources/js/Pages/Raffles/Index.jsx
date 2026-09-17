@@ -1,5 +1,6 @@
-import { useEffect, useRef, useState } from 'react';
-import { Head } from '@inertiajs/react';
+import { useEffect, useMemo, useRef, useState } from 'react';
+import { Head, Link } from '@inertiajs/react';
+import { Flame, Search, SlidersHorizontal } from 'lucide-react';
 import { TextInput } from '../../Components/ui/TextInput';
 import RaffleCard from '../../Components/raffles/RaffleCard';
 
@@ -66,14 +67,66 @@ export default function RafflesIndex({ initial }) {
 
     const totalPages = Math.max(1, Math.ceil(result.total / result.per_page));
 
+    // Same "> 50% sold, not closed" hot-pick rule as raffles.php's
+    // renderHotPicks(), capped at 5 — a derived list, no extra fetch needed.
+    const hotPicks = useMemo(() => {
+        return result.raffles
+            .filter((r) => {
+                const progress = r.max_tickets > 0 ? (r.sold_tickets / r.max_tickets) * 100 : 0;
+                return progress > 50 && !r.is_closed;
+            })
+            .slice(0, 5);
+    }, [result.raffles]);
+
     return (
         <>
             <Head title="Raffles" />
             <div className="mx-auto min-h-screen max-w-6xl bg-app-bg px-4 py-8 dark:bg-dark-bg">
-                <h1 className="mb-6 text-2xl font-bold">Raffles</h1>
+                <h1 className="mb-6 text-2xl font-bold text-gray-900 dark:text-white">Raffles</h1>
+
+                {hotPicks.length > 0 && (
+                    <div className="mb-6">
+                        <div className="mb-2 flex items-center gap-2">
+                            <Flame className="h-3 w-3 animate-pulse fill-current text-orange-500" />
+                            <h2 className="text-xs font-bold uppercase tracking-wider text-gray-500 dark:text-gray-400">
+                                Ending Soon
+                            </h2>
+                        </div>
+                        <div className="flex gap-3 overflow-x-auto pb-2">
+                            {hotPicks.map((raffle) => {
+                                const progress =
+                                    raffle.max_tickets > 0 ? Math.round((raffle.sold_tickets / raffle.max_tickets) * 100) : 0;
+
+                                return (
+                                    <Link
+                                        key={raffle.id}
+                                        href={`/raffles/${raffle.id}`}
+                                        className="relative min-w-[140px] overflow-hidden rounded-xl border border-green-500/30 bg-gradient-to-br from-green-600 to-emerald-900 p-3 shadow-md shadow-green-900/10 transition-transform active:scale-95"
+                                    >
+                                        <div className="absolute right-0 top-0 h-8 w-8 rounded-full bg-white/10 blur-xl" />
+                                        <h4 className="relative z-10 mb-1 truncate text-xs font-bold text-white">{raffle.title}</h4>
+                                        <div className="relative z-10 mb-1.5 h-1.5 w-full rounded-full bg-black/20 backdrop-blur-sm">
+                                            <div
+                                                className="h-1.5 rounded-full bg-white shadow-[0_0_5px_rgba(255,255,255,0.5)]"
+                                                style={{ width: `${progress}%` }}
+                                            />
+                                        </div>
+                                        <div className="relative z-10 flex items-center justify-between text-[9px] font-medium text-green-100">
+                                            <span>{progress}% Sold</span>
+                                            <span className="flex items-center gap-1 text-white">
+                                                <Flame className="h-2 w-2 fill-current" /> Hot
+                                            </span>
+                                        </div>
+                                    </Link>
+                                );
+                            })}
+                        </div>
+                    </div>
+                )}
 
                 <div className="mb-6 space-y-4">
                     <TextInput
+                        icon={Search}
                         placeholder="Search prizes..."
                         value={search}
                         onChange={(e) => updateFilter(setSearch)(e.target.value)}
@@ -97,6 +150,7 @@ export default function RafflesIndex({ initial }) {
                     </div>
 
                     <div className="flex flex-wrap items-center gap-3">
+                        <SlidersHorizontal className="h-4 w-4 shrink-0 text-gray-400 dark:text-gray-500" />
                         <TextInput
                             type="number"
                             placeholder="Min price"
