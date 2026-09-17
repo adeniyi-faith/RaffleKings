@@ -1,0 +1,42 @@
+name: Inspect Server State (read-only)
+
+# A one-off, read-only diagnostic: looks at the live site's folder without
+# changing anything, so we know exactly what's there before touching it
+# again. Safe to run any time.
+on:
+  workflow_dispatch: {}
+
+env:
+  DEPLOY_PATH: /home2/worldin6/public_html/rafflekings.com.ng
+
+jobs:
+  inspect:
+    runs-on: ubuntu-latest
+    environment: production
+    steps:
+      - name: Look, don't touch
+        uses: appleboy/ssh-action@master
+        with:
+          host: ${{ secrets.CPANEL_HOST }}
+          username: ${{ secrets.CPANEL_USERNAME }}
+          password: ${{ secrets.CPANEL_PASSWORD }}
+          port: 22
+          script: |
+            cd ${{ env.DEPLOY_PATH }}
+            echo "=== Is this a git checkout? ==="
+            git status 2>&1 || echo "(not a git repo, or git status failed)"
+            echo
+            echo "=== Last commit here, if any ==="
+            git log -1 2>&1 || true
+            echo
+            echo "=== Files git thinks changed vs. that commit ==="
+            git diff --stat 2>&1 || true
+            echo
+            echo "=== Untracked files/folders git doesn't know about ==="
+            git status --porcelain 2>&1 | grep '^??' || echo "(none)"
+            echo
+            echo "=== Does a legacy backup folder already exist? ==="
+            ls -la _wordpress-legacy-backup 2>&1 || echo "(does not exist)"
+            echo
+            echo "=== Does the wp subfolder still look intact? ==="
+            ls -la wp/wp-config.php 2>&1 || echo "(missing!)"
