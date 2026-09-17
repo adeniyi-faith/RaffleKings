@@ -7,6 +7,8 @@ use App\Exceptions\PaymentGatewayException;
 use App\Models\Deposit;
 use App\Models\Legacy\WpUser;
 use App\Models\Wallet;
+use App\Notifications\DepositConfirmed;
+use App\Notifications\ReferralCommissionEarned;
 use App\Services\Payments\FlutterwaveGateway;
 use App\Services\Payments\PaystackGateway;
 use Illuminate\Support\Facades\DB;
@@ -115,8 +117,9 @@ class DepositService
             ?? throw new InvalidArgumentException("Unknown payment gateway: {$gatewayName}");
 
         $verification = $gateway->verify($reference);
+        $referralCommission = null;
 
-        return DB::transaction(function () use ($reference, $gatewayName, $verification) {
+        $deposit = DB::transaction(function () use ($reference, $gatewayName, $verification, &$referralCommission) {
             $deposit = Deposit::query()->where('reference', $reference)->lockForUpdate()->first();
 
             if (! $deposit) {
@@ -173,10 +176,25 @@ class DepositService
                 description: "Deposit via {$gatewayName}",
             );
 
-            $this->referrals->payCommissionForFirstDeposit($deposit->user, (float) $deposit->amount, $deposit->id);
+            $referralCommission = $this->referrals->payCommissionForFirstDeposit($deposit->user, (float) $deposit->amount, $deposit->id);
 
             return $deposit;
         });
+
+        // Fired AFTER the transaction commits — never inside it, so a
+        // notification can't go out for a deposit that then rolls back.
+        // Same "notify after commit" discipline as TicketPurchaseService/
+        // ProvablyFairDrawService.
+        if ($deposit->status === 'successful') {
+            $deposit->user->notify(new DepositConfirmed($deposit));
+
+            if ($referralCommission) {
+                $referrer = WpUser::find($referralCommission->referrer_user_id);
+                $referrer?->notify(new ReferralCommissionEarned($referralCommission));
+            }
+        }
+
+        return $deposit;
     }
 
     public function gatewayFor(string $name): PaymentGateway

@@ -11,7 +11,11 @@ use App\Models\Legacy\WpUser;
 use App\Models\Wallet;
 use App\Models\WalletLedgerEntry;
 use App\Models\WithdrawalRequest;
+use App\Notifications\WithdrawalProcessed;
+use App\Notifications\WithdrawalRequestSubmittedAdminAlert;
+use Illuminate\Notifications\AnonymousNotifiable;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Notification;
 use RuntimeException;
 
 /**
@@ -84,7 +88,7 @@ class WithdrawalService
             throw new VerificationFeeRequiredException($fee);
         }
 
-        return DB::transaction(function () use ($user, $amount, $bankAccountId, $fee, $requiresFee) {
+        $withdrawal = DB::transaction(function () use ($user, $amount, $bankAccountId, $fee, $requiresFee) {
             $wallet = Wallet::query()->where('user_id', $user->ID)->lockForUpdate()->first()
                 ?? Wallet::create(['user_id' => $user->ID, 'wallet_balance' => 0, 'earnings_balance' => 0]);
 
@@ -141,6 +145,12 @@ class WithdrawalService
                 'status' => 'pending',
             ]);
         });
+
+        // Fired AFTER the transaction commits — same "notify after
+        // commit" discipline as every other service in this app.
+        Notification::send(new AnonymousNotifiable, new WithdrawalRequestSubmittedAdminAlert($withdrawal));
+
+        return $withdrawal;
     }
 
     /**
@@ -162,6 +172,8 @@ class WithdrawalService
             'amount_sent' => (float) $withdrawal->amount_to_send,
             'user_id' => $withdrawal->user_id,
         ]);
+
+        $withdrawal->user->notify(new WithdrawalProcessed($withdrawal, 'paid'));
 
         return $withdrawal;
     }
@@ -206,6 +218,8 @@ class WithdrawalService
             'refunded' => (float) $withdrawal->amount_to_send + (float) $withdrawal->fee_amount,
             'user_id' => $withdrawal->user_id,
         ]);
+
+        $withdrawal->user->notify(new WithdrawalProcessed($withdrawal, 'rejected', $reason));
 
         return $withdrawal;
     }

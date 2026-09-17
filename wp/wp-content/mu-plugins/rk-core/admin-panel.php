@@ -2380,7 +2380,7 @@ function rk_render_transactions_page() {
                 
                 // --- MANUAL TRIGGER REFERRAL COMMISSION ---
                 if (function_exists('rk_process_referral_commission')) {
-                    rk_process_referral_commission($row->user_id, $row->claimed_amount);
+                    rk_process_referral_commission($row->user_id, $row->claimed_amount, $id);
                 }
 
                 // *** MANUAL APPROVAL CASHBACK BONUS (30%) ***
@@ -2782,10 +2782,37 @@ function rk_render_purchase_log_page() {
 
 // 16. DRAW CONTROL PAGE
 function rk_render_draw_control_page() {
+    // Phase 3 item 35 — same instant-rollback toggle pattern as the
+    // Financials page's unified-wallet switch. See draw-bridge.php's
+    // own docblock for exactly what this does and doesn't cover.
+    if (isset($_POST['rk_toggle_draw_engine_unified'])) {
+        check_admin_referer('rk_toggle_draw_engine_unified');
+        update_option('rk_draw_engine_unified_enabled', isset($_POST['rk_draw_engine_unified_enabled']) ? '1' : '0');
+        echo '<div class="notice notice-success"><p>Draw engine setting updated.</p></div>';
+    }
     ?>
     <div class="wrap">
         <h1 class="wp-heading-inline">🎯 Draw Control Center</h1>
         <hr class="wp-header-end">
+
+        <div class="notice notice-<?php echo rk_draw_engine_unified_enabled() ? 'warning' : 'info'; ?>" style="padding:12px 15px;">
+            <form method="post" style="margin:0;">
+                <?php wp_nonce_field('rk_toggle_draw_engine_unified'); ?>
+                <label>
+                    <input type="checkbox" name="rk_draw_engine_unified_enabled" value="1" onchange="this.form.submit()" <?php checked(rk_draw_engine_unified_enabled()); ?>>
+                    <strong>Run draws through the new provably-fair engine</strong>
+                    (Phase 3 item 35 — see raffle-api/OVERHAUL_CHECKLIST.md item 35 for exactly what this does and doesn't cover)
+                </label>
+                <input type="hidden" name="rk_toggle_draw_engine_unified" value="1">
+                <noscript><button type="submit" class="button">Save</button></noscript>
+                <p style="margin:6px 0 0;color:#666;">
+                    Currently <strong><?php echo rk_draw_engine_unified_enabled() ? 'ON — draws run on the new commit/reveal engine' : 'OFF — the legacy shuffle() path is still in full control'; ?></strong>.
+                    A raffle must already be imported (<code>php artisan legacy:import-raffles</code>) before it can be drawn through the new engine.
+                    Unchecking this is an instant rollback, no deploy required. Also credit winners under
+                    <a href="?page=raffle-financials">Financial Operations</a>'s unified-wallet toggle for winner payouts to land in the same place as everything else.
+                </p>
+            </form>
+        </div>
 
         <div style="display: grid; grid-template-columns: 2fr 1fr; gap: 20px; margin-top: 20px;">
             <div class="card" style="padding: 20px;">
@@ -2929,6 +2956,10 @@ function rk_render_settings_page() {
         if (isset($_POST['rk_admin_email'])) {
             update_option('rk_notification_email', sanitize_email($_POST['rk_admin_email']));
         }
+        // Phase 3 item 35c — same instant-rollback toggle pattern as
+        // the Financials/Draw Control pages. See rewards-bridge.php's
+        // own docblock for exactly what this does and doesn't cover.
+        update_option('rk_rewards_unified_enabled', isset($_POST['rk_rewards_unified_enabled']) ? '1' : '0');
 
         if (function_exists('rk_log_admin_action')) {
             rk_log_admin_action('settings_save', 'site_settings');
@@ -2976,6 +3007,22 @@ function rk_render_settings_page() {
                         <td>
                             <input name="rk_min_withdraw" type="number" id="rk_min_withdraw" value="<?php echo esc_attr($min_withdraw); ?>" class="regular-text">
                             <p class="description">Minimum earnings balance required to request a payout.</p>
+                        </td>
+                    </tr>
+
+                    <!-- REWARDS CUTOVER (Phase 3 item 35c) -->
+                    <tr>
+                        <th scope="row"><label for="rk_rewards_unified_enabled">Unified Rewards Engine</label></th>
+                        <td>
+                            <label>
+                                <input name="rk_rewards_unified_enabled" type="checkbox" id="rk_rewards_unified_enabled" value="1" <?php checked(rk_rewards_unified_enabled()); ?>>
+                                Settle daily claims, tasks, Spin & Win, and point redemption on the new unified points engine
+                            </label>
+                            <p class="description">
+                                Currently <strong><?php echo rk_rewards_unified_enabled() ? 'ON' : 'OFF — the legacy wp_usermeta points path is still in full control'; ?></strong>.
+                                Run <code>php artisan legacy:reconcile-points</code> before turning this on, or real users' points/streak history will appear reset to zero.
+                                Point redemption also requires the Financials page's unified-wallet toggle to be on.
+                            </p>
                         </td>
                     </tr>
 
