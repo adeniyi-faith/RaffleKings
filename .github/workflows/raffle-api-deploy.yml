@@ -70,6 +70,20 @@ jobs:
           cp .env.example .env
           php artisan key:generate
 
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Install frontend dependencies
+        run: npm ci
+
+      - name: Build frontend assets
+        # Some pages under test need this already built (they look for a
+        # "manifest" file listing the built asset filenames) -- without
+        # it, every test that visits one of those pages fails with "Vite
+        # manifest not found", unrelated to whether the page itself works.
+        run: npm run build
+
       - name: Run PHPUnit
         run: vendor/bin/phpunit
 
