@@ -45,7 +45,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_GET['action']) && $_GET['ac
 
 // 3. ZERO-LATENCY SSR: FETCH DATA NATIVELY
 // Get exact earnings balance
-$earnings_balance = (float) get_user_meta($user_id, 'earnings_balance', true);
+$earnings_balance = rk_wallets_unified_enabled() ? rk_wallet_read_balance($user_id, 'earnings') : (float) get_user_meta($user_id, 'earnings_balance', true);
 
 // Get bank accounts and find the primary one to display instantly
 $bank_accounts = get_user_meta($user_id, 'rk_bank_accounts', true);

@@ -52,7 +52,20 @@ function rk_calculate_ticket_price($qty, $unit_price, $is_golden_box = false) {
  */
 function rk_update_balance_safe($user_id, $amount, $operation = 'add') {
     global $wpdb;
-    
+
+    // Phase 3 item 33 — unified balance when the flag is on. Every
+    // caller of this helper (deposit confirmation, admin revoke) moves
+    // over automatically, no call-site changes needed.
+    if (rk_wallets_unified_enabled()) {
+        try {
+            $delta = $operation === 'add' ? $amount : -$amount;
+
+            return rk_wallet_apply($user_id, 'wallet', $delta, $operation === 'add' ? 'deposit' : 'admin_adjustment');
+        } catch (Exception $e) {
+            return new WP_Error('balance_error', $e->getMessage());
+        }
+    }
+
     // Start Transaction
     $wpdb->query('START TRANSACTION');
     
@@ -160,6 +173,11 @@ function rk_queue_shadow_purchase_comparison($user_id, $raffle_id, $numbers_str,
 
 function rk_get_balance() {
     $user_id = get_current_user_id();
+
+    if (rk_wallets_unified_enabled()) {
+        return rk_wallet_read_both($user_id);
+    }
+
     return [
         'wallet' => (float)get_user_meta($user_id, 'wallet_balance', true),
         'earnings' => (float)get_user_meta($user_id, 'earnings_balance', true)
@@ -244,6 +262,24 @@ function rk_handle_payment_ai($request) {
     // collision on the raffle_ticket unique key) or any insert failed, the
     // user was left charged with no ticket and no automatic rollback.
     if ($type === 'wallet_payment') {
+        // Phase 3 item 33: while the flag is on, this is settled by the
+        // SAME unified `wallets` table Laravel's TicketPurchaseService
+        // uses (wallet-bridge.php) — no separate wp_usermeta debit at
+        // all. Flip rk_wallets_unified_enabled() off for an instant
+        // rollback to the code below, unchanged.
+        if (rk_wallets_unified_enabled()) {
+            try {
+                $result = rk_wallet_purchase_tickets($user_id, $raffle_id, $numbers_str, $amount, 'wallet', $is_golden_box, $order_id);
+            } catch (Exception $e) {
+                return new WP_Error('purchase_failed', $e->getMessage(), ['status' => 409]);
+            }
+
+            if ($raffle_id > 0 && !empty($numbers_str)) {
+                rk_send_purchase_receipt($user_id, $amount, $raffle_id, $ticket_count, $numbers_str);
+            }
+            return ['success' => true, 'message' => 'Success', 'new_balance' => $result['new_balance']];
+        }
+
         $wpdb->query('START TRANSACTION');
         try {
             $current = $wpdb->get_var($wpdb->prepare(
@@ -315,6 +351,20 @@ function rk_handle_payment_ai($request) {
     // Same fix as CASE 1: debit, transaction record, and ticket entries are
     // one atomic unit — a ticket-number collision rolls the debit back too.
     if ($type === 'earnings_payment') {
+        // Phase 3 item 33 — same cutover as CASE 1 above, on the earnings balance.
+        if (rk_wallets_unified_enabled()) {
+            try {
+                $result = rk_wallet_purchase_tickets($user_id, $raffle_id, $numbers_str, $amount, 'earnings', $is_golden_box, $order_id);
+            } catch (Exception $e) {
+                return new WP_Error('purchase_failed', $e->getMessage(), ['status' => 409]);
+            }
+
+            if ($raffle_id > 0 && !empty($numbers_str)) {
+                rk_send_purchase_receipt($user_id, $amount, $raffle_id, $ticket_count, $numbers_str);
+            }
+            return ['success' => true, 'message' => 'Success', 'new_balance' => $result['new_balance']];
+        }
+
         $wpdb->query('START TRANSACTION');
         try {
             $current_earn = $wpdb->get_var($wpdb->prepare(
@@ -578,14 +628,19 @@ function rk_handle_payment_ai($request) {
         
         if ($bonus_percent > 0) {
             $bonus_amount = $amount * $bonus_percent;
-            
-            $wpdb->query('START TRANSACTION');
-            $curr = $wpdb->get_var($wpdb->prepare(
-                "SELECT meta_value FROM {$wpdb->usermeta} WHERE user_id = %d AND meta_key = 'earnings_balance' FOR UPDATE", 
-                $user_id
-            ));
-            update_user_meta($user_id, 'earnings_balance', (float)$curr + $bonus_amount);
-            $wpdb->query('COMMIT');
+
+            // Phase 3 item 33 — unified balance when the flag is on.
+            if (rk_wallets_unified_enabled()) {
+                rk_wallet_apply($user_id, 'earnings', $bonus_amount, 'deposit_bonus');
+            } else {
+                $wpdb->query('START TRANSACTION');
+                $curr = $wpdb->get_var($wpdb->prepare(
+                    "SELECT meta_value FROM {$wpdb->usermeta} WHERE user_id = %d AND meta_key = 'earnings_balance' FOR UPDATE",
+                    $user_id
+                ));
+                update_user_meta($user_id, 'earnings_balance', (float)$curr + $bonus_amount);
+                $wpdb->query('COMMIT');
+            }
 
             $wpdb->insert($table_txn, [
                 'user_id' => $user_id,
@@ -627,11 +682,24 @@ function rk_handle_transfer($request) {
 
     $amount = floatval($request->get_param('amount'));
     if ($amount <= 0) return new WP_Error('invalid_amount', 'Amount > 0 required', ['status' => 400]);
-    
+
+    // Phase 3 item 33 — same unified transfer wallet-bridge.php exposes
+    // to profile.php's own transfer handler below, so both stop being
+    // two separately-drifting implementations once the flag is on.
+    if (rk_wallets_unified_enabled()) {
+        try {
+            $result = rk_wallet_transfer_earnings_to_wallet($user_id, $amount);
+        } catch (Exception $e) {
+            return new WP_Error('transfer_error', $e->getMessage(), ['status' => 400]);
+        }
+
+        return ['success' => true, 'message' => 'Transfer Successful', 'new_wallet' => $result['wallet'], 'new_earnings' => $result['earnings']];
+    }
+
     // Use Transaction for Atomicity
     global $wpdb;
     $wpdb->query('START TRANSACTION');
-    
+
     try {
         // Lock both rows
         $earnings = $wpdb->get_var($wpdb->prepare("SELECT meta_value FROM {$wpdb->usermeta} WHERE user_id = %d AND meta_key = 'earnings_balance' FOR UPDATE", $user_id));
@@ -707,11 +775,19 @@ function rk_handle_withdrawal($request) {
         }
     }
 
-    // Manual Lock
-    $wpdb->query('START TRANSACTION');
-    $earnings = $wpdb->get_var($wpdb->prepare("SELECT meta_value FROM {$wpdb->usermeta} WHERE user_id = %d AND meta_key = 'earnings_balance' FOR UPDATE", $user_id));
-    $earnings = round((float)$earnings, 2);
-    
+    // Manual Lock. Phase 3 item 33: while unified, read the balance
+    // that's about to be debited below from the same table — the SMART
+    // BALANCE tiering logic underneath is unchanged either way, only
+    // where the number itself comes from.
+    $wallets_unified = rk_wallets_unified_enabled();
+    if (!$wallets_unified) {
+        $wpdb->query('START TRANSACTION');
+        $earnings = $wpdb->get_var($wpdb->prepare("SELECT meta_value FROM {$wpdb->usermeta} WHERE user_id = %d AND meta_key = 'earnings_balance' FOR UPDATE", $user_id));
+        $earnings = round((float)$earnings, 2);
+    } else {
+        $earnings = round(rk_wallet_read_balance($user_id, 'earnings'), 2);
+    }
+
     $fee = $authorize_deduction ? 1000 : 0;
     
     // --- SMART BALANCE LOGIC ---
@@ -733,30 +809,38 @@ function rk_handle_withdrawal($request) {
 
         // Safety: Ensure we aren't sending negative or zero
         if ($amount_to_send <= 0) {
-             $wpdb->query('ROLLBACK');
+             if (!$wallets_unified) $wpdb->query('ROLLBACK');
              return new WP_Error('insufficient_earnings', 'Balance too low to cover verification fee.', ['status' => 400]);
         }
     } else {
-        $wpdb->query('ROLLBACK');
+        if (!$wallets_unified) $wpdb->query('ROLLBACK');
         $shortfall = ($amount + $fee) - $earnings;
         return new WP_Error('insufficient_earnings', 'Insufficient earnings. You need ₦' . number_format($shortfall) . ' more.', ['status' => 400]);
     }
 
     try {
-        // Apply Deduction
-        $new_earnings = $earnings - $amount_to_deduct;
-        update_user_meta($user_id, 'earnings_balance', $new_earnings);
-        
+        // Apply Deduction. Phase 3 item 33: unified balance when the flag is on.
+        if ($wallets_unified) {
+            $new_earnings = rk_wallet_apply($user_id, 'earnings', -$amount_to_deduct, 'withdrawal');
+        } else {
+            $new_earnings = $earnings - $amount_to_deduct;
+            update_user_meta($user_id, 'earnings_balance', $new_earnings);
+        }
+
         // Log Fee Transaction
         if ($authorize_deduction) {
              // FIX: Credit the deducted 1000 to user Spending Wallet so it counts as a deposit
-             $current_wallet = $wpdb->get_var($wpdb->prepare(
-                "SELECT meta_value FROM {$wpdb->usermeta} WHERE user_id = %d AND meta_key = 'wallet_balance' FOR UPDATE", 
-                $user_id
-             ));
-             $current_wallet = (float)$current_wallet;
-             
-             update_user_meta($user_id, 'wallet_balance', $current_wallet + 1000);
+             if ($wallets_unified) {
+                 rk_wallet_apply($user_id, 'wallet', 1000, 'withdrawal_fee_credit');
+             } else {
+                 $current_wallet = $wpdb->get_var($wpdb->prepare(
+                    "SELECT meta_value FROM {$wpdb->usermeta} WHERE user_id = %d AND meta_key = 'wallet_balance' FOR UPDATE",
+                    $user_id
+                 ));
+                 $current_wallet = (float)$current_wallet;
+
+                 update_user_meta($user_id, 'wallet_balance', $current_wallet + 1000);
+             }
 
              $wpdb->insert($table_txn, [
                 'user_id' => $user_id,
@@ -770,20 +854,35 @@ function rk_handle_withdrawal($request) {
         }
         
         // Create Withdrawal Request
-        $wpdb->insert($table_txn, [
-            'user_id' => $user_id, 
+        $request_inserted = $wpdb->insert($table_txn, [
+            'user_id' => $user_id,
             'claimed_amount' => $amount_to_send, // Note: This might be less than requested if fee was inclusive
-            'status' => 'pending', 
-            'type' => 'withdrawal', 
-            'proof_url' => 'bank_transfer_req', 
-            'txn_ref' => $account_id, 
+            'status' => 'pending',
+            'type' => 'withdrawal',
+            'proof_url' => 'bank_transfer_req',
+            'txn_ref' => $account_id,
             'created_at' => current_time('mysql')
         ]);
-        
-        $wpdb->query('COMMIT');
+
+        if ($wallets_unified) {
+            // rk_wallet_apply() above already committed its own debit/credit —
+            // there is no single outer transaction to roll back here. If the
+            // withdrawal-request row itself failed to insert, undo the
+            // balance moves with equal-and-opposite ledger entries instead,
+            // so a user is never left debited with no request on file.
+            if ($request_inserted === false) {
+                rk_wallet_apply($user_id, 'earnings', $amount_to_deduct, 'withdrawal_reversal');
+                if ($authorize_deduction) {
+                    rk_wallet_apply($user_id, 'wallet', -1000, 'withdrawal_reversal');
+                }
+                return new WP_Error('db_error', 'Transaction failed.', ['status' => 500]);
+            }
+        } else {
+            $wpdb->query('COMMIT');
+        }
 
     } catch (Exception $e) {
-        $wpdb->query('ROLLBACK');
+        if (!$wallets_unified) $wpdb->query('ROLLBACK');
         return new WP_Error('db_error', 'Transaction failed.', ['status' => 500]);
     }
     
