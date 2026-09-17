@@ -197,6 +197,19 @@ function rk_render_financials_page() {
     global $wpdb;
     $table_txn = $wpdb->prefix . 'raffle_transactions';
 
+    // --- 0. UNIFIED WALLET CUTOVER TOGGLE (Phase 3 item 33) ---
+    // The one on/off switch for whether ticket purchases, deposits,
+    // withdrawals, and transfers settle against the new Laravel
+    // `wallets` table instead of wp_usermeta — see wallet-bridge.php's
+    // own docblock for exactly what is and isn't covered. Flipping this
+    // takes effect immediately for the next request, no deploy needed —
+    // that's the "fast rollback" item 33 asks for.
+    if (isset($_POST['rk_toggle_wallets_unified'])) {
+        check_admin_referer('rk_toggle_wallets_unified');
+        update_option('rk_wallets_unified_enabled', isset($_POST['rk_wallets_unified_enabled']) ? '1' : '0');
+        echo '<div class="notice notice-success"><p>Unified wallet setting updated.</p></div>';
+    }
+
     // --- 1. HANDLE MASS / BULK ACTIONS ---
     if (isset($_POST['rk_bulk_action']) && !empty($_POST['bulk_txn_ids'])) {
         check_admin_referer('rk_bulk_financials');
@@ -407,7 +420,24 @@ function rk_render_financials_page() {
     <div class="wrap">
         <h1>💰 Financial Operations</h1>
         <p>Manage pending manual deposits and withdrawal requests.</p>
-        
+
+        <div class="notice notice-<?php echo rk_wallets_unified_enabled() ? 'warning' : 'info'; ?>" style="padding:12px 15px;">
+            <form method="post" style="margin:0;">
+                <?php wp_nonce_field('rk_toggle_wallets_unified'); ?>
+                <label>
+                    <input type="checkbox" name="rk_wallets_unified_enabled" value="1" onchange="this.form.submit()" <?php checked(rk_wallets_unified_enabled()); ?>>
+                    <strong>Settle ticket purchases, deposits, withdrawals, and transfers on the new unified wallet</strong>
+                    (Phase 3 item 33 — see raffle-api/OVERHAUL_CHECKLIST.md item 33 for exactly what this does and doesn't cover)
+                </label>
+                <input type="hidden" name="rk_toggle_wallets_unified" value="1">
+                <noscript><button type="submit" class="button">Save</button></noscript>
+                <p style="margin:6px 0 0;color:#666;">
+                    Currently <strong><?php echo rk_wallets_unified_enabled() ? 'ON — real money is moving through the new settlement path' : 'OFF — the legacy wp_usermeta path is still in full control'; ?></strong>.
+                    Unchecking this is an instant rollback to the exact previous behavior, no deploy required.
+                </p>
+            </form>
+        </div>
+
         <script>
         function toggleAll(source, name) {
             checkboxes = document.getElementsByName(name);

@@ -32,6 +32,38 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
             exit;
         }
         $amount = floatval($_POST['amount'] ?? 0);
+
+        // Phase 3 item 33: this used to be a second, independent copy of
+        // the same earnings->wallet transfer ajax-router.php's own
+        // `transfer` action performs (rk_handle_transfer() in
+        // api-financials.php) — the two had already drifted (this one
+        // never checked rk_check_user_status(), and logged the legacy
+        // transactions table with different column names). Both now call
+        // the SAME rk_wallet_transfer_earnings_to_wallet() when the
+        // unified-wallet flag is on, so there is exactly one
+        // implementation instead of two.
+        if (function_exists('rk_wallets_unified_enabled') && rk_wallets_unified_enabled()) {
+            if ($amount <= 0) {
+                echo json_encode(['success' => false, 'message' => 'Invalid amount or insufficient earnings.']);
+                exit;
+            }
+
+            try {
+                $result = rk_wallet_transfer_earnings_to_wallet($user_id, $amount);
+            } catch (Exception $e) {
+                echo json_encode(['success' => false, 'message' => $e->getMessage()]);
+                exit;
+            }
+
+            echo json_encode([
+                'success' => true,
+                'new_wallet' => $result['wallet'],
+                'new_earnings' => $result['earnings'],
+                'message' => 'Transfer Successful!'
+            ]);
+            exit;
+        }
+
         $earnings = floatval(get_user_meta($user_id, 'earnings_balance', true));
         $wallet = floatval(get_user_meta($user_id, 'wallet_balance', true));
 
@@ -82,7 +114,7 @@ if ($p_is_logged_in) {
     $p_display_name = $p_u->display_name;
     $p_phone = get_user_meta($p_uid, 'phone', true) ?: 'Not Set';
     $p_state = get_user_meta($p_uid, 'state', true) ?: 'Not Set';
-    $p_earnings = (float) get_user_meta($p_uid, 'earnings_balance', true);
+    $p_earnings = rk_wallets_unified_enabled() ? rk_wallet_read_balance($p_uid, 'earnings') : (float) get_user_meta($p_uid, 'earnings_balance', true);
 }
 ?>
 

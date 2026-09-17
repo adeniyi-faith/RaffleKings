@@ -19,8 +19,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
         $user_id = get_current_user_id();
         echo json_encode([
             'success' => true,
-            'wallet' => (float) get_user_meta($user_id, 'wallet_balance', true),
-            'earnings' => (float) get_user_meta($user_id, 'earnings_balance', true)
+            'wallet' => rk_wallets_unified_enabled() ? rk_wallet_read_balance($user_id, 'wallet') : (float) get_user_meta($user_id, 'wallet_balance', true),
+            'earnings' => rk_wallets_unified_enabled() ? rk_wallet_read_balance($user_id, 'earnings') : (float) get_user_meta($user_id, 'earnings_balance', true)
         ]);
     } else {
         echo json_encode(['success' => false]);
@@ -37,7 +37,7 @@ if ($rk_is_logged_in) {
     $rk_user_id = get_current_user_id();
     $rk_user = wp_get_current_user();
 
-    $rk_wallet = (float) get_user_meta($rk_user_id, 'wallet_balance', true);
+    $rk_wallet = rk_wallets_unified_enabled() ? rk_wallet_read_balance($rk_user_id, 'wallet') : (float) get_user_meta($rk_user_id, 'wallet_balance', true);
     $rk_avatar = get_user_meta($rk_user_id, 'profile_pic_url', true);
 
     if (empty($rk_avatar)) {
