@@ -15,19 +15,19 @@ name: Deploy Raffle API (New Site)
 # swap. deploy.yml itself has been switched to manual-only so it can't
 # fight this workflow for the same folder.
 #
-# One-time setup needed before this can safely run (all in cPanel, no
-# commands, all account-owner-only -- I have no access to the live
-# server):
-#   1. SAFETY NET: in cPanel's File Manager, make a full COPY of the
-#      current /home2/worldin6/public_html/rafflekings.com.ng folder
-#      somewhere else first (e.g. rename a copy to
-#      rafflekings-wordpress-backup). The first successful run of this
-#      workflow deletes anything in that folder that isn't part of the
-#      new app. This copy is how you'd undo the swap if anything looks
-#      wrong afterward.
-#   2. In MultiPHP Manager, set rafflekings.com.ng itself to PHP 8.3 (the
+# Nothing is deleted. The first run automatically MOVES whatever is
+# currently in that folder (the old WordPress site) into a sibling folder
+# called _wordpress-legacy-backup, before putting the new app in that
+# folder's place -- see the "Archive the old site" step below. That move
+# only happens once (it checks for wp-config.php, and does nothing once
+# that file is no longer sitting at the top level), so re-runs after that
+# are safe no-ops on that front.
+#
+# One-time setup still needed before this can run (in cPanel, no
+# commands, account-owner-only -- I have no access to the live server):
+#   1. In MultiPHP Manager, set rafflekings.com.ng itself to PHP 8.3 (the
 #      new app needs that exact version).
-#   3. AFTER the first successful run (it will have placed a
+#   2. AFTER the first successful run (it will have placed a
 #      .env.example file in that folder): rename it to .env, fill in the
 #      real values (DB credentials, WP_LOGGED_IN_KEY, etc. -- the file's
 #      own comments say where to find each one; reuse the same WordPress
@@ -96,13 +96,41 @@ jobs:
       - name: Build frontend assets
         run: npm run build
 
+      - name: Archive the old site (one-time, automatic, never deletes)
+        # Runs every deploy but only ever acts once: if wp-config.php is
+        # still sitting at the top of the folder, it means the old
+        # WordPress site hasn't been archived yet, so everything currently
+        # there gets moved (not copied, not deleted) into
+        # _wordpress-legacy-backup/ next to it. Once that move has
+        # happened, wp-config.php is no longer at the top level, so this
+        # does nothing on every future run.
+        uses: appleboy/ssh-action@master
+        with:
+          host: ${{ secrets.CPANEL_HOST }}
+          username: ${{ secrets.CPANEL_USERNAME }}
+          password: ${{ secrets.CPANEL_PASSWORD }}
+          port: 22
+          script: |
+            set -e
+            cd ${{ env.DEPLOY_PATH }}
+            if [ -f wp-config.php ]; then
+              mkdir -p _wordpress-legacy-backup
+              find . -mindepth 1 -maxdepth 1 ! -name '_wordpress-legacy-backup' -exec mv {} _wordpress-legacy-backup/ \;
+              echo "Old WordPress site moved into _wordpress-legacy-backup/"
+            else
+              echo "Already archived, nothing to move."
+            fi
+
       - name: Sync source code to the server
         # Same password-based login the old site's deploy already uses.
-        # rsync only sends what changed. --delete removes the old
-        # WordPress files that aren't part of this app -- that's the
-        # swap. It never touches the server's own .env file, uploaded
-        # user files, logs, or database-backed cache/sessions -- this
-        # workflow has no copy of those, they exist only on the server.
+        # rsync only sends what changed. --delete keeps this folder tidy
+        # across future deploys of the new app, but the archive step above
+        # already moved the old WordPress files out of the way, and
+        # _wordpress-legacy-backup itself is excluded, so nothing from the
+        # old site is ever touched here. This also never touches the
+        # server's own .env file, uploaded user files, logs, or
+        # database-backed cache/sessions -- this workflow has no copy of
+        # those, they exist only on the server.
         env:
           CPANEL_HOST: ${{ secrets.CPANEL_HOST }}
           CPANEL_USERNAME: ${{ secrets.CPANEL_USERNAME }}
@@ -116,6 +144,7 @@ jobs:
             --exclude='/storage/logs/' \
             --exclude='/storage/framework/' \
             --exclude='.git' \
+            --exclude='/_wordpress-legacy-backup/' \
             ./ "$CPANEL_USERNAME@$CPANEL_HOST:${{ env.DEPLOY_PATH }}/"
 
       - name: Run post-deploy Laravel commands
