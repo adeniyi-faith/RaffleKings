@@ -173,6 +173,11 @@ jobs:
           CPANEL_PASSWORD: ${{ secrets.CPANEL_PASSWORD }}
         run: |
           sudo apt-get update -qq && sudo apt-get install -qq -y sshpass rsync
+          # Secrets can carry an invisible trailing space/newline from how
+          # they were saved; the SSH step above tolerates that, rsync
+          # doesn't ("hostname contains invalid characters"). Strip it.
+          SSH_HOST=$(printf '%s' "$CPANEL_HOST" | tr -d '[:space:]')
+          SSH_USER=$(printf '%s' "$CPANEL_USERNAME" | tr -d '[:space:]')
           sshpass -p "$CPANEL_PASSWORD" rsync -avzr --delete \
             -e "ssh -p 22 -o StrictHostKeyChecking=no" \
             --exclude='.env' \
@@ -181,7 +186,7 @@ jobs:
             --exclude='/storage/framework/' \
             --exclude='.git' \
             --exclude='/_wordpress-legacy-backup/' \
-            ./ "$CPANEL_USERNAME@$CPANEL_HOST:${{ env.DEPLOY_PATH }}/"
+            ./ "$SSH_USER@$SSH_HOST:${{ env.DEPLOY_PATH }}/"
 
       - name: Run post-deploy Laravel commands
         uses: appleboy/ssh-action@master
