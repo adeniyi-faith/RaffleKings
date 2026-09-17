@@ -4,6 +4,7 @@ use App\Http\Controllers\Api\AccountController;
 use App\Http\Controllers\Api\Admin\AuditLogController;
 use App\Http\Controllers\Api\Admin\DepositApprovalController;
 use App\Http\Controllers\Api\Admin\SupportTicketManagementController;
+use App\Http\Controllers\Api\Admin\TransactionMonitorController;
 use App\Http\Controllers\Api\Admin\WinnerManagementController;
 use App\Http\Controllers\Api\Admin\WithdrawalManagementController;
 use App\Http\Controllers\Api\Auth\LoginController;
@@ -154,6 +155,9 @@ Route::middleware('auth:wordpress')->group(function () {
         Route::get('/deposits', [DepositApprovalController::class, 'index']);
         Route::post('/deposits/{transaction}/approve', [DepositApprovalController::class, 'approve']);
         Route::post('/deposits/{transaction}/reject', [DepositApprovalController::class, 'reject']);
+
+        Route::get('/transactions', [TransactionMonitorController::class, 'index']);
+        Route::post('/transactions/{transaction}/revoke', [TransactionMonitorController::class, 'revoke']);
 
         Route::post('/winners/{winner}/credit', [WinnerManagementController::class, 'credit']);
         Route::patch('/winners/{winner}/visibility', [WinnerManagementController::class, 'setVisibility']);
