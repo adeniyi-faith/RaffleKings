@@ -157,36 +157,49 @@ jobs:
               echo "Already archived, nothing to move."
             fi
 
-      - name: Sync source code to the server
-        # Same password-based login the old site's deploy already uses.
-        # rsync only sends what changed. --delete keeps this folder tidy
-        # across future deploys of the new app, but the archive step above
-        # already moved the old WordPress files out of the way, and
-        # _wordpress-legacy-backup itself is excluded, so nothing from the
-        # old site is ever touched here. This also never touches the
-        # server's own .env file, uploaded user files, logs, or
-        # database-backed cache/sessions -- this workflow has no copy of
-        # those, they exist only on the server.
+      - name: Package the build
+        # rsync turned out to not be installed on this server at all (a
+        # common restriction on shared hosting) -- switched to tar + scp
+        # instead, which only need plain SSH and the near-universal `tar`
+        # command, present on both ends. node_modules is dev-only tooling,
+        # never needed to actually run the app, so it's left out to keep
+        # this small and fast.
+        run: tar czf /tmp/raffle-api-build.tar.gz --exclude='node_modules' .
+
+      - name: Copy the build to the server
         env:
           CPANEL_HOST: ${{ secrets.CPANEL_HOST }}
           CPANEL_USERNAME: ${{ secrets.CPANEL_USERNAME }}
           CPANEL_PASSWORD: ${{ secrets.CPANEL_PASSWORD }}
         run: |
-          sudo apt-get update -qq && sudo apt-get install -qq -y sshpass rsync
+          sudo apt-get update -qq && sudo apt-get install -qq -y sshpass
           # Secrets can carry an invisible trailing space/newline from how
-          # they were saved; the SSH step above tolerates that, rsync
-          # doesn't ("hostname contains invalid characters"). Strip it.
+          # they were saved; the SSH steps elsewhere tolerate that, plain
+          # scp doesn't. Strip it.
           SSH_HOST=$(printf '%s' "$CPANEL_HOST" | tr -d '[:space:]')
           SSH_USER=$(printf '%s' "$CPANEL_USERNAME" | tr -d '[:space:]')
-          sshpass -p "$CPANEL_PASSWORD" rsync -avzr --delete \
-            -e "ssh -p 22 -o StrictHostKeyChecking=no" \
-            --exclude='.env' \
-            --exclude='/storage/app/public/' \
-            --exclude='/storage/logs/' \
-            --exclude='/storage/framework/' \
-            --exclude='.git' \
-            --exclude='/_wordpress-legacy-backup/' \
-            ./ "$SSH_USER@$SSH_HOST:${{ env.DEPLOY_PATH }}/"
+          sshpass -p "$CPANEL_PASSWORD" scp -P 22 -o StrictHostKeyChecking=no \
+            /tmp/raffle-api-build.tar.gz "$SSH_USER@$SSH_HOST:${{ env.DEPLOY_PATH }}/deploy.tar.gz"
+
+      - name: Extract the build on the server
+        # Only ever adds/overwrites the files that are actually in this
+        # build. It never removes anything not in the tarball, so the
+        # server's own .env file, uploaded user files, logs, and
+        # database-backed cache/sessions are all left exactly as they are
+        # -- this workflow has no copy of those, they exist only on the
+        # server. _wordpress-legacy-backup, sitting next to this folder,
+        # is untouched too.
+        uses: appleboy/ssh-action@master
+        with:
+          host: ${{ secrets.CPANEL_HOST }}
+          username: ${{ secrets.CPANEL_USERNAME }}
+          password: ${{ secrets.CPANEL_PASSWORD }}
+          port: 22
+          script: |
+            set -e
+            cd ${{ env.DEPLOY_PATH }}
+            tar xzf deploy.tar.gz
+            rm deploy.tar.gz
 
       - name: Run post-deploy Laravel commands
         uses: appleboy/ssh-action@master
