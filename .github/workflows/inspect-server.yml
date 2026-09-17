@@ -44,3 +44,35 @@ jobs:
             echo "=== Restoring the 3 files the raffle-api tar accidentally overwrote ==="
             git checkout -- .gitignore composer.json phpunit.xml 2>&1
             git status --short 2>&1 || true
+
+      - name: Go live -- route requests to the new app
+        # The actual switch: the new app's real front door is
+        # public/index.php, one folder down from here, but this domain's
+        # address points at THIS folder. Adding a rewrite rule here that
+        # forwards every request into public/ is the standard way to run
+        # a Laravel app on shared hosting without cPanel-level control
+        # over the document root. The old .htaccess (the legacy site's
+        # own rewrite rules) is backed up first, once, never deleted.
+        uses: appleboy/ssh-action@master
+        with:
+          host: ${{ secrets.CPANEL_HOST }}
+          username: ${{ secrets.CPANEL_USERNAME }}
+          password: ${{ secrets.CPANEL_PASSWORD }}
+          port: 22
+          script: |
+            set -e
+            cd ${{ env.DEPLOY_PATH }}
+            if [ ! -f .htaccess.legacy-backup ]; then
+              cp .htaccess .htaccess.legacy-backup
+              echo "Backed up the old .htaccess to .htaccess.legacy-backup"
+            else
+              echo "Old .htaccess already backed up, leaving it alone."
+            fi
+            cat > .htaccess <<'HTACCESSEOF'
+            <IfModule mod_rewrite.c>
+                RewriteEngine On
+                RewriteCond %{REQUEST_URI} !^/public
+                RewriteRule ^(.*)$ public/$1 [L]
+            </IfModule>
+            HTACCESSEOF
+            echo "New site is now live."
