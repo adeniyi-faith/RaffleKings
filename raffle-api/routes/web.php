@@ -8,9 +8,14 @@ use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Route;
 use Inertia\Inertia;
 
-Route::get('/', function () {
+// Homepage (faithfully rebuilt to match the legacy index.php: hero
+// carousel, Play & Win action grid, Trending Now rail) — same trending
+// data source (top 10, closing-soon first) as the legacy homepage's
+// SSR-preloaded $initial_raffles, via the same RaffleReadService the
+// /raffles page already uses.
+Route::get('/', function (RaffleReadService $raffles) {
     return Inertia::render('Home', [
-        'message' => 'The new Inertia + React frontend build pipeline is live.',
+        'trending' => $raffles->listActive(['sort' => 'closing_soon', 'per_page' => 10])['raffles'],
     ]);
 });
 
@@ -119,6 +124,11 @@ $accountGuard = function (Request $request) {
 
     return null;
 };
+
+// Profile hub (matching the legacy profile.php) -- unlike the rest of
+// the account section, this one is public: a guest sees a "create an
+// account" card instead of the wallet cards, same as the legacy page.
+Route::get('/profile', fn () => Inertia::render('Account/Profile'));
 
 Route::get('/account/tickets', function (Request $request) use ($accountGuard) {
     return $accountGuard($request) ?? Inertia::render('Account/Tickets');

@@ -12,6 +12,7 @@ import {
 } from 'lucide-react';
 import { formatNaira } from '../../lib/format';
 import { usePushPermission } from '../../hooks/usePushPermission';
+import BottomNav from '../../Components/layout/BottomNav';
 
 // Rebuild of rewards.php (item 28). What's preserved from the legacy
 // page: the blue hero with a points badge and a 7-day streak row, the
@@ -377,6 +378,8 @@ export default function RewardsIndex({ referralCode }) {
                     </div>
                 </div>
             )}
+
+            <BottomNav />
         </>
     );
 }
