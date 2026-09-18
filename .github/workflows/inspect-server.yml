@@ -77,6 +77,15 @@ jobs:
             echo
             echo "=== composer.json 'name' + autoload (did the tarball overwrite this?) ==="
             grep -E '"name"|"App\\\\\\\\"' composer.json 2>&1 || true
+            echo
+            echo "=== Live HTTP status for the pages that were 500ing (read-only GETs) ==="
+            for path in / /raffles /login /admin; do
+              code=$(curl -s -o /dev/null -w '%{http_code}' "https://rafflekings.com.ng${path}" || echo "curl-failed")
+              echo "GET ${path} -> ${code}"
+            done
+            echo
+            echo "=== Newest error message (not just stack trace) from laravel.log ==="
+            tail -n 400 storage/logs/laravel.log 2>&1 | grep -E '^\[.*production\.(ERROR|CRITICAL)' | tail -n 5 || echo "(no matching error line)"
 
       - name: Go live -- route requests to the new app
         # The actual switch: the new app's real front door is

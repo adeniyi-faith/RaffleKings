@@ -30,7 +30,7 @@ Route::get('/register', function (Request $request) {
 
 Route::get('/login', fn (Request $request) => Inertia::render('Auth/Login', [
     'redirect' => $request->query('redirect'),
-]));
+]))->name('login');
 
 Route::get('/forgot-password', fn () => Inertia::render('Auth/ForgotPassword'));
 
