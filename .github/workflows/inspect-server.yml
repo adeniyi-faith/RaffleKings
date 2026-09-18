@@ -44,6 +44,39 @@ jobs:
             echo "=== Restoring the 3 files the raffle-api tar accidentally overwrote ==="
             git checkout -- .gitignore composer.json phpunit.xml 2>&1
             git status --short 2>&1 || true
+            echo
+            echo "=== Is there a .env file, and does it have real DB/APP_KEY values (not printing secrets)? ==="
+            if [ -f .env ]; then
+              echo "APP_ENV=$(grep -E '^APP_ENV=' .env | cut -d= -f2-)"
+              echo "APP_DEBUG=$(grep -E '^APP_DEBUG=' .env | cut -d= -f2-)"
+              for key in APP_KEY DB_HOST DB_DATABASE DB_USERNAME DB_PASSWORD WP_LOGGED_IN_KEY WP_LOGGED_IN_SALT WP_COOKIEHASH; do
+                val=$(grep -E "^${key}=" .env | cut -d= -f2-)
+                if [ -z "$val" ]; then echo "$key=<EMPTY>"; else echo "$key=<set>"; fi
+              done
+            else
+              echo "(.env does not exist!)"
+            fi
+            echo
+            echo "=== storage/ and bootstrap/cache/ writable? ==="
+            ls -ld storage bootstrap/cache 2>&1 || true
+            echo
+            echo "=== Last 100 lines of storage/logs/laravel.log ==="
+            tail -n 100 storage/logs/laravel.log 2>&1 || echo "(no laravel.log)"
+            echo
+            echo "=== PHP version actually running ==="
+            php -v 2>&1 || true
+            echo
+            echo "=== php artisan about (routes/config sanity) ==="
+            php artisan about 2>&1 || true
+            echo
+            echo "=== WordPress's own \$table_prefix (from wp/wp-config.php) ==="
+            grep -E '^\s*\$table_prefix' wp/wp-config.php 2>&1 || echo "(not found)"
+            echo
+            echo "=== What tables actually exist in the configured DB (first 40) ==="
+            php artisan tinker --execute="foreach (array_slice(array_map('current', DB::select('SHOW TABLES')), 0, 40) as \$t) { echo \$t, PHP_EOL; }" 2>&1 || true
+            echo
+            echo "=== composer.json 'name' + autoload (did the tarball overwrite this?) ==="
+            grep -E '"name"|"App\\\\\\\\"' composer.json 2>&1 || true
 
       - name: Go live -- route requests to the new app
         # The actual switch: the new app's real front door is
