@@ -246,7 +246,14 @@ jobs:
             DB_USERNAME=${{ secrets.RAFFLE_DB_USERNAME }}
             DB_PASSWORD=${{ secrets.RAFFLE_DB_PASSWORD }}
 
-            WP_TABLE_PREFIX=wp_
+            # The live WordPress install's real prefix -- confirmed from
+            # wp/wp-config.php's own $table_prefix line on the server. It's
+            # "wpxn_", not WordPress's default "wp_". Every legacy-table
+            # query (raffles, users, admin) was going to the wrong table
+            # names (wp_posts instead of wpxn_posts, etc.), which is why
+            # the raffle page, admin panel, and logging in with an
+            # existing account were all failing with a 500 error.
+            WP_TABLE_PREFIX=wpxn_
             WP_LOGGED_IN_KEY=${{ secrets.WP_LOGGED_IN_KEY }}
             WP_LOGGED_IN_SALT=${{ secrets.WP_LOGGED_IN_SALT }}
             WP_COOKIEHASH=${{ secrets.WP_COOKIEHASH }}
