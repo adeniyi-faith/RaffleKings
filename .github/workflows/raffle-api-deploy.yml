@@ -293,6 +293,12 @@ jobs:
             set -e
             cd ${{ env.DEPLOY_PATH }}
             php artisan migrate --force
+            # Makes public/storage a symlink to storage/app/public, so
+            # anything saved to the "public" disk (avatar uploads --
+            # ProfileController::uploadAvatar) is actually reachable over
+            # the web. Idempotent: prints "already exists" and exits 0 on
+            # every run after the first.
+            php artisan storage:link
             php artisan config:cache
             php artisan route:cache
             php artisan view:cache

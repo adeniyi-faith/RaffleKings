@@ -7,21 +7,21 @@ use Tests\Support\AuthenticatesWithWordPressCookie;
 use Tests\TestCase;
 
 /**
- * The Rewards hub (item 28) — same server-side login guard as the
- * account section: legacy rewards.php gates on `is_user_logged_in()`
- * too.
+ * The Rewards hub (item 28) is public, same as the legacy rewards.php:
+ * that page only gates its POST mini-API (claiming, spinning) on
+ * `is_user_logged_in()`, not the page itself -- a guest gets the same
+ * page back with an empty/zeroed state, not a redirect.
  */
 class RewardsRoutesTest extends TestCase
 {
     use AuthenticatesWithWordPressCookie, RefreshDatabase;
 
-    public function test_a_guest_is_redirected_to_login_with_a_way_back(): void
+    public function test_a_guest_sees_the_page_with_no_referral_code(): void
     {
         $response = $this->get('/rewards');
 
-        $response->assertRedirect();
-        $this->assertStringContainsString('/login?redirect=', $response->headers->get('Location'));
-        $this->assertStringContainsString(urlencode('/rewards'), $response->headers->get('Location'));
+        $response->assertOk();
+        $response->assertInertia(fn ($page) => $page->component('Rewards/Index')->where('referralCode', null));
     }
 
     public function test_a_logged_in_user_sees_the_real_page_with_their_referral_code(): void

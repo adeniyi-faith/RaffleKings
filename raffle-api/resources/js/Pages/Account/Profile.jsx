@@ -16,19 +16,18 @@ import {
     ShieldCheck,
     Sun,
     Ticket,
+    UserCog,
     Wallet,
 } from 'lucide-react';
 import Header from '../../Components/layout/Header';
 import BottomNav from '../../Components/layout/BottomNav';
 import { formatNaira } from '../../lib/format';
 import { apiPost } from '../../lib/api';
+import { resolveAvatar } from '../../lib/avatar';
 
 // Faithful rebuild of the legacy profile.php: the blue avatar header,
 // the guest "join now" card (or the two wallet cards when logged in),
-// and the grouped menu list below. A handful of legacy menu items
-// (Personal Details / edit-profile, Terms, Privacy) don't have a new
-// page yet, so those link to the closest existing equivalent (Support)
-// instead of a dead link, until that page exists.
+// and the grouped menu list below.
 export default function Profile() {
     const { auth } = usePage().props;
     const user = auth?.user;
@@ -67,8 +66,7 @@ export default function Profile() {
         }
     }
 
-    const seed = user ? user.name.replace(/\s+/g, '') : 'Guest';
-    const avatar = `https://api.dicebear.com/9.x/adventurer/svg?seed=${encodeURIComponent(seed)}&backgroundColor=e5e7eb`;
+    const avatar = resolveAvatar(user);
 
     return (
         <>
@@ -171,6 +169,7 @@ export default function Profile() {
 
                         {user && (
                             <MenuGroup title="Account">
+                                <MenuLink href="/account/edit-profile" icon={UserCog} iconClass="bg-blue-50 text-blue-600 dark:bg-blue-900/30 dark:text-blue-400" title="Personal Details" subtitle="Name, email, phone & password" />
                                 <MenuLink href="/account/bank-accounts" icon={Landmark} iconClass="bg-green-50 text-green-600 dark:bg-green-900/30 dark:text-green-400" title="Bank Details" subtitle="For withdrawals" last />
                             </MenuGroup>
                         )}
@@ -214,7 +213,7 @@ export default function Profile() {
                         </MenuGroup>
 
                         <MenuGroup title="Legal & Support">
-                            <MenuLink href="/support" icon={ShieldCheck} iconClass="bg-gray-50 text-gray-500 dark:bg-gray-700/50 dark:text-gray-400" title="Terms & Privacy" />
+                            <MenuLink href="/privacy-policy" icon={ShieldCheck} iconClass="bg-gray-50 text-gray-500 dark:bg-gray-700/50 dark:text-gray-400" title="Privacy Policy" />
                             <a
                                 href="https://t.me/rafflekings_customersupport"
                                 target="_blank"

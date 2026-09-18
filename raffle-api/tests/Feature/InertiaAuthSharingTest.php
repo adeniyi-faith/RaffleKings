@@ -2,6 +2,7 @@
 
 namespace Tests\Feature;
 
+use App\Models\Legacy\WpUserMeta;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Tests\Support\AuthenticatesWithWordPressCookie;
 use Tests\TestCase;
@@ -32,6 +33,22 @@ class InertiaAuthSharingTest extends TestCase
 
         $response->assertInertia(fn ($page) => $page
             ->where('auth.user.id', $user->ID)
-            ->where('auth.user.name', 'Jane Doe'));
+            ->where('auth.user.name', 'Jane Doe')
+            ->where('auth.user.avatar', null));
+    }
+
+    public function test_a_user_with_an_uploaded_photo_sees_its_real_url_not_the_dicebear_fallback(): void
+    {
+        $user = $this->actingAsWordPressUser();
+        WpUserMeta::create([
+            'user_id' => $user->ID,
+            'meta_key' => 'profile_pic_url',
+            'meta_value' => 'https://rafflekings.com.ng/storage/avatars/'.$user->ID.'.jpg',
+        ]);
+
+        $response = $this->get('/');
+
+        $response->assertInertia(fn ($page) => $page
+            ->where('auth.user.avatar', 'https://rafflekings.com.ng/storage/avatars/'.$user->ID.'.jpg'));
     }
 }
