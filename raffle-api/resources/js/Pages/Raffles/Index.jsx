@@ -3,6 +3,8 @@ import { Head, Link } from '@inertiajs/react';
 import { Flame, Search, SlidersHorizontal } from 'lucide-react';
 import { TextInput } from '../../Components/ui/TextInput';
 import RaffleCard from '../../Components/raffles/RaffleCard';
+import Header from '../../Components/layout/Header';
+import BottomNav from '../../Components/layout/BottomNav';
 
 const SORT_OPTIONS = [
     { value: 'newest', label: 'Newest' },
@@ -81,8 +83,11 @@ export default function RafflesIndex({ initial }) {
     return (
         <>
             <Head title="Raffles" />
-            <div className="mx-auto min-h-screen max-w-6xl bg-app-bg px-4 py-8 dark:bg-dark-bg">
-                <h1 className="mb-6 text-2xl font-bold text-gray-900 dark:text-white">Raffles</h1>
+            <div className="flex min-h-screen w-full flex-col bg-app-bg text-gray-900 dark:bg-dark-bg dark:text-white">
+                <Header />
+
+                <div className="mx-auto w-full max-w-6xl flex-1 px-4 pb-28 pt-6">
+                    <h1 className="mb-6 text-2xl font-bold text-gray-900 dark:text-white">Raffles</h1>
 
                 {hotPicks.length > 0 && (
                     <div className="mb-6">
@@ -213,6 +218,9 @@ export default function RafflesIndex({ initial }) {
                         </button>
                     </div>
                 )}
+                </div>
+
+                <BottomNav />
             </div>
         </>
     );
