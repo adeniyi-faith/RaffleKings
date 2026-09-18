@@ -29,6 +29,7 @@ class AccountRoutesTest extends TestCase
             ['/account/wallet', 'Account/Wallet'],
             ['/account/withdraw', 'Account/Withdraw'],
             ['/account/bank-accounts', 'Account/BankAccounts'],
+            ['/account/edit-profile', 'Account/EditProfile'],
         ];
     }
 

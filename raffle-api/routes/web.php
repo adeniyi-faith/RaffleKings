@@ -152,6 +152,12 @@ Route::get('/account/bank-accounts', function (Request $request) use ($accountGu
     return $accountGuard($request) ?? Inertia::render('Account/BankAccounts');
 });
 
+// "Edit Personal Details" (matching legacy edit-profile.php) — same guard
+// as the rest of the account section.
+Route::get('/account/edit-profile', function (Request $request) use ($accountGuard) {
+    return $accountGuard($request) ?? Inertia::render('Account/EditProfile');
+});
+
 // Rewards hub (item 28) — daily streak, tasks, Spin & Win, and Referrals
 // as one page. Same server-side login guard as the account section: the
 // legacy rewards.php gates on `is_user_logged_in()` too. `user_login` is
@@ -174,6 +180,10 @@ Route::get('/support', function (Request $request) use ($accountGuard) {
 });
 
 Route::get('/support/tutorials', fn () => Inertia::render('Support/Tutorials'));
+
+// Standalone Privacy Policy (matching the legacy privacy-policy.php) --
+// public, static content, same as the legacy page.
+Route::get('/privacy-policy', fn () => Inertia::render('PrivacyPolicy'));
 
 // Hall of Fame (item 27) — public, same as the legacy winners.php (no
 // login check there). Data itself comes from GET /api/hall-of-fame.

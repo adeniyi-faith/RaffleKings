@@ -16,6 +16,7 @@ import {
     ShieldCheck,
     Sun,
     Ticket,
+    UserCog,
     Wallet,
 } from 'lucide-react';
 import Header from '../../Components/layout/Header';
@@ -171,6 +172,7 @@ export default function Profile() {
 
                         {user && (
                             <MenuGroup title="Account">
+                                <MenuLink href="/account/edit-profile" icon={UserCog} iconClass="bg-blue-50 text-blue-600 dark:bg-blue-900/30 dark:text-blue-400" title="Personal Details" subtitle="Name, email, phone & password" />
                                 <MenuLink href="/account/bank-accounts" icon={Landmark} iconClass="bg-green-50 text-green-600 dark:bg-green-900/30 dark:text-green-400" title="Bank Details" subtitle="For withdrawals" last />
                             </MenuGroup>
                         )}
@@ -214,7 +216,7 @@ export default function Profile() {
                         </MenuGroup>
 
                         <MenuGroup title="Legal & Support">
-                            <MenuLink href="/support" icon={ShieldCheck} iconClass="bg-gray-50 text-gray-500 dark:bg-gray-700/50 dark:text-gray-400" title="Terms & Privacy" />
+                            <MenuLink href="/privacy-policy" icon={ShieldCheck} iconClass="bg-gray-50 text-gray-500 dark:bg-gray-700/50 dark:text-gray-400" title="Privacy Policy" />
                             <a
                                 href="https://t.me/rafflekings_customersupport"
                                 target="_blank"
