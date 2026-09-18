@@ -33,6 +33,7 @@ return new class extends Migration
                 $table->string('user_pass', 255);
                 $table->string('user_email', 100);
                 $table->string('display_name', 250)->nullable();
+                $table->dateTime('user_registered')->nullable();
             });
         }
 
