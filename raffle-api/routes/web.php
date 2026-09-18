@@ -159,16 +159,16 @@ Route::get('/account/edit-profile', function (Request $request) use ($accountGua
 });
 
 // Rewards hub (item 28) — daily streak, tasks, Spin & Win, and Referrals
-// as one page. Same server-side login guard as the account section: the
-// legacy rewards.php gates on `is_user_logged_in()` too. `user_login` is
-// passed as this user's own referral code — the exact value
+// as one page. Public, same as the legacy rewards.php: it only guards the
+// POST actions (claiming, spinning) on `is_user_logged_in()`, not the
+// page itself — a guest sees the same page with an empty/zeroed state
+// and a prompt to log in, not a redirect. `user_login` is passed as this
+// user's own referral code when logged in — the exact value
 // RegistrationService::captureReferrer() already matches a new signup's
 // `?ref=` against, so the link this page hands out actually works.
-Route::get('/rewards', function (Request $request) use ($accountGuard) {
-    return $accountGuard($request) ?? Inertia::render('Rewards/Index', [
-        'referralCode' => Auth::guard('wordpress')->user()->user_login,
-    ]);
-});
+Route::get('/rewards', fn () => Inertia::render('Rewards/Index', [
+    'referralCode' => Auth::guard('wordpress')->user()?->user_login,
+]));
 
 // Help & Support (item 29) — same server-side login guard as the account
 // section: legacy support.php's ticket panel needs a real logged-in user

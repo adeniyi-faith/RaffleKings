@@ -1,8 +1,9 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { Head, Link, router, usePage } from '@inertiajs/react';
-import { ArrowLeft, CheckCircle2, ChevronDown, Loader2 } from 'lucide-react';
+import { ArrowLeft, Camera, CheckCircle2, ChevronDown, Loader2 } from 'lucide-react';
 import Header from '../../Components/layout/Header';
 import { apiPost } from '../../lib/api';
+import { resolveAvatar } from '../../lib/avatar';
 
 // Nigeria's 36 states + FCT, same list and order as the legacy
 // edit-profile-form.php's <select>.
@@ -21,7 +22,11 @@ const EMPTY_FORM = { first_name: '', last_name: '', display_name: '', email: '',
 // (Personal Details, Security), same fields. Backed by the new
 // GET/POST /api/profile endpoints (App\Http\Controllers\Api\
 // ProfileController) instead of the legacy page's own PHP mini-API.
-// Photo upload isn't wired up yet -- see that controller's docblock.
+// Photo upload posts immediately on picking a file (POST
+// /api/profile/avatar), rather than bundling into the form's own JSON
+// save the way the legacy page's single multipart submit did -- a
+// deliberate small deviation, not an oversight: it means the new photo
+// is visible right away instead of only after "Save Changes".
 export default function EditProfile() {
     const { auth } = usePage().props;
     const [form, setForm] = useState(EMPTY_FORM);
@@ -29,6 +34,9 @@ export default function EditProfile() {
     const [saving, setSaving] = useState(false);
     const [message, setMessage] = useState(null);
     const [isError, setIsError] = useState(false);
+    const [avatarPreview, setAvatarPreview] = useState(null);
+    const [uploadingAvatar, setUploadingAvatar] = useState(false);
+    const fileInputRef = useRef(null);
 
     useEffect(() => {
         fetch('/api/profile', { credentials: 'same-origin', headers: { Accept: 'application/json' } })
@@ -39,6 +47,46 @@ export default function EditProfile() {
 
     function update(field) {
         return (e) => setForm((f) => ({ ...f, [field]: e.target.value }));
+    }
+
+    async function handleAvatarChange(e) {
+        const file = e.target.files?.[0];
+        if (! file) {
+            return;
+        }
+
+        setAvatarPreview(URL.createObjectURL(file));
+        setUploadingAvatar(true);
+        setMessage(null);
+
+        const body = new FormData();
+        body.append('avatar', file);
+
+        try {
+            const response = await fetch('/api/profile/avatar', {
+                method: 'POST',
+                credentials: 'same-origin',
+                headers: { Accept: 'application/json' },
+                body,
+            });
+            const data = await response.json().catch(() => ({}));
+
+            if (! response.ok) {
+                throw new Error(data.message || 'Could not upload that photo. Please try again.');
+            }
+
+            // Refreshes the shared auth.user.avatar prop every page reads
+            // from (Header, Profile, this page's own fallback) -- so the
+            // new photo shows up everywhere, not just here.
+            router.reload({ only: ['auth'] });
+        } catch (err) {
+            setAvatarPreview(null);
+            setIsError(true);
+            setMessage(err.message);
+        } finally {
+            setUploadingAvatar(false);
+            e.target.value = '';
+        }
     }
 
     async function save(e) {
@@ -61,8 +109,7 @@ export default function EditProfile() {
         }
     }
 
-    const seed = auth?.user ? auth.user.name.replace(/\s+/g, '') : 'Guest';
-    const avatar = `https://api.dicebear.com/9.x/adventurer/svg?seed=${encodeURIComponent(seed)}&backgroundColor=e5e7eb`;
+    const avatar = avatarPreview || resolveAvatar(auth?.user);
 
     return (
         <>
@@ -97,10 +144,29 @@ export default function EditProfile() {
                         )}
 
                         <div className="mb-6 flex flex-col items-center justify-center">
-                            <div className="h-24 w-24 rounded-full border-2 border-dashed border-app-primary bg-blue-50 p-1 dark:bg-blue-900/20">
-                                <img src={avatar} className="h-full w-full rounded-full object-cover shadow-sm" alt="" />
-                            </div>
-                            <p className="mt-2 text-[10px] text-gray-400 dark:text-gray-500">Photo upload is coming soon</p>
+                            <button
+                                type="button"
+                                onClick={() => fileInputRef.current?.click()}
+                                disabled={uploadingAvatar}
+                                className="group relative cursor-pointer transition-transform active:scale-95 disabled:cursor-wait"
+                            >
+                                <div className="h-24 w-24 rounded-full border-2 border-dashed border-app-primary bg-blue-50 p-1 dark:bg-blue-900/20">
+                                    <img src={avatar} className="h-full w-full rounded-full object-cover shadow-sm" alt="" />
+                                </div>
+                                <div className="absolute bottom-0 right-0 rounded-full border-2 border-white bg-app-primary p-2 text-white shadow-md dark:border-dark-bg">
+                                    {uploadingAvatar ? <Loader2 className="h-4 w-4 animate-spin" /> : <Camera className="h-4 w-4" />}
+                                </div>
+                            </button>
+                            <input
+                                ref={fileInputRef}
+                                type="file"
+                                accept="image/*"
+                                className="hidden"
+                                onChange={handleAvatarChange}
+                            />
+                            <p className="mt-2 text-[10px] text-gray-400 dark:text-gray-500">
+                                {uploadingAvatar ? 'Uploading…' : 'Tap to change photo'}
+                            </p>
                         </div>
 
                         <div className="space-y-5 rounded-2xl border border-gray-100 bg-white p-5 shadow-sm dark:border-gray-800 dark:bg-dark-card">

@@ -103,6 +103,7 @@ Route::middleware('auth:wordpress')->group(function () {
     // as the legacy edit-profile.php.
     Route::get('/profile', [ProfileController::class, 'show']);
     Route::post('/profile', [ProfileController::class, 'update']);
+    Route::post('/profile/avatar', [ProfileController::class, 'uploadAvatar']);
 
     Route::get('/referrals/stats', [ReferralController::class, 'stats']);
 

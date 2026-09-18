@@ -45,6 +45,13 @@ class HandleInertiaRequests extends Middleware
                 'user' => $user ? [
                     'id' => $user->ID,
                     'name' => $user->display_name ?: $user->user_login,
+                    // The legacy site's own profile_pic_url usermeta --
+                    // set by a real upload on either site now (see
+                    // ProfileController::uploadAvatar), or null if this
+                    // user never uploaded one, in which case every page
+                    // that reads this falls back to the same
+                    // Dicebear-generated avatar they've always shown.
+                    'avatar' => $user->metaValue('profile_pic_url') ?: null,
                 ] : null,
             ],
         ];

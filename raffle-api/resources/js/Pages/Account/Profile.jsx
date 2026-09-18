@@ -23,13 +23,11 @@ import Header from '../../Components/layout/Header';
 import BottomNav from '../../Components/layout/BottomNav';
 import { formatNaira } from '../../lib/format';
 import { apiPost } from '../../lib/api';
+import { resolveAvatar } from '../../lib/avatar';
 
 // Faithful rebuild of the legacy profile.php: the blue avatar header,
 // the guest "join now" card (or the two wallet cards when logged in),
-// and the grouped menu list below. A handful of legacy menu items
-// (Personal Details / edit-profile, Terms, Privacy) don't have a new
-// page yet, so those link to the closest existing equivalent (Support)
-// instead of a dead link, until that page exists.
+// and the grouped menu list below.
 export default function Profile() {
     const { auth } = usePage().props;
     const user = auth?.user;
@@ -68,8 +66,7 @@ export default function Profile() {
         }
     }
 
-    const seed = user ? user.name.replace(/\s+/g, '') : 'Guest';
-    const avatar = `https://api.dicebear.com/9.x/adventurer/svg?seed=${encodeURIComponent(seed)}&backgroundColor=e5e7eb`;
+    const avatar = resolveAvatar(user);
 
     return (
         <>

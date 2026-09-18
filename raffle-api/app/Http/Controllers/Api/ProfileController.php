@@ -9,6 +9,7 @@ use App\Services\Auth\WordPressPasswordHasher;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\Storage;
 use Illuminate\Validation\Rule;
 
 /**
@@ -20,10 +21,14 @@ use Illuminate\Validation\Rule;
  * every login already verifies against, so a changed password still works
  * with the legacy WordPress login too.
  *
- * Profile photo upload isn't wired up here yet — the legacy page's own
- * upload went through WordPress's media library, which this app doesn't
- * have an equivalent for. The avatar shown is still the same
- * Dicebear-generated one every other page already uses.
+ * Avatar upload (uploadAvatar()) writes to the SAME profile_pic_url
+ * usermeta key the legacy WordPress media-library upload always set —
+ * every page that reads it (HandleInertiaRequests' shared auth.user.avatar,
+ * this controller's own show()) picks up either site's upload the same
+ * way, with no migration needed for accounts that already had a legacy
+ * photo. Storage is local (the `public` disk, storage/app/public/avatars),
+ * not WordPress's media library — see raffle-api-deploy.yml for the
+ * `storage:link` step that makes it web-reachable.
  */
 class ProfileController extends Controller
 {
@@ -40,7 +45,33 @@ class ProfileController extends Controller
             'email' => $user->user_email,
             'phone' => $user->metaValue('phone') ?? '',
             'state' => $user->metaValue('state') ?? '',
+            'avatar' => $user->metaValue('profile_pic_url') ?: null,
         ]);
+    }
+
+    public function uploadAvatar(Request $request): JsonResponse
+    {
+        $user = $this->user();
+
+        $request->validate([
+            'avatar' => ['required', 'image', 'max:4096'],
+        ]);
+
+        // Clear out any previous upload for this user first, whatever
+        // extension it had, so re-uploading a different file type doesn't
+        // leave the old one behind under a name nothing points to anymore.
+        foreach (Storage::disk('public')->files('avatars') as $existing) {
+            if (str_starts_with(basename($existing), $user->ID.'.')) {
+                Storage::disk('public')->delete($existing);
+            }
+        }
+
+        $path = $request->file('avatar')->storeAs('avatars', $user->ID.'.'.$request->file('avatar')->extension(), 'public');
+        $url = Storage::disk('public')->url($path);
+
+        $this->setMeta($user->ID, 'profile_pic_url', $url);
+
+        return response()->json(['avatar' => $url]);
     }
 
     public function update(Request $request): JsonResponse

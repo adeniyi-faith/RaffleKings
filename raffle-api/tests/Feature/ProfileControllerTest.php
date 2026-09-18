@@ -6,6 +6,8 @@ use App\Models\Legacy\WpUser;
 use App\Models\Legacy\WpUserMeta;
 use App\Services\Auth\WordPressPasswordHasher;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Http\UploadedFile;
+use Illuminate\Support\Facades\Storage;
 use Tests\Support\AuthenticatesWithWordPressCookie;
 use Tests\TestCase;
 
@@ -85,5 +87,41 @@ class ProfileControllerTest extends TestCase
     public function test_an_unauthenticated_request_is_rejected(): void
     {
         $this->getJson('/api/profile')->assertUnauthorized();
+    }
+
+    public function test_a_user_can_upload_an_avatar(): void
+    {
+        Storage::fake('public');
+        $user = $this->actingAsWordPressUser();
+
+        $response = $this->postJson('/api/profile/avatar', [
+            'avatar' => UploadedFile::fake()->image('me.jpg'),
+        ]);
+
+        $response->assertOk();
+        Storage::disk('public')->assertExists('avatars/'.$user->ID.'.jpg');
+        $this->assertSame($response->json('avatar'), $user->fresh()->metaValue('profile_pic_url'));
+    }
+
+    public function test_uploading_a_new_avatar_replaces_the_old_one(): void
+    {
+        Storage::fake('public');
+        $user = $this->actingAsWordPressUser();
+
+        $this->postJson('/api/profile/avatar', ['avatar' => UploadedFile::fake()->image('first.jpg')])->assertOk();
+        $this->postJson('/api/profile/avatar', ['avatar' => UploadedFile::fake()->image('second.png')])->assertOk();
+
+        Storage::disk('public')->assertMissing('avatars/'.$user->ID.'.jpg');
+        Storage::disk('public')->assertExists('avatars/'.$user->ID.'.png');
+    }
+
+    public function test_a_non_image_upload_is_rejected(): void
+    {
+        Storage::fake('public');
+        $this->actingAsWordPressUser();
+
+        $this->postJson('/api/profile/avatar', [
+            'avatar' => UploadedFile::fake()->create('resume.pdf', 100),
+        ])->assertStatus(422);
     }
 }
