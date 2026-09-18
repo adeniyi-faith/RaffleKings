@@ -3,10 +3,13 @@
 use App\Models\Legacy\RaffleEntry;
 use App\Models\Raffle;
 use App\Services\RaffleReadService;
+use App\Services\ReferralTrackingService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\Cookie;
 use Illuminate\Support\Facades\Route;
 use Inertia\Inertia;
+use Illuminate\Support\Str;
 
 // Homepage (faithfully rebuilt to match the legacy index.php: hero
 // carousel, Play & Win action grid, Trending Now rail) — same trending
@@ -21,10 +24,35 @@ Route::get('/', function (RaffleReadService $raffles) {
 
 // Registration/login/password-reset pages (item 23), against the new
 // /api/auth/* endpoints — see App\Services\Auth's docblocks.
-Route::get('/register', function (Request $request) {
+//
+// Also where a referral visit is actually recorded (fixes the "Clicks"
+// stat, which used to be permanently 0 — see referral-tracking.php's
+// docblock for the legacy twin of this). Sets the same rk_ref_code /
+// rk_vid cookies the legacy site's referral-tracking module uses (same
+// domain, same names) so a visitor who lands here but completes signup
+// through the other app's form is still attributed correctly, and a
+// referral cookie already set by an earlier visit is never overwritten —
+// first-touch, so the person who actually brought this visitor keeps the
+// credit.
+Route::get('/register', function (Request $request, ReferralTrackingService $referrals) {
+    $refCode = $request->query('ref');
+
+    if ($refCode && $referrer = $referrals->resolveReferrer($refCode)) {
+        if (! $request->cookie('rk_ref_code')) {
+            Cookie::queue(Cookie::make('rk_ref_code', $refCode, 60 * 24 * 30, httpOnly: false));
+        }
+
+        $visitorToken = $request->cookie('rk_vid') ?: Str::random(32);
+        if (! $request->cookie('rk_vid')) {
+            Cookie::queue(Cookie::make('rk_vid', $visitorToken, 60 * 24 * 365));
+        }
+
+        $referrals->recordClick($referrer, $visitorToken);
+    }
+
     return Inertia::render('Auth/Register', [
         'turnstileSiteKey' => config('services.turnstile.site_key'),
-        'referralCode' => $request->query('ref'),
+        'referralCode' => $refCode,
     ]);
 });
 

@@ -21,6 +21,7 @@ require_once RK_CORE_DIR . '/database.php';
 require_once RK_CORE_DIR . '/wallet-bridge.php';
 require_once RK_CORE_DIR . '/draw-bridge.php';
 require_once RK_CORE_DIR . '/referral-bridge.php';
+require_once RK_CORE_DIR . '/referral-tracking.php';
 require_once RK_CORE_DIR . '/rewards-bridge.php';
 require_once RK_CORE_DIR . '/support-bridge.php';
 require_once RK_CORE_DIR . '/withdrawal-bridge.php';

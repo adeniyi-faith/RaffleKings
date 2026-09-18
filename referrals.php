@@ -52,9 +52,9 @@ if (!is_user_logged_in()) {
                 <i data-lucide="users" class="w-7 h-7 text-white"></i>
             </div>
 
-            <h1 class="text-3xl font-extrabold mb-2">Earn 70%</h1>
+            <h1 class="text-3xl font-extrabold mb-2">Earn 50%</h1>
             <p class="text-indigo-100 text-sm leading-relaxed mb-4">
-                Get <span class="font-bold text-white">70% commission</span> on the first deposit of everyone you refer!
+                Get <span class="font-bold text-white">50% commission</span> on the first deposit of everyone you refer!
             </p>
 
             <!-- Referral Link Box -->

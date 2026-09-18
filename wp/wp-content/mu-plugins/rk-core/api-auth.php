@@ -234,11 +234,19 @@ function rk_handle_new_registration($request) {
     if (username_exists($username)) return new WP_Error('exists', 'Username taken', ['status' => 400]);
     if (email_exists($email)) return new WP_Error('exists', 'Email taken', ['status' => 400]);
 
-    $referrer_code = sanitize_text_field($params['referrer'] ?? $params['ref'] ?? $params['referral_code'] ?? '');
+    // Falls back to the server-set rk_ref_code cookie (referral-tracking.php)
+    // when the submitted field is empty — the form field only carries
+    // whatever the visitor's own localStorage/URL param happened to have,
+    // which is lost on a device/browser switch, private mode, or cleared
+    // storage. The cookie is the same-origin backup that survives that.
+    $referrer_code = sanitize_text_field($params['referrer'] ?? $params['ref'] ?? $params['referral_code'] ?? ($_COOKIE['rk_ref_code'] ?? ''));
     $referrer = null;
     if ($referrer_code !== '') {
         $referrer = rk_find_referrer_by_code($referrer_code);
-        if (!$referrer) return new WP_Error('invalid_referral', 'Referral code was not found. Please check the link or remove the code.', ['status' => 400]);
+        // An unresolvable code (typo, stale/pre-fix link, expired cookie)
+        // no longer blocks the signup — it just means this account isn't
+        // credited to anyone. Hard-failing here used to be able to block a
+        // real person's registration entirely over a broken referral code.
     }
 
     $user_id = wp_create_user($username, $password, $email);
@@ -252,8 +260,12 @@ function rk_handle_new_registration($request) {
         update_user_meta($user_id, 'rk_referrer_code_used', $referrer_code);
         $count = (int) get_user_meta($referrer->ID, 'rk_referral_count', true);
         update_user_meta($referrer->ID, 'rk_referral_count', $count + 1);
-        $current_pts = (int) get_user_meta($referrer->ID, 'rk_points', true);
-        update_user_meta($referrer->ID, 'rk_points', $current_pts + 50);
+        // NOTE: this used to also credit the referrer +50 points instantly,
+        // right here, completely separate from and untracked by the real
+        // commission engine (rk_process_referral_commission(), paid on the
+        // referee's first deposit) — no ledger entry, no row, nothing an
+        // admin could audit against a total. Removed rather than fixed:
+        // one audited reward per referral, not two drifting ones.
     }
 
     $avatar_url = '';

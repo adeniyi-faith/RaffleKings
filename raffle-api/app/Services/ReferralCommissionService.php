@@ -3,6 +3,7 @@
 namespace App\Services;
 
 use App\Models\Legacy\WpUser;
+use App\Models\ReferralClick;
 use App\Models\ReferralCommission;
 use App\Models\Wallet;
 use Illuminate\Support\Facades\DB;
@@ -105,22 +106,52 @@ class ReferralCommissionService
      * still a legacy-data lookup (referrals themselves aren't created in
      * Laravel yet), but paid/pending status now comes from the single
      * real ReferralCommission row per referee, not two differently-named
-     * usermeta keys.
+     * usermeta keys. Same response shape as the now-fixed legacy
+     * rk_get_referral_stats() (clicks/signups/earnings/history), so
+     * either app's referral page can render off this endpoint.
      */
     public function stats(WpUser $referrer): array
     {
-        $refereeIds = WpUser::query()
+        $referees = WpUser::query()
             ->whereHas('meta', fn ($q) => $q->where('meta_key', 'referred_by')->where('meta_value', $referrer->ID))
-            ->pluck('ID');
+            ->orderByDesc('user_registered')
+            ->limit(20)
+            ->get(['ID', 'display_name', 'user_registered']);
 
-        $paid = ReferralCommission::query()->whereIn('referee_user_id', $refereeIds)->get();
-        $paidRefereeIds = $paid->pluck('referee_user_id');
+        $paid = ReferralCommission::query()
+            ->whereIn('referee_user_id', $referees->pluck('ID'))
+            ->orderByDesc('created_at')
+            ->get();
+        $paidByReferee = $paid->keyBy('referee_user_id');
+
+        $history = [];
+        foreach ($referees as $referee) {
+            $commission = $paidByReferee->get($referee->ID);
+            $history[] = $commission
+                ? [
+                    'user' => $referee->display_name,
+                    'date' => $commission->created_at->diffForHumans(),
+                    'status' => 'verified',
+                    'amount' => (float) $commission->commission_amount,
+                ]
+                : [
+                    'user' => $referee->display_name,
+                    'date' => 'Registered',
+                    'status' => 'pending',
+                    'amount' => 0,
+                ];
+        }
 
         return [
-            'referral_count' => $refereeIds->count(),
+            'referral_count' => $referees->count(),
+            'signups' => $referees->count(),
             'total_earned' => (float) $paid->sum('commission_amount'),
-            'paid_count' => $paidRefereeIds->count(),
-            'pending_count' => $refereeIds->count() - $paidRefereeIds->count(),
+            'earnings' => (float) $paid->sum('commission_amount'),
+            'paid_count' => $paidByReferee->count(),
+            'pending_count' => $referees->count() - $paidByReferee->count(),
+            'clicks' => ReferralClick::query()->where('referrer_user_id', $referrer->ID)->count(),
+            'referral_code' => $referrer->user_login,
+            'history' => $history,
         ];
     }
 }

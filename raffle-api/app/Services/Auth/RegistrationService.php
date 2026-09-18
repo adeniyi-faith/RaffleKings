@@ -7,6 +7,7 @@ use App\Models\Legacy\WpUser;
 use App\Models\Legacy\WpUserMeta;
 use App\Models\Wallet;
 use App\Models\WalletLedgerEntry;
+use App\Services\ReferralTrackingService;
 use App\Services\WalletLedgerService;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\ValidationException;
@@ -55,6 +56,7 @@ class RegistrationService
         private readonly WordPressPasswordHasher $hasher,
         private readonly WordPressAuthCookieIssuer $cookieIssuer,
         private readonly WalletLedgerService $ledger,
+        private readonly ReferralTrackingService $referralTracking,
     ) {}
 
     /**
@@ -107,12 +109,12 @@ class RegistrationService
      * another user's username, or their own rk_referral_code meta
      * (registration sets both to the same value, so in practice these
      * always agree, but a code could exist from before that changed).
+     * An unresolvable code is simply ignored — it never blocks the
+     * signup, it just means this account isn't credited to anyone.
      */
     private function captureReferrer(WpUser $user, string $code): void
     {
-        $referrer = WpUser::where('user_login', $code)
-            ->orWhereHas('meta', fn ($q) => $q->where('meta_key', 'rk_referral_code')->where('meta_value', $code))
-            ->first();
+        $referrer = $this->referralTracking->resolveReferrer($code);
 
         if ($referrer && $referrer->getKey() !== $user->getKey()) {
             $this->setMeta($user, 'referred_by', (string) $referrer->getKey());

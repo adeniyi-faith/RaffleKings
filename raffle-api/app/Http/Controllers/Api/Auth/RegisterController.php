@@ -34,6 +34,16 @@ class RegisterController extends Controller
             throw ValidationException::withMessages(['turnstile_token' => 'Please complete the security check and try again.']);
         }
 
+        // Falls back to the first-party rk_ref_code cookie (set by the
+        // /register page itself, or by the legacy site's referral-tracking
+        // module — same cookie name, same domain) when no code was
+        // submitted, so a referral still counts even if the browser tab
+        // that has the referral code isn't the one the form was submitted
+        // from.
+        if (empty($data['referral_code'])) {
+            $data['referral_code'] = $request->cookie('rk_ref_code');
+        }
+
         $result = $this->registration->register($data, $request->ip(), $request->userAgent());
 
         $cookieName = app('wordpress.auth_cookie_name');

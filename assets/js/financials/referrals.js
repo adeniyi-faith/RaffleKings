@@ -1,26 +1,30 @@
 (function() {
     if (typeof lucide !== 'undefined') lucide.createIcons();
 
-    // 1. Safe Constants Setup
-    const rawName = localStorage.getItem('user_nicename') || localStorage.getItem('user_display_name') || 'user';
     const frontendBase = (typeof FRONTEND_URL !== 'undefined') ? FRONTEND_URL : "https://rafflekings.com.ng";
 
-    // *** FIX: Sanitize Username for Social Media Links ***
-    // 1. Remove ALL spaces (e.g., "Mr Faith" -> "MrFaith")
-    // 2. Encode URI Component (Handles emojis or other weird chars)
-    const cleanUsername = rawName.replace(/\s+/g, ''); // Removes spaces
-    const safeRefCode = encodeURIComponent(cleanUsername);
-
-    // Points directly to REGISTER page so tracking script runs immediately on the form
-    const refLink = `${frontendBase}/register?ref=${safeRefCode}`;
+    // Bug fix: this used to build the link from the user's DISPLAY NAME
+    // (localStorage user_nicename/user_display_name), which is freely
+    // editable and often doesn't match their username — but signup only
+    // ever resolves a code against the username (or email/ID). A mismatch
+    // meant the link silently pointed at nobody, or could even block the
+    // referred friend's signup. The real code now comes straight from the
+    // server (`referral_code`, the user's actual username) once
+    // fetchReferralStats() returns, so the link is guaranteed to resolve.
+    let refLink = `${frontendBase}/register`;
 
     document.addEventListener('DOMContentLoaded', () => {
+        fetchReferralStats();
+    });
+
+    function setReferralLink(referralCode) {
+        const safeCode = encodeURIComponent(referralCode);
+        refLink = `${frontendBase}/register?ref=${safeCode}`;
         const refEl = document.getElementById('ref-link');
         if (refEl) {
             refEl.innerText = refLink;
         }
-        fetchReferralStats();
-    });
+    }
 
     async function fetchReferralStats() {
         const token = localStorage.getItem('token');
@@ -51,6 +55,8 @@
                 if (clicksEl) clicksEl.innerText = data.clicks || 0;
                 if (signupsEl) signupsEl.innerText = data.signups || 0;
                 if (earningsEl) earningsEl.innerText = '₦' + (data.earnings || 0).toLocaleString();
+
+                if (data.referral_code) setReferralLink(data.referral_code);
 
                 renderHistory(data.history || []);
             } else {

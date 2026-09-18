@@ -305,6 +305,7 @@ $routes = [
     'claim_task' => ['public' => false, 'method' => 'POST', 'callback' => fn() => rk_handle_task_claim(rk_ajax_request('POST', '/raffle/v1/claim-task'))],
     'redeem_points' => ['public' => false, 'method' => 'POST', 'callback' => fn() => rk_handle_redeem_points(rk_ajax_request('POST', '/raffle/v1/redeem-points'))],
     'referral_stats' => ['public' => false, 'method' => 'GET', 'callback' => fn() => rk_get_referral_stats(rk_ajax_request('GET', '/raffle/v1/referral-stats'))],
+    'referral_track' => ['public' => true, 'method' => 'GET', 'callback' => fn() => rk_track_referral_visit(sanitize_text_field($_GET['ref'] ?? ''))],
     'push_device_save' => ['public' => false, 'method' => 'POST', 'callback' => fn() => rk_save_push_device(rk_ajax_request('POST', '/raffle/v1/save-device'))],
     'save_device' => ['public' => false, 'method' => 'POST', 'callback' => fn() => rk_save_push_device(rk_ajax_request('POST', '/raffle/v1/save-device'))],
 

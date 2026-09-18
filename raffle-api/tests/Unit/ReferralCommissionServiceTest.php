@@ -4,6 +4,7 @@ namespace Tests\Unit;
 
 use App\Models\Legacy\WpUser;
 use App\Models\Legacy\WpUserMeta;
+use App\Models\ReferralClick;
 use App\Models\ReferralCommission;
 use App\Models\Wallet;
 use App\Models\WalletLedgerEntry;
@@ -121,5 +122,32 @@ class ReferralCommissionServiceTest extends TestCase
         $this->assertSame(1, $stats['paid_count']);
         $this->assertSame(1, $stats['pending_count']);
         $this->assertEquals(500, $stats['total_earned']);
+
+        $statuses = array_column($stats['history'], 'status');
+        sort($statuses);
+        $this->assertSame(['pending', 'verified'], $statuses);
+    }
+
+    public function test_stats_reports_the_referrers_own_username_as_their_code(): void
+    {
+        $referrer = $this->makeUser('someusername');
+
+        $stats = $this->service->stats($referrer);
+
+        $this->assertSame($referrer->user_login, $stats['referral_code']);
+    }
+
+    public function test_stats_counts_real_clicks_not_a_fake_zero(): void
+    {
+        $referrer = $this->makeUser();
+
+        ReferralClick::create(['referrer_user_id' => $referrer->ID, 'visitor_token' => 'visitor-a']);
+        ReferralClick::create(['referrer_user_id' => $referrer->ID, 'visitor_token' => 'visitor-b']);
+        // Same visitor clicking again must not inflate the count.
+        ReferralClick::firstOrCreate(['referrer_user_id' => $referrer->ID, 'visitor_token' => 'visitor-a']);
+
+        $stats = $this->service->stats($referrer);
+
+        $this->assertSame(2, $stats['clicks']);
     }
 }

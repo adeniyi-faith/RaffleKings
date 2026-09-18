@@ -88,6 +88,14 @@ const APP_SETTINGS = {
         if (refCode) {
             localStorage.setItem('rk_referrer_code', refCode);
             if(APP_SETTINGS.DEBUG_MODE) console.log("Referral Code Captured:", refCode);
+
+            // Server-side backup for attribution: records a real click and
+            // sets a first-party cookie the backend can fall back to at
+            // signup, so the referral survives even if localStorage never
+            // makes it to the registration page (different tab, cleared
+            // storage, private mode, JS failing partway through).
+            fetch(`${AJAX_ROUTER}?action=referral_track&ref=${encodeURIComponent(refCode)}`, { credentials: 'same-origin' })
+                .catch(() => {});
         }
     } catch (e) { console.warn("Referral tracking error", e); }
 })();

@@ -296,7 +296,11 @@ export default function RewardsIndex({ referralCode }) {
                         </div>
 
                         {referral && (
-                            <div className="relative z-10 grid grid-cols-3 gap-2 border-t border-white/10 pt-3 text-center">
+                            <div className="relative z-10 grid grid-cols-4 gap-2 border-t border-white/10 pt-3 text-center">
+                                <div>
+                                    <p className="text-sm font-bold">{referral.clicks ?? 0}</p>
+                                    <p className="text-[9px] text-orange-100">Clicks</p>
+                                </div>
                                 <div>
                                     <p className="text-sm font-bold">{referral.referral_count}</p>
                                     <p className="text-[9px] text-orange-100">Referred</p>

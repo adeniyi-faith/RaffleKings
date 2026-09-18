@@ -1076,52 +1076,76 @@ function rk_get_referral_stats($request) {
     $user_id = get_current_user_id();
     if (!$user_id) return new WP_Error('no_auth', 'Not logged in', ['status' => 401]);
 
-    $click_count = (int) get_user_meta($user_id, 'rk_referral_clicks', true);
-    $signup_count = (int) get_user_meta($user_id, 'rk_referral_count', true); 
-    $total_earned = (float) get_user_meta($user_id, 'rk_referral_earnings_total', true);
-
     global $wpdb;
-    $table = $wpdb->prefix . 'raffle_transactions';
-    $logs = $wpdb->get_results($wpdb->prepare(
-        "SELECT * FROM $table WHERE user_id = %d AND type = 'referral_commission' ORDER BY created_at DESC LIMIT 20", 
+
+    // Real click count — referral_clicks is written by
+    // rk_track_referral_visit() (referral-tracking.php) every time a
+    // visitor's browser is actually seen carrying this user's referral
+    // link, de-duplicated per visitor. The old rk_referral_clicks usermeta
+    // counter nothing ever incremented is gone.
+    $click_count = (int) $wpdb->get_var($wpdb->prepare(
+        'SELECT COUNT(*) FROM referral_clicks WHERE referrer_user_id = %d',
         $user_id
     ));
 
+    $signup_count = (int) get_user_meta($user_id, 'rk_referral_count', true);
+
+    // Paid/pending and total earned now come from the SAME
+    // `referral_commissions` table rk_process_referral_commission() (and
+    // its unified-path twin) write to — one authoritative place, instead
+    // of the old usermeta flag that was written under one key and read
+    // under a different one (TD-33), which made every already-paid
+    // referral show up as pending too.
+    $paid_rows = $wpdb->get_results($wpdb->prepare(
+        "SELECT rc.referee_user_id, rc.commission_amount, rc.created_at, u.display_name
+         FROM referral_commissions rc
+         LEFT JOIN {$wpdb->users} u ON u.ID = rc.referee_user_id
+         WHERE rc.referrer_user_id = %d
+         ORDER BY rc.created_at DESC
+         LIMIT 20",
+        $user_id
+    ));
+
+    $total_earned = 0.0;
+    $paid_referee_ids = [];
     $history = [];
-    foreach($logs as $log) {
+    foreach ($paid_rows as $row) {
+        $total_earned += (float) $row->commission_amount;
+        $paid_referee_ids[] = (int) $row->referee_user_id;
         $history[] = [
-            'user' => str_replace('From: ', '', $log->order_id), 
-            'date' => human_time_diff(strtotime($log->created_at), current_time('timestamp')) . ' ago',
+            'user' => $row->display_name ?: 'A referred user',
+            'date' => human_time_diff(strtotime($row->created_at), current_time('timestamp')) . ' ago',
             'status' => 'verified',
-            'amount' => $log->claimed_amount
+            'amount' => (float) $row->commission_amount,
         ];
     }
 
-    $pending_users = get_users([
+    $referred_users = get_users([
         'meta_key' => 'referred_by',
         'meta_value' => $user_id,
-        'number' => 5,
+        'number' => 20,
         'orderby' => 'registered',
-        'order' => 'DESC'
+        'order' => 'DESC',
     ]);
 
-    foreach($pending_users as $pu) {
-        $is_paid = get_user_meta($pu->ID, 'referral_commission_paid', true);
-        if (!$is_paid) {
-            array_unshift($history, [
-                'user' => $pu->display_name,
-                'date' => 'Registered',
-                'status' => 'pending',
-                'amount' => 0
-            ]);
+    foreach ($referred_users as $ru) {
+        if (in_array((int) $ru->ID, $paid_referee_ids, true)) {
+            continue; // already represented above from referral_commissions
         }
+        array_unshift($history, [
+            'user' => $ru->display_name,
+            'date' => 'Registered',
+            'status' => 'pending',
+            'amount' => 0,
+        ]);
     }
 
     return [
-        'clicks' => $click_count, 
+        'clicks' => $click_count,
         'signups' => $signup_count,
         'earnings' => $total_earned,
-        'history' => array_slice($history, 0, 20)
+        'referral_code' => get_userdata($user_id)->user_login,
+        'history' => array_slice($history, 0, 20),
     ];
 }
 

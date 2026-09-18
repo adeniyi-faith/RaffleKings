@@ -162,7 +162,7 @@ $start_points = (int)($initial_state['points'] ?? 0);
                         <i data-lucide="users" class="w-4 h-4 text-yellow-300"></i>
                         <h3 class="font-bold text-lg">Refer & Earn</h3>
                     </div>
-                    <p class="text-xs text-orange-100 max-w-[200px]">Get <span class="font-bold text-yellow-300">70% Commission</span> on your friend's first ticket!</p>
+                    <p class="text-xs text-orange-100 max-w-[200px]">Get <span class="font-bold text-yellow-300">50% Commission</span> on your friend's first deposit!</p>
                 </div>
                 <div class="bg-black/30 backdrop-blur-md border border-white/20 px-3 py-1.5 rounded-full flex items-center gap-1.5">
                     <i data-lucide="lock" class="w-3 h-3 text-white/80"></i>

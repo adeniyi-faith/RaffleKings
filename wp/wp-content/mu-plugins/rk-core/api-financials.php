@@ -1221,39 +1221,70 @@ function rk_process_referral_commission($user_id, $deposit_amount, $deposit_txn_
     }
 
     // 1. Check if user has a referrer
-    $referrer_id = get_user_meta($user_id, 'referred_by', true);
+    $referrer_id = (int) get_user_meta($user_id, 'referred_by', true);
     if (!$referrer_id) return; // No referrer, exit.
 
     // 2. Prevent Self-Referral (Sanity Check)
-    if ((int)$referrer_id === (int)$user_id) return;
+    if ($referrer_id === (int) $user_id) return;
 
     // 3. Check if Commission Already Paid
-    // We use a flag 'rk_referral_commission_paid' on the REFEREE (the new user)
-    // to ensure the referrer only gets paid ONCE per user (First Deposit).
-    $already_paid = get_user_meta($user_id, 'rk_referral_commission_paid', true);
+    // TD-33 fix: "already paid" used to be a usermeta flag written under
+    // one key (rk_referral_commission_paid) but READ under a different
+    // one (referral_commission_paid, no rk_ prefix) by the stats endpoint
+    // — so a referral that HAD paid out kept showing as pending forever,
+    // and there was no real guard against paying it twice (two
+    // near-simultaneous deposit verifications could both read "not paid"
+    // before either wrote). This now checks the SAME `referral_commissions`
+    // table the unified path and the Laravel stats endpoint both trust —
+    // one place, and a unique constraint on referee_user_id makes a race
+    // impossible: whichever verification's INSERT loses just fails below.
+    $already_paid = $wpdb->get_var($wpdb->prepare(
+        'SELECT id FROM referral_commissions WHERE referee_user_id = %d',
+        $user_id
+    ));
     if ($already_paid) return;
 
     // 4. Calculate Commission (50%)
-    $commission = $deposit_amount * 0.50;
-    
+    $commission = round($deposit_amount * RK_REFERRAL_COMMISSION_RATE, 2);
+
     // Safety: Ensure we don't credit 0 or negative
     if ($commission <= 0) return;
 
-    // 5. Credit the Referrer
-    // Use transaction for safety
+    // 5. Credit the Referrer + record the commission atomically
     $wpdb->query('START TRANSACTION');
     try {
         $current_earn = $wpdb->get_var($wpdb->prepare(
-            "SELECT meta_value FROM {$wpdb->usermeta} WHERE user_id = %d AND meta_key = 'earnings_balance' FOR UPDATE", 
+            "SELECT meta_value FROM {$wpdb->usermeta} WHERE user_id = %d AND meta_key = 'earnings_balance' FOR UPDATE",
             $referrer_id
         ));
         $current_earn = $current_earn ? (float)$current_earn : 0;
-        
+
         update_user_meta($referrer_id, 'earnings_balance', $current_earn + $commission);
-        
+
         // Also update total lifetime earnings for leaderboard stats
         $total_lifetime = (float) get_user_meta($referrer_id, 'rk_referral_earnings_total', true);
         update_user_meta($referrer_id, 'rk_referral_earnings_total', $total_lifetime + $commission);
+
+        // The real "has this been paid" record. If a concurrent
+        // verification already inserted a row for this referee, the
+        // unique constraint rejects this insert and the whole transaction
+        // rolls back — the earnings_balance/rk_referral_earnings_total
+        // updates above are undone too, so the referrer is never
+        // double-credited.
+        $now = current_time('mysql');
+        $inserted = $wpdb->insert('referral_commissions', [
+            'referrer_user_id' => $referrer_id,
+            'referee_user_id' => $user_id,
+            'deposit_amount' => $deposit_amount,
+            'commission_amount' => $commission,
+            'commission_rate' => RK_REFERRAL_COMMISSION_RATE,
+            'deposit_transaction_id' => $deposit_txn_id,
+            'created_at' => $now,
+            'updated_at' => $now,
+        ]);
+        if ($inserted === false) {
+            throw new Exception('Referral commission was already recorded for this user.');
+        }
 
         $wpdb->query('COMMIT');
 
@@ -1268,7 +1299,8 @@ function rk_process_referral_commission($user_id, $deposit_amount, $deposit_txn_
             'created_at' => current_time('mysql')
         ]);
 
-        // 7. Mark Referee as "Paid" so we don't pay again
+        // 7. Kept for any old report/admin view that still reads this key
+        // directly — referral_commissions above is what stats now trust.
         update_user_meta($user_id, 'rk_referral_commission_paid', 1);
 
         // 8. Notify Referrer via Telegram (Optional but nice)
