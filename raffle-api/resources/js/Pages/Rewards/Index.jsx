@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { Head } from '@inertiajs/react';
+import { Head, Link, usePage } from '@inertiajs/react';
 import {
     ArrowLeft,
     ArrowRight,
@@ -36,6 +36,8 @@ const TASK_LABELS = {
 };
 
 export default function RewardsIndex({ referralCode }) {
+    const { auth } = usePage().props;
+    const isGuest = ! auth?.user;
     const [state, setState] = useState(null);
     const [referral, setReferral] = useState(null);
     const [busy, setBusy] = useState(null); // id of whatever action is in flight
@@ -43,14 +45,22 @@ export default function RewardsIndex({ referralCode }) {
     const [copied, setCopied] = useState(false);
     const { requestPermission } = usePushPermission();
 
-    const referralLink = `${window.location.origin}/register?ref=${encodeURIComponent(referralCode)}`;
+    const referralLink = referralCode ? `${window.location.origin}/register?ref=${encodeURIComponent(referralCode)}` : null;
 
     useEffect(() => {
+        // A guest has no state/referral stats to fetch -- same as the
+        // legacy page, which only ever calls its authenticated endpoints
+        // when is_user_logged_in() is true.
+        if (isGuest) {
+            return;
+        }
+
         loadState();
         fetch('/api/referrals/stats', { credentials: 'same-origin' })
             .then((res) => (res.ok ? res.json() : null))
             .then(setReferral)
             .catch(() => setReferral(null));
+        // eslint-disable-next-line react-hooks/exhaustive-deps
     }, []);
 
     function loadState() {
@@ -284,16 +294,25 @@ export default function RewardsIndex({ referralCode }) {
                             Earn commission on your friend's first deposit when they sign up with your link.
                         </p>
 
-                        <div className="relative z-10 mb-3 flex items-center gap-2 rounded-xl border border-white/20 bg-black/20 px-3 py-2">
-                            <p className="flex-1 truncate text-[11px] text-white/90">{referralLink}</p>
-                            <button
-                                onClick={copyLink}
-                                className="flex items-center gap-1 rounded-lg bg-white/20 px-2 py-1 text-[10px] font-bold uppercase"
+                        {referralLink ? (
+                            <div className="relative z-10 mb-3 flex items-center gap-2 rounded-xl border border-white/20 bg-black/20 px-3 py-2">
+                                <p className="flex-1 truncate text-[11px] text-white/90">{referralLink}</p>
+                                <button
+                                    onClick={copyLink}
+                                    className="flex items-center gap-1 rounded-lg bg-white/20 px-2 py-1 text-[10px] font-bold uppercase"
+                                >
+                                    {copied ? <CheckCircle2 className="h-3 w-3" /> : <Copy className="h-3 w-3" />}
+                                    {copied ? 'Copied' : 'Copy'}
+                                </button>
+                            </div>
+                        ) : (
+                            <Link
+                                href={`/login?redirect=${encodeURIComponent('/rewards')}`}
+                                className="relative z-10 mb-3 flex items-center justify-center rounded-xl border border-white/20 bg-black/20 px-3 py-2 text-[11px] font-bold text-white/90"
                             >
-                                {copied ? <CheckCircle2 className="h-3 w-3" /> : <Copy className="h-3 w-3" />}
-                                {copied ? 'Copied' : 'Copy'}
-                            </button>
-                        </div>
+                                Log in to get your referral link
+                            </Link>
+                        )}
 
                         {referral && (
                             <div className="relative z-10 grid grid-cols-3 gap-2 border-t border-white/10 pt-3 text-center">

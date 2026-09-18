@@ -2,12 +2,13 @@ import { useEffect, useState } from 'react';
 import { Link, usePage } from '@inertiajs/react';
 import { Eye, EyeOff, Wallet } from 'lucide-react';
 import { formatNaira } from '../../lib/format';
+import { resolveAvatar } from '../../lib/avatar';
 
 // Same top bar as the legacy header.php: logo, a wallet balance pill
 // (server-rendered there via PHP; fetched here client-side once, since
 // this is a shared Inertia component with no per-page SSR balance prop),
-// and an avatar linking to the account area. Same Dicebear avatar
-// service and seed logic (display name, or "Guest" for a visitor).
+// and an avatar linking to the account area -- the user's own uploaded
+// photo if they have one, same Dicebear fallback otherwise.
 export default function Header() {
     const { auth } = usePage().props;
     const user = auth?.user;
@@ -25,8 +26,7 @@ export default function Header() {
             .catch(() => {});
     }, [user]);
 
-    const seed = user ? user.name.replace(/\s+/g, '') : 'Guest';
-    const avatar = `https://api.dicebear.com/9.x/adventurer/svg?seed=${encodeURIComponent(seed)}&backgroundColor=e5e7eb`;
+    const avatar = resolveAvatar(user);
 
     return (
         <header

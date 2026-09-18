@@ -19,6 +19,7 @@ use App\Http\Controllers\Api\DrawController;
 use App\Http\Controllers\Api\HallOfFameController;
 use App\Http\Controllers\Api\LiveDrawController;
 use App\Http\Controllers\Api\PaymentWebhookController;
+use App\Http\Controllers\Api\ProfileController;
 use App\Http\Controllers\Api\PushDeviceController;
 use App\Http\Controllers\Api\RaffleController;
 use App\Http\Controllers\Api\ReferralController;
@@ -97,6 +98,12 @@ Route::middleware('auth:wordpress')->group(function () {
     // The authenticated user's balance on that same NEW wallets table —
     // what the checkout payment-method cards show (item 25).
     Route::get('/wallet', [WalletController::class, 'show']);
+
+    // "Edit Personal Details" (item 26 follow-up) — same target fields
+    // as the legacy edit-profile.php.
+    Route::get('/profile', [ProfileController::class, 'show']);
+    Route::post('/profile', [ProfileController::class, 'update']);
+    Route::post('/profile/avatar', [ProfileController::class, 'uploadAvatar']);
 
     Route::get('/referrals/stats', [ReferralController::class, 'stats']);
 
