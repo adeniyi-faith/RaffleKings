@@ -70,6 +70,11 @@ class RegistrationService
             'user_email' => $data['email'],
             'user_pass' => $this->hasher->make($data['password']),
             'display_name' => $data['username'],
+            // wp_users.user_registered has no usable default under strict
+            // SQL mode (MySQL rejects the WordPress-standard zero date
+            // '0000-00-00 00:00:00'), so it must be supplied explicitly or
+            // every registration fails at the database layer.
+            'user_registered' => now(),
         ]);
 
         $this->setMeta($user, 'rk_referral_code', $data['username']);
