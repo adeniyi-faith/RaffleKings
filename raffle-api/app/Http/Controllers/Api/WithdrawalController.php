@@ -5,6 +5,7 @@ namespace App\Http\Controllers\Api;
 use App\Exceptions\BankAccountNotFoundException;
 use App\Exceptions\InsufficientBalanceException;
 use App\Exceptions\MinimumWithdrawalNotMetException;
+use App\Exceptions\UserRestrictedException;
 use App\Exceptions\VerificationFeeRequiredException;
 use App\Http\Controllers\Controller;
 use App\Http\Requests\RequestWithdrawalRequest;
@@ -38,6 +39,8 @@ class WithdrawalController extends Controller
                 bankAccountId: (int) $request->integer('bank_account_id'),
                 authorizeVerificationFee: $request->boolean('authorize_verification_fee'),
             );
+        } catch (UserRestrictedException $e) {
+            return response()->json(['message' => $e->getMessage()], 403);
         } catch (MinimumWithdrawalNotMetException|BankAccountNotFoundException $e) {
             return response()->json(['message' => $e->getMessage()], 422);
         } catch (VerificationFeeRequiredException $e) {
