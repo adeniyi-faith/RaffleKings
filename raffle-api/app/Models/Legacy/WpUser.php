@@ -50,6 +50,7 @@ class WpUser extends LegacyModel implements Authenticatable, FilamentUser, HasNa
         'user_pass',
         'user_email',
         'display_name',
+        'user_registered',
     ];
 
     protected $hidden = [
