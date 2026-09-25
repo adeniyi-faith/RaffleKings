@@ -1,16 +1,20 @@
 import { useState } from 'react';
 import { Head, router } from '@inertiajs/react';
-import { ArrowRight, Lock, Mail, Zap } from 'lucide-react';
-import Button from '../../Components/ui/Button';
-import { Card } from '../../Components/ui/Card';
-import { TextInput, PasswordInput } from '../../Components/ui/TextInput';
+import { AlertCircle, ArrowRight, Eye, EyeOff, Lock, Mail, Zap } from 'lucide-react';
 import { apiPost } from '../../lib/api';
 import { safeRedirect } from '../../lib/safeRedirect';
 
+// Matches the legacy login.php page's design exactly (same layout, spacing,
+// colors and copy), just rebuilt as a React/Inertia page instead of a raw
+// PHP+vanilla-JS form. Dark-mode variants are added on top for consistency
+// with the rest of the rebuilt app — the legacy page never supported dark
+// mode at all, but everything else here (spacing, borders, type, the
+// rotated logo tile, the uppercase field labels) matches it on purpose.
 export default function Login({ redirect }) {
     const [form, setForm] = useState({ username: '', password: '' });
     const [error, setError] = useState(null);
     const [submitting, setSubmitting] = useState(false);
+    const [showPassword, setShowPassword] = useState(false);
 
     const update = (field) => (e) => setForm((f) => ({ ...f, [field]: e.target.value }));
 
@@ -32,7 +36,7 @@ export default function Login({ redirect }) {
     return (
         <>
             <Head title="Log in" />
-            <div className="flex min-h-screen items-center justify-center bg-app-bg px-4 py-12 dark:bg-dark-bg">
+            <div className="flex min-h-[100dvh] items-center justify-center bg-gray-50 px-4 dark:bg-dark-bg">
                 <div className="w-full max-w-sm">
                     <div className="mb-8 text-center">
                         <div className="mx-auto mb-6 flex h-16 w-16 rotate-3 items-center justify-center rounded-2xl bg-white shadow-lg dark:bg-dark-card">
@@ -42,43 +46,85 @@ export default function Login({ redirect }) {
                         <p className="mt-2 text-sm text-gray-500 dark:text-gray-400">Welcome back, winner.</p>
                     </div>
 
-                    <Card className="rounded-3xl p-8 shadow-xl shadow-gray-200/50 dark:shadow-none">
+                    <div className="rounded-3xl border border-white bg-white p-8 shadow-xl shadow-gray-200/50 dark:border-gray-800 dark:bg-dark-card dark:shadow-none">
                         {error && (
                             <div className="mb-4 flex items-center justify-center gap-2 rounded-lg border border-red-100 bg-red-50 p-3 text-center text-xs font-bold text-red-600 dark:border-red-900/40 dark:bg-red-900/20 dark:text-red-400">
-                                {error}
+                                <AlertCircle className="h-4 w-4" />
+                                <span>{error}</span>
                             </div>
                         )}
 
                         <form onSubmit={handleSubmit} className="space-y-5">
-                            <TextInput
-                                label="Email or username"
-                                icon={Mail}
-                                value={form.username}
-                                onChange={update('username')}
-                                required
-                            />
-                            <PasswordInput
-                                label="Password"
-                                icon={Lock}
-                                value={form.password}
-                                onChange={update('password')}
-                                required
-                            />
-                            <div className="-mt-3 flex justify-end">
-                                <a href="/forgot-password" className="text-xs font-bold text-app-primary hover:text-app-secondary">
-                                    Forgot password?
-                                </a>
+                            <div>
+                                <label
+                                    htmlFor="login-username"
+                                    className="mb-2 block text-xs font-bold uppercase tracking-wider text-gray-400 dark:text-gray-500"
+                                >
+                                    Email Address
+                                </label>
+                                <div className="relative">
+                                    <Mail className="pointer-events-none absolute left-4 top-1/2 h-5 w-5 -translate-y-1/2 text-gray-300 dark:text-gray-600" />
+                                    <input
+                                        id="login-username"
+                                        type="email"
+                                        placeholder="you@example.com"
+                                        value={form.username}
+                                        onChange={update('username')}
+                                        required
+                                        className="w-full rounded-xl border border-gray-100 bg-gray-50 py-3.5 pl-11 pr-4 font-medium text-gray-900 outline-none placeholder-gray-400 transition-all focus:border-app-primary/50 focus:bg-white focus:ring-2 focus:ring-app-primary/20 dark:border-gray-700 dark:bg-dark-bg dark:text-white dark:placeholder-gray-600"
+                                    />
+                                </div>
                             </div>
 
-                            <Button type="submit" variant="inverted" disabled={submitting}>
-                                {submitting ? 'Logging in…' : (
+                            <div>
+                                <label
+                                    htmlFor="login-password"
+                                    className="mb-2 block text-xs font-bold uppercase tracking-wider text-gray-400 dark:text-gray-500"
+                                >
+                                    Password
+                                </label>
+                                <div className="relative">
+                                    <Lock className="pointer-events-none absolute left-4 top-1/2 h-5 w-5 -translate-y-1/2 text-gray-300 dark:text-gray-600" />
+                                    <input
+                                        id="login-password"
+                                        type={showPassword ? 'text' : 'password'}
+                                        placeholder="••••••••"
+                                        value={form.password}
+                                        onChange={update('password')}
+                                        required
+                                        className="w-full rounded-xl border border-gray-100 bg-gray-50 py-3.5 pl-11 pr-12 font-medium text-gray-900 outline-none placeholder-gray-400 transition-all focus:border-app-primary/50 focus:bg-white focus:ring-2 focus:ring-app-primary/20 dark:border-gray-700 dark:bg-dark-bg dark:text-white dark:placeholder-gray-600"
+                                    />
+                                    <button
+                                        type="button"
+                                        onClick={() => setShowPassword((v) => !v)}
+                                        aria-label={showPassword ? 'Hide password' : 'Show password'}
+                                        className="absolute right-4 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 dark:hover:text-gray-300"
+                                    >
+                                        {showPassword ? <EyeOff className="h-5 w-5" /> : <Eye className="h-5 w-5" />}
+                                    </button>
+                                </div>
+                                <div className="mt-2 flex justify-end">
+                                    <a href="/forgot-password" className="text-xs font-bold text-app-primary hover:text-app-secondary">
+                                        Forgot Password?
+                                    </a>
+                                </div>
+                            </div>
+
+                            <button
+                                type="submit"
+                                disabled={submitting}
+                                className="mt-4 flex w-full items-center justify-center gap-2 rounded-xl bg-gray-900 py-4 font-bold text-white shadow-lg shadow-gray-900/20 transition-transform active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-50 dark:bg-white dark:text-gray-900 dark:shadow-none"
+                            >
+                                {submitting ? (
+                                    'Logging in…'
+                                ) : (
                                     <>
                                         Login Now <ArrowRight className="h-4 w-4" />
                                     </>
                                 )}
-                            </Button>
+                            </button>
                         </form>
-                    </Card>
+                    </div>
 
                     <p className="mt-8 text-center text-sm text-gray-500 dark:text-gray-400">
                         Don&apos;t have an identity yet?{' '}
