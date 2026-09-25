@@ -23,18 +23,26 @@ name: Deploy Raffle API (New Site)
 # that file is no longer sitting at the top level), so re-runs after that
 # are safe no-ops on that front.
 #
-# One-time setup still needed before this can run (in cPanel, no
-# commands, account-owner-only -- I have no access to the live server):
-#   1. In MultiPHP Manager, make sure rafflekings.com.ng is on PHP 8.4 or
-#      newer (already done, per the site owner).
-#   2. AFTER the first successful run (it will have placed a
-#      .env.example file in that folder): rename it to .env, fill in the
-#      real values (DB credentials, WP_LOGGED_IN_KEY, etc. -- the file's
-#      own comments say where to find each one; reuse the same WordPress
-#      database, don't create a new one), then re-run this workflow once
-#      more so the new settings take effect.
-# After that, every future push to main that touches raffle-api/ deploys
-# automatically.
+# One-time setup still needed before this can run (account-owner-only --
+# I have no access to the live server or this repo's secrets):
+#   1. In cPanel's MultiPHP Manager, make sure rafflekings.com.ng is on
+#      PHP 8.4 or newer (already done, per the site owner).
+#   2. In this repo's GitHub Settings -> Environments -> "production",
+#      add these secrets: APP_KEY, RAFFLE_DB_HOST, RAFFLE_DB_DATABASE,
+#      RAFFLE_DB_USERNAME, RAFFLE_DB_PASSWORD (reuse the SAME WordPress
+#      database -- don't create a new one), WP_LOGGED_IN_KEY,
+#      WP_LOGGED_IN_SALT, WP_COOKIEHASH (all three copied from
+#      wp-config.php on the server -- see .env.example's own comments
+#      for exactly where each one comes from). These do NOT go in the
+#      server's .env file by hand: the "Write the .env file from
+#      secrets" step below overwrites that file from these exact
+#      secrets on every single deploy, so a value only ever set by
+#      hand-editing the server's .env is silently wiped back to blank
+#      the next time anyone pushes a change here (this bit someone
+#      already once -- don't repeat it).
+# After the secrets exist, every push to main that touches raffle-api/
+# deploys automatically; re-run this workflow manually (Actions tab) any
+# time after changing a secret's value so the new setting takes effect.
 on:
   push:
     branches:
