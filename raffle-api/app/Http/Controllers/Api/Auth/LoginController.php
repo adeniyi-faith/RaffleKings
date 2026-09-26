@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers\Api\Auth;
 
+use App\Auth\WordPressSessionGuard;
 use App\Http\Controllers\Controller;
 use App\Services\Auth\LoginService;
 use App\Services\Auth\WordPressCookieFactory;
@@ -42,20 +43,24 @@ class LoginController extends Controller
                 'display_name' => $result['user']->display_name,
             ],
             'token' => $token,
-        ])->withCookie($cookie);
+        ])->withCookie($cookie)->withCookies($this->cookies->forgetLeftovers($cookieName, $request->getHost()));
     }
 
     public function destroy(Request $request): JsonResponse
     {
         $cookieName = app('wordpress.auth_cookie_name');
-        $rawCookie = $request->cookie($cookieName);
         $user = Auth::guard('wordpress')->user();
 
-        if ($user && $rawCookie) {
-            $token = explode('|', $rawCookie)[2] ?? null;
+        // Every copy of the cookie the browser sent, not just the first —
+        // see WordPressSessionGuard::cookieValues() for why there can be
+        // more than one. Only this user's own sessions are ever revoked.
+        if ($user) {
+            foreach (WordPressSessionGuard::cookieValues($request, $cookieName) as $rawCookie) {
+                $parts = explode('|', $rawCookie);
 
-            if ($token) {
-                $this->login->logout($user, $token);
+                if (($parts[0] ?? null) === $user->user_login && ! empty($parts[2])) {
+                    $this->login->logout($user, $parts[2]);
+                }
             }
         }
 
@@ -65,6 +70,8 @@ class LoginController extends Controller
         // everywhere else that's using a different token.
         $user?->currentAccessToken()?->delete();
 
-        return response()->json(['message' => 'Logged out.'])->withCookie($this->cookies->forget($cookieName));
+        return response()->json(['message' => 'Logged out.'])
+            ->withCookie($this->cookies->forget($cookieName))
+            ->withCookies($this->cookies->forgetLeftovers($cookieName, $request->getHost()));
     }
 }

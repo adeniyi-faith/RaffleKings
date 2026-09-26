@@ -50,6 +50,6 @@ class RegisterController extends Controller
                 'display_name' => $result['user']->display_name,
             ],
             'token' => $token,
-        ], 201)->withCookie($cookie);
+        ], 201)->withCookie($cookie)->withCookies($this->cookies->forgetLeftovers($cookieName, $request->getHost()));
     }
 }
