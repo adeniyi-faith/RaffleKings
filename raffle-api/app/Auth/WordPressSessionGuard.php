@@ -64,7 +64,47 @@ class WordPressSessionGuard implements Guard
         $this->resolved = true;
         $this->resolvedForRequestId = $requestId;
 
-        return $this->user = $this->validator->resolve($request->cookie($this->cookieName));
+        foreach (self::cookieValues($request, $this->cookieName) as $value) {
+            if ($user = $this->validator->resolve($value)) {
+                return $this->user = $user;
+            }
+        }
+
+        return $this->user = null;
+    }
+
+    /**
+     * Every value the browser sent under this cookie's name, not just the
+     * first. A browser can hold several cookies with the same name when
+     * they differ only by domain or path — e.g. a leftover one the old
+     * WordPress site set for the whole domain, next to the fresh one a
+     * login here just set. It sends all of them, oldest first, and PHP's
+     * own cookie parsing (so `$request->cookie()`) keeps only the first:
+     * a stale, no-longer-valid cookie would then hide the valid one and
+     * the user would look like a guest right after logging in. Each
+     * candidate still has to pass the full validator check on its own.
+     *
+     * @return list<string>
+     */
+    public static function cookieValues(Request $request, string $cookieName): array
+    {
+        $values = [];
+
+        foreach (explode(';', (string) $request->headers->get('cookie', '')) as $pair) {
+            [$name, $value] = array_pad(explode('=', trim($pair), 2), 2, null);
+
+            if ($name === $cookieName && $value !== null && $value !== '') {
+                $values[] = urldecode($value);
+            }
+        }
+
+        $parsed = $request->cookie($cookieName);
+
+        if (is_string($parsed) && $parsed !== '') {
+            array_unshift($values, $parsed);
+        }
+
+        return array_values(array_unique($values));
     }
 
     public function id(): int|string|null

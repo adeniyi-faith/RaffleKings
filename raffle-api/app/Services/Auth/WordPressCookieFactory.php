@@ -34,4 +34,33 @@ class WordPressCookieFactory
     {
         return Cookie::forget($name, config('session.path', '/'), config('session.domain'));
     }
+
+    /**
+     * Expires leftover copies of this cookie that were set for the whole
+     * domain (`Domain=.example.com`) rather than just this host — the kind
+     * the old WordPress site could leave behind. A browser treats those as
+     * separate cookies from the host-only one make() sets, and sends the
+     * older one first, which is what made a fresh login look like a guest.
+     * Never touches the cookie make() itself sets, since that one is
+     * host-only and these all carry an explicit Domain.
+     *
+     * @return list<SymfonyCookie>
+     */
+    public function forgetLeftovers(string $name, string $host): array
+    {
+        if (config('session.domain') || $host === '' || filter_var($host, FILTER_VALIDATE_IP)) {
+            return [];
+        }
+
+        $domains = [$host];
+
+        if (str_starts_with($host, 'www.')) {
+            $domains[] = substr($host, 4);
+        }
+
+        return array_map(
+            fn (string $domain) => Cookie::forget($name, config('session.path', '/'), '.'.$domain),
+            $domains,
+        );
+    }
 }
