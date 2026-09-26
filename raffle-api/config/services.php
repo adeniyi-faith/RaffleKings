@@ -103,4 +103,25 @@ return [
         'secret_key' => env('TURNSTILE_SECRET_KEY'),
     ],
 
+    /*
+    |--------------------------------------------------------------------------
+    | Gemini (item 36 — Daily Audit bank-statement upload)
+    |--------------------------------------------------------------------------
+    |
+    | Same provider and the same RK_GEMINI_KEY value legacy's own deposit
+    | screenshot check already uses (wp-core/api-financials.php) — this
+    | is a separate use of the same key (extracting a LIST of credit
+    | transactions from a bank statement, not checking a single receipt
+    | against one target amount). See App\Services\StatementExtractionService.
+    | Leaving the key unset makes extraction unavailable rather than
+    | silently returning fabricated data — same fail-safe posture as the
+    | legacy screenshot check when its own key is unset.
+    |
+    */
+
+    'gemini' => [
+        'api_key' => env('GEMINI_API_KEY'),
+        'model' => env('GEMINI_MODEL', 'gemini-2.5-flash-preview-09-2025'),
+    ],
+
 ];

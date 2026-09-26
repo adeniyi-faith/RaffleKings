@@ -109,14 +109,18 @@ class UserManagementService
 
     /**
      * Same fields as legacy's "Security & Restrictions" panel, stored
-     * in the same usermeta keys. NOTE: `ban_withdraw`/`ban_transfer`
-     * are NOT currently enforced anywhere, on either system — legacy's
-     * own withdrawal handler calls a `rk_check_user_status()` function
-     * that was never actually implemented (`function_exists()`-guarded,
-     * always false), so toggling these two flags has no functional
-     * effect today. Kept faithful to legacy rather than inventing new
-     * enforcement as part of this pass — see OVERHAUL_CHECKLIST.md item
-     * 36 for the honest callout.
+     * in the same usermeta keys, so toggling them here means the same
+     * thing on both systems. `ban_withdraw` is enforced on both sides:
+     * legacy's own withdrawal handler already checks it via
+     * rk_check_user_status($user_id, 'withdraw')
+     * (wp-core/api-auth.php), and WithdrawalService::assertNotRestricted()
+     * now checks the same usermeta keys for a withdrawal submitted
+     * through the new Laravel frontend — that Laravel-side check was
+     * the real gap OVERHAUL_CHECKLIST.md item 36 called out, closed in
+     * this pass. `ban_transfer` is enforced by legacy's own transfer
+     * handler (rk_check_user_status($user_id, 'transfer'),
+     * wp-core/api-financials.php) the same way it always was; there is
+     * no Laravel-native transfer feature yet for it to also gate.
      */
     public function updateRestrictions(WpUser $admin, WpUser $target, bool $banned, bool $banWithdraw, bool $banTransfer, ?string $banExpiry): void
     {

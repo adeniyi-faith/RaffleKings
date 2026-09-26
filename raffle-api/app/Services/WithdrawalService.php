@@ -5,9 +5,11 @@ namespace App\Services;
 use App\Exceptions\BankAccountNotFoundException;
 use App\Exceptions\InsufficientBalanceException;
 use App\Exceptions\MinimumWithdrawalNotMetException;
+use App\Exceptions\UserRestrictedException;
 use App\Exceptions\VerificationFeeRequiredException;
 use App\Models\BankAccount;
 use App\Models\Legacy\WpUser;
+use App\Models\Legacy\WpUserMeta;
 use App\Models\Wallet;
 use App\Models\WalletLedgerEntry;
 use App\Models\WithdrawalRequest;
@@ -64,6 +66,7 @@ class WithdrawalService
     }
 
     /**
+     * @throws UserRestrictedException
      * @throws MinimumWithdrawalNotMetException
      * @throws BankAccountNotFoundException
      * @throws VerificationFeeRequiredException
@@ -71,6 +74,8 @@ class WithdrawalService
      */
     public function request(WpUser $user, float $amount, int $bankAccountId, bool $authorizeVerificationFee = false): WithdrawalRequest
     {
+        $this->assertNotRestricted($user);
+
         $minimum = (float) config('withdrawals.minimum_amount');
 
         if ($amount < $minimum) {
@@ -222,6 +227,49 @@ class WithdrawalService
         $withdrawal->user->notify(new WithdrawalProcessed($withdrawal, 'rejected', $reason));
 
         return $withdrawal;
+    }
+
+    /**
+     * Same three usermeta keys, same auto-expiry rule, and the same
+     * "an expired ban clears itself" behaviour as legacy's own
+     * rk_check_user_status($user_id, 'withdraw') (wp-core/api-auth.php)
+     * — a full account ban blocks a withdrawal the same as a
+     * withdrawal-specific one. This was never checked anywhere on the
+     * Laravel side before OVERHAUL_CHECKLIST.md Phase 3 item 36: an
+     * admin could flip rk_is_banned/rk_ban_withdraw from the new
+     * console (UserManagementService) and it would do nothing for a
+     * withdrawal submitted through the new frontend.
+     *
+     * @throws UserRestrictedException
+     */
+    private function assertNotRestricted(WpUser $user): void
+    {
+        $meta = WpUserMeta::query()
+            ->where('user_id', $user->ID)
+            ->whereIn('meta_key', ['rk_is_banned', 'rk_ban_withdraw', 'rk_ban_expiry'])
+            ->pluck('meta_value', 'meta_key');
+
+        $expiry = $meta->get('rk_ban_expiry');
+
+        if (! empty($expiry) && now()->toDateString() > $expiry) {
+            // Same auto-lift-on-expiry behaviour as legacy: an expired
+            // ban is treated as if it were never set, and cleared so it
+            // doesn't have to be re-checked (and re-expired) every call.
+            WpUserMeta::query()
+                ->where('user_id', $user->ID)
+                ->whereIn('meta_key', ['rk_is_banned', 'rk_ban_withdraw', 'rk_ban_transfer', 'rk_ban_expiry'])
+                ->delete();
+
+            return;
+        }
+
+        if (($meta->get('rk_is_banned') ?? '0') === '1') {
+            throw new UserRestrictedException('Account suspended. Contact support.');
+        }
+
+        if (($meta->get('rk_ban_withdraw') ?? '0') === '1') {
+            throw new UserRestrictedException('Withdrawals are currently disabled for your account.');
+        }
     }
 
     /**

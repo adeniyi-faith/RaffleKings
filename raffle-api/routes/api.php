@@ -4,6 +4,8 @@ use App\Http\Controllers\Api\AccountController;
 use App\Http\Controllers\Api\Admin\AuditLogController;
 use App\Http\Controllers\Api\Admin\AuditReconciliationController;
 use App\Http\Controllers\Api\Admin\DepositApprovalController;
+use App\Http\Controllers\Api\Admin\DepositMismatchController;
+use App\Http\Controllers\Api\Admin\StatementExtractionController;
 use App\Http\Controllers\Api\Admin\SupportTicketManagementController;
 use App\Http\Controllers\Api\Admin\TransactionMonitorController;
 use App\Http\Controllers\Api\Admin\UserManagementController;
@@ -165,10 +167,16 @@ Route::middleware('auth:wordpress')->group(function () {
         Route::post('/deposits/{transaction}/approve', [DepositApprovalController::class, 'approve']);
         Route::post('/deposits/{transaction}/reject', [DepositApprovalController::class, 'reject']);
 
+        Route::get('/deposits-mismatched', [DepositMismatchController::class, 'index']);
+        Route::post('/deposits-mismatched/{deposit}/credit', [DepositMismatchController::class, 'credit']);
+        Route::post('/deposits-mismatched/{deposit}/reject', [DepositMismatchController::class, 'reject']);
+
         Route::get('/transactions', [TransactionMonitorController::class, 'index']);
         Route::post('/transactions/{transaction}/revoke', [TransactionMonitorController::class, 'revoke']);
 
         Route::post('/audit/reconcile', [AuditReconciliationController::class, 'store']);
+        Route::post('/audit/extract-statement', [StatementExtractionController::class, 'store'])
+            ->middleware('throttle:10,1');
 
         Route::post('/users/{user}/balance', [UserManagementController::class, 'adjustBalance']);
         Route::post('/users/{user}/restrictions', [UserManagementController::class, 'updateRestrictions']);
