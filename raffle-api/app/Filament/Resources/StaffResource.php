@@ -64,7 +64,7 @@ class StaffResource extends Resource
 
     public static function roleHelp(): HtmlString
     {
-        return new HtmlString(collect(StaffRoles::ROLES)->map(fn ($r) => '<b>'.e($r['label']).'</b> — '.e($r['description']))->implode('<br>'));
+        return new HtmlString(collect(StaffRoles::ROLES)->map(fn ($r) => '<b>'.e($r['label']).'</b>: '.e($r['description']))->implode('<br>'));
     }
 
     public static function table(Table $table): Table
@@ -129,7 +129,7 @@ class StaffResource extends Resource
     public static function setRole(WpUser $user, string $role, WpUser $admin): void
     {
         if ($user->ID === $admin->ID) {
-            throw new RuntimeException('You can\'t change your own role — ask another owner.');
+            throw new RuntimeException('You can\'t change your own role. Ask another owner.');
         }
 
         $was = $user->staffRole();

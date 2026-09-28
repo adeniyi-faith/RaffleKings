@@ -304,7 +304,7 @@ class Settings extends Page implements HasForms
                     ->icon('heroicon-m-paper-airplane')
                     ->color('gray')
                     ->form([Forms\Components\TextInput::make('to')->label('Send to')->email()->required()->default(fn () => static::admin()->user_email)])
-                    ->modalDescription('Uses the SAVED email settings — save any changes first.')
+                    ->modalDescription('Uses the SAVED email settings, so save any changes first.')
                     ->modalSubmitActionLabel('Send')
                     ->action(function (array $data) use ($tester) {
                         [$ok, $message] = $tester()->email($data['to']);
@@ -403,10 +403,10 @@ class Settings extends Page implements HasForms
         }
 
         $expected = $prizes->sum(fn ($p) => $p['payout'] * $p['weight'] / $total);
-        $lines = $prizes->map(fn ($p) => e(ucfirst($p['outcome'])).': '.number_format($p['payout']).' pts — '.rtrim(rtrim(number_format($p['weight'] / $total * 100, 2), '0'), '.').'%')->implode('<br>');
+        $lines = $prizes->map(fn ($p) => e(ucfirst($p['outcome'])).': '.number_format($p['payout']).' pts: '.rtrim(rtrim(number_format($p['weight'] / $total * 100, 2), '0'), '.').'%')->implode('<br>');
         $keep = (1 - $expected / $cost) * 100;
         $verdict = $keep >= 0
-            ? 'On average a spin pays back <b>'.number_format($expected, 1).'</b> of its '.$cost.' points — the site keeps <b>'.number_format($keep, 1).'%</b>.'
+            ? 'On average a spin pays back <b>'.number_format($expected, 1).'</b> of its '.$cost.' points, so the site keeps <b>'.number_format($keep, 1).'%</b>.'
             : '<span style="color:rgb(var(--danger-600))">Careful: on average a spin pays back <b>'.number_format($expected, 1).'</b> points, MORE than its '.$cost.'-point cost. Customers will farm points.</span>';
 
         return new HtmlString("<div class=\"text-sm\">{$lines}<p class=\"mt-2\">{$verdict}</p></div>");
@@ -448,7 +448,7 @@ class Settings extends Page implements HasForms
         }
 
         Notification::make()
-            ->title('Saved — live on the site now')
+            ->title('Saved and live on the site now')
             ->body(implode(', ', array_slice($changed, 0, 6)).(count($changed) > 6 ? ' and '.(count($changed) - 6).' more' : ''))
             ->success()
             ->send();
@@ -476,7 +476,7 @@ class Settings extends Page implements HasForms
         }
         $maintenance = app(Maintenance::class);
         if ($maintenance->active()) {
-            $warnings[] = 'Maintenance mode is ON — customers see the "back soon" page. Staff can still use the site.';
+            $warnings[] = 'Maintenance mode is ON. Customers see the "back soon" page; staff can still use the site.';
         } elseif (config('site.maintenance.starts_at') && config('site.maintenance.back_at') && config('site.maintenance.back_at') <= config('site.maintenance.starts_at')) {
             $warnings[] = 'Maintenance "back at" is before its start time, so it would never switch on.';
         }

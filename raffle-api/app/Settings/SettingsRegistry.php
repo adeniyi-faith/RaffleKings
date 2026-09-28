@@ -51,7 +51,7 @@ final class SettingsRegistry
                 'icon' => 'heroicon-o-power',
                 'sections' => [
                     'Maintenance mode' => [
-                        'description' => 'Take the customer site offline for a while — customers see a friendly "back soon" page with a countdown. You and other staff can still use the site and this admin, and payments already made are still credited. Switch it on now, or schedule a start time; it switches itself off at the "back at" time.',
+                        'description' => 'Take the customer site offline for a while. Customers see a friendly "back soon" page with a countdown. You and other staff can still use the site and this admin, and payments already made are still credited. Switch it on now, or schedule a start time; it switches itself off at the "back at" time.',
                         'settings' => [
                             new Setting('site.maintenance.enabled', 'Maintenance mode on now', 'bool'),
                             new Setting('site.maintenance.starts_at', 'Or start automatically at', 'datetime', 'For planned work. Leave empty if you switched it on above.'),
@@ -61,7 +61,7 @@ final class SettingsRegistry
                         ],
                     ],
                     'Pause parts of the site' => [
-                        'description' => 'Switch something off instantly — during a problem, maintenance or a payment-provider outage — and back on when ready. Customers see the message below instead. Admin screens keep working.',
+                        'description' => 'Switch something off instantly during a problem, maintenance or a payment-provider outage, and back on when ready. Customers see the message below instead. Admin screens keep working.',
                         'settings' => [
                             new Setting('site.switches.ticket_sales', 'Ticket sales', 'bool'),
                             new Setting('site.switches.deposits', 'Wallet top-ups (Paystack / Flutterwave)', 'bool'),
@@ -101,7 +101,7 @@ final class SettingsRegistry
                         'settings' => [
                             new Setting('services.flutterwave.public_key', 'Public key', 'text', placeholder: 'FLWPUBK-...'),
                             new Setting('services.flutterwave.secret_key', 'Secret key', 'secret', placeholder: 'FLWSECK-...'),
-                            new Setting('services.flutterwave.secret_hash', 'Webhook secret hash', 'secret', 'Any secret phrase — type the same one in Flutterwave\'s webhook settings. It proves payment messages really come from Flutterwave.'),
+                            new Setting('services.flutterwave.secret_hash', 'Webhook secret hash', 'secret', 'Any secret phrase. Type the same one in Flutterwave\'s webhook settings. It proves payment messages really come from Flutterwave.'),
                         ],
                     ],
                 ],
@@ -156,7 +156,7 @@ final class SettingsRegistry
                             new Setting('rewards.tasks.push_notification', 'Turn on notifications (points)', 'int', rules: ['required', 'integer', 'min:0']),
                             new Setting('rewards.tasks.join_community', 'Join our community (points)', 'int', rules: ['required', 'integer', 'min:0']),
                             new Setting('rewards.tasks.whatsapp_follow', 'Follow on WhatsApp (points)', 'int', rules: ['required', 'integer', 'min:0']),
-                            new Setting('rewards.tasks.whatsapp_share', 'Share on WhatsApp — daily (points)', 'int', rules: ['required', 'integer', 'min:0']),
+                            new Setting('rewards.tasks.whatsapp_share', 'Share on WhatsApp, daily (points)', 'int', rules: ['required', 'integer', 'min:0']),
                         ],
                     ],
                     'Spin & Win' => [
@@ -200,9 +200,9 @@ final class SettingsRegistry
                     'Sending' => [
                         'settings' => [
                             new Setting('mail.default', 'Send emails using', 'select', null, [
-                                'brevo' => 'Brevo (API key — recommended)',
+                                'brevo' => 'Brevo (API key, recommended)',
                                 'smtp' => 'An email server (SMTP)',
-                                'log' => 'Don\'t send — write to the log (testing only)',
+                                'log' => 'Don\'t send, just write to the log (testing only)',
                             ]),
                             new Setting('mail.from.address', 'From address', 'email', 'Must be an address your provider allows you to send from.', rules: ['required', 'email']),
                             new Setting('mail.from.name', 'From name', 'text', rules: ['required', 'max:60']),
@@ -274,7 +274,7 @@ final class SettingsRegistry
                     'Bot protection (Cloudflare Turnstile)' => [
                         'description' => 'A quick "are you human?" check that stops robots creating fake accounts or guessing passwords. Get both keys free at dash.cloudflare.com → Turnstile → Add widget (add your site\'s domain). The check only switches on when BOTH keys are filled in.',
                         'settings' => [
-                            new Setting('services.turnstile.site_key', 'Site key (public)', 'text', 'Shown in the page — safe to be public.', placeholder: '0x4AAAAAAA...'),
+                            new Setting('services.turnstile.site_key', 'Site key (public)', 'text', 'Shown in the page, so it\'s safe to be public.', placeholder: '0x4AAAAAAA...'),
                             new Setting('services.turnstile.secret_key', 'Secret key (private)', 'secret', 'Used by the server to confirm each check. Never shown to anyone.', placeholder: '0x4AAAAAAA...'),
                             new Setting('services.turnstile.forms.register', 'Check on sign-up', 'bool'),
                             new Setting('services.turnstile.forms.login', 'Check on log-in', 'bool', 'Stops password-guessing robots.'),

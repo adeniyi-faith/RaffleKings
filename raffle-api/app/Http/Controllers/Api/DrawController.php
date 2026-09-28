@@ -61,7 +61,7 @@ class DrawController extends Controller
 
         return response()->json([
             'winner_count' => count($winners),
-            'message' => 'Winners generated (hidden by default — visibility and payout still require a separate admin action).',
+            'message' => 'Winners generated. They start hidden and unpaid; show and pay them separately.',
         ], 201);
     }
 }

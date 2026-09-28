@@ -23,13 +23,13 @@
                 </div>
             </div>
         @empty
-            <p class="text-sm text-gray-500 dark:text-gray-400">Nothing found — every bank account belongs to one customer.</p>
+            <p class="text-sm text-gray-500 dark:text-gray-400">Nothing found. Every bank account belongs to one customer.</p>
         @endforelse
     </x-filament::section>
 
     <x-filament::section icon="heroicon-o-bolt" icon-color="warning">
         <x-slot name="heading">Many top-ups in a short time ({{ $rapid->count() }})</x-slot>
-        <x-slot name="description">{{ \App\Services\Risk\FraudWatchService::RAPID_TOPUPS }}+ successful top-ups within {{ \App\Services\Risk\FraudWatchService::RAPID_WINDOW_MINUTES }} minutes — how stolen cards are usually tested.</x-slot>
+        <x-slot name="description">{{ \App\Services\Risk\FraudWatchService::RAPID_TOPUPS }}+ successful top-ups within {{ \App\Services\Risk\FraudWatchService::RAPID_WINDOW_MINUTES }} minutes. This is how stolen cards are usually tested.</x-slot>
 
         @forelse ($rapid as $row)
             <a href="{{ $this->profileUrl($row['user_id']) }}" @class(['flex items-center justify-between gap-3 py-3', 'border-t border-gray-100 dark:border-white/5' => ! $loop->first])>
@@ -46,7 +46,7 @@
 
     <x-filament::section icon="heroicon-o-arrow-up-tray" icon-color="warning">
         <x-slot name="heading">Quick cash-outs ({{ $cashouts->count() }})</x-slot>
-        <x-slot name="description">A withdrawal soon after topping up with little played, or from a brand-new account — paying it out can turn a stolen card into clean cash.</x-slot>
+        <x-slot name="description">A withdrawal soon after topping up with little played, or from a brand-new account. Paying it out can turn a stolen card into clean cash.</x-slot>
 
         @forelse ($cashouts as $row)
             <a href="{{ $this->profileUrl($row['user_id']) }}" @class(['block py-3', 'border-t border-gray-100 dark:border-white/5' => ! $loop->first])>

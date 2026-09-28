@@ -82,7 +82,7 @@ class WalletLedgerService
         }
 
         if ($amount <= 0) {
-            throw new InvalidArgumentException('Ledger amounts must be positive — direction says which way the money moved.');
+            throw new InvalidArgumentException('Ledger amounts must be positive; the direction says which way the money moved.');
         }
 
         return WalletLedgerEntry::create([

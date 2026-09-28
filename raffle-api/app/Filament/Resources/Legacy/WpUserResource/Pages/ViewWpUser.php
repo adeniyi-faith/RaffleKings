@@ -133,7 +133,7 @@ class ViewWpUser extends ViewRecord
                         ->state(fn () => $naira($this->summary()['referral_earnings']))
                         ->helperText(fn () => $this->summary()['friends_referred'].' friend(s) signed up with their link'),
                     Components\TextEntry::make('referrer')->label('Referred by')
-                        ->state(fn () => $this->summary()['referrer']?->display_name ?: $this->summary()['referrer']?->user_login ?: '—')
+                        ->state(fn () => $this->summary()['referrer']?->display_name ?: $this->summary()['referrer']?->user_login ?: 'Nobody')
                         ->url(fn () => $this->summary()['referrer'] ? WpUserResource::getUrl('view', ['record' => $this->summary()['referrer']]) : null),
                     Components\TextEntry::make('user_registered')->label('Joined')->since()->placeholder('Unknown')->tooltip(fn (WpUser $record) => (string) $record->user_registered),
                     Components\TextEntry::make('last_active')->label('Last money or ticket activity')

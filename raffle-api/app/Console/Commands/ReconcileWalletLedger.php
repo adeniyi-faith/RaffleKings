@@ -60,7 +60,7 @@ class ReconcileWalletLedger extends Command
                         balanceType: $balanceType,
                         amount: $amount,
                         reason: 'opening_balance',
-                        description: 'Balance carried in from wp_usermeta at ledger adoption time — see legacy:backfill-wallets.',
+                        description: 'Balance carried over from the old site when the money history started.',
                     );
                 }
 

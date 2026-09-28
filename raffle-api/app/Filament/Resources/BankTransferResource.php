@@ -130,7 +130,7 @@ class BankTransferResource extends Resource
                     Tables\Columns\TextColumn::make('order_id')
                         ->label('Reference')
                         ->copyable()
-                        ->placeholder('—')
+                        ->placeholder('None')
                         ->description(fn (RaffleTransaction $record) => $record->txn_ref),
                     Tables\Columns\TextColumn::make('created_at')
                         ->label('Paid')

@@ -157,8 +157,8 @@ class PaymentResource extends Resource
                 ]);
 
                 match ($after->status) {
-                    'successful' => Notification::make()->title('Paid — ₦'.number_format((float) $after->amount).' credited to the customer.')->success()->send(),
-                    'amount_mismatch' => Notification::make()->title('The amount paid doesn\'t match — see Payment mismatches.')->warning()->send(),
+                    'successful' => Notification::make()->title('Paid: ₦'.number_format((float) $after->amount).' credited to the customer.')->success()->send(),
+                    'amount_mismatch' => Notification::make()->title('The amount paid doesn\'t match. See Payment mismatches.')->warning()->send(),
                     default => Notification::make()->title('Not paid')->body(ucfirst((string) $record->gateway).' says this payment was not completed. Nothing was credited.')->info()->send(),
                 };
             });
@@ -175,10 +175,10 @@ class PaymentResource extends Resource
                     ->url(fn (Deposit $d) => $d->user ? WpUserResource::getUrl('view', ['record' => $d->user]) : null)
                     ->color('primary'),
                 Components\TextEntry::make('reference')->copyable()->fontFamily('mono'),
-                Components\TextEntry::make('gateway_transaction_id')->label('Gateway\'s own ID')->copyable()->placeholder('—'),
+                Components\TextEntry::make('gateway_transaction_id')->label('Gateway\'s own ID')->copyable()->placeholder('None'),
                 Components\TextEntry::make('created_at')->label('Started')->dateTime('j M Y, H:i:s'),
                 Components\TextEntry::make('verified_at')->label('Confirmed')->dateTime('j M Y, H:i:s')->placeholder('Not confirmed'),
-                Components\TextEntry::make('failure_reason')->label('What the gateway said')->placeholder('—')->columnSpanFull(),
+                Components\TextEntry::make('failure_reason')->label('What the gateway said')->placeholder('Nothing')->columnSpanFull(),
             ]),
         ]);
     }

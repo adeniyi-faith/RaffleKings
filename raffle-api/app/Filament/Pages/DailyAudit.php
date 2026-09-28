@@ -84,7 +84,7 @@ class DailyAudit extends Page implements HasForms
                 ])
                 ->columns(2),
             Forms\Components\Section::make('3. Credits found')
-                ->description('Reviewed and correctable before reconciling — a missed or misread line here is exactly the kind of mistake that should be caught before it flags a real transaction.')
+                ->description('Check and correct these before reconciling. A missed or misread line here could wrongly flag a real transaction.')
                 ->visible(fn () => $this->extractedCredits !== null)
                 ->schema([
                     Forms\Components\Repeater::make('credits')
@@ -152,7 +152,7 @@ class DailyAudit extends Page implements HasForms
         $admin = Auth::guard('wordpress')->user();
 
         try {
-            app(TransactionMonitorService::class)->revoke($admin, $transaction, 'Daily Audit — no matching bank credit in uploaded statement.');
+            app(TransactionMonitorService::class)->revoke($admin, $transaction, 'Daily Audit: no matching bank credit in the uploaded statement.');
         } catch (RuntimeException $e) {
             Notification::make()->title('Could not revoke')->body($e->getMessage())->danger()->send();
 

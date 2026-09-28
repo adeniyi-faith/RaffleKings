@@ -56,7 +56,7 @@ class NeedsAttention extends StatsOverviewWidget
         try {
             $failed = DB::table(config('queue.failed.table', 'failed_jobs'))->where('failed_at', '>=', now()->subDay())->count();
             $stats[] = Stat::make('Failed background jobs (24h)', (string) $failed)
-                ->description($failed === 0 ? 'Emails & alerts sending fine' : 'Some emails/alerts failed — run php artisan queue:failed')
+                ->description($failed === 0 ? 'Emails & alerts sending fine' : 'Some emails/alerts failed. See System → Health.')
                 ->color($failed === 0 ? 'success' : 'danger');
         } catch (Throwable) {
             // No failed_jobs table yet — nothing to show.

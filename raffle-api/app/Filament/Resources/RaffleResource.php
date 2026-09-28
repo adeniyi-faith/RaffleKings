@@ -74,7 +74,7 @@ class RaffleResource extends Resource
                     ->helperText('Publish to put it on the site. A published raffle still stops selling on its own once it sells out or its last day passes.'),
 
                 Forms\Components\Section::make('Live Draw event')
-                    ->description('Item 27 — a raffle can just show static results, or have a live, synchronized reveal event. Draw results (Hall of Fame) are unaffected either way; this only controls the live-draw page/experience.')
+                    ->description('A raffle can simply show its results, or have a live reveal that viewers watch together. The Hall of Fame is the same either way; this only controls the live-draw page.')
                     ->schema([
                         Forms\Components\Toggle::make('is_live_draw_enabled')
                             ->label('Enable a live-draw event for this raffle')
@@ -96,7 +96,7 @@ class RaffleResource extends Resource
                         Forms\Components\ColorPicker::make('live_draw_theme_color')
                             ->label('Accent color')
                             ->default('#dc2626')
-                            ->helperText('Legacy livedraw.php\'s red/black high-energy look is the default — change only for a themed event.')
+                            ->helperText('Legacy livedraw.php\'s red/black high-energy look is the default. Change it only for a themed event.')
                             ->visible(fn (Forms\Get $get) => $get('is_live_draw_enabled')),
                         Forms\Components\Placeholder::make('live_draw_status')
                             ->label('Current reveal status')
@@ -146,7 +146,7 @@ class RaffleResource extends Resource
                     Tables\Columns\TextColumn::make('public_id')
                         ->label('No.')
                         ->sortable()
-                        ->tooltip('The raffle\'s permanent public number — its page is /raffles/{number}.'),
+                        ->tooltip('The raffle\'s permanent public number. Its page is /raffles/{number}.'),
                     Tables\Columns\TextColumn::make('title')->searchable()->limit(40),
                     Tables\Columns\TextColumn::make('price')->money('NGN'),
                     Tables\Columns\TextColumn::make('max_tickets')->label('Max tickets'),

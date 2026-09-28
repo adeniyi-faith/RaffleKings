@@ -154,7 +154,7 @@ class BroadcastResource extends Resource
                     'meta' => ($b->sent_at ?? $b->created_at)?->diffForHumans(),
                 ]),
                 ...MobileCard::desktop([
-                    Tables\Columns\TextColumn::make('created_at')->label('Sent')->dateTime('j M Y, H:i')->description(fn (Broadcast $b) => 'by '.($b->sender?->display_name ?: '—')),
+                    Tables\Columns\TextColumn::make('created_at')->label('Sent')->dateTime('j M Y, H:i')->description(fn (Broadcast $b) => 'by '.($b->sender?->display_name ?: 'unknown')),
                     Tables\Columns\TextColumn::make('title')->weight('bold')->limit(50)->description(fn (Broadcast $b) => app(Audience::class)->describe($b->audience, $b->audience_options ?? [])),
                     Tables\Columns\TextColumn::make('recipients_count')->label('Customers')->numeric(),
                     Tables\Columns\TextColumn::make('channels')->label('By')->state(fn (Broadcast $b) => static::channelList($b)),

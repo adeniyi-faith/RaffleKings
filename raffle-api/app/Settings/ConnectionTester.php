@@ -23,7 +23,7 @@ final class ConnectionTester
 
         return $this->check(
             fn () => Http::withToken($secretKey)->timeout(15)->get('https://api.paystack.co/balance'),
-            fn (Response $r) => 'Paystack accepted the key'.(str_starts_with($secretKey, 'sk_test_') ? ' (TEST mode — customers can\'t really pay).' : ' (live mode).'),
+            fn (Response $r) => 'Paystack accepted the key'.(str_starts_with($secretKey, 'sk_test_') ? ' (TEST mode: customers can\'t really pay).' : ' (live mode).'),
             'Paystack',
         );
     }
@@ -37,7 +37,7 @@ final class ConnectionTester
 
         return $this->check(
             fn () => Http::withToken($secretKey)->timeout(15)->get('https://api.flutterwave.com/v3/banks/NG'),
-            fn (Response $r) => 'Flutterwave accepted the key'.(str_contains($secretKey, '_TEST') ? ' (TEST mode — customers can\'t really pay).' : '.'),
+            fn (Response $r) => 'Flutterwave accepted the key'.(str_contains($secretKey, '_TEST') ? ' (TEST mode: customers can\'t really pay).' : '.'),
             'Flutterwave',
         );
     }
@@ -89,7 +89,7 @@ final class ConnectionTester
             try {
                 $response = Http::timeout(15)->post("https://api.telegram.org/bot{$botToken}/sendMessage", [
                     'chat_id' => $chatId,
-                    'text' => '✅ '.config('app.name').' test alert — staff alerts will arrive here.',
+                    'text' => '✅ '.config('app.name').' test alert. Staff alerts will arrive here.',
                 ]);
                 if ($response->failed()) {
                     $failed[] = "{$chatId} (".($response->json('description') ?? $response->status()).')';
@@ -114,7 +114,7 @@ final class ConnectionTester
     public function turnstile(?string $secretKey, ?string $siteKey): array
     {
         if (blank($secretKey) || blank($siteKey)) {
-            return [false, 'Fill in BOTH the site key and the secret key — the check stays off until both are set.'];
+            return [false, 'Fill in BOTH the site key and the secret key. The check stays off until both are set.'];
         }
 
         try {
@@ -126,7 +126,7 @@ final class ConnectionTester
         }
 
         return in_array('invalid-input-secret', $codes, true)
-            ? [false, 'Cloudflare rejected the secret key — copy it again from the Turnstile page.']
+            ? [false, 'Cloudflare rejected the secret key. Copy it again from the Turnstile page.']
             : [true, 'Cloudflare accepted the secret key. Open the sign-up page to see the check.'];
     }
 
@@ -140,7 +140,7 @@ final class ConnectionTester
         try {
             Mail::raw(
                 'This is a test email from '.config('app.name')."'s admin Settings page.\n\nIf you're reading this, customer emails (password resets, receipts, alerts) will be delivered.",
-                fn ($message) => $message->to($to)->subject(config('app.name').' — test email'),
+                fn ($message) => $message->to($to)->subject(config('app.name').': test email'),
             );
         } catch (Throwable $e) {
             return [false, 'Sending failed: '.$e->getMessage()];
@@ -163,8 +163,8 @@ final class ConnectionTester
         }
 
         return [false, match ($response->status()) {
-            401, 403 => "{$provider} rejected the key — check it was copied in full, with no spaces.",
-            400, 404 => "{$provider} did not recognise the request — check the key (and the model name).",
+            401, 403 => "{$provider} rejected the key. Check it was copied in full, with no spaces.",
+            400, 404 => "{$provider} did not recognise the request. Check the key (and the model name).",
             default => "{$provider} replied with an error ({$response->status()}). Try again in a minute.",
         }];
     }

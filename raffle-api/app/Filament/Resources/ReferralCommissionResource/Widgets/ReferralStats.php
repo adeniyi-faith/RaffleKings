@@ -31,7 +31,7 @@ class ReferralStats extends StatsOverviewWidget
                 ->description($paidCount.' referred friend(s) have topped up'),
             Stat::make('Referred, not topped up yet', (string) max(0, $referredTotal - $paidCount))
                 ->description('Signed up with a referral link'),
-            Stat::make('Top referrer', $topName ?? '—')
+            Stat::make('Top referrer', $topName ?? 'Nobody yet')
                 ->description($top ? $top->friends.' friend(s) · ₦'.number_format((float) $top->earned).' earned' : 'No referrals yet'),
         ];
     }
