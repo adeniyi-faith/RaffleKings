@@ -61,15 +61,39 @@ class DepositControllerTest extends TestCase
         $this->getJson("/api/deposits/{$deposit->id}")->assertStatus(404);
     }
 
-    public function test_both_gateways_failing_returns_a_502(): void
+    public function test_both_gateways_failing_gives_the_customer_a_friendly_message_and_alerts_admins(): void
     {
+        config([
+            'monitoring.telegram_error_alerts' => true,
+            'services.telegram.bot_token' => 'bot-token',
+            'services.telegram.admin_chat_ids' => ['123'],
+        ]);
         Http::fake([
             'api.paystack.co/*' => Http::response(['status' => false, 'message' => 'down'], 503),
             'api.flutterwave.com/*' => Http::response(['status' => 'error', 'message' => 'down'], 503),
+            'api.telegram.org/*' => Http::response(['ok' => true]),
         ]);
         $this->actingAsWordPressUser();
 
-        $this->postJson('/api/deposits', ['amount' => 5000])->assertStatus(502);
+        $response = $this->postJson('/api/deposits', ['amount' => 5000])->assertStatus(503);
+
+        $this->assertStringContainsString("couldn't start your payment", $response->json('message'));
+        $this->assertStringNotContainsStringIgnoringCase('paystack', $response->json('message'));
+        Http::assertSent(fn ($request) => str_contains($request->url(), 'api.telegram.org')
+            && str_contains($request['text'], 'Top-up could not start'));
+    }
+
+    public function test_missing_gateway_keys_are_never_shown_to_the_customer(): void
+    {
+        // The exact state the live site was found in (item 41/42): no keys
+        // at all, and the raw error named the missing setting to customers.
+        config(['services.paystack.secret_key' => null, 'services.flutterwave.secret_key' => null]);
+        $this->actingAsWordPressUser();
+
+        $message = $this->postJson('/api/deposits', ['amount' => 5000])->assertStatus(503)->json('message');
+
+        $this->assertStringNotContainsString('SECRET_KEY', $message);
+        $this->assertStringNotContainsString('not configured', $message);
     }
 
     /**
