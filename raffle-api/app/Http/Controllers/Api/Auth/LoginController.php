@@ -5,10 +5,12 @@ namespace App\Http\Controllers\Api\Auth;
 use App\Auth\WordPressSessionGuard;
 use App\Http\Controllers\Controller;
 use App\Services\Auth\LoginService;
+use App\Services\Auth\TurnstileVerifier;
 use App\Services\Auth\WordPressCookieFactory;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Validation\ValidationException;
 
 class LoginController extends Controller
 {
@@ -19,10 +21,16 @@ class LoginController extends Controller
 
     public function store(Request $request): JsonResponse
     {
+        $turnstile = app(TurnstileVerifier::class);
         $data = $request->validate([
+            'turnstile_token' => [$turnstile->enabled('login') ? 'required' : 'nullable', 'string'],
             'username' => ['required', 'string'],
             'password' => ['required', 'string'],
         ]);
+
+        if (! $turnstile->verify($data['turnstile_token'] ?? null, $request->ip(), 'login')) {
+            throw ValidationException::withMessages(['turnstile_token' => 'Please complete the security check and try again.']);
+        }
 
         $result = $this->login->login($data['username'], $data['password'], $request->ip(), $request->userAgent());
 

@@ -4,9 +4,14 @@ import Button from '../../Components/ui/Button';
 import { Card } from '../../Components/ui/Card';
 import { TextInput } from '../../Components/ui/TextInput';
 import { apiPost } from '../../lib/api';
+import { useSite } from '../../lib/site';
+import Turnstile from '../../Components/Turnstile';
 
 export default function ForgotPassword() {
     const [email, setEmail] = useState('');
+    const site = useSite();
+    const turnstileKey = site.turnstile?.forms?.includes('forgot_password') ? site.turnstile.site_key : null;
+    const [turnstileToken, setTurnstileToken] = useState('');
     const [status, setStatus] = useState(null);
     const [submitting, setSubmitting] = useState(false);
 
@@ -16,7 +21,7 @@ export default function ForgotPassword() {
         setSubmitting(true);
 
         try {
-            const data = await apiPost('/api/auth/forgot-password', { email });
+            const data = await apiPost('/api/auth/forgot-password', { email, turnstile_token: turnstileToken || null });
             setStatus({ type: 'success', message: data.message });
             setTimeout(() => router.visit(`/reset-password?email=${encodeURIComponent(email)}`), 1200);
         } catch (err) {
@@ -57,7 +62,11 @@ export default function ForgotPassword() {
                             required
                         />
 
-                        <Button type="submit" disabled={submitting}>
+                        {turnstileKey && (
+                            <Turnstile siteKey={turnstileKey} onToken={setTurnstileToken} onExpire={() => setTurnstileToken('')} />
+                        )}
+
+                        <Button type="submit" disabled={submitting || (turnstileKey && ! turnstileToken)}>
                             {submitting ? 'Sending…' : 'Send Code'}
                         </Button>
                     </form>

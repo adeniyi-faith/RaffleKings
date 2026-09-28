@@ -104,6 +104,32 @@ final class ConnectionTester
             : [false, 'Telegram refused: '.implode(', ', $failed).'. Has each person/group sent the bot a message first?'];
     }
 
+    /**
+     * Cloudflare answers a made-up check with "invalid-input-secret" when
+     * the secret key is wrong, and "invalid-input-response" when the key
+     * is fine (only the made-up check is wrong).
+     *
+     * @return array{0: bool, 1: string}
+     */
+    public function turnstile(?string $secretKey, ?string $siteKey): array
+    {
+        if (blank($secretKey) || blank($siteKey)) {
+            return [false, 'Fill in BOTH the site key and the secret key — the check stays off until both are set.'];
+        }
+
+        try {
+            $codes = (array) Http::asForm()->timeout(15)
+                ->post('https://challenges.cloudflare.com/turnstile/v0/siteverify', ['secret' => $secretKey, 'response' => 'settings-page-check'])
+                ->json('error-codes', []);
+        } catch (Throwable $e) {
+            return [false, 'Could not reach Cloudflare: '.$e->getMessage()];
+        }
+
+        return in_array('invalid-input-secret', $codes, true)
+            ? [false, 'Cloudflare rejected the secret key — copy it again from the Turnstile page.']
+            : [true, 'Cloudflare accepted the secret key. Open the sign-up page to see the check.'];
+    }
+
     /** Sends through whatever is saved in Settings → Email right now. @return array{0: bool, 1: string} */
     public function email(string $to): array
     {

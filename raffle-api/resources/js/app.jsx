@@ -2,6 +2,7 @@ import '../css/app.css';
 import { createRoot } from 'react-dom/client';
 import { createInertiaApp } from '@inertiajs/react';
 import SiteNotices from './Components/layout/SiteNotices';
+import MaintenanceBanner from './Components/layout/MaintenanceBanner';
 
 const appName = import.meta.env.VITE_APP_NAME || 'RaffleKings';
 
@@ -16,7 +17,15 @@ createInertiaApp({
         // on every page and don't reset on each navigation.
         createRoot(el).render(
             <>
-                <App {...props} />
+                <App {...props}>
+                    {({ Component, props: pageProps, key }) => (
+                        <>
+                            {/* Maintenance warnings (Settings → On / off). */}
+                            <MaintenanceBanner />
+                            <Component key={key} {...pageProps} />
+                        </>
+                    )}
+                </App>
                 <SiteNotices />
             </>,
         );

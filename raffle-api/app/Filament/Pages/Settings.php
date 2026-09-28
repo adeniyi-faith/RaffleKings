@@ -4,6 +4,7 @@ namespace App\Filament\Pages;
 
 use App\Filament\Concerns\GuardedByStaffRole;
 use App\Filament\Concerns\RunsAdminActions;
+use App\Services\Maintenance;
 use App\Services\TicketPricingService;
 use App\Settings\ConnectionTester;
 use App\Settings\Setting;
@@ -138,7 +139,7 @@ class Settings extends Page implements HasForms
             'bool' => Forms\Components\Toggle::make($name)->onColor('success')->offColor('danger')->inline(false),
             'select' => Forms\Components\Select::make($name)->options($this->selectOptions($setting))->selectablePlaceholder(false),
             'timezone' => Forms\Components\Select::make($name)->options(array_combine(timezone_identifiers_list(), timezone_identifiers_list()))->searchable()->required(),
-            'tags' => Forms\Components\TagsInput::make($name)->splitKeys(['Tab', ',']),
+            'tags' => Forms\Components\TagsInput::make($name)->splitKeys(['Tab', ','])->placeholder('Type, then press Enter'),
             'daily_rewards' => Forms\Components\Fieldset::make($setting->label)->columns(['default' => 3, 'sm' => 4, 'xl' => 7])->schema(
                 array_map(fn (int $i) => Forms\Components\TextInput::make("{$name}__d{$i}")->label('Day '.($i + 1))->integer()->minValue(0)->required()->live(onBlur: true), range(0, 6)),
             ),
@@ -291,6 +292,7 @@ class Settings extends Page implements HasForms
             'Paystack' => [$check('checkPaystack', fn () => $tester()->paystack($typed('services.paystack.secret_key')))],
             'Flutterwave' => [$check('checkFlutterwave', fn () => $tester()->flutterwave($typed('services.flutterwave.secret_key')))],
             'Google Gemini' => [$check('checkGemini', fn () => $tester()->gemini($typed('services.gemini.api_key'), $typed('services.gemini.model')))],
+            'Bot protection (Cloudflare Turnstile)' => [$check('checkTurnstile', fn () => $tester()->turnstile($typed('services.turnstile.secret_key'), $typed('services.turnstile.site_key')))],
             'Brevo' => [$check('checkBrevo', fn () => $tester()->brevo($typed('services.brevo.key')))],
             'Telegram (staff alerts)' => [$check('checkTelegram', fn () => $tester()->telegram(
                 $typed('services.telegram.bot_token'),
@@ -471,6 +473,12 @@ class Settings extends Page implements HasForms
         }
         if (config('mail.default') === 'smtp' && blank(config('mail.mailers.smtp.host'))) {
             $warnings[] = 'Email is set to an email server but no server is filled in.';
+        }
+        $maintenance = app(Maintenance::class);
+        if ($maintenance->active()) {
+            $warnings[] = 'Maintenance mode is ON — customers see the "back soon" page. Staff can still use the site.';
+        } elseif (config('site.maintenance.starts_at') && config('site.maintenance.back_at') && config('site.maintenance.back_at') <= config('site.maintenance.starts_at')) {
+            $warnings[] = 'Maintenance "back at" is before its start time, so it would never switch on.';
         }
         if ((float) config('rewards.boost.multiplier') > 1) {
             $ends = config('rewards.boost.ends_at');

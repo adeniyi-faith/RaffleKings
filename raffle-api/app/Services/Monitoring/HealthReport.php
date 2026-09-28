@@ -3,6 +3,7 @@
 namespace App\Services\Monitoring;
 
 use App\Console\Commands\HealthCheck;
+use App\Services\Maintenance;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
 use Throwable;
@@ -30,6 +31,7 @@ final class HealthReport
         $this->checkSettings();
         $this->checkDatabase();
         $this->checkBackgroundJobs();
+        $this->checkMaintenance();
 
         return $this->rows;
     }
@@ -101,6 +103,13 @@ final class HealthReport
 
         if (config('app.debug') && app()->environment('production')) {
             $this->addCritical('APP_DEBUG', 'Debug mode is on in production — error pages show internal details to customers.');
+        }
+    }
+
+    private function checkMaintenance(): void
+    {
+        if (app(Maintenance::class)->active()) {
+            $this->addWarning('Maintenance mode', 'ON — customers can\'t use the site. Switch it off in Settings → On / off.');
         }
     }
 
