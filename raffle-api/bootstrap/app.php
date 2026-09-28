@@ -1,5 +1,6 @@
 <?php
 
+use App\Http\Middleware\EnsureFeatureOn;
 use App\Http\Middleware\EnsureUserIsAdministrator;
 use App\Http\Middleware\HandleInertiaRequests;
 use App\Services\Monitoring\ErrorAlerter;
@@ -29,7 +30,7 @@ return Application::configure(basePath: dirname(__DIR__))
         ['middleware' => ['web', 'auth:wordpress']],
     )
     ->withMiddleware(function (Middleware $middleware): void {
-        $middleware->alias(['admin' => EnsureUserIsAdministrator::class]);
+        $middleware->alias(['admin' => EnsureUserIsAdministrator::class, 'feature' => EnsureFeatureOn::class]);
         $middleware->web(append: [HandleInertiaRequests::class]);
 
         // The same "logged in" cookie WordPress itself sets (see

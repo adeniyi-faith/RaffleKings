@@ -26,6 +26,8 @@ class AdminAuditLogResource extends Resource
 {
     /** Plain descriptions for the actions the app records. */
     public const ACTIONS = [
+        'settings.updated' => 'Settings changed',
+        'settings.reset' => 'Setting put back to the server value',
         'withdrawal.paid' => 'Withdrawal marked paid',
         'withdrawal.rejected' => 'Withdrawal rejected & refunded',
         'deposit.approved' => 'Bank-transfer top-up approved',

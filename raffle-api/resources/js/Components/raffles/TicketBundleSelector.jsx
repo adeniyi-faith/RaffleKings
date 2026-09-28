@@ -3,7 +3,7 @@ import { Check, Circle, Flame, ArrowUpRight, TrendingDown } from 'lucide-react';
 import { formatNaira } from '../../lib/format';
 import NumberStepper from '../ui/NumberStepper';
 
-const TIERS = [
+const KNOWN_TIERS = [
     { qty: 1, label: '1 Ticket', subtitle: 'Starter', icon: Circle },
     { qty: 2, label: '2 Tickets', subtitle: 'Double Chances', icon: Circle },
     { qty: 3, label: '3 Tickets', subtitle: 'Most Popular', icon: Flame, featured: true },
@@ -16,8 +16,18 @@ const TIERS = [
 // POPULAR" star tier, the purple "WHALE TIER" chip, the dark indigo
 // bulk-buy card) — only the underlying price now always comes from the
 // server quote instead of being hand-calculated in JS.
-export default function TicketBundleSelector({ quotes, selected, onSelect, bulkQty, onBulkQtyChange, bulkQuote }) {
+// Bundle sizes come from the admin's Settings (Raffles & pricing); the
+// original five keep their own labels and colours, any new size gets a
+// plain card.
+function tiersFor(quantities) {
+    return quantities.map(
+        (qty) => KNOWN_TIERS.find((t) => t.qty === qty) ?? { qty, label: `${qty} Tickets`, subtitle: 'Bundle discount', icon: Circle },
+    );
+}
+
+export default function TicketBundleSelector({ quotes, selected, onSelect, bulkQty, onBulkQtyChange, bulkQuote, quantities = [1, 2, 3, 5, 10], bulkMin = 11 }) {
     const [bulkActive, setBulkActive] = useState(false);
+    const TIERS = tiersFor(quantities);
 
     function selectTier(qty) {
         setBulkActive(false);
@@ -143,7 +153,7 @@ export default function TicketBundleSelector({ quotes, selected, onSelect, bulkQ
 
                 {bulkActive && (
                     <div className="relative mt-4 border-t border-indigo-800/50 pt-3">
-                        <NumberStepper value={bulkQty} min={11} max={50} onChange={onBulkQtyChange} />
+                        <NumberStepper value={bulkQty} min={bulkMin} max={Math.max(50, bulkMin + 10)} onChange={onBulkQtyChange} />
                         {bulkQuote && bulkQuote.original > bulkQuote.discounted && (
                             <div className="mt-2 inline-flex items-center gap-1.5 rounded-lg bg-green-400/10 px-2 py-1.5 text-xs text-green-400">
                                 <TrendingDown className="h-3 w-3" />

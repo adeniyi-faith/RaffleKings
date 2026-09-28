@@ -2,6 +2,7 @@
 
 namespace App\Http\Middleware;
 
+use App\Services\TicketPricingService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Inertia\Middleware;
@@ -53,6 +54,20 @@ class HandleInertiaRequests extends Middleware
                     // Dicebear-generated avatar they've always shown.
                     'avatar' => $user->metaValue('profile_pic_url') ?: null,
                 ] : null,
+            ],
+            // Admin-editable (Settings page): contact details, links, the
+            // on/off switches and the numbers pages show customers.
+            'site' => fn () => [
+                'name' => config('app.name'),
+                'support_email' => config('site.support_email'),
+                'support_phone' => config('site.support_phone'),
+                'links' => array_filter(config('site.links', [])),
+                'switches' => config('site.switches'),
+                'paused_message' => config('site.paused_message'),
+                'points_per_naira' => (int) config('rewards.points_per_naira'),
+                'minimum_redeem_points' => (int) config('rewards.minimum_redeem_points'),
+                'ticket_bundles' => app(TicketPricingService::class)->bundleQuantities(),
+                'big_order_above' => (int) config('pricing.above_quantity'),
             ],
         ];
     }
