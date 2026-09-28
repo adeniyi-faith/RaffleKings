@@ -167,11 +167,12 @@ class WithdrawalService
      */
     public function markPaid(WpUser $admin, WithdrawalRequest $withdrawal): WithdrawalRequest
     {
-        if ($withdrawal->status !== 'pending') {
-            throw new RuntimeException("Withdrawal #{$withdrawal->id} is not pending (status: {$withdrawal->status}).");
-        }
+        $this->guardPending($withdrawal);
 
-        $withdrawal->update(['status' => 'paid']);
+        DB::transaction(function () use ($withdrawal) {
+            $this->guardPending(WithdrawalRequest::query()->whereKey($withdrawal->id)->lockForUpdate()->firstOrFail());
+            $withdrawal->update(['status' => 'paid']);
+        });
 
         $this->auditLog->record($admin, 'withdrawal.paid', WithdrawalRequest::class, $withdrawal->id, [
             'amount_sent' => (float) $withdrawal->amount_to_send,
@@ -195,12 +196,16 @@ class WithdrawalService
      */
     public function reject(WpUser $admin, WithdrawalRequest $withdrawal, ?string $reason = null): WithdrawalRequest
     {
-        if ($withdrawal->status !== 'pending') {
-            throw new RuntimeException("Withdrawal #{$withdrawal->id} is not pending (status: {$withdrawal->status}).");
-        }
+        $this->guardPending($withdrawal);
 
         DB::transaction(function () use ($withdrawal) {
-            $wallet = Wallet::query()->where('user_id', $withdrawal->user_id)->lockForUpdate()->first();
+            // Re-checked under a lock (item 44): two admins clicking Reject
+            // at once used to refund twice, and a Reject racing a Mark Paid
+            // could leave a withdrawal both paid AND refunded.
+            $this->guardPending(WithdrawalRequest::query()->whereKey($withdrawal->id)->lockForUpdate()->firstOrFail());
+
+            $wallet = Wallet::query()->where('user_id', $withdrawal->user_id)->lockForUpdate()->first()
+                ?? Wallet::create(['user_id' => $withdrawal->user_id, 'wallet_balance' => 0, 'earnings_balance' => 0]);
             $refund = (float) $withdrawal->amount_to_send + (float) $withdrawal->fee_amount;
 
             $wallet->earnings_balance = (float) $wallet->earnings_balance + $refund;
@@ -227,6 +232,14 @@ class WithdrawalService
         $withdrawal->user->notify(new WithdrawalProcessed($withdrawal, 'rejected', $reason));
 
         return $withdrawal;
+    }
+
+    /** @throws RuntimeException if the request isn't pending */
+    private function guardPending(WithdrawalRequest $withdrawal): void
+    {
+        if ($withdrawal->status !== 'pending') {
+            throw new RuntimeException("Withdrawal #{$withdrawal->id} is not pending (status: {$withdrawal->status}).");
+        }
     }
 
     /**
