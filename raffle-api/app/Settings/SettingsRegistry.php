@@ -50,6 +50,16 @@ final class SettingsRegistry
             'On / off' => [
                 'icon' => 'heroicon-o-power',
                 'sections' => [
+                    'Maintenance mode' => [
+                        'description' => 'Take the customer site offline for a while — customers see a friendly "back soon" page with a countdown. You and other staff can still use the site and this admin, and payments already made are still credited. Switch it on now, or schedule a start time; it switches itself off at the "back at" time.',
+                        'settings' => [
+                            new Setting('site.maintenance.enabled', 'Maintenance mode on now', 'bool'),
+                            new Setting('site.maintenance.starts_at', 'Or start automatically at', 'datetime', 'For planned work. Leave empty if you switched it on above.'),
+                            new Setting('site.maintenance.back_at', 'Back at (switches off by itself)', 'datetime', 'Shown to customers as a countdown. Leave empty to switch it off by hand.'),
+                            new Setting('site.maintenance.warn_hours', 'Warn customers this many hours before a planned start', 'int', 'A banner on every page. 0 = no warning.', rules: ['required', 'integer', 'min:0', 'max:168']),
+                            new Setting('site.maintenance.message', 'Message on the maintenance page', 'textarea', rules: ['required', 'max:300']),
+                        ],
+                    ],
                     'Pause parts of the site' => [
                         'description' => 'Switch something off instantly — during a problem, maintenance or a payment-provider outage — and back on when ready. Customers see the message below instead. Admin screens keep working.',
                         'settings' => [
@@ -261,11 +271,14 @@ final class SettingsRegistry
             'Security' => [
                 'icon' => 'heroicon-o-shield-check',
                 'sections' => [
-                    'Bot protection on sign-up (Cloudflare Turnstile)' => [
-                        'description' => 'Stops robots creating fake accounts. Cloudflare dashboard → Turnstile → Add site. Leave both empty to switch it off.',
+                    'Bot protection (Cloudflare Turnstile)' => [
+                        'description' => 'A quick "are you human?" check that stops robots creating fake accounts or guessing passwords. Get both keys free at dash.cloudflare.com → Turnstile → Add widget (add your site\'s domain). The check only switches on when BOTH keys are filled in.',
                         'settings' => [
-                            new Setting('services.turnstile.site_key', 'Site key', 'text'),
-                            new Setting('services.turnstile.secret_key', 'Secret key', 'secret'),
+                            new Setting('services.turnstile.site_key', 'Site key (public)', 'text', 'Shown in the page — safe to be public.', placeholder: '0x4AAAAAAA...'),
+                            new Setting('services.turnstile.secret_key', 'Secret key (private)', 'secret', 'Used by the server to confirm each check. Never shown to anyone.', placeholder: '0x4AAAAAAA...'),
+                            new Setting('services.turnstile.forms.register', 'Check on sign-up', 'bool'),
+                            new Setting('services.turnstile.forms.login', 'Check on log-in', 'bool', 'Stops password-guessing robots.'),
+                            new Setting('services.turnstile.forms.forgot_password', 'Check on "forgot password"', 'bool', 'Stops robots flooding customers with reset codes.'),
                         ],
                     ],
                     'Live-draw chat' => [

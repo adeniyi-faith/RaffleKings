@@ -4,8 +4,10 @@ namespace App\Http\Controllers\Api\Auth;
 
 use App\Http\Controllers\Controller;
 use App\Services\Auth\PasswordResetService;
+use App\Services\Auth\TurnstileVerifier;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Illuminate\Validation\ValidationException;
 
 class PasswordResetController extends Controller
 {
@@ -13,7 +15,15 @@ class PasswordResetController extends Controller
 
     public function requestCode(Request $request): JsonResponse
     {
-        $data = $request->validate(['email' => ['required', 'email']]);
+        $turnstile = app(TurnstileVerifier::class);
+        $data = $request->validate([
+            'email' => ['required', 'email'],
+            'turnstile_token' => [$turnstile->enabled('forgot_password') ? 'required' : 'nullable', 'string'],
+        ]);
+
+        if (! $turnstile->verify($data['turnstile_token'] ?? null, $request->ip(), 'forgot_password')) {
+            throw ValidationException::withMessages(['turnstile_token' => 'Please complete the security check and try again.']);
+        }
 
         // Deliberately doesn't reveal whether the email has an account —
         // see PasswordResetService's docblock (a fix over the legacy

@@ -2,6 +2,8 @@ import { useState } from 'react';
 import { Head, router } from '@inertiajs/react';
 import { AlertCircle, ArrowRight, Eye, EyeOff, Lock, Mail, Zap } from 'lucide-react';
 import { apiPost } from '../../lib/api';
+import { useSite } from '../../lib/site';
+import Turnstile from '../../Components/Turnstile';
 import { safeRedirect } from '../../lib/safeRedirect';
 
 // Matches the legacy login.php page's design exactly (same layout, spacing,
@@ -15,6 +17,10 @@ export default function Login({ redirect }) {
     const [error, setError] = useState(null);
     const [submitting, setSubmitting] = useState(false);
     const [showPassword, setShowPassword] = useState(false);
+    // Bot check, when switched on for log-in in the admin's Settings → Security.
+    const site = useSite();
+    const turnstileKey = site.turnstile?.forms?.includes('login') ? site.turnstile.site_key : null;
+    const [turnstileToken, setTurnstileToken] = useState('');
 
     const update = (field) => (e) => setForm((f) => ({ ...f, [field]: e.target.value }));
 
@@ -24,7 +30,7 @@ export default function Login({ redirect }) {
         setSubmitting(true);
 
         try {
-            await apiPost('/api/auth/login', form);
+            await apiPost('/api/auth/login', { ...form, turnstile_token: turnstileToken || null });
             router.visit(safeRedirect(redirect));
         } catch (err) {
             setError(err.message);
@@ -110,9 +116,12 @@ export default function Login({ redirect }) {
                                 </div>
                             </div>
 
+                            {turnstileKey && (
+                                <Turnstile siteKey={turnstileKey} onToken={setTurnstileToken} onExpire={() => setTurnstileToken('')} />
+                            )}
                             <button
                                 type="submit"
-                                disabled={submitting}
+                                disabled={submitting || (turnstileKey && ! turnstileToken)}
                                 className="mt-4 flex w-full items-center justify-center gap-2 rounded-xl bg-gray-900 py-4 font-bold text-white shadow-lg shadow-gray-900/20 transition-transform active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-50 dark:bg-white dark:text-gray-900 dark:shadow-none"
                             >
                                 {submitting ? (
