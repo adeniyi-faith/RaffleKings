@@ -39,6 +39,17 @@ class TransactionMonitorService
 {
     private const REVOCABLE_BALANCE_TYPES = ['wallet_deposit', 'wallet_payment', 'deposit_manual'];
 
+    /**
+     * Ticket purchases paid from a balance (item 45): reversing one
+     * cancels the tickets AND gives the money back to where it came from.
+     * These used to fall through to "delete the tickets" only, so the
+     * customer lost both the tickets and the money.
+     */
+    private const REFUNDABLE_PURCHASE_TYPES = [
+        'ticket_purchase_wallet' => 'wallet',
+        'ticket_purchase_earnings' => 'earnings',
+    ];
+
     public function __construct(
         private readonly WalletLedgerService $ledger,
         private readonly AdminAuditLogService $auditLog,
@@ -68,15 +79,23 @@ class TransactionMonitorService
      */
     public function revoke(WpUser $admin, RaffleTransaction $transaction, ?string $reason = null): RaffleTransaction
     {
-        if ($transaction->status !== 'verified_final') {
-            throw new RuntimeException("Transaction #{$transaction->id} is not verified (status: {$transaction->status}), nothing to revoke.");
-        }
+        $this->guardRevocable($transaction);
 
         $reversedBonus = 0.0;
+        $refunded = 0.0;
 
-        DB::transaction(function () use ($transaction, &$reversedBonus) {
+        DB::transaction(function () use ($transaction, &$reversedBonus, &$refunded) {
+            // Re-checked under a lock (item 45) so two clicks can't reverse
+            // the same transaction twice.
+            $this->guardRevocable(RaffleTransaction::query()->whereKey($transaction->id)->lockForUpdate()->firstOrFail());
+
             if (in_array($transaction->type, self::REVOCABLE_BALANCE_TYPES, true)) {
                 $this->debitBalance($transaction->user_id, 'wallet', (float) $transaction->claimed_amount, 'transaction_revoked', $transaction);
+            }
+
+            if ($source = self::REFUNDABLE_PURCHASE_TYPES[$transaction->type] ?? null) {
+                $refunded = (float) $transaction->claimed_amount;
+                $this->creditBalance($transaction->user_id, $source, $refunded, 'ticket_purchase_refunded', $transaction);
             }
 
             $transaction->update(['status' => 'rejected']);
@@ -100,10 +119,38 @@ class TransactionMonitorService
             'user_id' => $transaction->user_id,
             'amount' => (float) $transaction->claimed_amount,
             'reversed_bonus' => $reversedBonus,
+            'refunded' => $refunded,
             'reason' => $reason,
         ]);
 
         return $transaction->fresh();
+    }
+
+    /** @throws RuntimeException if the transaction isn't currently verified */
+    private function guardRevocable(RaffleTransaction $transaction): void
+    {
+        if ($transaction->status !== 'verified_final') {
+            throw new RuntimeException("Transaction #{$transaction->id} is not verified (status: {$transaction->status}), nothing to revoke.");
+        }
+    }
+
+    private function creditBalance(int $userId, string $balanceType, float $amount, string $reason, RaffleTransaction $transaction): void
+    {
+        $wallet = Wallet::query()->where('user_id', $userId)->lockForUpdate()->first()
+            ?? Wallet::create(['user_id' => $userId, 'wallet_balance' => 0, 'earnings_balance' => 0]);
+
+        $column = $balanceType === 'wallet' ? 'wallet_balance' : 'earnings_balance';
+        $wallet->{$column} = (float) $wallet->{$column} + $amount;
+        $wallet->save();
+
+        $this->ledger->recordCredit(
+            userId: $userId,
+            balanceType: $balanceType,
+            amount: $amount,
+            reason: $reason,
+            referenceType: RaffleTransaction::class,
+            referenceId: (int) $transaction->id,
+        );
     }
 
     private function debitBalance(int $userId, string $balanceType, float $amount, string $reason, RaffleTransaction $transaction): void

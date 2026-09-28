@@ -43,6 +43,7 @@ export default function LiveDrawShow({ raffle }) {
     const [comments, setComments] = useState([]);
     const [reactionCounts, setReactionCounts] = useState({});
     const [commentDraft, setCommentDraft] = useState('');
+    const [chatError, setChatError] = useState(null);
     const [liveConnected, setLiveConnected] = useState(false);
     const [viewerCount, setViewerCount] = useState(null);
     const [flashType, setFlashType] = useState(null);
@@ -86,6 +87,12 @@ export default function LiveDrawShow({ raffle }) {
 
             channel.listen('.comment.posted', (payload) => {
                 setComments((prev) => [...prev, payload].slice(-100));
+            });
+
+            // A moderator removed a message (item 45): it disappears from
+            // every viewer's screen at once.
+            channel.listen('.comment.hidden', (payload) => {
+                setComments((prev) => prev.filter((c) => c.id !== payload.id));
             });
 
             channel.listen('.reaction.posted', (payload) => {
@@ -135,16 +142,27 @@ export default function LiveDrawShow({ raffle }) {
         if (! body) return;
 
         setCommentDraft('');
+        setChatError(null);
 
         try {
-            await fetch(`/api/raffles/${raffle.id}/live-draw/comments`, {
+            const res = await fetch(`/api/raffles/${raffle.id}/live-draw/comments`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
                 credentials: 'same-origin',
                 body: JSON.stringify({ body }),
             });
+
+            // Tell the sender why a message wasn't posted (muted, links or
+            // phone numbers, too fast) and give them their text back —
+            // it used to vanish silently.
+            if (! res.ok) {
+                const data = await res.json().catch(() => ({}));
+                setChatError(res.status === 429 ? 'Slow down a little — try again in a moment.' : data.message || 'Your message wasn\'t sent. Please try again.');
+                setCommentDraft(body);
+            }
         } catch {
-            // best-effort — the input already cleared; a failed post just won't appear
+            setChatError('Your message wasn\'t sent — check your connection and try again.');
+            setCommentDraft(body);
         }
     }
 
@@ -325,12 +343,20 @@ export default function LiveDrawShow({ raffle }) {
                         <div ref={commentsEndRef} />
                     </div>
 
+                    {chatError && (
+                        <p role="alert" className="border-t border-white/5 bg-red-600/15 px-4 py-2 text-[11px] font-medium text-red-200">
+                            {chatError}
+                        </p>
+                    )}
                     <form onSubmit={postComment} className="flex items-center gap-2 border-t border-white/5 p-3">
                         {auth?.user ? (
                             <>
                                 <input
                                     value={commentDraft}
-                                    onChange={(e) => setCommentDraft(e.target.value)}
+                                    onChange={(e) => {
+                                        setCommentDraft(e.target.value);
+                                        setChatError(null);
+                                    }}
                                     maxLength={280}
                                     placeholder="Say something…"
                                     className="flex-1 rounded-full border border-white/10 bg-white/5 px-4 py-2 text-xs text-white placeholder:text-white/30 focus:border-red-600 focus:outline-none"

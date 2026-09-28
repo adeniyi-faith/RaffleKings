@@ -12,6 +12,7 @@ use Filament\Notifications\Notification;
 use Filament\Resources\Resource;
 use Filament\Tables;
 use Filament\Tables\Table;
+use Illuminate\Database\Eloquent\Collection;
 use RuntimeException;
 
 class RaffleResource extends Resource
@@ -175,7 +176,23 @@ class RaffleResource extends Resource
             ])
             ->bulkActions([
                 Tables\Actions\BulkActionGroup::make([
-                    Tables\Actions\DeleteBulkAction::make(),
+                    // Skips (and names) any raffle with tickets or a draw —
+                    // deleting those would orphan real customers' tickets
+                    // and winners (item 45).
+                    Tables\Actions\DeleteBulkAction::make()
+                        ->action(function (Collection $records) {
+                            [$deletable, $kept] = $records->partition(fn (Raffle $r) => $r->canBeDeleted());
+                            $deletable->each->delete();
+
+                            $kept->isEmpty()
+                                ? Notification::make()->title($deletable->count().' raffle(s) deleted.')->success()->send()
+                                : Notification::make()
+                                    ->title($deletable->count().' deleted, '.$kept->count().' kept')
+                                    ->body('Kept because they have tickets or a draw: '.$kept->pluck('title')->implode(', ').'. Close them instead.')
+                                    ->warning()
+                                    ->persistent()
+                                    ->send();
+                        }),
                 ]),
             ]);
     }

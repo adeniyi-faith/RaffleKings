@@ -160,6 +160,22 @@ class Raffle extends Model
         return max(0, $this->max_tickets - $this->soldTickets());
     }
 
+    /** Its draw has run (winners generated) — see ProvablyFairDrawService. */
+    public function isDrawn(): bool
+    {
+        return RaffleDraw::query()->where('raffle_id', $this->id)->whereNotNull('executed_at')->exists();
+    }
+
+    /**
+     * Only a raffle nobody has bought into, and that was never drawn, can
+     * be deleted (item 45): deleting one with tickets would orphan real
+     * customers' tickets, payments and any winners.
+     */
+    public function canBeDeleted(): bool
+    {
+        return $this->soldTickets() === 0 && ! RaffleDraw::query()->where('raffle_id', $this->id)->exists();
+    }
+
     /** True if a ticket genuinely cannot be sold right now — see closedReason(). */
     public function isClosed(): bool
     {
