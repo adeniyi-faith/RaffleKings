@@ -6,11 +6,21 @@ use App\Models\Legacy\RaffleEntry;
 use App\Models\Wallet;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Tests\Support\AuthenticatesWithWordPressCookie;
+use Tests\Support\CreatesRaffles;
 use Tests\TestCase;
 
 class TicketPurchaseControllerTest extends TestCase
 {
-    use AuthenticatesWithWordPressCookie, RefreshDatabase;
+    use AuthenticatesWithWordPressCookie, CreatesRaffles, RefreshDatabase;
+
+    protected function setUp(): void
+    {
+        parent::setUp();
+
+        // The raffles these tests buy from: ₦100 a ticket, numbers 1-100.
+        $this->createRaffle(['public_id' => 5, 'price' => '100', 'max' => '100']);
+        $this->createRaffle(['public_id' => 7, 'price' => '100', 'max' => '100']);
+    }
 
     public function test_an_authenticated_user_can_purchase_tickets_from_their_wallet(): void
     {

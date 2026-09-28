@@ -86,10 +86,10 @@ class LegacyRedirectController extends Controller
             return redirect('/raffles/'.$request->query('id'), 301);
         }
 
-        // livedraw.php?id= used the WordPress raffle id; the new live-draw
-        // page uses the native raffle id, so translate it when we can.
+        // livedraw.php?id= used the WordPress raffle id (which is the
+        // raffle's public number); the live-draw page uses the native id.
         if ($old === 'livedraw' && ctype_digit((string) $request->query('id'))) {
-            $nativeId = Raffle::query()->where('legacy_post_id', (int) $request->query('id'))->value('id');
+            $nativeId = Raffle::query()->where('public_id', (int) $request->query('id'))->value('id');
 
             if ($nativeId) {
                 return redirect("/raffles/{$nativeId}/live-draw", 301);

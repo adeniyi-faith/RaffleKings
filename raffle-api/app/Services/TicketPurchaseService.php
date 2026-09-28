@@ -4,6 +4,7 @@ namespace App\Services;
 
 use App\Events\RaffleTicketsUpdated;
 use App\Exceptions\InsufficientBalanceException;
+use App\Exceptions\RaffleNotOnSaleException;
 use App\Exceptions\TicketUnavailableException;
 use App\Models\Legacy\RaffleEntry;
 use App\Models\Legacy\RaffleTransaction;
@@ -61,7 +62,8 @@ class TicketPurchaseService
      *
      * @throws InsufficientBalanceException
      * @throws TicketUnavailableException
-     * @throws InvalidArgumentException if the submitted amount doesn't match the server-calculated price
+     * @throws RaffleNotOnSaleException if the raffle is unknown, a draft, closed, ended or sold out
+     * @throws InvalidArgumentException if the price changed, the submitted amount is wrong, or a ticket number is invalid
      */
     public function purchaseFromBalance(
         WpUser $user,
@@ -90,6 +92,40 @@ class TicketPurchaseService
 
         if ($existing) {
             return $existing;
+        }
+
+        // Everything below is checked against the raffle's REAL record,
+        // never trusted from the request (OVERHAUL_CHECKLIST.md item 43):
+        // the unit price and Golden Box flag used to come straight from
+        // the customer's browser, so anyone could pay ₦0.01 a ticket or
+        // award themselves the Golden Box discount; closed, ended and
+        // unknown raffles weren't refused at all; and ticket numbers
+        // weren't checked against the raffle's range.
+        $raffle = $this->raffles->find($raffleId);
+
+        if (! $raffle || $raffle['is_closed']) {
+            throw new RaffleNotOnSaleException($raffle['closed_reason'] ?? null);
+        }
+
+        if (abs($unitPrice - $raffle['price']) > 0.001) {
+            throw new InvalidArgumentException('The ticket price for this raffle has changed. Please go back and review your order before paying.');
+        }
+
+        $unitPrice = (float) $raffle['price'];
+
+        // No page offers the Golden Box discount and nothing records who is
+        // entitled to it, so it can't be self-awarded (item 46 decides
+        // whether it comes back, with a real entitlement check).
+        $isGoldenBox = false;
+
+        if (count(array_unique($ticketNumbers)) !== count($ticketNumbers)) {
+            throw new InvalidArgumentException('The same ticket number was picked twice. Please review your numbers.');
+        }
+
+        $outOfRange = array_values(array_filter($ticketNumbers, fn (int $n) => $n < 1 || $n > $raffle['max_tickets']));
+
+        if ($outOfRange !== []) {
+            throw new InvalidArgumentException('Ticket numbers must be between 1 and '.$raffle['max_tickets'].'.');
         }
 
         if (! $this->pricing->matchesExpectedPrice($submittedAmount, count($ticketNumbers), $unitPrice, $isGoldenBox)) {

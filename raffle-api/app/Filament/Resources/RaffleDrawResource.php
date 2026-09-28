@@ -74,13 +74,10 @@ class RaffleDrawResource extends Resource
         return RaffleDraw::query()->where('raffle_id', $raffle->id)->first();
     }
 
-    /** Still selling tickets: published, not sold out, last day not passed (Lagos time). */
+    /** Still selling tickets — the same single rule the site and checkout use (Raffle::closedReason(), item 43). */
     private static function stillOnSale(Raffle $raffle): bool
     {
-        $lastDayPassed = $raffle->expiry !== null
-            && $raffle->expiry->toDateString() < now('Africa/Lagos')->toDateString();
-
-        return $raffle->status === 'published' && $raffle->remainingTickets() > 0 && ! $lastDayPassed;
+        return $raffle->closedReason() === null;
     }
 
     private static function stage(Raffle $raffle): string

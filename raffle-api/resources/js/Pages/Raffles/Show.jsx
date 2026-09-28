@@ -21,13 +21,27 @@ export default function RaffleShow({ raffle }) {
     const { quote: bulkQuote } = useTicketPriceQuote(raffle.id, bulkQty);
     const activeQuote = quotes[selectedQty] || (selectedQty === bulkQty ? bulkQuote : null);
 
-    const timeLeft = useCountdown(raffle.expiry);
+    // Counts down to the exact moment sales stop (end of the expiry day,
+    // Lagos time) — counting to the bare date used to show "Closed" a
+    // whole day early.
+    const timeLeft = useCountdown(raffle.ends_at);
 
     // Item 30: a live sold/remaining count and an honest "N viewing"
     // number — replacing the audit's fabricated per-raffle "viewing
     // count" (raffles.php) with a real one, sourced the instant anyone,
     // anywhere, actually buys a ticket for this raffle.
-    const { soldTickets, remainingTickets, isClosed, viewerCount } = useLiveRaffle(raffle.id, raffle, !! auth.user);
+    const { soldTickets, remainingTickets, isClosed: liveClosed, viewerCount } = useLiveRaffle(raffle.id, raffle, !! auth.user);
+    // Closes on screen the moment the countdown runs out or the last
+    // ticket sells, without a reload; the reason shown follows suit.
+    const endedWhileWatching = timeLeft === 'Closed';
+    const isClosed = liveClosed || endedWhileWatching;
+    const closedReason = raffle.is_closed
+        ? raffle.closed_reason
+        : endedWhileWatching
+          ? 'ended'
+          : liveClosed
+            ? 'sold_out'
+            : null;
     const progressPct = raffle.max_tickets > 0 ? Math.min(100, Math.round((soldTickets / raffle.max_tickets) * 100)) : 0;
 
     function handleProceed() {
@@ -91,17 +105,25 @@ export default function RaffleShow({ raffle }) {
                         <p className="mb-1 text-xs font-medium uppercase tracking-wide text-green-100">Grand Prize</p>
                         <h1 className="mb-2 text-3xl font-extrabold leading-tight tracking-tight">{raffle.grand_prize}</h1>
 
-                        <div className="mb-6 inline-flex items-center gap-1.5 rounded-lg border border-green-400/30 bg-green-900/30 px-3 py-1.5 backdrop-blur-sm">
-                            <TrendingUp className="h-3 w-3 text-green-300" />
-                            <span className="text-xs text-green-100">
-                                More Tickets = <span className="font-bold text-white">More Wins</span>
-                            </span>
-                        </div>
+                        {isClosed ? (
+                            <div className="mb-6 inline-flex items-center gap-1.5 rounded-lg border border-white/20 bg-black/20 px-3 py-1.5 backdrop-blur-sm">
+                                <span className="text-xs text-gray-200">
+                                    {closedReason === 'sold_out' ? 'Every ticket was claimed' : closedReason === 'ended' ? 'Ticket sales have finished' : 'No longer taking entries'}
+                                </span>
+                            </div>
+                        ) : (
+                            <div className="mb-6 inline-flex items-center gap-1.5 rounded-lg border border-green-400/30 bg-green-900/30 px-3 py-1.5 backdrop-blur-sm">
+                                <TrendingUp className="h-3 w-3 text-green-300" />
+                                <span className="text-xs text-green-100">
+                                    More Tickets = <span className="font-bold text-white">More Wins</span>
+                                </span>
+                            </div>
+                        )}
 
                         <div className="mb-2 h-2 w-full overflow-hidden rounded-full bg-black/20">
                             <div
                                 className="h-full rounded-full bg-yellow-400 shadow-[0_0_10px_rgba(250,204,21,0.6)] transition-all duration-500"
-                                style={{ width: `${isClosed ? 100 : progressPct}%` }}
+                                style={{ width: `${progressPct}%` }}
                             />
                         </div>
                         <div className="flex justify-between text-[10px] font-medium text-green-100 opacity-90">
@@ -139,12 +161,14 @@ export default function RaffleShow({ raffle }) {
                             </div>
                         )}
 
+{! isClosed && (
                         <div className="mt-2 flex items-start gap-3 rounded-xl border border-blue-100 bg-blue-50 p-3 dark:border-blue-900/30 dark:bg-blue-900/20">
                             <Zap className="mt-0.5 h-4 w-4 flex-shrink-0 text-blue-600 dark:text-blue-400" />
                             <p className="text-xs leading-relaxed text-blue-800 dark:text-blue-300">
                                 <strong>Increase your odds:</strong> more tickets means more chances to win. Lock in your bundle now!
                             </p>
                         </div>
+                        )}
                     </Card>
                 </section>
 
@@ -153,10 +177,31 @@ export default function RaffleShow({ raffle }) {
                         <div className="mx-auto mb-5 flex h-20 w-20 items-center justify-center rounded-full border-4 border-gray-50 bg-gray-100 shadow-inner dark:border-gray-800 dark:bg-dark-card">
                             <Lock className="h-10 w-10 text-gray-400 dark:text-gray-500" />
                         </div>
-                        <h3 className="mb-2 text-2xl font-black text-gray-900 dark:text-white">Raffle Closed</h3>
-                        <p className="text-sm text-gray-500 dark:text-gray-400">
-                            All tickets for this raffle have been claimed.
+                        <h3 className="mb-2 text-2xl font-black text-gray-900 dark:text-white">
+                            {closedReason === 'sold_out' ? 'Sold Out' : closedReason === 'ended' ? 'Raffle Ended' : 'Raffle Closed'}
+                        </h3>
+                        <p className="mx-auto mb-6 max-w-xs text-sm text-gray-500 dark:text-gray-400">
+                            {closedReason === 'sold_out'
+                                ? 'Every ticket for this raffle has been claimed.'
+                                : closedReason === 'ended'
+                                  ? 'Ticket sales for this raffle have finished.'
+                                  : 'This raffle is no longer taking entries.'}{' '}
+                            Winners appear in the Hall of Fame once the draw is done.
                         </p>
+                        <div className="mx-auto flex max-w-xs flex-col gap-3">
+                            <Link
+                                href="/hall-of-fame"
+                                className="rounded-xl bg-app-primary py-3.5 text-sm font-bold text-white shadow-lg shadow-blue-500/30 transition-transform active:scale-[0.98]"
+                            >
+                                See the winners
+                            </Link>
+                            <Link
+                                href="/raffles"
+                                className="rounded-xl border border-gray-200 py-3.5 text-sm font-bold text-gray-700 transition-transform active:scale-[0.98] dark:border-gray-700 dark:text-gray-200"
+                            >
+                                Browse open raffles
+                            </Link>
+                        </div>
                     </section>
                 ) : (
                     <section className="px-5 py-4">

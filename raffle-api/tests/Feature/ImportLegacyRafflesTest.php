@@ -121,15 +121,62 @@ class ImportLegacyRafflesTest extends TestCase
         $this->assertSame(2, Raffle::where('legacy_post_id', $post->ID)->first()->prizeTiers()->count());
     }
 
-    public function test_an_edited_legacy_raffle_reimports_with_updated_values(): void
+    public function test_refresh_reimports_an_edited_legacy_raffle_with_updated_values(): void
     {
         $post = $this->makeLegacyRaffleWithPrizes();
         $this->artisan('legacy:import-raffles')->assertSuccessful();
 
         WpPostMeta::where('post_id', $post->ID)->where('meta_key', 'price')->update(['meta_value' => '2500']);
 
-        $this->artisan('legacy:import-raffles')->assertSuccessful();
+        $this->artisan('legacy:import-raffles --refresh')->assertSuccessful();
 
         $this->assertEquals(2500, Raffle::where('legacy_post_id', $post->ID)->value('price'));
+    }
+
+    public function test_a_normal_rerun_never_overwrites_edits_made_in_the_admin(): void
+    {
+        // Item 43: the native table is now the only source, so the deploy
+        // runs this on every release — it must never undo an admin's edit.
+        $post = $this->makeLegacyRaffleWithPrizes();
+        $this->artisan('legacy:import-raffles')->assertSuccessful();
+        $raffle = Raffle::where('legacy_post_id', $post->ID)->first();
+        $raffle->update(['price' => 750, 'title' => 'Edited in admin']);
+        $tierIds = $raffle->prizeTiers()->pluck('id')->all();
+
+        $this->artisan('legacy:import-raffles')->assertSuccessful();
+
+        $raffle->refresh();
+        $this->assertEquals(750, $raffle->price);
+        $this->assertSame('Edited in admin', $raffle->title);
+        $this->assertSame($tierIds, $raffle->prizeTiers()->pluck('id')->all());
+    }
+
+    public function test_an_imported_raffle_keeps_its_wordpress_id_as_its_public_number_and_publish_date(): void
+    {
+        $post = $this->makeLegacyRaffleWithPrizes();
+        $post->update(['post_date' => '2026-01-15 10:00:00']);
+        WpPostMeta::create(['post_id' => $post->ID, 'meta_key' => 'prize_type', 'meta_value' => 'gadgets']);
+        WpPostMeta::create(['post_id' => $post->ID, 'meta_key' => 'prize_list', 'meta_value' => '2nd: ₦50,000']);
+
+        $this->artisan('legacy:import-raffles')->assertSuccessful();
+
+        $raffle = Raffle::where('legacy_post_id', $post->ID)->first();
+        $this->assertSame($post->ID, $raffle->public_id);
+        $this->assertSame('gadgets', $raffle->prize_type);
+        $this->assertSame('2nd: ₦50,000', $raffle->prize_list);
+        $this->assertSame('2026-01-15', $raffle->created_at->toDateString());
+    }
+
+    public function test_a_raffle_imported_before_item_43_gets_its_blank_new_fields_filled_in(): void
+    {
+        $post = $this->makeLegacyRaffleWithPrizes();
+        WpPostMeta::create(['post_id' => $post->ID, 'meta_key' => 'prize_type', 'meta_value' => 'cash']);
+        Raffle::create(['legacy_post_id' => $post->ID, 'title' => 'Old copy', 'price' => 1000, 'max_tickets' => 50, 'status' => 'published']);
+
+        $this->artisan('legacy:import-raffles')->assertSuccessful();
+
+        $raffle = Raffle::where('legacy_post_id', $post->ID)->first();
+        $this->assertSame('cash', $raffle->prize_type);
+        $this->assertSame('Old copy', $raffle->title); // everything else untouched
     }
 }

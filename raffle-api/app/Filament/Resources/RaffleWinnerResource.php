@@ -72,17 +72,16 @@ class RaffleWinnerResource extends Resource
     }
 
     /**
-     * Winner rows store the raffle's legacy number (its WordPress post id,
-     * or its own id for a raffle created natively).
+     * Winner rows store the raffle's permanent public number (item 43),
+     * which for an old raffle is its WordPress post id — so a raffle not
+     * yet in the native table still gets its old title.
      *
      * @return array<int, string>
      */
     private static function raffleTitles(): array
     {
         if (static::$raffleTitles === null) {
-            $native = Raffle::query()->get(['id', 'legacy_post_id', 'title'])
-                ->mapWithKeys(fn (Raffle $r) => [($r->legacy_post_id ?? $r->id) => $r->title])
-                ->all();
+            $native = Raffle::query()->pluck('title', 'public_id')->all();
             $legacy = WpPost::query()->where('post_type', 'raffle')->pluck('post_title', 'ID')->all();
 
             static::$raffleTitles = $native + $legacy;

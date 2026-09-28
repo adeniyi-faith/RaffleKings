@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\Api;
 
 use App\Exceptions\InsufficientBalanceException;
+use App\Exceptions\RaffleNotOnSaleException;
 use App\Exceptions\TicketUnavailableException;
 use App\Http\Controllers\Controller;
 use App\Http\Requests\PurchaseTicketsRequest;
@@ -55,6 +56,11 @@ class TicketPurchaseController extends Controller
             return response()->json([
                 'message' => $e->getMessage(),
                 'unavailable_numbers' => $e->unavailableNumbers,
+            ], 409);
+        } catch (RaffleNotOnSaleException $e) {
+            return response()->json([
+                'message' => $e->getMessage(),
+                'closed_reason' => $e->reason,
             ], 409);
         } catch (InvalidArgumentException $e) {
             return response()->json(['message' => $e->getMessage()], 422);
