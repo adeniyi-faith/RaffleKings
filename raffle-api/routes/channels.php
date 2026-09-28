@@ -1,6 +1,5 @@
 <?php
 
-use App\Models\Legacy\WpPost;
 use App\Models\Legacy\WpUser;
 use App\Models\Raffle;
 use Illuminate\Support\Facades\Broadcast;
@@ -48,12 +47,12 @@ Broadcast::channel('live-draw-presence.{raffleId}', function (WpUser $user, int 
  * pages — same reasoning and same limitation as live-draw-presence
  * above (only a logged-in viewer is counted; a guest still sees the
  * live ticket-count updates over the public `raffle.{id}` channel
- * either way). {raffleId} here is the legacy wp_posts id
- * RaffleReadService/RaffleController already key raffles by, not the
- * native App\Models\Raffle id live-draw-presence uses above.
+ * either way). {raffleId} here is the raffle's public number
+ * (Raffle::public_id) that RaffleReadService/RaffleController key raffles
+ * by, not the native App\Models\Raffle id live-draw-presence uses above.
  */
 Broadcast::channel('raffle-presence.{raffleId}', function (WpUser $user, int $raffleId) {
-    if (! WpPost::query()->raffles()->whereKey($raffleId)->exists()) {
+    if (! Raffle::query()->publiclyVisible()->where('public_id', $raffleId)->exists()) {
         return false;
     }
 

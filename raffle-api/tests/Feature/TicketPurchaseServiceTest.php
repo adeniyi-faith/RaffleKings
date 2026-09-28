@@ -4,11 +4,10 @@ namespace Tests\Feature;
 
 use App\Events\RaffleTicketsUpdated;
 use App\Exceptions\InsufficientBalanceException;
+use App\Exceptions\RaffleNotOnSaleException;
 use App\Exceptions\TicketUnavailableException;
 use App\Models\Legacy\RaffleEntry;
 use App\Models\Legacy\RaffleTransaction;
-use App\Models\Legacy\WpPost;
-use App\Models\Legacy\WpPostMeta;
 use App\Models\Legacy\WpUser;
 use App\Models\Wallet;
 use App\Models\WalletLedgerEntry;
@@ -19,11 +18,12 @@ use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Event;
 use Illuminate\Support\Facades\Notification;
 use InvalidArgumentException;
+use Tests\Support\CreatesRaffles;
 use Tests\TestCase;
 
 class TicketPurchaseServiceTest extends TestCase
 {
-    use RefreshDatabase;
+    use CreatesRaffles, RefreshDatabase;
 
     private TicketPurchaseService $service;
 
@@ -32,6 +32,10 @@ class TicketPurchaseServiceTest extends TestCase
         parent::setUp();
 
         $this->service = app(TicketPurchaseService::class);
+
+        // The raffles these tests buy from: ₦100 a ticket, numbers 1-100.
+        $this->createRaffle(['public_id' => 5, 'price' => '100', 'max' => '100']);
+        $this->createRaffle(['public_id' => 9, 'price' => '100', 'max' => '100']);
     }
 
     private function makeUserWithWallet(float $walletBalance = 1000, float $earningsBalance = 0): WpUser
@@ -269,12 +273,11 @@ class TicketPurchaseServiceTest extends TestCase
         Event::fake([RaffleTicketsUpdated::class]);
         $user = $this->makeUserWithWallet(walletBalance: 1000);
 
-        $raffle = WpPost::create(['post_title' => 'Live Raffle', 'post_type' => 'raffle', 'post_status' => 'publish', 'post_date' => now()]);
-        WpPostMeta::create(['post_id' => $raffle->ID, 'meta_key' => 'max', 'meta_value' => '10']);
+        $raffle = $this->createRaffle(['title' => 'Live Raffle', 'price' => '100', 'max' => '10']);
 
         $this->service->purchaseFromBalance(
             user: $user,
-            raffleId: $raffle->ID,
+            raffleId: $raffle->public_id,
             ticketNumbers: [1],
             unitPrice: 100,
             isGoldenBox: false,
@@ -284,29 +287,35 @@ class TicketPurchaseServiceTest extends TestCase
         );
 
         Event::assertDispatched(RaffleTicketsUpdated::class, function (RaffleTicketsUpdated $event) use ($raffle) {
-            return $event->raffleId === $raffle->ID
+            return $event->raffleId === $raffle->public_id
                 && $event->soldTickets === 1
                 && $event->remainingTickets === 9
                 && $event->isClosed === false;
         });
     }
 
-    public function test_a_purchase_against_an_untracked_raffle_id_does_not_broadcast(): void
+    public function test_a_purchase_against_an_unknown_raffle_is_refused_with_nothing_charged(): void
     {
         Event::fake([RaffleTicketsUpdated::class]);
         $user = $this->makeUserWithWallet(walletBalance: 1000);
 
-        $this->service->purchaseFromBalance(
-            user: $user,
-            raffleId: 999999,
-            ticketNumbers: [1],
-            unitPrice: 100,
-            isGoldenBox: false,
-            submittedAmount: 100,
-            fundingSource: 'wallet',
-            idempotencyKey: 'idem-no-raffle',
-        );
+        try {
+            $this->service->purchaseFromBalance(
+                user: $user,
+                raffleId: 999999,
+                ticketNumbers: [1],
+                unitPrice: 100,
+                isGoldenBox: false,
+                submittedAmount: 100,
+                fundingSource: 'wallet',
+                idempotencyKey: 'idem-no-raffle',
+            );
+            $this->fail('A purchase against an unknown raffle must be refused.');
+        } catch (RaffleNotOnSaleException) {
+        }
 
+        $this->assertEquals(1000, Wallet::where('user_id', $user->ID)->value('wallet_balance'));
+        $this->assertSame(0, RaffleEntry::where('raffle_id', 999999)->count());
         Event::assertNotDispatched(RaffleTicketsUpdated::class);
     }
 

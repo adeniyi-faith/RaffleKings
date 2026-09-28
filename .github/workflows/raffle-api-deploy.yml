@@ -346,6 +346,13 @@ jobs:
             set -e
             cd ${{ env.DEPLOY_PATH }}
             php artisan migrate --force
+            # The public site reads raffles only from the native raffles
+            # table (OVERHAUL_CHECKLIST.md item 43), so any WordPress raffle
+            # not copied across yet must be before the site serves pages
+            # from it. Add-only: never touches a raffle already imported
+            # (except filling fields that are still blank), so admin edits
+            # are safe, and it's a no-op once everything is across.
+            php artisan legacy:import-raffles
             # Makes public/storage a symlink to storage/app/public, so
             # anything saved to the "public" disk (avatar uploads --
             # ProfileController::uploadAvatar) is actually reachable over

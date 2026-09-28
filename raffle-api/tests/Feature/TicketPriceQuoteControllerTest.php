@@ -2,35 +2,26 @@
 
 namespace Tests\Feature;
 
-use App\Models\Legacy\WpPost;
-use App\Models\Legacy\WpPostMeta;
+use App\Models\Raffle;
 use App\Services\TicketPricingService;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Tests\Support\CreatesRaffles;
 use Tests\TestCase;
 
 class TicketPriceQuoteControllerTest extends TestCase
 {
-    use RefreshDatabase;
+    use CreatesRaffles, RefreshDatabase;
 
-    private function makeRaffle(string $price): WpPost
+    private function makeRaffle(string $price): Raffle
     {
-        $post = WpPost::create([
-            'post_title' => 'iPhone 15 Pro Max Giveaway',
-            'post_type' => 'raffle',
-            'post_status' => 'publish',
-            'post_date' => now(),
-        ]);
-
-        WpPostMeta::create(['post_id' => $post->ID, 'meta_key' => 'price', 'meta_value' => $price]);
-
-        return $post;
+        return $this->createRaffle(['price' => $price]);
     }
 
     public function test_it_returns_the_server_computed_price_for_a_quantity(): void
     {
         $raffle = $this->makeRaffle('500');
 
-        $response = $this->getJson("/api/raffles/{$raffle->ID}/price-quote?quantity=3");
+        $response = $this->getJson("/api/raffles/{$raffle->public_id}/price-quote?quantity=3");
 
         $response->assertOk();
         $response->assertJson([
@@ -46,7 +37,7 @@ class TicketPriceQuoteControllerTest extends TestCase
     {
         $raffle = $this->makeRaffle('1000');
 
-        $response = $this->getJson("/api/raffles/{$raffle->ID}/price-quote?quantity=10");
+        $response = $this->getJson("/api/raffles/{$raffle->public_id}/price-quote?quantity=10");
 
         $response->assertOk()->assertJson([
             'discounted' => app(TicketPricingService::class)->calculate(10, 1000.0),
@@ -62,8 +53,8 @@ class TicketPriceQuoteControllerTest extends TestCase
     {
         $raffle = $this->makeRaffle('500');
 
-        $this->getJson("/api/raffles/{$raffle->ID}/price-quote")->assertStatus(422);
-        $this->getJson("/api/raffles/{$raffle->ID}/price-quote?quantity=0")->assertStatus(422);
-        $this->getJson("/api/raffles/{$raffle->ID}/price-quote?quantity=-1")->assertStatus(422);
+        $this->getJson("/api/raffles/{$raffle->public_id}/price-quote")->assertStatus(422);
+        $this->getJson("/api/raffles/{$raffle->public_id}/price-quote?quantity=0")->assertStatus(422);
+        $this->getJson("/api/raffles/{$raffle->public_id}/price-quote?quantity=-1")->assertStatus(422);
     }
 }
