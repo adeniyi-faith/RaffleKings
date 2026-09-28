@@ -8,15 +8,18 @@ use App\Http\Requests\InitializeDepositRequest;
 use App\Models\Deposit;
 use App\Models\Legacy\WpUser;
 use App\Services\DepositService;
+use App\Services\Monitoring\ErrorAlerter;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Str;
 
 class DepositController extends Controller
 {
     public function __construct(private readonly DepositService $deposits) {}
 
-    public function store(InitializeDepositRequest $request): JsonResponse
+    public function store(InitializeDepositRequest $request, ErrorAlerter $alerts): JsonResponse
     {
         /** @var WpUser $user */
         $user = $request->user();
@@ -28,7 +31,15 @@ class DepositController extends Controller
                 url('/api/deposits/callback'),
             );
         } catch (PaymentGatewayException $e) {
-            return response()->json(['message' => $e->getMessage()], 502);
+            // The gateway's own error text is technical (it can name
+            // missing settings, e.g. "missing PAYSTACK_SECRET_KEY") — it
+            // goes to the log and the admins, never to the customer.
+            Log::error('Deposit could not be started.', ['user_id' => $user->ID, 'error' => $e->getMessage()]);
+            $alerts->problem('Top-up could not start', [Str::limit($e->getMessage(), 400)]);
+
+            return response()->json([
+                'message' => "We couldn't start your payment right now. Please try again in a few minutes. If it keeps happening, contact support — no money has been taken.",
+            ], 503);
         }
 
         return response()->json($deposit, 201);

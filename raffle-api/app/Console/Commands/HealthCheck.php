@@ -91,7 +91,7 @@ class HealthCheck extends Command
             $mailWorks ? "Sending via '{$mailer}'." : "Set to '{$mailer}' — no email is delivered (password-reset codes, receipts, winner notices).",
         );
 
-        $this->optionalSetting('TELEGRAM_BOT_TOKEN / TELEGRAM_ADMIN_CHAT_IDS', filled(config('services.telegram.bot_token')) && ! empty(config('services.telegram.admin_chat_ids')), 'Admins get no Telegram alerts for new tickets, withdrawals or draws.');
+        $this->optionalSetting('TELEGRAM_BOT_TOKEN / TELEGRAM_ADMIN_CHAT_IDS', filled(config('services.telegram.bot_token')) && ! empty(config('services.telegram.admin_chat_ids')), 'Admins get no Telegram alerts for server errors, new tickets, withdrawals or draws.');
         $this->optionalSetting('ONESIGNAL_APP_ID / ONESIGNAL_API_KEY', filled(config('services.onesignal.app_id')) && filled(config('services.onesignal.api_key')), 'No push notifications are sent.');
         $this->optionalSetting('TURNSTILE_SITE_KEY / TURNSTILE_SECRET_KEY', filled(config('services.turnstile.site_key')) && filled(config('services.turnstile.secret_key')), 'Sign-up has no bot protection.');
         $this->optionalSetting('GEMINI_API_KEY', filled(config('services.gemini.api_key')), 'The admin Daily Audit statement reader is unavailable.');

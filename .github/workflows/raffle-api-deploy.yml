@@ -285,6 +285,11 @@ jobs:
             SESSION_ENCRYPT=false
             SESSION_PATH=/
             SESSION_DOMAIN=null
+            # Login cookies are only ever sent over HTTPS (the site is
+            # HTTPS-only), so they can't leak over an unencrypted
+            # connection. Applies to both the Laravel session cookie and
+            # the WordPress-compatible login cookie (WordPressCookieFactory).
+            SESSION_SECURE_COOKIE=true
 
             BROADCAST_CONNECTION=log
             FILESYSTEM_DISK=local

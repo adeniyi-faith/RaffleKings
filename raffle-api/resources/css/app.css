@@ -49,6 +49,19 @@
     --animate-gradient-x: gradient-x 3s ease infinite;
     --animate-shine: shine 3s infinite;
     --animate-winner-flash: winner-flash 0.5s cubic-bezier(0.16, 1, 0.3, 1);
+    --animate-wiggle: wiggle 2s linear infinite;
+}
+
+/* The legacy 404 page's wiggling emoji (assets/css/404.css), reused on
+   the branded error page (Pages/Error.jsx). */
+@keyframes wiggle {
+    0%, 7% { transform: rotateZ(0); }
+    15% { transform: rotateZ(-15deg); }
+    20% { transform: rotateZ(10deg); }
+    25% { transform: rotateZ(-10deg); }
+    30% { transform: rotateZ(6deg); }
+    35% { transform: rotateZ(-4deg); }
+    40%, 100% { transform: rotateZ(0); }
 }
 
 @keyframes gradient-x {
