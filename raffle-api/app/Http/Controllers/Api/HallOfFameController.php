@@ -39,11 +39,10 @@ class HallOfFameController extends Controller
         $users = WpUser::query()->whereIn('ID', $userIds)->get()->keyBy('ID');
 
         $legacyRaffleIds = $winners->pluck('raffle_id')->unique();
+        // Winner rows store the raffle's permanent public number (item 43).
         $nativeRaffleIdsByLegacyId = Raffle::query()
-            ->whereIn('legacy_post_id', $legacyRaffleIds)
-            ->orWhereIn('id', $legacyRaffleIds)
-            ->get()
-            ->mapWithKeys(fn (Raffle $r) => [($r->legacy_post_id ?? $r->id) => $r->id]);
+            ->whereIn('public_id', $legacyRaffleIds)
+            ->pluck('id', 'public_id');
 
         $formatted = $winners->map(function (RaffleWinner $w) use ($users, $nativeRaffleIdsByLegacyId) {
             $user = $users->get($w->user_id);

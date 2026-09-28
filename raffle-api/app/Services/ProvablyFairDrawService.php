@@ -83,7 +83,7 @@ class ProvablyFairDrawService
      */
     public function runDraw(Raffle $raffle): array
     {
-        $legacyRaffleId = $raffle->legacy_post_id ?? $raffle->id;
+        $legacyRaffleId = $raffle->public_id; // the number every ticket and winner row uses (item 43)
 
         $draw = RaffleDraw::query()->where('raffle_id', $raffle->id)->first();
 
@@ -161,7 +161,7 @@ class ProvablyFairDrawService
             return null;
         }
 
-        $legacyRaffleId = $raffle->legacy_post_id ?? $raffle->id;
+        $legacyRaffleId = $raffle->public_id; // the number every ticket and winner row uses (item 43)
 
         $recomputedPool = $this->eligiblePool($legacyRaffleId, before: $draw->executed_at);
         $recomputedClientSeed = $this->deriveClientSeed($recomputedPool);
