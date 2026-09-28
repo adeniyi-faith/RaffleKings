@@ -3,8 +3,10 @@
 namespace App\Console\Commands;
 
 use App\Models\BankAccount;
+use App\Models\Legacy\WpPost;
 use App\Models\Legacy\WpUserMeta;
 use App\Models\PointLedgerEntry;
+use App\Models\Raffle;
 use App\Models\UserPoints;
 use App\Models\Wallet;
 use App\Models\WalletLedgerEntry;
@@ -47,6 +49,7 @@ class LegacyMigrationStatus extends Command
         $this->reportWallets($limit);
         $this->reportPoints($limit);
         $this->reportBankAccounts();
+        $this->reportRaffles();
 
         return self::SUCCESS;
     }
@@ -87,6 +90,18 @@ class LegacyMigrationStatus extends Command
         $this->info('Bank accounts');
         $this->line("  Customers with saved bank details on the old site: {$withLegacy->count()}");
         $this->line('  Copied: '.($withLegacy->count() - $missing)."   Not copied: {$missing}".($missing > 0 ? '  → run legacy:backfill-wallets' : ''));
+    }
+
+    private function reportRaffles(): void
+    {
+        $posts = WpPost::query()->where('post_type', 'raffle')->pluck('ID');
+        $imported = Raffle::query()->whereIn('legacy_post_id', $posts)->count();
+        $missing = $posts->count() - $imported;
+
+        $this->newLine();
+        $this->info('Raffles');
+        $this->line("  Raffles on the old site: {$posts->count()}");
+        $this->line("  Copied: {$imported}   Not copied: {$missing}".($missing > 0 ? '  → run legacy:import-raffles (the deploy does this automatically)' : ''));
     }
 
     /**
