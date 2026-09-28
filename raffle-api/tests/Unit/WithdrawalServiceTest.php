@@ -17,6 +17,7 @@ use App\Services\WithdrawalService;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Notifications\AnonymousNotifiable;
 use Illuminate\Support\Facades\Notification;
+use RuntimeException;
 use Tests\TestCase;
 
 class WithdrawalServiceTest extends TestCase
@@ -177,7 +178,7 @@ class WithdrawalServiceTest extends TestCase
         $admin = WpUser::create(['user_login' => 'admin'.uniqid(), 'user_pass' => 'x', 'user_email' => uniqid().'@example.com']);
         $this->withdrawals->markPaid($admin, $withdrawal);
 
-        $this->expectException(\RuntimeException::class);
+        $this->expectException(RuntimeException::class);
         $this->withdrawals->markPaid($admin, $withdrawal->fresh());
     }
 
@@ -194,5 +195,43 @@ class WithdrawalServiceTest extends TestCase
         $this->assertSame('rejected', $withdrawal->fresh()->status);
         $this->assertEquals(10000, Wallet::where('user_id', $user->ID)->value('earnings_balance'));
         Notification::assertSentTo($user, WithdrawalProcessed::class);
+    }
+
+    public function test_a_stale_second_click_cannot_refund_a_paid_withdrawal(): void
+    {
+        Notification::fake();
+        [$user, $account] = $this->makeVerifiedUser(10000);
+        $admin = WpUser::create(['user_login' => 'admin'.uniqid(), 'user_pass' => 'x', 'user_email' => uniqid().'@example.com']);
+        $withdrawal = $this->withdrawals->request($user, 3000, $account->id);
+        $staleCopy = WithdrawalRequest::find($withdrawal->id); // a second admin's screen, still showing "pending"
+
+        $this->withdrawals->markPaid($admin, $withdrawal);
+
+        try {
+            $this->withdrawals->reject($admin, $staleCopy, 'second admin');
+            $this->fail('Rejecting an already-paid withdrawal must be refused.');
+        } catch (RuntimeException) {
+        }
+
+        $this->assertSame('paid', $withdrawal->fresh()->status);
+        $this->assertEquals(7000, (float) Wallet::where('user_id', $user->ID)->value('earnings_balance'));
+    }
+
+    public function test_a_withdrawal_can_only_be_refunded_once(): void
+    {
+        Notification::fake();
+        [$user, $account] = $this->makeVerifiedUser(10000);
+        $admin = WpUser::create(['user_login' => 'admin'.uniqid(), 'user_pass' => 'x', 'user_email' => uniqid().'@example.com']);
+        $withdrawal = $this->withdrawals->request($user, 3000, $account->id);
+        $staleCopy = WithdrawalRequest::find($withdrawal->id);
+
+        $this->withdrawals->reject($admin, $withdrawal, 'first');
+
+        try {
+            $this->withdrawals->reject($admin, $staleCopy, 'second');
+        } catch (RuntimeException) {
+        }
+
+        $this->assertEquals(10000, (float) Wallet::where('user_id', $user->ID)->value('earnings_balance'));
     }
 }

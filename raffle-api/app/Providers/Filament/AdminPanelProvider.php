@@ -45,6 +45,9 @@ class AdminPanelProvider extends PanelProvider
             ->colors([
                 'primary' => Color::Amber,
             ])
+            // Busiest daily queues first (item 44): money in/out, then
+            // draws and winners, then the support inbox.
+            ->navigationGroups(['Finance', 'Raffles', 'Support', 'Users', 'System'])
             ->discoverResources(in: app_path('Filament/Resources'), for: 'App\\Filament\\Resources')
             ->discoverPages(in: app_path('Filament/Pages'), for: 'App\\Filament\\Pages')
             ->pages([
