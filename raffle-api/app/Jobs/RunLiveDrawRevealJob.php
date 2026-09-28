@@ -59,7 +59,7 @@ class RunLiveDrawRevealJob implements ShouldQueue
             return;
         }
 
-        $legacyRaffleId = $raffle->legacy_post_id ?? $raffle->id;
+        $legacyRaffleId = $raffle->public_id; // the number every ticket and winner row uses (item 43)
 
         $draw = RaffleDraw::query()->where('raffle_id', $raffle->id)->first();
 

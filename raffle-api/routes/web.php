@@ -82,7 +82,12 @@ Route::get('/raffles/{raffle}/numbers', function (Request $request, int $raffle,
     }
 
     $found = $raffles->find($raffle);
-    abort_if(! $found || $found['is_closed'], 404);
+    abort_if(! $found, 404);
+
+    // Closed, ended or sold out: the raffle page itself explains which.
+    if ($found['is_closed']) {
+        return redirect("/raffles/{$raffle}");
+    }
 
     $qty = max(1, (int) $request->query('qty', 1));
 
@@ -106,6 +111,10 @@ Route::get('/checkout', function (Request $request, RaffleReadService $raffles) 
     $found = $raffles->find($raffleId);
 
     abort_if(! $found, 404);
+
+    if ($found['is_closed']) {
+        return redirect("/raffles/{$raffleId}");
+    }
 
     $qty = max(1, (int) $request->query('qty', 1));
     $numbers = array_values(array_filter(array_map('intval', explode(',', (string) $request->query('numbers', '')))));
