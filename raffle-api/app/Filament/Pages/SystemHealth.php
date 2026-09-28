@@ -98,7 +98,7 @@ class SystemHealth extends Page
     {
         Artisan::call('queue:retry', ['id' => [$uuid]]);
         $this->log('system.job_retried', ['job' => $uuid]);
-        Notification::make()->title('Sent back to the queue — it will run within a minute.')->success()->send();
+        Notification::make()->title('Sent back to the queue. It will run within a minute.')->success()->send();
     }
 
     public function retryAll(): void

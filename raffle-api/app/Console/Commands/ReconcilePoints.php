@@ -105,7 +105,7 @@ class ReconcilePoints extends Command
                         'direction' => 'credit',
                         'amount' => $points,
                         'reason' => 'opening_balance',
-                        'description' => 'Balance carried in from wp_usermeta at ledger adoption time — see legacy:reconcile-points.',
+                        'description' => 'Balance carried over from the old site when the points history started.',
                         'created_at' => now(),
                     ]);
                 }

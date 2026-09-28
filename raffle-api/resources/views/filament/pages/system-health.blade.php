@@ -5,7 +5,7 @@
                 ['Problems', $critical, $critical ? 'danger' : 'success', $critical ? 'Need fixing' : 'None'],
                 ['Warnings', $warnings, $warnings ? 'warning' : 'success', $warnings ? 'Worth a look' : 'None'],
                 ['Background tasks last ran', $lastRun, str_contains($lastRun, 'second') || str_contains($lastRun, '1 minute') ? 'success' : 'danger', 'Should be under a minute'],
-                ['Emails & alerts waiting', $waiting ?? '—', 'gray', ($failed->count() ? $failed->count().' failed' : 'none failed')],
+                ['Emails & alerts waiting', $waiting ?? 'Unknown', 'gray', ($failed->count() ? $failed->count().' failed' : 'none failed')],
             ] as [$label, $value, $color, $hint])
                 <div class="fi-wi-stats-overview-stat rounded-xl bg-white p-4 shadow-sm ring-1 ring-gray-950/5 dark:bg-gray-900 dark:ring-white/10">
                     <p class="text-xs font-medium text-gray-500 dark:text-gray-400">{{ $label }}</p>
@@ -35,7 +35,7 @@
 
         <x-filament::section icon="heroicon-o-envelope-open" :icon-color="$failed->count() ? 'danger' : 'success'">
             <x-slot name="heading">Failed emails & alerts ({{ $failed->count() }})</x-slot>
-            <x-slot name="description">Background jobs that gave up after 3 tries — usually an email the provider refused. Fix the cause (e.g. email settings), then Retry.</x-slot>
+            <x-slot name="description">Background jobs that gave up after 3 tries, usually an email the provider refused. Fix the cause (e.g. email settings), then Retry.</x-slot>
             @if ($failed->count())
                 <x-slot name="headerEnd">
                     <x-filament::button size="sm" color="gray" icon="heroicon-m-arrow-path" wire:click="retryAll" wire:confirm="Retry every failed job now?">Retry all</x-filament::button>

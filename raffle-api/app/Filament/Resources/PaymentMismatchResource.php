@@ -115,7 +115,7 @@ class PaymentMismatchResource extends Resource
                     ->icon('heroicon-o-check-circle')
                     ->color('success')
                     ->requiresConfirmation()
-                    ->modalDescription('Asks the payment gateway again and credits exactly the amount it confirms now — not the amount the customer started with.')
+                    ->modalDescription('Asks the payment gateway again and credits exactly the amount it confirms now, not the amount the customer started with.')
                     ->action(fn (Deposit $record) => static::attempt(function () use ($record) {
                         try {
                             app(DepositMismatchService::class)->creditConfirmedAmount(static::admin(), $record);

@@ -40,7 +40,7 @@ class TelegramChannel
             ]);
 
             if ($response->failed()) {
-                throw new RuntimeException("Telegram alert failed for chat {$chatId}: HTTP {$response->status()} — {$response->body()}");
+                throw new RuntimeException("Telegram alert failed for chat {$chatId}: HTTP {$response->status()}: {$response->body()}");
             }
         }
     }

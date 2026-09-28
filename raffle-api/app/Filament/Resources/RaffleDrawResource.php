@@ -163,7 +163,7 @@ class RaffleDrawResource extends Resource
                         ->limit(14)
                         ->copyable()
                         ->fontFamily('mono')
-                        ->placeholder('—'),
+                        ->placeholder('Not locked yet'),
                 ]),
             ])
             ->filters([
@@ -198,7 +198,7 @@ class RaffleDrawResource extends Resource
                     ->modalDescription(fn (Raffle $record) => (static::stillOnSale($record)
                         ? 'Tickets bought after the draw won\'t take part. Usually you wait until sales finish. '
                         : '')
-                        .'Draws winners from all '.$record->soldTickets().' tickets using the locked seed. This can\'t be undone. Winners start hidden and unpaid — review them in "Winners & payouts".')
+                        .'Draws winners from all '.$record->soldTickets().' tickets using the locked seed. This can\'t be undone. Winners start hidden and unpaid; review them in "Winners & payouts".')
                     ->modalSubmitActionLabel(fn (Raffle $record) => static::stillOnSale($record) ? 'Draw anyway' : 'Generate winners')
                     ->action(fn (Raffle $record) => static::attempt(function () use ($record) {
                         try {

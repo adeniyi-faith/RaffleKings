@@ -67,7 +67,7 @@ class DepositMismatchService
         $verification = $gateway->verify($deposit->reference);
 
         if (! $verification->successful) {
-            throw new RuntimeException("Gateway no longer reports {$deposit->reference} as a successful payment — reject this deposit instead of crediting it.");
+            throw new RuntimeException("Gateway no longer reports {$deposit->reference} as a successful payment. Reject this deposit instead of crediting it.");
         }
 
         $confirmedAmount = round($verification->amount, 2);
@@ -91,7 +91,7 @@ class DepositMismatchService
                 reason: 'deposit',
                 referenceType: Deposit::class,
                 referenceId: $deposit->id,
-                description: "Deposit via {$deposit->gateway} (admin-resolved amount mismatch — credited the gateway-confirmed amount, not the originally-expected one)",
+                description: "Deposit via {$deposit->gateway} (admin-resolved amount mismatch: credited the gateway-confirmed amount, not the originally expected one)",
             );
 
             $deposit->update([

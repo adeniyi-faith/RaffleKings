@@ -102,7 +102,7 @@ class CreateBroadcast extends CreateRecord
 
     protected function getCreatedNotificationTitle(): ?string
     {
-        return 'Sending — it will reach everyone within a few minutes.';
+        return 'Sending. It will reach everyone within a few minutes.';
     }
 
     protected function getRedirectUrl(): string
