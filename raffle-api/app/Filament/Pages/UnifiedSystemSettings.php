@@ -25,10 +25,22 @@ use Filament\Pages\Page;
  * WpOption::flagEnabled() check already uses — flipping a switch here
  * has the exact same effect as flipping the equivalent legacy checkbox,
  * because it's the same row.
+ *
+ * Hidden from the admin menu since the WordPress site was retired (see
+ * OVERHAUL_CHECKLIST.md item 41): every one of these switches is only
+ * read by the legacy PHP bridges, which no longer run, and the new app
+ * always uses the unified tables regardless — so flipping one here now
+ * does nothing, and showing it would mislead staff into thinking it
+ * does. Removed outright with the rest of the legacy code in item 50.
  */
 class UnifiedSystemSettings extends Page implements HasForms
 {
     use InteractsWithForms;
+
+    public static function shouldRegisterNavigation(): bool
+    {
+        return false;
+    }
 
     protected static ?string $navigationIcon = 'heroicon-o-adjustments-horizontal';
 

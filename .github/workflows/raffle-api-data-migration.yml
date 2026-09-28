@@ -1,0 +1,86 @@
+name: Copy Old-Site Data Into New Tables (manual)
+
+# OVERHAUL_CHECKLIST.md item 41. The live site reads balances, points,
+# bank accounts and raffles ONLY from the new tables, but the normal
+# deploy never copies old-site (WordPress) data into them -- so any
+# customer the one-time copy commands haven't reached sees N0, 0 points
+# or no bank account.
+#
+# Run this by hand from GitHub -> Actions -> this workflow -> "Run
+# workflow":
+#   - mode "preview" (the default) changes NOTHING. Every command runs
+#     with --dry-run and prints what it would do. Always run this first
+#     and read the log.
+#   - mode "apply" actually copies. Every command is safe to re-run: each
+#     skips anything already copied, and the wallet/points copies skip any
+#     customer who has already used the new site (so real new activity is
+#     never overwritten -- those customers are listed at the end as
+#     "needs manual review" with the exact old amount to credit by hand).
+#
+# A read-only status report runs before and after, so the log shows
+# exactly what changed.
+on:
+  workflow_dispatch:
+    inputs:
+      mode:
+        description: 'preview = change nothing, just show what would happen. apply = really copy.'
+        required: true
+        default: preview
+        type: choice
+        options:
+          - preview
+          - apply
+
+env:
+  DEPLOY_PATH: /home2/worldin6/public_html/rafflekings.com.ng
+
+jobs:
+  copy:
+    runs-on: ubuntu-latest
+    environment: production
+    steps:
+      - name: Copy old-site data (${{ inputs.mode }})
+        uses: appleboy/ssh-action@master
+        with:
+          host: ${{ secrets.CPANEL_HOST }}
+          username: ${{ secrets.CPANEL_USERNAME }}
+          password: ${{ secrets.CPANEL_PASSWORD }}
+          port: 22
+          command_timeout: 30m
+          script: |
+            set -e
+            cd ${{ env.DEPLOY_PATH }}
+
+            if [ "${{ inputs.mode }}" = "apply" ]; then
+              FLAG=""
+              echo "=== MODE: APPLY -- changes WILL be written ==="
+            else
+              FLAG="--dry-run"
+              echo "=== MODE: PREVIEW -- nothing will be written ==="
+            fi
+
+            echo
+            echo "=== BEFORE ==="
+            php artisan legacy:migration-status
+
+            # Order matters: wallets must exist before the ledger can be
+            # given opening balances; raffles before anything keyed to
+            # them. Each command prints what it did (or would do).
+            for CMD in \
+              legacy:backfill-wallets \
+              legacy:reconcile-wallet-ledger \
+              legacy:reconcile-points \
+              legacy:reconcile-referrals \
+              legacy:import-raffles \
+              legacy:import-support-tickets \
+              legacy:import-withdrawal-requests \
+              legacy:import-admin-audit-logs
+            do
+              echo
+              echo "=== php artisan $CMD $FLAG ==="
+              php artisan $CMD $FLAG
+            done
+
+            echo
+            echo "=== AFTER ==="
+            php artisan legacy:migration-status
