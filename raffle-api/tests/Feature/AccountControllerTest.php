@@ -4,12 +4,12 @@ namespace Tests\Feature;
 
 use App\Models\Legacy\RaffleEntry;
 use App\Models\Legacy\RaffleTransaction;
-use App\Models\Legacy\WpPost;
-use App\Models\Legacy\WpPostMeta;
 use App\Models\Legacy\WpUser;
+use App\Models\Raffle;
 use App\Models\WalletLedgerEntry;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Tests\Support\AuthenticatesWithWordPressCookie;
+use Tests\Support\CreatesRaffles;
 use Tests\TestCase;
 
 /**
@@ -19,19 +19,11 @@ use Tests\TestCase;
  */
 class AccountControllerTest extends TestCase
 {
-    use AuthenticatesWithWordPressCookie, RefreshDatabase;
+    use AuthenticatesWithWordPressCookie, CreatesRaffles, RefreshDatabase;
 
-    private function makeRaffle(array $meta = []): WpPost
+    private function makeRaffle(array $meta = []): Raffle
     {
-        $post = WpPost::create([
-            'post_title' => 'Test Raffle', 'post_type' => 'raffle', 'post_status' => 'publish', 'post_date' => now(),
-        ]);
-
-        foreach (array_merge(['price' => '500', 'max' => '20'], $meta) as $key => $value) {
-            WpPostMeta::create(['post_id' => $post->ID, 'meta_key' => $key, 'meta_value' => $value]);
-        }
-
-        return $post;
+        return $this->createRaffle(array_merge(['price' => '500', 'max' => '20'], $meta));
     }
 
     public function test_an_unauthenticated_request_for_tickets_is_rejected(): void
@@ -51,13 +43,13 @@ class AccountControllerTest extends TestCase
         $active = $this->makeRaffle(['expiry' => now()->addDays(3)->toDateString()]);
         $soldOut = $this->makeRaffle(['max' => '1']);
 
-        RaffleEntry::create(['user_id' => $user->ID, 'raffle_id' => $active->ID, 'ticket_number' => 5, 'txn_id' => 1]);
-        RaffleEntry::create(['user_id' => $user->ID, 'raffle_id' => $active->ID, 'ticket_number' => 6, 'txn_id' => 1]);
-        RaffleEntry::create(['user_id' => $user->ID, 'raffle_id' => $soldOut->ID, 'ticket_number' => 1, 'txn_id' => 2]);
+        RaffleEntry::create(['user_id' => $user->ID, 'raffle_id' => $active->public_id, 'ticket_number' => 5, 'txn_id' => 1]);
+        RaffleEntry::create(['user_id' => $user->ID, 'raffle_id' => $active->public_id, 'ticket_number' => 6, 'txn_id' => 1]);
+        RaffleEntry::create(['user_id' => $user->ID, 'raffle_id' => $soldOut->public_id, 'ticket_number' => 1, 'txn_id' => 2]);
 
         // A ticket bought by someone else must never leak into this user's list.
         $other = WpUser::create(['user_login' => 'other', 'user_pass' => 'x', 'user_email' => 'o@example.com']);
-        RaffleEntry::create(['user_id' => $other->ID, 'raffle_id' => $active->ID, 'ticket_number' => 7, 'txn_id' => 3]);
+        RaffleEntry::create(['user_id' => $other->ID, 'raffle_id' => $active->public_id, 'ticket_number' => 7, 'txn_id' => 3]);
 
         $response = $this->getJson('/api/account/tickets');
 
@@ -66,11 +58,11 @@ class AccountControllerTest extends TestCase
 
         $this->assertCount(2, $data);
 
-        $activeGroup = collect($data)->firstWhere('raffle_id', $active->ID);
+        $activeGroup = collect($data)->firstWhere('raffle_id', $active->public_id);
         $this->assertSame('Active', $activeGroup['status']);
         $this->assertEqualsCanonicalizing(['005', '006'], $activeGroup['tickets']);
 
-        $soldOutGroup = collect($data)->firstWhere('raffle_id', $soldOut->ID);
+        $soldOutGroup = collect($data)->firstWhere('raffle_id', $soldOut->public_id);
         // Real fix over the legacy version: a raffle with zero tickets
         // remaining is "Concluded" from the actual entry count, not from
         // a manually-set flag nobody toggled.

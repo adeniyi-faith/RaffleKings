@@ -17,14 +17,24 @@ use Illuminate\Support\Facades\DB;
  * `raffles` / `raffle_prize_tiers` tables.
  *
  * Read-only against wp_posts/wp_postmeta — never writes back to them.
- * Safe to run repeatedly: each raffle is matched by legacy_post_id and
- * its prize tiers are fully replaced on every run, so this always
- * reflects whatever is currently in WordPress rather than drifting from
- * it. Does NOT delete a native raffle if its legacy post disappears.
+ * Does NOT delete a native raffle if its legacy post disappears.
+ *
+ * Since OVERHAUL_CHECKLIST.md item 43 the native table is the ONLY source
+ * of raffles (WordPress is retired), so by default this only ADDS raffles
+ * that haven't been imported yet — it used to overwrite every imported
+ * raffle and replace its prize tiers on every run, which would now wipe
+ * out edits made in the admin. For a raffle already imported it only
+ * fills in fields that are still blank (the prize type, prize list and
+ * original publish date added in item 43). `--refresh` restores the old
+ * overwrite-everything behaviour, for a deliberate re-sync.
+ *
+ * Each imported raffle keeps its WordPress post id as its permanent
+ * public number (`public_id`), so its page address, tickets and winners
+ * all still match.
  */
 class ImportLegacyRaffles extends Command
 {
-    protected $signature = 'legacy:import-raffles {--dry-run}';
+    protected $signature = 'legacy:import-raffles {--dry-run} {--refresh : Overwrite already-imported raffles (and their prize tiers) with the WordPress values}';
 
     protected $description = 'Import raffles and their prize structures from the legacy WordPress raffle CPT into the native raffles/raffle_prize_tiers tables';
 
@@ -48,10 +58,30 @@ class ImportLegacyRaffles extends Command
             ->groupBy('post_id');
 
         $imported = 0;
+        $filled = 0;
+        $refresh = (bool) $this->option('refresh');
+        $existing = Raffle::query()->whereIn('legacy_post_id', $postIds)->get()->keyBy('legacy_post_id');
 
         foreach ($posts as $post) {
             $meta = $metaByPost->get($post->ID, collect())->pluck('meta_value', 'meta_key');
             $tiers = $this->parsePrizeStructure($meta);
+            $current = $existing->get($post->ID);
+
+            if ($current && ! $refresh) {
+                $blanks = $this->blankDisplayFields($current, $post, $meta);
+
+                if ($blanks !== []) {
+                    $this->line(sprintf('%s Raffle #%d "%s" — already imported, filling in: %s', $dryRun ? '[dry-run]' : '[fill]', $post->ID, $post->post_title, implode(', ', array_keys($blanks))));
+
+                    if (! $dryRun) {
+                        $current->forceFill($blanks)->saveQuietly();
+                    }
+
+                    $filled++;
+                }
+
+                continue;
+            }
 
             $this->line(sprintf(
                 '%s Raffle #%d "%s" — price %.2f, max %d, %d prize tier(s)',
@@ -64,6 +94,8 @@ class ImportLegacyRaffles extends Command
             ));
 
             if ($dryRun) {
+                $imported++;
+
                 continue;
             }
 
@@ -71,20 +103,25 @@ class ImportLegacyRaffles extends Command
                 $raffle = Raffle::query()->updateOrCreate(
                     ['legacy_post_id' => $post->ID],
                     [
+                        'public_id' => $post->ID,
                         'title' => $post->post_title,
                         'excerpt' => $post->post_excerpt,
                         'price' => (float) ($meta->get('price') ?: 0),
                         'max_tickets' => (int) ($meta->get('max') ?: 0),
                         'grand_prize' => $meta->get('grand_prize'),
+                        'prize_type' => $this->prizeType($meta),
+                        'prize_list' => $meta->get('prize_list') ?: null,
                         'expiry' => $meta->get('expiry') ?: null,
                         'status' => $this->resolveStatus($post->post_status, $meta->get('is_sold_out')),
                     ],
                 );
 
-                // Fully replace this raffle's tiers on every import — the
-                // legacy ACF data is the source of truth until the
-                // draw engine is cut over to reading raffle_prize_tiers
-                // directly (item 12).
+                // Keep the original publish date so "newest first" still
+                // means what it did on the old site, not "import time".
+                if ($post->post_date) {
+                    $raffle->forceFill(['created_at' => $post->post_date])->saveQuietly();
+                }
+
                 $raffle->prizeTiers()->delete();
 
                 foreach ($tiers as $tier) {
@@ -98,11 +135,49 @@ class ImportLegacyRaffles extends Command
             $imported++;
         }
 
+        if ($filled > 0) {
+            $this->info(($dryRun ? 'Would fill in' : 'Filled in')." blank fields on {$filled} already-imported raffle(s).");
+        }
+
         $this->info($dryRun
-            ? "Dry run complete — {$posts->count()} raffle(s) would be imported."
+            ? "Dry run complete — {$imported} raffle(s) would be imported."
             : "Imported {$imported} raffle(s).");
 
         return self::SUCCESS;
+    }
+
+    /**
+     * Only the fields item 43 added, and only where still blank — never
+     * anything an admin could have deliberately changed.
+     *
+     * @param  Collection<string, string>  $meta
+     * @return array<string, mixed>
+     */
+    private function blankDisplayFields(Raffle $raffle, WpPost $post, Collection $meta): array
+    {
+        $fill = [];
+
+        if (($raffle->prize_type ?: 'other') === 'other' && $this->prizeType($meta) !== 'other') {
+            $fill['prize_type'] = $this->prizeType($meta);
+        }
+
+        if (blank($raffle->prize_list) && filled($meta->get('prize_list'))) {
+            $fill['prize_list'] = $meta->get('prize_list');
+        }
+
+        if ($raffle->public_id === null) {
+            $fill['public_id'] = $post->ID;
+        }
+
+        return $fill;
+    }
+
+    /** @param  Collection<string, string>  $meta */
+    private function prizeType(Collection $meta): string
+    {
+        $type = (string) $meta->get('prize_type');
+
+        return in_array($type, ['cash', 'gadgets', 'vouchers', 'other'], true) ? $type : 'other';
     }
 
     private function resolveStatus(string $postStatus, ?string $isSoldOutMeta): string

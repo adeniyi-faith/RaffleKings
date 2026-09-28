@@ -43,12 +43,25 @@ class RaffleResource extends Resource
                     ->minValue(1),
                 Forms\Components\TextInput::make('grand_prize')
                     ->maxLength(255),
-                Forms\Components\DatePicker::make('expiry'),
+                Forms\Components\Select::make('prize_type')
+                    ->label('Prize type')
+                    ->options(['cash' => 'Cash', 'gadgets' => 'Gadgets', 'vouchers' => 'Vouchers', 'other' => 'Other'])
+                    ->default('other')
+                    ->required()
+                    ->helperText('Drives the filter chips on the public raffle list.'),
+                Forms\Components\Textarea::make('prize_list')
+                    ->label('Other prizes ("What You Can Win")')
+                    ->rows(3)
+                    ->helperText('One prize per line, e.g. "2nd: ₦50,000". Leave empty to list the prize tiers below the grand prize instead.')
+                    ->columnSpanFull(),
+                Forms\Components\DatePicker::make('expiry')
+                    ->label('Last day of sales')
+                    ->helperText('Ticket sales stop automatically at the end of this day (Lagos time). Leave empty for no end date.'),
                 Forms\Components\Select::make('status')
-                    ->options(['draft' => 'Draft', 'published' => 'Published', 'closed' => 'Closed'])
+                    ->options(['draft' => 'Draft (hidden from customers)', 'published' => 'Published (on sale)', 'closed' => 'Closed (visible, not on sale)'])
                     ->default('draft')
                     ->required()
-                    ->helperText('Admin intent only — a raffle is separately treated as sold out once every ticket number has actually been bought (never inferred from this alone).'),
+                    ->helperText('Publish to put it on the site. A published raffle still stops selling on its own once it sells out or its last day passes.'),
 
                 Forms\Components\Section::make('Live Draw event')
                     ->description('Item 27 — a raffle can just show static results, or have a live, synchronized reveal event. Draw results (Hall of Fame) are unaffected either way; this only controls the live-draw page/experience.')
@@ -86,14 +99,34 @@ class RaffleResource extends Resource
     public static function table(Table $table): Table
     {
         return $table
+            ->modifyQueryUsing(fn ($query) => $query->withCount('entries as sold_count'))
             ->columns([
-                Tables\Columns\TextColumn::make('id')->sortable(),
+                Tables\Columns\TextColumn::make('public_id')
+                    ->label('No.')
+                    ->sortable()
+                    ->tooltip('The raffle\'s permanent public number — its page is /raffles/{number}.'),
                 Tables\Columns\TextColumn::make('title')->searchable()->limit(40),
                 Tables\Columns\TextColumn::make('price')->money('NGN'),
                 Tables\Columns\TextColumn::make('max_tickets')->label('Max tickets'),
                 Tables\Columns\TextColumn::make('sold')
                     ->label('Sold')
-                    ->state(fn (Raffle $record): int => $record->soldTickets()),
+                    ->state(fn (Raffle $record): int => (int) ($record->sold_count ?? $record->soldTickets())),
+                Tables\Columns\TextColumn::make('sales')
+                    ->label('Sales')
+                    ->badge()
+                    ->state(function (Raffle $record): string {
+                        if ($record->status === 'draft') {
+                            return 'Draft';
+                        }
+
+                        return match ($record->closedReason((int) ($record->sold_count ?? $record->soldTickets()))) {
+                            null => 'On sale',
+                            'ended' => 'Ended',
+                            'sold_out' => 'Sold out',
+                            default => 'Closed',
+                        };
+                    })
+                    ->color(fn (string $state): string => $state === 'On sale' ? 'success' : ($state === 'Draft' ? 'gray' : 'warning')),
                 Tables\Columns\BadgeColumn::make('status')
                     ->colors([
                         'gray' => 'draft',
@@ -118,6 +151,12 @@ class RaffleResource extends Resource
             ])
             ->actions([
                 Tables\Actions\EditAction::make(),
+                Tables\Actions\Action::make('viewOnSite')
+                    ->label('View on site')
+                    ->icon('heroicon-o-arrow-top-right-on-square')
+                    ->url(fn (Raffle $record) => url("/raffles/{$record->public_id}"))
+                    ->openUrlInNewTab()
+                    ->visible(fn (Raffle $record) => in_array($record->status, Raffle::PUBLIC_STATUSES, true)),
                 Tables\Actions\Action::make('startLiveReveal')
                     ->label('Start live reveal')
                     ->icon('heroicon-o-play')
