@@ -26,6 +26,7 @@ use App\Http\Controllers\Api\PushDeviceController;
 use App\Http\Controllers\Api\RaffleController;
 use App\Http\Controllers\Api\ReferralController;
 use App\Http\Controllers\Api\RewardsController;
+use App\Http\Controllers\Api\SiteNoticeController;
 use App\Http\Controllers\Api\SupportTicketController;
 use App\Http\Controllers\Api\TicketPriceQuoteController;
 use App\Http\Controllers\Api\TicketPurchaseController;
@@ -55,6 +56,9 @@ Route::get('/raffles/{raffle}/draw', [DrawController::class, 'show']);
 // state/catch-up fetch. Posting a comment/reaction still requires a
 // real login — see the `auth:wordpress` group below.
 Route::get('/hall-of-fame', [HallOfFameController::class, 'index']);
+
+// Site announcements (item 45) — public, shown on every page.
+Route::get('/site-notices', [SiteNoticeController::class, 'index']);
 Route::get('/raffles/{raffle}/live-draw', [LiveDrawController::class, 'show']);
 
 // Public — the Spin & Win odds are meant to be shown to players.

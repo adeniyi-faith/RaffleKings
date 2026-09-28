@@ -47,7 +47,11 @@ class LiveDrawController extends Controller
         /** @var WpUser $user */
         $user = $request->user();
 
-        $comment = $this->liveDraw->postComment($user, $raffle, trim($data['body']));
+        try {
+            $comment = $this->liveDraw->postComment($user, $raffle, trim($data['body']));
+        } catch (RuntimeException $e) {
+            return response()->json(['message' => $e->getMessage()], 422);
+        }
 
         return response()->json($comment->toBroadcastArray(), 201);
     }

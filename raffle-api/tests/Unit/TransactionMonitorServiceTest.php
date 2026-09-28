@@ -164,4 +164,47 @@ class TransactionMonitorServiceTest extends TestCase
 
         $this->assertCount(1, $results);
     }
+
+    public function test_reversing_a_wallet_ticket_purchase_refunds_it_and_cancels_the_tickets(): void
+    {
+        $user = $this->makeUser();
+        Wallet::create(['user_id' => $user->ID, 'wallet_balance' => 700, 'earnings_balance' => 0]);
+        $txn = RaffleTransaction::create(['user_id' => $user->ID, 'claimed_amount' => 300, 'status' => 'verified_final', 'type' => 'ticket_purchase_wallet', 'created_at' => now()]);
+        RaffleEntry::create(['user_id' => $user->ID, 'raffle_id' => 1, 'ticket_number' => 4, 'txn_id' => $txn->id]);
+
+        $this->transactions->revoke($this->admin, $txn, 'Bought the wrong raffle');
+
+        $this->assertEquals(1000, (float) Wallet::where('user_id', $user->ID)->value('wallet_balance'));
+        $this->assertSame(0, RaffleEntry::where('txn_id', $txn->id)->count());
+        $this->assertEquals(300, AdminAuditLog::where('action', 'transaction.revoked')->first()->context['refunded']);
+    }
+
+    public function test_reversing_a_winnings_ticket_purchase_refunds_the_winnings(): void
+    {
+        $user = $this->makeUser();
+        Wallet::create(['user_id' => $user->ID, 'wallet_balance' => 0, 'earnings_balance' => 100]);
+        $txn = RaffleTransaction::create(['user_id' => $user->ID, 'claimed_amount' => 500, 'status' => 'verified_final', 'type' => 'ticket_purchase_earnings', 'created_at' => now()]);
+
+        $this->transactions->revoke($this->admin, $txn);
+
+        $this->assertEquals(600, (float) Wallet::where('user_id', $user->ID)->value('earnings_balance'));
+        $this->assertEquals(0, (float) Wallet::where('user_id', $user->ID)->value('wallet_balance'));
+    }
+
+    public function test_a_transaction_can_only_be_reversed_once(): void
+    {
+        $user = $this->makeUser();
+        Wallet::create(['user_id' => $user->ID, 'wallet_balance' => 5000, 'earnings_balance' => 0]);
+        $txn = RaffleTransaction::create(['user_id' => $user->ID, 'claimed_amount' => 5000, 'status' => 'verified_final', 'type' => 'wallet_deposit', 'created_at' => now()]);
+        $stale = RaffleTransaction::find($txn->id);
+
+        $this->transactions->revoke($this->admin, $txn);
+
+        try {
+            $this->transactions->revoke($this->admin, $stale);
+        } catch (RuntimeException) {
+        }
+
+        $this->assertEquals(0, (float) Wallet::where('user_id', $user->ID)->value('wallet_balance'));
+    }
 }

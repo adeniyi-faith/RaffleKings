@@ -8,7 +8,9 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
 class LiveDrawComment extends Model
 {
-    protected $fillable = ['raffle_id', 'user_id', 'body'];
+    protected $fillable = ['raffle_id', 'user_id', 'body', 'hidden_at', 'hidden_by'];
+
+    protected $casts = ['hidden_at' => 'datetime'];
 
     public function raffle(): BelongsTo
     {

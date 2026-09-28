@@ -53,17 +53,22 @@ class PrizeTiersRelationManager extends RelationManager
                 Tables\Columns\TextColumn::make('cash_value')->money('NGN'),
                 Tables\Columns\TextColumn::make('winner_count'),
             ])
+            // Once the draw has run, the prize tiers are part of its public
+            // proof (the verify page recomputes the winners from them), so
+            // they're locked — changing them afterwards would make an
+            // honest draw look tampered with (item 45).
+            ->description(fn () => $this->getOwnerRecord()->isDrawn() ? 'This raffle has been drawn, so its prize tiers are locked.' : null)
             ->headerActions([
-                Tables\Actions\CreateAction::make(),
+                Tables\Actions\CreateAction::make()->visible(fn () => ! $this->getOwnerRecord()->isDrawn()),
             ])
             ->actions([
-                Tables\Actions\EditAction::make(),
-                Tables\Actions\DeleteAction::make(),
+                Tables\Actions\EditAction::make()->visible(fn () => ! $this->getOwnerRecord()->isDrawn()),
+                Tables\Actions\DeleteAction::make()->visible(fn () => ! $this->getOwnerRecord()->isDrawn()),
             ])
             ->bulkActions([
                 Tables\Actions\BulkActionGroup::make([
                     Tables\Actions\DeleteBulkAction::make(),
-                ]),
+                ])->visible(fn () => ! $this->getOwnerRecord()->isDrawn()),
             ]);
     }
 }

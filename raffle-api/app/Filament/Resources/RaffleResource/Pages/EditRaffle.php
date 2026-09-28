@@ -13,7 +13,8 @@ class EditRaffle extends EditRecord
     protected function getHeaderActions(): array
     {
         return [
-            Actions\DeleteAction::make(),
+            // Only a raffle with no tickets and no draw can be deleted (item 45).
+            Actions\DeleteAction::make()->visible(fn () => $this->getRecord()->canBeDeleted()),
         ];
     }
 }
