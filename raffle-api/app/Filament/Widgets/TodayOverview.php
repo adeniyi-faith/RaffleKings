@@ -49,7 +49,7 @@ class TodayOverview extends StatsOverviewWidget
             Stat::make('New sign-ups', (string) $signUps)
                 ->description('Accounts created today'),
             Stat::make('Points owed', number_format($pointsOwed).' pts')
-                ->description('Worth '.static::naira($pointsOwed / 10).' if everyone redeemed'),
+                ->description('Worth '.static::naira($pointsOwed / max(1, (int) config('rewards.points_per_naira'))).' if everyone redeemed'),
         ];
     }
 }

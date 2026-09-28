@@ -9,13 +9,19 @@ import { useLiveRaffle } from '../../hooks/useLiveRaffle';
 import { useTicketPriceQuotes } from '../../hooks/useTicketPriceQuotes';
 import { useTicketPriceQuote } from '../../hooks/useTicketPriceQuote';
 import { formatNaira } from '../../lib/format';
+import { isOn, useSite } from '../../lib/site';
+import PausedNotice from '../../Components/layout/PausedNotice';
 
-const FIXED_QUANTITIES = [1, 2, 3, 5, 10];
+const DEFAULT_QUANTITIES = [1, 2, 3, 5, 10];
 
 export default function RaffleShow({ raffle }) {
     const { auth } = usePage().props;
-    const [selectedQty, setSelectedQty] = useState(3);
-    const [bulkQty, setBulkQty] = useState(15);
+    const site = useSite();
+    const FIXED_QUANTITIES = site.ticket_bundles?.length ? site.ticket_bundles : DEFAULT_QUANTITIES;
+    const bulkMin = Math.max(Math.max(...FIXED_QUANTITIES), site.big_order_above || 10) + 1;
+    const salesPaused = ! isOn(site, 'ticket_sales');
+    const [selectedQty, setSelectedQty] = useState(FIXED_QUANTITIES.includes(3) ? 3 : FIXED_QUANTITIES[Math.min(1, FIXED_QUANTITIES.length - 1)]);
+    const [bulkQty, setBulkQty] = useState(Math.max(15, bulkMin));
 
     const { quotes } = useTicketPriceQuotes(raffle.id, FIXED_QUANTITIES);
     const { quote: bulkQuote } = useTicketPriceQuote(raffle.id, bulkQty);
@@ -45,6 +51,10 @@ export default function RaffleShow({ raffle }) {
     const progressPct = raffle.max_tickets > 0 ? Math.min(100, Math.round((soldTickets / raffle.max_tickets) * 100)) : 0;
 
     function handleProceed() {
+        if (salesPaused) {
+            return;
+        }
+
         const qty = selectedQty;
         const params = new URLSearchParams({ raffle_id: raffle.id, qty: String(qty) });
 
@@ -161,6 +171,7 @@ export default function RaffleShow({ raffle }) {
                             </div>
                         )}
 
+{! isClosed && <PausedNotice feature="ticket_sales" className="mt-3" />}
 {! isClosed && (
                         <div className="mt-2 flex items-start gap-3 rounded-xl border border-blue-100 bg-blue-50 p-3 dark:border-blue-900/30 dark:bg-blue-900/20">
                             <Zap className="mt-0.5 h-4 w-4 flex-shrink-0 text-blue-600 dark:text-blue-400" />
@@ -206,6 +217,8 @@ export default function RaffleShow({ raffle }) {
                 ) : (
                     <section className="px-5 py-4">
                         <TicketBundleSelector
+                            quantities={FIXED_QUANTITIES}
+                            bulkMin={bulkMin}
                             quotes={quotes}
                             selected={selectedQty}
                             onSelect={setSelectedQty}
@@ -233,7 +246,8 @@ export default function RaffleShow({ raffle }) {
                         </div>
                         <button
                             onClick={handleProceed}
-                            className="flex flex-[2] items-center justify-center gap-2 rounded-xl bg-app-primary py-3.5 text-sm font-bold text-white shadow-lg shadow-blue-500/30 transition-transform active:scale-[0.98]"
+                            disabled={salesPaused}
+                            className="flex flex-[2] items-center justify-center gap-2 rounded-xl bg-app-primary py-3.5 text-sm font-bold text-white shadow-lg shadow-blue-500/30 transition-transform active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-50"
                         >
                             Select Numbers <ArrowRight className="h-4 w-4" />
                         </button>

@@ -67,7 +67,7 @@ class UserPointsResource extends Resource
                     'title' => $r->user?->display_name ?: $r->user?->user_login,
                     'amount' => number_format($r->balance).' pts',
                     'lines' => [
-                        'Worth ₦'.number_format($r->balance / 10),
+                        'Worth ₦'.number_format($r->balance / max(1, (int) config('rewards.points_per_naira'))),
                         'Streak '.$r->streak_count.' '.str('day')->plural($r->streak_count).' · last claim '.($r->last_claim_date ? Carbon::parse($r->last_claim_date)->format('j M') : 'never'),
                     ],
                 ]),
@@ -80,7 +80,7 @@ class UserPointsResource extends Resource
                         ->label('Points')
                         ->numeric()
                         ->sortable()
-                        ->description(fn (UserPoints $r) => 'worth ₦'.number_format($r->balance / 10))
+                        ->description(fn (UserPoints $r) => 'worth ₦'.number_format($r->balance / max(1, (int) config('rewards.points_per_naira'))))
                         ->summarize(Tables\Columns\Summarizers\Sum::make()->label('Total owed')),
                     Tables\Columns\TextColumn::make('streak_count')->label('Streak (days)')->sortable(),
                     Tables\Columns\TextColumn::make('last_claim_date')->label('Last daily claim')->date()->placeholder('Never')->sortable(),

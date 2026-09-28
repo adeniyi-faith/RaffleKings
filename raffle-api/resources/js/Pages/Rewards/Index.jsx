@@ -11,6 +11,8 @@ import {
     Zap,
 } from 'lucide-react';
 import { formatNaira } from '../../lib/format';
+import { isOn, useSite } from '../../lib/site';
+import PausedNotice from '../../Components/layout/PausedNotice';
 import { usePushPermission } from '../../hooks/usePushPermission';
 import BottomNav from '../../Components/layout/BottomNav';
 
@@ -37,6 +39,10 @@ const TASK_LABELS = {
 
 export default function RewardsIndex({ referralCode }) {
     const { auth } = usePage().props;
+    const site = useSite();
+    // Both set in the admin's Settings → Rewards.
+    const pointsPerNaira = site.points_per_naira || 10;
+    const minRedeem = site.minimum_redeem_points || 100;
     const isGuest = ! auth?.user;
     const [state, setState] = useState(null);
     const [referral, setReferral] = useState(null);
@@ -92,13 +98,30 @@ export default function RewardsIndex({ referralCode }) {
             setModal({ title: 'Streak Claimed!', message: `You earned ${result.points_added} points. Day ${result.new_streak} streak.` });
             loadState();
         } catch (err) {
-            setModal({ title: 'Already Claimed', message: err.message });
+            setModal({ title: 'Not claimed', message: err.message });
         } finally {
             setBusy(null);
         }
     }
 
+    // Where each task actually sends the customer (Settings → General →
+    // Links). Opened straight from the tap, before any waiting, so phone
+    // browsers don't block it as a pop-up.
+    function openTaskLink(taskId) {
+        const shareText = `Join me on ${site.name || 'RaffleKings'} and win amazing prizes! ${referralLink || window.location.origin}`;
+        const url = {
+            join_community: site.links?.community,
+            whatsapp_follow: site.links?.whatsapp_channel,
+            whatsapp_share: `https://wa.me/?text=${encodeURIComponent(shareText)}`,
+        }[taskId];
+
+        if (url) {
+            window.open(url, '_blank', 'noopener');
+        }
+    }
+
     async function claimTask(taskId) {
+        openTaskLink(taskId);
         setBusy(taskId);
         try {
             // Item 31: the "Enable Notifications" reward is honestly tied
@@ -230,21 +253,24 @@ export default function RewardsIndex({ referralCode }) {
                     <div className="flex items-center justify-between rounded-2xl border border-gray-100 bg-white p-5 shadow-sm dark:border-gray-800 dark:bg-dark-card">
                         <div>
                             <p className="text-[10px] font-bold uppercase text-gray-400 dark:text-gray-500">Wallet Value</p>
-                            <h3 className="text-xl font-bold text-gray-900 dark:text-white">{formatNaira(points / 10)}</h3>
-                            <p className="text-[10px] text-green-600 dark:text-green-400">Rate: 10 Pts = ₦1</p>
+                            <h3 className="text-xl font-bold text-gray-900 dark:text-white">{formatNaira(Math.floor(points / pointsPerNaira))}</h3>
+                            <p className="text-[10px] text-green-600 dark:text-green-400">Rate: {pointsPerNaira} Pts = ₦1</p>
                         </div>
                         <button
                             onClick={redeem}
-                            disabled={busy === 'redeem' || points < 100}
+                            disabled={busy === 'redeem' || points < minRedeem || ! isOn(site, 'point_redemption')}
                             className="flex items-center gap-2 rounded-xl bg-green-600 px-5 py-2.5 text-xs font-bold text-white shadow-md shadow-green-200 transition-transform active:scale-95 disabled:cursor-not-allowed disabled:opacity-50 dark:bg-green-700 dark:shadow-none"
                         >
                             {busy === 'redeem' ? 'Redeeming…' : 'Redeem Now'} <ArrowRight className="h-3 w-3" />
                         </button>
                     </div>
-                    {points < 100 && (
-                        <p className="-mt-3 text-[10px] text-gray-400 dark:text-gray-500">Minimum redemption is 100 points.</p>
+                    {points < minRedeem && (
+                        <p className="-mt-3 text-[10px] text-gray-400 dark:text-gray-500">Minimum redemption is {minRedeem} points.</p>
                     )}
+                    <PausedNotice feature="point_redemption" />
+                    <PausedNotice feature="daily_claim" />
 
+                    <PausedNotice feature="spin" />
                     {/* Spin & Win — real, working feature */}
                     <div className="relative overflow-hidden rounded-2xl bg-gradient-to-r from-purple-600 to-indigo-600 p-5 text-white shadow-lg shadow-purple-500/20 dark:from-purple-800 dark:to-indigo-900">
                         <div className="pointer-events-none absolute right-0 top-0 h-32 w-32 -translate-y-1/2 translate-x-1/2 rounded-full bg-white/10 blur-2xl" />
@@ -332,6 +358,7 @@ export default function RewardsIndex({ referralCode }) {
                         )}
                     </div>
 
+                    <PausedNotice feature="tasks" />
                     {/* Quick Tasks */}
                     <div>
                         <h3 className="mb-3 flex items-center gap-2 text-sm font-bold text-gray-900 dark:text-white">

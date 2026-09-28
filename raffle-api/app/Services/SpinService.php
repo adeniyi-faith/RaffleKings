@@ -27,31 +27,41 @@ use Illuminate\Support\Facades\DB;
  */
 class SpinService
 {
-    private const COST = 50;
-
     /**
-     * [payout, weight out of 1000, outcome] — weights must sum to 1000.
-     * Kept in the same win-loss-tie-jackpot order as the legacy table so
-     * `visual_index` means the same thing to any frontend built against
-     * this odds table.
+     * [payout, weight, outcome] rows, in the same win-loss-tie-jackpot
+     * order as the legacy table so `visual_index` means the same thing to
+     * any frontend built against this odds table. Editable in Settings →
+     * Rewards (config/rewards.php); a prize's chance is its weight out of
+     * the total of all weights.
+     *
+     * @return list<array{payout: int, weight: int, outcome: string}>
      */
-    private const PRIZES = [
-        ['payout' => 15, 'weight' => 600, 'outcome' => 'loss'],
-        ['payout' => 50, 'weight' => 300, 'outcome' => 'tie'],
-        ['payout' => 150, 'weight' => 80, 'outcome' => 'win'],
-        ['payout' => 500, 'weight' => 20, 'outcome' => 'jackpot'],
-    ];
+    private static function prizes(): array
+    {
+        return array_values(array_map(fn ($p) => [
+            'payout' => (int) $p['payout'],
+            'weight' => (int) $p['weight'],
+            'outcome' => (string) $p['outcome'],
+        ], config('rewards.spin_prizes')));
+    }
+
+    public static function cost(): int
+    {
+        return (int) config('rewards.spin_cost');
+    }
 
     public function __construct(private readonly PointsService $points) {}
 
     /** The real odds, safe (and meant) to be shown to players. */
     public function odds(): array
     {
+        $total = max(1, array_sum(array_column(self::prizes(), 'weight')));
+
         return array_map(fn ($p) => [
             'outcome' => $p['outcome'],
             'payout' => $p['payout'],
-            'probability' => $p['weight'] / 1000,
-        ], self::PRIZES);
+            'probability' => $p['weight'] / $total,
+        ], self::prizes());
     }
 
     /**
@@ -62,7 +72,7 @@ class SpinService
     public function spin(WpUser $user): array
     {
         return DB::transaction(function () use ($user) {
-            $balanceAfterCost = $this->points->debit($user, self::COST, 'spin_cost', description: 'Spin & Win entry fee');
+            $balanceAfterCost = $this->points->debit($user, self::cost(), 'spin_cost', description: 'Spin & Win entry fee');
 
             [$prize, $index] = $this->draw();
 
@@ -84,10 +94,11 @@ class SpinService
     /** @return array{0: array{payout:int,weight:int,outcome:string}, 1: int} */
     private function draw(): array
     {
-        $roll = random_int(1, 1000);
+        $prizes = self::prizes();
+        $roll = random_int(1, max(1, array_sum(array_column($prizes, 'weight'))));
         $cumulative = 0;
 
-        foreach (self::PRIZES as $index => $prize) {
+        foreach ($prizes as $index => $prize) {
             $cumulative += $prize['weight'];
 
             if ($roll <= $cumulative) {
@@ -95,9 +106,9 @@ class SpinService
             }
         }
 
-        // Unreachable if weights sum to 1000, but never leave a spin unresolved.
-        $lastIndex = count(self::PRIZES) - 1;
+        // Unreachable, but never leave a spin unresolved.
+        $lastIndex = count($prizes) - 1;
 
-        return [self::PRIZES[$lastIndex], $lastIndex];
+        return [$prizes[$lastIndex], $lastIndex];
     }
 }
