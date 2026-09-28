@@ -9,7 +9,6 @@ use Filament\Pages;
 use Filament\Panel;
 use Filament\PanelProvider;
 use Filament\Support\Colors\Color;
-use Filament\Widgets;
 use Illuminate\Cookie\Middleware\AddQueuedCookiesToResponse;
 use Illuminate\Cookie\Middleware\EncryptCookies;
 use Illuminate\Foundation\Http\Middleware\VerifyCsrfToken;
@@ -47,17 +46,18 @@ class AdminPanelProvider extends PanelProvider
             ])
             // Busiest daily queues first (item 44): money in/out, then
             // draws and winners, then the support inbox.
-            ->navigationGroups(['Finance', 'Raffles', 'Support', 'Users', 'System'])
+            ->navigationGroups(['Finance', 'Raffles', 'Support', 'Site', 'Users', 'System'])
             ->discoverResources(in: app_path('Filament/Resources'), for: 'App\\Filament\\Resources')
             ->discoverPages(in: app_path('Filament/Pages'), for: 'App\\Filament\\Pages')
             ->pages([
                 Pages\Dashboard::class,
             ])
             ->discoverWidgets(in: app_path('Filament/Widgets'), for: 'App\\Filament\\Widgets')
-            ->widgets([
-                Widgets\AccountWidget::class,
-                Widgets\FilamentInfoWidget::class,
-            ])
+            // RaffleKings' own dashboard (item 45): what needs attention,
+            // today's numbers and the 14-day trend — discovered from
+            // app/Filament/Widgets above. Filament's default "about
+            // Filament" boxes are gone.
+            ->widgets([])
             ->middleware([
                 EncryptCookies::class,
                 AddQueuedCookiesToResponse::class,
