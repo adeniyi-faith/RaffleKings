@@ -163,6 +163,14 @@ class LiveDrawService
         }
 
         DB::transaction(function () use ($raffle) {
+            // Re-checked under a lock (item 44) so two clicks can't start
+            // two reveals of the same draw.
+            $locked = Raffle::query()->whereKey($raffle->id)->lockForUpdate()->firstOrFail();
+
+            if ($locked->live_draw_status === 'revealing') {
+                throw new RuntimeException('A live reveal is already in progress for this raffle.');
+            }
+
             $raffle->update([
                 'live_draw_status' => 'revealing',
                 'live_draw_started_at' => now(),

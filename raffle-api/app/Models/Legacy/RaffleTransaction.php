@@ -27,6 +27,8 @@ class RaffleTransaction extends LegacyModel
         'proof_url',
         'status',
         'type',
+        'pending_raffle_id',
+        'pending_numbers',
     ];
 
     protected $casts = [
