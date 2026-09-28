@@ -3,11 +3,11 @@
 namespace App\Services;
 
 use App\Models\Legacy\RaffleTransaction;
-use App\Models\Legacy\WpOption;
 use App\Models\Legacy\WpUser;
 use App\Models\Legacy\WpUserMeta;
 use App\Models\UserPoints;
 use App\Models\Wallet;
+use Illuminate\Support\Facades\DB;
 use InvalidArgumentException;
 
 /**
@@ -69,6 +69,15 @@ class UserManagementService
      * admin audit log entry. Subtracting clamps at zero (never goes
      * negative), matching legacy exactly; adding does not.
      *
+     * Always lands in the new `wallets`/`user_points` tables — the only
+     * balances the live site reads since the WordPress site was retired.
+     * (This used to follow the legacy rk_wallets_unified_enabled /
+     * rk_rewards_unified_enabled switches, which default to off, so an
+     * admin credit silently went to wp_usermeta where no customer could
+     * see it.) The ledger records what was actually applied, so a
+     * subtraction that hits the zero floor doesn't leave the ledger
+     * claiming more was taken than really was.
+     *
      * @throws InvalidArgumentException for an unknown balance type/direction or a non-positive amount
      */
     public function adjustBalance(WpUser $admin, WpUser $target, string $type, float $amount, string $direction): void
@@ -85,21 +94,23 @@ class UserManagementService
             throw new InvalidArgumentException('Amount must be positive.');
         }
 
-        if ($type === 'points') {
-            $this->adjustPoints($target, $amount, $direction);
-        } else {
-            $this->adjustWalletOrEarnings($target, $type, $amount, $direction);
-        }
+        DB::transaction(function () use ($target, $type, $amount, $direction) {
+            if ($type === 'points') {
+                $this->adjustPoints($target, $amount, $direction);
+            } else {
+                $this->adjustWalletOrEarnings($target, $type, $amount, $direction);
+            }
 
-        RaffleTransaction::create([
-            'user_id' => $target->ID,
-            'claimed_amount' => $amount,
-            'status' => 'verified_final',
-            'type' => 'admin_adjustment',
-            'proof_url' => 'admin_panel',
-            'order_id' => 'Admin '.strtoupper($direction).' '.strtoupper($type),
-            'created_at' => now(),
-        ]);
+            RaffleTransaction::create([
+                'user_id' => $target->ID,
+                'claimed_amount' => $amount,
+                'status' => 'verified_final',
+                'type' => 'admin_adjustment',
+                'proof_url' => 'admin_panel',
+                'order_id' => 'Admin '.strtoupper($direction).' '.strtoupper($type),
+                'created_at' => now(),
+            ]);
+        });
 
         $this->auditLog->record($admin, 'user.balance_'.$direction, WpUser::class, $target->ID, [
             'balance_type' => $type,
@@ -139,54 +150,51 @@ class UserManagementService
 
     private function adjustWalletOrEarnings(WpUser $target, string $type, float $amount, string $direction): void
     {
-        $delta = $direction === 'add' ? $amount : -$amount;
         $column = $type.'_balance';
 
-        if (WpOption::flagEnabled('rk_wallets_unified_enabled')) {
-            $wallet = Wallet::query()->where('user_id', $target->ID)->lockForUpdate()->first()
-                ?? Wallet::create(['user_id' => $target->ID, 'wallet_balance' => 0, 'earnings_balance' => 0]);
+        $wallet = Wallet::query()->where('user_id', $target->ID)->lockForUpdate()->first()
+            ?? Wallet::create(['user_id' => $target->ID, 'wallet_balance' => 0, 'earnings_balance' => 0]);
 
-            $wallet->{$column} = max(0, (float) $wallet->{$column} + $delta);
-            $wallet->save();
+        $before = (float) $wallet->{$column};
+        $after = $direction === 'add' ? $before + $amount : max(0, $before - $amount);
+        $applied = abs($after - $before);
 
-            if ($direction === 'add') {
-                $this->walletLedger->recordCredit($target->ID, $type, $amount, 'admin_adjustment');
-            } else {
-                $this->walletLedger->recordDebit($target->ID, $type, $amount, 'admin_adjustment');
-            }
+        $wallet->{$column} = $after;
+        $wallet->save();
 
+        if ($applied <= 0) {
             return;
         }
 
-        $this->setMeta($target->ID, $column, (string) max(0, $this->currentMeta($target->ID, $column) + $delta));
+        if ($direction === 'add') {
+            $this->walletLedger->recordCredit($target->ID, $type, $applied, 'admin_adjustment');
+        } else {
+            $this->walletLedger->recordDebit($target->ID, $type, $applied, 'admin_adjustment');
+        }
     }
 
     private function adjustPoints(WpUser $target, float $amount, string $direction): void
     {
         $points = (int) round($amount);
 
-        if (WpOption::flagEnabled('rk_rewards_unified_enabled')) {
-            $record = UserPoints::query()->firstOrCreate(['user_id' => $target->ID], ['balance' => 0, 'streak_count' => 0]);
-            $delta = $direction === 'add' ? $points : -$points;
-            $record->balance = max(0, $record->balance + $delta);
-            $record->save();
+        $record = UserPoints::query()->lockForUpdate()->firstOrCreate(['user_id' => $target->ID], ['balance' => 0, 'streak_count' => 0]);
 
-            if ($direction === 'add') {
-                $this->pointsLedger->recordCredit($target->ID, $points, 'admin_adjustment');
-            } else {
-                $this->pointsLedger->recordDebit($target->ID, $points, 'admin_adjustment');
-            }
+        $before = (int) $record->balance;
+        $after = $direction === 'add' ? $before + $points : max(0, $before - $points);
+        $applied = abs($after - $before);
 
+        $record->balance = $after;
+        $record->save();
+
+        if ($applied <= 0) {
             return;
         }
 
-        $delta = $direction === 'add' ? $points : -$points;
-        $this->setMeta($target->ID, 'rk_points', (string) max(0, $this->currentMeta($target->ID, 'rk_points') + $delta));
-    }
-
-    private function currentMeta(int $userId, string $key): float
-    {
-        return (float) (WpUserMeta::query()->where('user_id', $userId)->where('meta_key', $key)->value('meta_value') ?? 0);
+        if ($direction === 'add') {
+            $this->pointsLedger->recordCredit($target->ID, $applied, 'admin_adjustment');
+        } else {
+            $this->pointsLedger->recordDebit($target->ID, $applied, 'admin_adjustment');
+        }
     }
 
     private function setMeta(int $userId, string $key, string $value): void
