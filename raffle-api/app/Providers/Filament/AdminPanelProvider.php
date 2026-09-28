@@ -2,6 +2,7 @@
 
 namespace App\Providers\Filament;
 
+use App\Services\Maintenance;
 use Filament\Http\Middleware\Authenticate;
 use Filament\Http\Middleware\DisableBladeIconComponents;
 use Filament\Http\Middleware\DispatchServingFilamentEvent;
@@ -55,6 +56,8 @@ class AdminPanelProvider extends PanelProvider
             // tab bar (resources/views/filament/hooks).
             ->renderHook(PanelsRenderHook::HEAD_END, fn () => view('filament.hooks.head'))
             ->renderHook(PanelsRenderHook::BODY_END, fn () => view('filament.hooks.bottom-nav'))
+            // A red reminder on every admin page while maintenance mode is on.
+            ->renderHook(PanelsRenderHook::CONTENT_START, fn () => app(Maintenance::class)->active() ? view('filament.hooks.maintenance-banner') : '')
             // Busiest daily queues first (item 44): money in/out, then
             // draws and winners, then the support inbox.
             ->navigationGroups(['Finance', 'Raffles', 'Support', 'Site', 'Users', 'System'])

@@ -3,6 +3,8 @@
 namespace App\Http\Middleware;
 
 use App\Models\CustomerMessage;
+use App\Services\Auth\TurnstileVerifier;
+use App\Services\Maintenance;
 use App\Services\PointsBoost;
 use App\Services\TicketPricingService;
 use Illuminate\Http\Request;
@@ -73,6 +75,18 @@ class HandleInertiaRequests extends Middleware
                 'ticket_bundles' => app(TicketPricingService::class)->bundleQuantities(),
                 'big_order_above' => (int) config('pricing.above_quantity'),
                 'points_boost' => app(PointsBoost::class)->banner(),
+                // Maintenance: "on" is only ever seen by staff (customers get
+                // the maintenance page); "upcoming" warns everyone ahead.
+                'maintenance' => [
+                    'active' => app(Maintenance::class)->active(),
+                    'upcoming' => app(Maintenance::class)->upcoming(),
+                    'is_staff' => $user?->staffRole() !== null,
+                ],
+                // Cloudflare Turnstile on log-in / forgot password (sign-up gets its own prop).
+                'turnstile' => [
+                    'site_key' => config('services.turnstile.site_key'),
+                    'forms' => app(TurnstileVerifier::class)->enabledForms(),
+                ],
             ],
         ];
     }

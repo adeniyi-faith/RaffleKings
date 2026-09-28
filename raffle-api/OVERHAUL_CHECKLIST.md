@@ -239,6 +239,19 @@ The new site replaced the WordPress site at rafflekings.com.ng (see `.github/wor
     - The Reward points "can redeem" filter used a fixed 100 points. It now uses the Settings value.
     - Two older admin tests signed in without passing the login to the page. They now use the shared helper, because pages check the role.
 
+- [x] **45c. Maintenance mode and Turnstile controls.** *(Done.)*
+  - **Settings → On / off → Maintenance mode.** Switch it on now, or schedule a start time. A "back at" time switches it off by itself.
+    - **Customers** see a branded "We'll be right back" page (HTTP 503 with `Retry-After`) with a live countdown, a "your tickets, wallet and winnings are safe" note and support links. The page re-checks every minute, so it comes back without anyone refreshing. API calls get a 503 JSON reply.
+    - **Always let through:** staff (with a red "Maintenance mode is ON" strip on the site), the whole admin, payment-provider webhooks and the payment callback (money already paid is still credited), log-in and log-out, and `/up`.
+    - **Customer warning:** a heads-up banner appears a set number of hours before planned maintenance.
+    - **Reminders:** the admin shows a red reminder on every page, and System → Health lists it as a warning.
+    - Built in `App\Services\Maintenance` and `App\Http\Middleware\MaintenanceMode` (added to both the web and API middleware groups).
+  - **Settings → Security → Bot protection (Cloudflare Turnstile).**
+    - The two keys are clearly labelled "Site key (public)" and "Secret key (private)", with where to get them.
+    - A **Check** button asks Cloudflare whether the secret key is valid.
+    - Switches choose which forms show the check: **sign-up** (on by default), **log-in** and **forgot password**. Log-in and forgot password now verify the check on the server too.
+    - **Fix:** the check only switches on when BOTH keys are set. Before, a secret key without a site key made every sign-up fail, because the page couldn't show the check it was demanding.
+
 - [ ] **46. Phase 6 — Checkout and wallet flows.** Insufficient balance at checkout is a dead end (greyed-out button): add "Top up ₦X" and "Use winnings to cover it", and return to the same checkout after a Paystack payment. Build the real winnings → spending-wallet transfer (no code exists; the Profile "Transfer" button only opens top-up). Live-updating number grid (taken numbers are a page-load snapshot) and a message when picking too many. Success modal shows the ticket numbers, "View my tickets" and "Share", with a celebration. Decide on the Golden Box 10% discount (supported by `TicketPricingService`, offered by no page).
 - [ ] **47. Phase 7 — Rewards that feel alive.** Restore the animated canvas wheel (glow, easing spin, confetti, "YOU WON!" modal) driven by the real server result and disclosed odds — today it's a button and a text modal. Tasks must open the WhatsApp channel / share sheet before awarding points (today "Claim" awards them for nothing). Daily-reset countdown, bouncing "claim today" circle, red "reward ready" dot on the bottom nav. A real guest preview (the streak row and task list are blank for guests). Error results get an error icon, not the green success tick.
 - [ ] **48. Phase 8 — Missing pages, sign-up and sharing.** Terms of Service (404 today) and About pages; Install App and WhatsApp channel entries in Profile; make the support-ticket page reachable (only linked from inside Tutorials today — Profile's "Get Help" goes to Telegram). Sign-up: terms/age acceptance, "Invited by X" banner, and actually pass `redirect` through the `/register` route (a guest sent to sign up mid-purchase lands on the homepage). Link previews (Open Graph title/description/image) and a real favicon (`public/favicon.ico` is 0 bytes). My Tickets shows "You won!" and links to results / live draw / verify.
