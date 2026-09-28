@@ -169,7 +169,7 @@ return new class extends Migration
         // migration — never let `migrate:rollback` drop live raffle data.
     }
 
-    private function createIfMissing(string $unprefixedName, \Closure $definition): void
+    private function createIfMissing(string $unprefixedName, Closure $definition): void
     {
         $table = $this->prefix.$unprefixedName;
 

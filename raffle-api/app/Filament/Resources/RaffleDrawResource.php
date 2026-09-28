@@ -8,6 +8,7 @@ use App\Exceptions\NoEligibleEntriesException;
 use App\Exceptions\NoPrizeStructureException;
 use App\Filament\Concerns\RunsAdminActions;
 use App\Filament\Resources\RaffleDrawResource\Pages;
+use App\Filament\Support\MobileCard;
 use App\Models\Raffle;
 use App\Models\RaffleDraw;
 use App\Services\AdminAuditLogService;
@@ -80,6 +81,24 @@ class RaffleDrawResource extends Resource
         return $raffle->closedReason() === null;
     }
 
+    private static function stageLabel(Raffle $raffle): string
+    {
+        return match (static::stage($raffle)) {
+            'not_locked' => 'Seed not locked',
+            'locked' => 'Seed locked',
+            default => 'Drawn',
+        };
+    }
+
+    private static function stageColor(string $label): string
+    {
+        return match ($label) {
+            'Drawn' => 'success',
+            'Seed locked' => 'info',
+            default => 'gray',
+        };
+    }
+
     private static function stage(Raffle $raffle): string
     {
         $draw = static::drawFor($raffle);
@@ -101,39 +120,45 @@ class RaffleDrawResource extends Resource
         return $table
             ->defaultSort('expiry', 'asc')
             ->columns([
-                Tables\Columns\TextColumn::make('title')
-                    ->searchable()
-                    ->limit(40)
-                    ->description(fn (Raffle $record) => $record->grand_prize),
-                Tables\Columns\TextColumn::make('sold')
-                    ->label('Tickets sold')
-                    ->state(fn (Raffle $record) => $record->soldTickets().' / '.$record->max_tickets),
-                Tables\Columns\TextColumn::make('expiry')
-                    ->label('Last day of sales')
-                    ->date()
-                    ->placeholder('No end date')
-                    ->sortable()
-                    ->description(fn (Raffle $record) => static::stillOnSale($record) ? 'Still selling' : 'Sales finished'),
-                Tables\Columns\TextColumn::make('stage')
-                    ->label('Draw')
-                    ->badge()
-                    ->state(fn (Raffle $record) => match (static::stage($record)) {
-                        'not_locked' => 'Seed not locked',
-                        'locked' => 'Seed locked',
-                        default => 'Drawn',
-                    })
-                    ->color(fn (string $state) => match ($state) {
-                        'Drawn' => 'success',
-                        'Seed locked' => 'info',
-                        default => 'gray',
-                    }),
-                Tables\Columns\TextColumn::make('fingerprint')
-                    ->label('Fingerprint')
-                    ->state(fn (Raffle $record) => static::drawFor($record)?->server_seed_hash)
-                    ->limit(14)
-                    ->copyable()
-                    ->fontFamily('mono')
-                    ->placeholder('—'),
+                // Phone: each row is one card (App\Filament\Support\MobileCard).
+                MobileCard::make(fn (Raffle $record) => [
+                    'title' => $record->title,
+                    'lines' => [
+                        $record->grand_prize,
+                        $record->soldTickets().' / '.$record->max_tickets.' tickets sold · '.($record->expiry ? 'sales end '.$record->expiry->format('j M') : 'no end date'),
+                    ],
+                    'badges' => [
+                        [static::stageLabel($record), static::stageColor(static::stageLabel($record))],
+                        [static::stillOnSale($record) ? 'Still selling' : 'Sales finished', 'gray'],
+                    ],
+                ]),
+                ...MobileCard::desktop([
+                    Tables\Columns\TextColumn::make('title')
+                        ->searchable()
+                        ->limit(40)
+                        ->description(fn (Raffle $record) => $record->grand_prize),
+                    Tables\Columns\TextColumn::make('sold')
+                        ->label('Tickets sold')
+                        ->state(fn (Raffle $record) => $record->soldTickets().' / '.$record->max_tickets),
+                    Tables\Columns\TextColumn::make('expiry')
+                        ->label('Last day of sales')
+                        ->date()
+                        ->placeholder('No end date')
+                        ->sortable()
+                        ->description(fn (Raffle $record) => static::stillOnSale($record) ? 'Still selling' : 'Sales finished'),
+                    Tables\Columns\TextColumn::make('stage')
+                        ->label('Draw')
+                        ->badge()
+                        ->state(fn (Raffle $record) => static::stageLabel($record))
+                        ->color(fn (string $state) => static::stageColor($state)),
+                    Tables\Columns\TextColumn::make('fingerprint')
+                        ->label('Fingerprint')
+                        ->state(fn (Raffle $record) => static::drawFor($record)?->server_seed_hash)
+                        ->limit(14)
+                        ->copyable()
+                        ->fontFamily('mono')
+                        ->placeholder('—'),
+                ]),
             ])
             ->filters([
                 Tables\Filters\Filter::make('not_drawn')

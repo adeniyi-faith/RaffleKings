@@ -5,6 +5,7 @@ namespace App\Filament\Resources;
 use App\Exceptions\PaymentGatewayException;
 use App\Filament\Concerns\RunsAdminActions;
 use App\Filament\Resources\PaymentMismatchResource\Pages;
+use App\Filament\Support\MobileCard;
 use App\Models\Deposit;
 use App\Services\DepositMismatchService;
 use Filament\Forms;
@@ -73,17 +74,28 @@ class PaymentMismatchResource extends Resource
         return $table
             ->defaultSort('created_at', 'asc')
             ->columns([
-                Tables\Columns\TextColumn::make('user.display_name')
-                    ->label('Customer')
-                    ->description(fn (Deposit $record) => $record->user?->user_email),
-                Tables\Columns\TextColumn::make('amount')->label('Started with')->formatStateUsing(fn ($state) => static::naira($state)),
-                Tables\Columns\TextColumn::make('failure_reason')->label('What the gateway said')->wrap()->limit(120),
-                Tables\Columns\TextColumn::make('reference')
-                    ->copyable()
-                    ->fontFamily('mono')
-                    ->size('xs')
-                    ->description(fn (Deposit $record) => ucfirst((string) $record->gateway)),
-                Tables\Columns\TextColumn::make('created_at')->label('When')->since(),
+                // Phone: each row is one card (App\Filament\Support\MobileCard).
+                MobileCard::make(fn (Deposit $record) => [
+                    'title' => $record->user?->display_name ?: $record->user?->user_login,
+                    'amount' => static::naira($record->amount),
+                    'body' => $record->failure_reason,
+                    'copy' => ['value' => $record->reference],
+                    'badges' => [[ucfirst((string) $record->gateway), 'gray']],
+                    'meta' => $record->created_at?->diffForHumans(),
+                ]),
+                ...MobileCard::desktop([
+                    Tables\Columns\TextColumn::make('user.display_name')
+                        ->label('Customer')
+                        ->description(fn (Deposit $record) => $record->user?->user_email),
+                    Tables\Columns\TextColumn::make('amount')->label('Started with')->formatStateUsing(fn ($state) => static::naira($state)),
+                    Tables\Columns\TextColumn::make('failure_reason')->label('What the gateway said')->wrap()->limit(120),
+                    Tables\Columns\TextColumn::make('reference')
+                        ->copyable()
+                        ->fontFamily('mono')
+                        ->size('xs')
+                        ->description(fn (Deposit $record) => ucfirst((string) $record->gateway)),
+                    Tables\Columns\TextColumn::make('created_at')->label('When')->since(),
+                ]),
             ])
             // Actions first: acting on each row is this screen's whole
             // purpose, so the buttons must never be pushed off-screen.
