@@ -2,6 +2,7 @@
 
 namespace App\Filament\Resources;
 
+use App\Filament\Concerns\GuardedByStaffRole;
 use App\Filament\Concerns\RunsAdminActions;
 use App\Filament\Resources\SupportTicketResource\Pages;
 use App\Filament\Support\MobileCard;
@@ -27,7 +28,12 @@ use Illuminate\Database\Eloquent\Builder;
  */
 class SupportTicketResource extends Resource
 {
-    use RunsAdminActions;
+    use GuardedByStaffRole, RunsAdminActions;
+
+    public static function canViewAny(): bool
+    {
+        return static::staffCanOpen();
+    }
 
     /** Plain labels for the ticket statuses (see SupportTicketService::reply()). */
     public const STATUS_LABELS = [

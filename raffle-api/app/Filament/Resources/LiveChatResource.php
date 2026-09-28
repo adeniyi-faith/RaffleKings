@@ -2,6 +2,7 @@
 
 namespace App\Filament\Resources;
 
+use App\Filament\Concerns\GuardedByStaffRole;
 use App\Filament\Concerns\RunsAdminActions;
 use App\Filament\Resources\LiveChatResource\Pages;
 use App\Filament\Support\MobileCard;
@@ -26,7 +27,12 @@ use Illuminate\Database\Eloquent\Collection;
  */
 class LiveChatResource extends Resource
 {
-    use RunsAdminActions;
+    use GuardedByStaffRole, RunsAdminActions;
+
+    public static function canViewAny(): bool
+    {
+        return static::staffCanOpen();
+    }
 
     protected static ?string $model = LiveDrawComment::class;
 

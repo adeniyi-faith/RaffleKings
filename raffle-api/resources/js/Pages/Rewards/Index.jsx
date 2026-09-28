@@ -249,6 +249,20 @@ export default function RewardsIndex({ referralCode }) {
                 </div>
 
                 <div className="relative z-20 -mt-6 space-y-5 px-5">
+                    {site.points_boost && (
+                        <div className="flex items-center gap-3 rounded-2xl bg-gradient-to-r from-amber-400 to-orange-500 p-4 text-white shadow-lg shadow-orange-500/20">
+                            <div className="flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-full bg-white/20 text-lg font-black">
+                                ×{site.points_boost.multiplier}
+                            </div>
+                            <div className="min-w-0">
+                                <p className="text-sm font-bold">{site.points_boost.label}</p>
+                                <p className="text-[11px] text-white/85">
+                                    Daily claim and task points are boosted until{' '}
+                                    {new Date(site.points_boost.ends_at).toLocaleString(undefined, { weekday: 'short', hour: 'numeric', minute: '2-digit' })}.
+                                </p>
+                            </div>
+                        </div>
+                    )}
                     {/* Redeem card */}
                     <div className="flex items-center justify-between rounded-2xl border border-gray-100 bg-white p-5 shadow-sm dark:border-gray-800 dark:bg-dark-card">
                         <div>

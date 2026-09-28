@@ -10,7 +10,7 @@ namespace App\Settings;
 final class Setting
 {
     /**
-     * @param  string  $type  text|textarea|url|email|secret|int|money|percent|fraction_percent|bool|select|tags|timezone|daily_rewards|bundles|spin_prizes
+     * @param  string  $type  text|textarea|url|email|datetime|secret|int|money|percent|fraction_percent|bool|select|tags|timezone|daily_rewards|bundles|spin_prizes
      * @param  array<string, string>  $options  For select.
      * @param  array<int, string>  $rules  Extra validation rules.
      */
@@ -34,6 +34,7 @@ final class Setting
     {
         return match ($this->type) {
             'secret' => null,
+            'select' => $value === null ? null : (string) $value,
             'bool' => (bool) $value,
             'fraction_percent' => $value === null ? null : round((float) $value * 100, 4),
             'tags' => array_values(array_filter((array) $value, fn ($v) => $v !== null && $v !== '')),
@@ -48,6 +49,8 @@ final class Setting
     {
         return match ($this->type) {
             'bool' => (bool) $value,
+            // Numeric choices (e.g. a ×2 multiplier) are stored as numbers.
+            'select' => is_string($value) && is_numeric($value) ? $value + 0 : ($value === '' ? null : $value),
             'int' => $value === null || $value === '' ? null : (int) $value,
             'money', 'percent' => $value === null || $value === '' ? null : (float) $value,
             'fraction_percent' => $value === null || $value === '' ? null : round((float) $value / 100, 6),

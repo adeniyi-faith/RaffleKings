@@ -155,6 +155,15 @@ final class SettingsRegistry
                             new Setting('rewards.spin_prizes', 'Prizes and their chances', 'spin_prizes', 'Chance = its weight ÷ all weights added up. Customers see these real odds.'),
                         ],
                     ],
+                    'Points boost (promotion)' => [
+                        'description' => 'Run a "double points weekend": daily-claim and task points are multiplied between the two times, and customers see a banner on the Rewards page. Spin & Win is not affected.',
+                        'settings' => [
+                            new Setting('rewards.boost.multiplier', 'Multiply points by', 'select', 'Choose "Off" to stop a boost early.', ['1' => 'Off', '1.5' => '×1.5', '2' => '×2 (double)', '3' => '×3 (triple)']),
+                            new Setting('rewards.boost.label', 'Banner text', 'text', placeholder: 'Double points weekend!', rules: ['nullable', 'max:60']),
+                            new Setting('rewards.boost.starts_at', 'Starts', 'datetime', 'Empty = starts as soon as you save.'),
+                            new Setting('rewards.boost.ends_at', 'Ends', 'datetime', 'Required for a boost to run.'),
+                        ],
+                    ],
                     'Cashing in points' => [
                         'settings' => [
                             new Setting('rewards.points_per_naira', 'Points per ₦1', 'int', rules: ['required', 'integer', 'min:1']),

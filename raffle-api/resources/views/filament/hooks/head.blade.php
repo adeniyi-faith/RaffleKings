@@ -66,6 +66,10 @@
         .fi-main-ctn { padding-bottom: calc(64px + env(safe-area-inset-bottom, 0px)); }
     }
 
+    /* Small stat boxes on custom pages (health, reports): 2 per row on phones, 4 on wider screens. */
+    .rk-stats { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }
+    @media (min-width: 768px) { .rk-stats { grid-template-columns: repeat(4, minmax(0, 1fr)); } }
+
     /* ---------- Phone table cards (App\Filament\Support\MobileCard) ---------- */
     .rk-card { flex: 1 1 auto; width: 100%; display: grid; grid-template-columns: minmax(0, 1fr); gap: 3px; white-space: normal; padding: 14px 12px 10px; min-width: 0; }
     .rk-card-top { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; min-width: 0; }

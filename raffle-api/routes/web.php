@@ -162,6 +162,10 @@ Route::get('/account/wallet', function (Request $request) use ($accountGuard) {
     return $accountGuard($request) ?? Inertia::render('Account/Wallet');
 });
 
+Route::get('/messages', function (Request $request) use ($accountGuard) {
+    return $accountGuard($request) ?? Inertia::render('Account/Messages');
+});
+
 Route::get('/account/withdraw', function (Request $request) use ($accountGuard) {
     return $accountGuard($request) ?? Inertia::render('Account/Withdraw');
 });

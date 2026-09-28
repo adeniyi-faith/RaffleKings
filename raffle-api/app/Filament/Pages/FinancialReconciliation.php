@@ -2,6 +2,7 @@
 
 namespace App\Filament\Pages;
 
+use App\Filament\Concerns\GuardedByStaffRole;
 use App\Models\Wallet;
 use App\Services\WalletLedgerService;
 use Filament\Pages\Page;
@@ -24,7 +25,12 @@ use Filament\Tables\Table;
  */
 class FinancialReconciliation extends Page implements HasTable
 {
-    use InteractsWithTable;
+    use GuardedByStaffRole, InteractsWithTable;
+
+    public static function canAccess(): bool
+    {
+        return static::staffCanOpen();
+    }
 
     protected static ?string $navigationIcon = 'heroicon-o-scale';
 

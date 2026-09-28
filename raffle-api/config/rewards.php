@@ -31,6 +31,15 @@ return [
         ['payout' => 500, 'weight' => 20, 'outcome' => 'jackpot'],
     ],
 
+    // Points boost promotion ("double points weekend"): daily-claim and
+    // task points are multiplied while it runs. Times are stored in UTC.
+    'boost' => [
+        'multiplier' => 1,
+        'starts_at' => null,
+        'ends_at' => null,
+        'label' => 'Double points',
+    ],
+
     // Redemption: this many points = ₦1, and the least a customer can cash in.
     'points_per_naira' => 10,
     'minimum_redeem_points' => 100,

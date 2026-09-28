@@ -2,10 +2,12 @@
 
 namespace App\Filament\Resources;
 
+use App\Filament\Concerns\GuardedByStaffRole;
 use App\Filament\Concerns\RunsAdminActions;
 use App\Filament\Resources\WithdrawalRequestResource\Pages;
 use App\Filament\Support\MobileCard;
 use App\Models\WithdrawalRequest;
+use App\Services\Risk\FraudWatchService;
 use App\Services\WithdrawalService;
 use Filament\Forms;
 use Filament\Forms\Form;
@@ -28,7 +30,12 @@ use Illuminate\Database\Eloquent\Builder;
  */
 class WithdrawalRequestResource extends Resource
 {
-    use RunsAdminActions;
+    use GuardedByStaffRole, RunsAdminActions;
+
+    public static function canViewAny(): bool
+    {
+        return static::staffCanOpen();
+    }
 
     protected static ?string $model = WithdrawalRequest::class;
 
@@ -61,6 +68,21 @@ class WithdrawalRequestResource extends Resource
         return 'warning';
     }
 
+    /** @var array<int, string>|null Fraud-watch notes for pending withdrawals, worked out once per page. */
+    private static ?array $warnings = null;
+
+    /** A plain-words reason to look twice before paying (App\Services\Risk\FraudWatchService). */
+    public static function warning(WithdrawalRequest $record): ?string
+    {
+        if ($record->status !== 'pending') {
+            return null;
+        }
+
+        static::$warnings ??= app(FraudWatchService::class)->pendingWithdrawalWarnings();
+
+        return static::$warnings[$record->id] ?? null;
+    }
+
     public static function form(Form $form): Form
     {
         return $form->schema([]);
@@ -81,16 +103,23 @@ class WithdrawalRequestResource extends Resource
                         (float) $record->fee_amount > 0 ? 'Requested '.static::naira($record->requested_amount).' · fee '.static::naira($record->fee_amount) : null,
                     ],
                     'copy' => $record->bankAccount ? ['value' => $record->bankAccount->account_number] : null,
-                    'badges' => [match ($record->status) {
-                        'pending' => ['Waiting to be paid', 'warning'],
-                        'paid' => ['Paid', 'success'],
-                        default => ['Rejected', 'gray'],
-                    }],
+                    'body' => static::warning($record),
+                    'badges' => [
+                        match ($record->status) {
+                            'pending' => ['Waiting to be paid', 'warning'],
+                            'paid' => ['Paid', 'success'],
+                            default => ['Rejected', 'gray'],
+                        },
+                        static::warning($record) ? ['Check before paying', 'danger'] : null,
+                    ],
                     'meta' => $record->created_at?->diffForHumans(),
                 ]),
                 ...MobileCard::desktop([
                     Tables\Columns\TextColumn::make('user.display_name')
                         ->label('Customer')
+                        ->icon(fn (WithdrawalRequest $record) => static::warning($record) ? 'heroicon-m-exclamation-triangle' : null)
+                        ->iconColor('danger')
+                        ->tooltip(fn (WithdrawalRequest $record) => static::warning($record))
                         ->description(fn (WithdrawalRequest $record) => $record->user?->user_email)
                         ->searchable(['display_name', 'user_login', 'user_email']),
                     Tables\Columns\TextColumn::make('amount_to_send')
@@ -129,13 +158,15 @@ class WithdrawalRequestResource extends Resource
             ->actionsColumnLabel('Action')
             ->actions([
                 Tables\Actions\Action::make('markPaid')
+                    // Only staff allowed to move money see this (App\Auth\StaffRoles).
+                    ->hidden(fn () => ! static::staffCan('money.pay'))
                     ->label('Mark paid')
                     ->icon('heroicon-o-check-circle')
                     ->color('success')
                     ->visible(fn (WithdrawalRequest $record) => $record->status === 'pending')
                     ->requiresConfirmation()
                     ->modalHeading('Mark this withdrawal as paid?')
-                    ->modalDescription(fn (WithdrawalRequest $record) => 'Only confirm AFTER you have sent '.static::naira($record->amount_to_send)
+                    ->modalDescription(fn (WithdrawalRequest $record) => (static::warning($record) ? '⚠ '.static::warning($record).' ' : '').'Only confirm AFTER you have sent '.static::naira($record->amount_to_send)
                         .($record->bankAccount ? " to {$record->bankAccount->account_name}, {$record->bankAccount->bank_name} {$record->bankAccount->account_number}" : '')
                         .'. The customer is told their money is on the way.')
                     ->modalSubmitActionLabel('Yes, I have sent it')
@@ -144,6 +175,8 @@ class WithdrawalRequestResource extends Resource
                         "Withdrawal #{$record->id} marked paid.",
                     )),
                 Tables\Actions\Action::make('reject')
+                    // Only staff allowed to move money see this (App\Auth\StaffRoles).
+                    ->hidden(fn () => ! static::staffCan('money.pay'))
                     ->label('Reject')
                     ->icon('heroicon-o-x-circle')
                     ->color('danger')
