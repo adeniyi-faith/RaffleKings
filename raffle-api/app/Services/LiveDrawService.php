@@ -80,6 +80,7 @@ class LiveDrawService
     {
         return LiveDrawComment::query()
             ->where('raffle_id', $raffle->id)
+            ->whereNull('hidden_at') // removed by a moderator (item 45)
             ->latest('id')
             ->limit($limit)
             ->get()
@@ -103,8 +104,24 @@ class LiveDrawService
             ->all();
     }
 
+    /**
+     * @throws RuntimeException if the customer is muted, or nothing is left after the chat filter
+     */
     public function postComment(WpUser $user, Raffle $raffle, string $body): LiveDrawComment
     {
+        $moderation = app(ChatModerationService::class);
+
+        if ($moderation->isMuted($user->getKey())) {
+            throw new RuntimeException('You can\'t post in the chat right now. If you think this is a mistake, contact support.');
+        }
+
+        // Links, phone numbers and blocked words are removed first (item 45).
+        $body = $moderation->clean($body);
+
+        if ($body === '' || trim(preg_replace('~\[(link|number) removed\]~', '', $body)) === '') {
+            throw new RuntimeException('Links and phone numbers can\'t be shared in the chat.');
+        }
+
         $comment = LiveDrawComment::create([
             'raffle_id' => $raffle->id,
             'user_id' => $user->getKey(),
