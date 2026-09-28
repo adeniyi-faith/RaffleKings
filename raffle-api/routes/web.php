@@ -1,5 +1,6 @@
 <?php
 
+use App\Http\Controllers\LegacyRedirectController;
 use App\Models\Legacy\RaffleEntry;
 use App\Models\Raffle;
 use App\Services\RaffleReadService;
@@ -13,7 +14,15 @@ use Inertia\Inertia;
 // data source (top 10, closing-soon first) as the legacy homepage's
 // SSR-preloaded $initial_raffles, via the same RaffleReadService the
 // /raffles page already uses.
-Route::get('/', function (RaffleReadService $raffles) {
+Route::get('/', function (Request $request, RaffleReadService $raffles) {
+    // The old site's referral links were also shared as the bare homepage
+    // with a code (`rafflekings.com.ng/?ref=NAME` — rk-core's own
+    // referral-link builder produced this form); its .htaccess sent those
+    // to registration. Without this, the referral was silently lost.
+    if (is_string($request->query('ref')) && $request->query('ref') !== '') {
+        return redirect('/register?'.http_build_query(['ref' => $request->query('ref')]));
+    }
+
     return Inertia::render('Home', [
         'trending' => $raffles->listActive(['sort' => 'closing_soon', 'per_page' => 10])['raffles'],
     ]);
@@ -219,6 +228,18 @@ Route::get('/raffles/{raffle}/verify', function (Raffle $raffle) {
         'raffle' => ['id' => $raffle->id, 'title' => $raffle->title],
     ]);
 });
+
+// Old-site addresses (OVERHAUL_CHECKLIST.md item 42) — registered after
+// every real page above, so a new page always wins over a redirect. Both
+// `winners.php` and `/winners` worked on the old site, so both redirect,
+// except where the extensionless name is itself a new page (`/raffles`).
+foreach (array_keys(LegacyRedirectController::MAP) as $oldPage) {
+    Route::get("{$oldPage}.php", LegacyRedirectController::class);
+
+    if (! in_array($oldPage, LegacyRedirectController::ALREADY_NEW_PAGES, true) && $oldPage !== 'index') {
+        Route::get($oldPage, LegacyRedirectController::class);
+    }
+}
 
 if (app()->environment(['local', 'testing'])) {
     // A living demo of the Phase 2 item 22 shared component library — not
