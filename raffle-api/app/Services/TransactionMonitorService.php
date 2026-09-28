@@ -4,9 +4,7 @@ namespace App\Services;
 
 use App\Models\Legacy\RaffleEntry;
 use App\Models\Legacy\RaffleTransaction;
-use App\Models\Legacy\WpOption;
 use App\Models\Legacy\WpUser;
-use App\Models\Legacy\WpUserMeta;
 use App\Models\Wallet;
 use Illuminate\Database\Eloquent\Collection;
 use Illuminate\Support\Facades\DB;
@@ -110,34 +108,20 @@ class TransactionMonitorService
 
     private function debitBalance(int $userId, string $balanceType, float $amount, string $reason, RaffleTransaction $transaction): void
     {
-        if (WpOption::flagEnabled('rk_wallets_unified_enabled')) {
-            $wallet = Wallet::query()->where('user_id', $userId)->lockForUpdate()->first()
-                ?? Wallet::create(['user_id' => $userId, 'wallet_balance' => 0, 'earnings_balance' => 0]);
+        $wallet = Wallet::query()->where('user_id', $userId)->lockForUpdate()->first()
+            ?? Wallet::create(['user_id' => $userId, 'wallet_balance' => 0, 'earnings_balance' => 0]);
 
-            $column = $balanceType === 'wallet' ? 'wallet_balance' : 'earnings_balance';
-            $wallet->{$column} = (float) $wallet->{$column} - $amount;
-            $wallet->save();
+        $column = $balanceType === 'wallet' ? 'wallet_balance' : 'earnings_balance';
+        $wallet->{$column} = (float) $wallet->{$column} - $amount;
+        $wallet->save();
 
-            $this->ledger->recordDebit(
-                userId: $userId,
-                balanceType: $balanceType,
-                amount: $amount,
-                reason: $reason,
-                referenceType: RaffleTransaction::class,
-                referenceId: (int) $transaction->id,
-            );
-
-            return;
-        }
-
-        $metaKey = $balanceType === 'wallet' ? 'wallet_balance' : 'earnings_balance';
-        $meta = WpUserMeta::query()->where('user_id', $userId)->where('meta_key', $metaKey)->first();
-        $current = (float) ($meta->meta_value ?? 0);
-
-        if ($meta) {
-            $meta->update(['meta_value' => $current - $amount]);
-        } else {
-            WpUserMeta::create(['user_id' => $userId, 'meta_key' => $metaKey, 'meta_value' => -$amount]);
-        }
+        $this->ledger->recordDebit(
+            userId: $userId,
+            balanceType: $balanceType,
+            amount: $amount,
+            reason: $reason,
+            referenceType: RaffleTransaction::class,
+            referenceId: (int) $transaction->id,
+        );
     }
 }

@@ -9,7 +9,9 @@ use App\Models\Legacy\WpUser;
 use App\Models\Legacy\WpUserMeta;
 use App\Models\UserPoints;
 use App\Models\Wallet;
+use App\Services\PointsLedgerService;
 use App\Services\UserManagementService;
+use App\Services\WalletLedgerService;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use InvalidArgumentException;
 use Tests\TestCase;
@@ -65,39 +67,41 @@ class UserManagementServiceTest extends TestCase
         $this->assertTrue($target->fresh()->isBanned());
     }
 
-    public function test_adding_to_wallet_credits_wp_usermeta_when_the_flag_is_off(): void
+    public function test_adding_to_wallet_credits_the_wallet_customers_actually_see(): void
     {
         $admin = $this->makeUser();
         $target = $this->makeUser();
 
         $this->users->adjustBalance($admin, $target, 'wallet', 1000, 'add');
 
-        $meta = WpUserMeta::where('user_id', $target->ID)->where('meta_key', 'wallet_balance')->first();
-        $this->assertEquals(1000, (float) $meta->meta_value);
+        $this->assertEquals(1000, (float) Wallet::where('user_id', $target->ID)->value('wallet_balance'));
+        $this->assertNull(WpUserMeta::where('user_id', $target->ID)->where('meta_key', 'wallet_balance')->first());
+        $this->assertEquals(1000, app(WalletLedgerService::class)->reconstructBalance($target->ID, 'wallet'));
     }
 
-    public function test_subtracting_from_wallet_clamps_at_zero(): void
+    public function test_adjusting_ignores_the_retired_legacy_wallet_switch_being_off(): void
     {
-        $admin = $this->makeUser();
-        $target = $this->makeUser();
-        WpUserMeta::create(['user_id' => $target->ID, 'meta_key' => 'wallet_balance', 'meta_value' => 500]);
-
-        $this->users->adjustBalance($admin, $target, 'wallet', 2000, 'subtract');
-
-        $meta = WpUserMeta::where('user_id', $target->ID)->where('meta_key', 'wallet_balance')->first();
-        $this->assertEquals(0, (float) $meta->meta_value);
-    }
-
-    public function test_adjusting_earnings_credits_the_unified_wallet_when_the_flag_is_on(): void
-    {
-        WpOption::create(['option_name' => 'rk_wallets_unified_enabled', 'option_value' => '1']);
+        WpOption::create(['option_name' => 'rk_wallets_unified_enabled', 'option_value' => '0']);
         $admin = $this->makeUser();
         $target = $this->makeUser();
 
         $this->users->adjustBalance($admin, $target, 'earnings', 2500, 'add');
 
-        $wallet = Wallet::where('user_id', $target->ID)->first();
-        $this->assertEquals(2500, (float) $wallet->earnings_balance);
+        $this->assertEquals(2500, (float) Wallet::where('user_id', $target->ID)->value('earnings_balance'));
+    }
+
+    public function test_subtracting_from_wallet_clamps_at_zero_and_the_ledger_records_only_what_was_taken(): void
+    {
+        $admin = $this->makeUser();
+        $target = $this->makeUser();
+        $this->users->adjustBalance($admin, $target, 'wallet', 500, 'add');
+
+        $this->users->adjustBalance($admin, $target, 'wallet', 2000, 'subtract');
+
+        $this->assertEquals(0, (float) Wallet::where('user_id', $target->ID)->value('wallet_balance'));
+        // The ledger must agree with the balance, or Financial
+        // Reconciliation would flag a drift that never really happened.
+        $this->assertEquals(0, app(WalletLedgerService::class)->reconstructBalance($target->ID, 'wallet'));
     }
 
     public function test_adjusting_a_balance_logs_a_raffle_transaction_and_an_audit_entry(): void
@@ -113,27 +117,28 @@ class UserManagementServiceTest extends TestCase
         $this->assertSame(1, AdminAuditLog::where('action', 'user.balance_add')->where('subject_id', $target->ID)->count());
     }
 
-    public function test_adjusting_points_uses_wp_usermeta_when_the_rewards_flag_is_off(): void
+    public function test_adjusting_points_uses_the_user_points_table_even_with_the_legacy_switch_off(): void
     {
+        WpOption::create(['option_name' => 'rk_rewards_unified_enabled', 'option_value' => '0']);
         $admin = $this->makeUser();
         $target = $this->makeUser();
 
         $this->users->adjustBalance($admin, $target, 'points', 100, 'add');
 
-        $meta = WpUserMeta::where('user_id', $target->ID)->where('meta_key', 'rk_points')->first();
-        $this->assertEquals(100, (float) $meta->meta_value);
+        $this->assertSame(100, UserPoints::where('user_id', $target->ID)->first()->balance);
+        $this->assertNull(WpUserMeta::where('user_id', $target->ID)->where('meta_key', 'rk_points')->first());
     }
 
-    public function test_adjusting_points_uses_user_points_table_when_the_rewards_flag_is_on(): void
+    public function test_subtracting_points_clamps_at_zero_and_the_ledger_agrees(): void
     {
-        WpOption::create(['option_name' => 'rk_rewards_unified_enabled', 'option_value' => '1']);
         $admin = $this->makeUser();
         $target = $this->makeUser();
-
         $this->users->adjustBalance($admin, $target, 'points', 50, 'add');
 
-        $record = UserPoints::where('user_id', $target->ID)->first();
-        $this->assertSame(50, $record->balance);
+        $this->users->adjustBalance($admin, $target, 'points', 80, 'subtract');
+
+        $this->assertSame(0, UserPoints::where('user_id', $target->ID)->first()->balance);
+        $this->assertSame(0, app(PointsLedgerService::class)->reconstructBalance($target->ID));
     }
 
     public function test_it_rejects_a_zero_or_negative_amount(): void

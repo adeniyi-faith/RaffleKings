@@ -214,6 +214,22 @@ jobs:
         # comments for exactly where each one comes from). Until those
         # secrets exist, this writes blank values for them, same as the
         # .env.example template did.
+        #
+        # Everything else the live site needs is ALSO read from secrets
+        # here (added in OVERHAUL_CHECKLIST.md item 41 -- before that this
+        # template had no line for them at all, so a key added by hand on
+        # the server was wiped by the very next deploy):
+        #   Payments:  PAYSTACK_SECRET_KEY, PAYSTACK_PUBLIC_KEY,
+        #              FLUTTERWAVE_SECRET_KEY, FLUTTERWAVE_PUBLIC_KEY,
+        #              FLUTTERWAVE_SECRET_HASH
+        #   Email:     MAIL_MAILER, MAIL_HOST, MAIL_PORT, MAIL_SCHEME,
+        #              MAIL_USERNAME, MAIL_PASSWORD, MAIL_FROM_ADDRESS
+        #   Alerts:    TELEGRAM_BOT_TOKEN, TELEGRAM_ADMIN_CHAT_IDS,
+        #              ONESIGNAL_APP_ID, ONESIGNAL_API_KEY
+        #   Other:     TURNSTILE_SITE_KEY, TURNSTILE_SECRET_KEY,
+        #              GEMINI_API_KEY
+        # Any that are missing are listed by the "Health check" step at
+        # the end of the deploy log.
         uses: appleboy/ssh-action@master
         with:
           host: ${{ secrets.CPANEL_HOST }}
@@ -273,11 +289,43 @@ jobs:
             BROADCAST_CONNECTION=log
             FILESYSTEM_DISK=local
             QUEUE_CONNECTION=database
+            # Longer than the scheduled worker's --timeout=600
+            # (routes/console.php), so a slow job -- a paced live-draw
+            # reveal -- is never mistaken for a crashed one and run twice.
+            DB_QUEUE_RETRY_AFTER=900
             CACHE_STORE=database
 
-            MAIL_MAILER=log
-            MAIL_FROM_ADDRESS="hello@rafflekings.com.ng"
+            # Email. Until the MAIL_* secrets exist this stays "log" (no
+            # email is actually sent) -- `app:health-check` below flags it
+            # as CRITICAL in this deploy's log so it can't go unnoticed.
+            # For plain SMTP (cPanel mail, Zoho, Brevo, ...) set
+            # MAIL_MAILER=smtp plus MAIL_HOST / MAIL_PORT / MAIL_USERNAME /
+            # MAIL_PASSWORD (and MAIL_SCHEME=smtps for port 465).
+            MAIL_MAILER=${{ secrets.MAIL_MAILER || 'log' }}
+            MAIL_SCHEME=${{ secrets.MAIL_SCHEME }}
+            MAIL_HOST=${{ secrets.MAIL_HOST }}
+            MAIL_PORT=${{ secrets.MAIL_PORT || '587' }}
+            MAIL_USERNAME=${{ secrets.MAIL_USERNAME }}
+            MAIL_PASSWORD="${{ secrets.MAIL_PASSWORD }}"
+            MAIL_FROM_ADDRESS="${{ secrets.MAIL_FROM_ADDRESS || 'hello@rafflekings.com.ng' }}"
             MAIL_FROM_NAME="${APP_NAME}"
+
+            # Payments (Paystack first, Flutterwave as automatic backup).
+            # Without at least one secret key, nobody can top up.
+            PAYSTACK_SECRET_KEY=${{ secrets.PAYSTACK_SECRET_KEY }}
+            PAYSTACK_PUBLIC_KEY=${{ secrets.PAYSTACK_PUBLIC_KEY }}
+            FLUTTERWAVE_SECRET_KEY=${{ secrets.FLUTTERWAVE_SECRET_KEY }}
+            FLUTTERWAVE_PUBLIC_KEY=${{ secrets.FLUTTERWAVE_PUBLIC_KEY }}
+            FLUTTERWAVE_SECRET_HASH=${{ secrets.FLUTTERWAVE_SECRET_HASH }}
+
+            # Alerts, push notifications, bot protection, statement reader.
+            TELEGRAM_BOT_TOKEN=${{ secrets.TELEGRAM_BOT_TOKEN }}
+            TELEGRAM_ADMIN_CHAT_IDS=${{ secrets.TELEGRAM_ADMIN_CHAT_IDS }}
+            ONESIGNAL_APP_ID=${{ secrets.ONESIGNAL_APP_ID }}
+            ONESIGNAL_API_KEY=${{ secrets.ONESIGNAL_API_KEY }}
+            TURNSTILE_SITE_KEY=${{ secrets.TURNSTILE_SITE_KEY }}
+            TURNSTILE_SECRET_KEY=${{ secrets.TURNSTILE_SECRET_KEY }}
+            GEMINI_API_KEY=${{ secrets.GEMINI_API_KEY }}
 
             VITE_APP_NAME="${APP_NAME}"
             ENVEOF
@@ -303,3 +351,52 @@ jobs:
             php artisan route:cache
             php artisan view:cache
             php artisan queue:restart
+
+      - name: Make sure the scheduler cron job exists
+        # Shared hosting can't keep a queue worker running on its own, so
+        # ONE cron line runs Laravel's scheduler every minute, and the
+        # scheduler starts a short-lived worker that sends every queued
+        # email/push/alert and exits (routes/console.php). Without this
+        # line nothing queued is ever sent -- password-reset codes
+        # included. Only ever ADDS the line, once: if any existing cron
+        # entry already runs `artisan schedule:run` it does nothing, and
+        # it never removes or edits anything else in the crontab. If this
+        # host doesn't allow `crontab` over SSH, it prints the exact line
+        # to paste into cPanel -> Cron Jobs instead.
+        uses: appleboy/ssh-action@master
+        with:
+          host: ${{ secrets.CPANEL_HOST }}
+          username: ${{ secrets.CPANEL_USERNAME }}
+          password: ${{ secrets.CPANEL_PASSWORD }}
+          port: 22
+          script: |
+            set -e
+            PHP_BIN=$(command -v php)
+            CRON_LINE="* * * * * cd ${{ env.DEPLOY_PATH }} && $PHP_BIN artisan schedule:run >> /dev/null 2>&1"
+            if ! command -v crontab >/dev/null 2>&1; then
+              echo "crontab isn't available over SSH on this host."
+              echo "Add this line yourself in cPanel -> Cron Jobs (Common Settings: Once Per Minute):"
+              echo "  $CRON_LINE"
+            elif crontab -l 2>/dev/null | grep -q "artisan schedule:run"; then
+              echo "Scheduler cron job already installed, nothing to do."
+            else
+              (crontab -l 2>/dev/null; echo "$CRON_LINE") | crontab -
+              echo "Installed the scheduler cron job:"
+              echo "  $CRON_LINE"
+            fi
+
+      - name: Health check (report only -- never blocks the deploy)
+        # Prints which settings are missing (names only, never values) and
+        # whether the scheduler/queue are actually running, plus how many
+        # customers' old-site balances haven't been carried into the new
+        # tables yet. Read this section of the log after every deploy.
+        uses: appleboy/ssh-action@master
+        with:
+          host: ${{ secrets.CPANEL_HOST }}
+          username: ${{ secrets.CPANEL_USERNAME }}
+          password: ${{ secrets.CPANEL_PASSWORD }}
+          port: 22
+          script: |
+            cd ${{ env.DEPLOY_PATH }}
+            php artisan app:health-check || true
+            php artisan legacy:migration-status || true
