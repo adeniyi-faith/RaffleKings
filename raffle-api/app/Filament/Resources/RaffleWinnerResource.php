@@ -4,6 +4,7 @@ namespace App\Filament\Resources;
 
 use App\Filament\Concerns\RunsAdminActions;
 use App\Filament\Resources\RaffleWinnerResource\Pages;
+use App\Filament\Support\MobileCard;
 use App\Models\Legacy\RaffleWinner;
 use App\Models\Legacy\WpPost;
 use App\Models\Raffle;
@@ -95,23 +96,39 @@ class RaffleWinnerResource extends Resource
         return $table
             ->defaultSort('won_at', 'desc')
             ->columns([
-                Tables\Columns\TextColumn::make('raffle_id')
-                    ->label('Raffle')
-                    ->formatStateUsing(fn (int $state) => static::raffleTitles()[$state] ?? "Raffle #{$state}")
-                    ->description(fn (RaffleWinner $record) => "#{$record->raffle_id}"),
-                Tables\Columns\TextColumn::make('user.display_name')
-                    ->label('Winner')
-                    ->description(fn (RaffleWinner $record) => $record->user?->user_email)
-                    ->searchable(['display_name', 'user_login', 'user_email']),
-                Tables\Columns\TextColumn::make('ticket_number')->label('Ticket')->alignCenter(),
-                Tables\Columns\TextColumn::make('prize_name')
-                    ->label('Prize')
-                    ->description(fn (RaffleWinner $record) => (float) $record->prize_cash_value > 0
-                        ? static::naira($record->prize_cash_value)
-                        : 'Non-cash prize'),
-                Tables\Columns\IconColumn::make('is_credited')->label('Paid')->boolean(),
-                Tables\Columns\IconColumn::make('is_visible')->label('Public')->boolean()->tooltip('Shown on the Hall of Fame'),
-                Tables\Columns\TextColumn::make('won_at')->label('Won')->since()->sortable()->toggleable(isToggledHiddenByDefault: true),
+                // Phone: each row is one card (App\Filament\Support\MobileCard).
+                MobileCard::make(fn (RaffleWinner $record) => [
+                    'title' => $record->prize_name,
+                    'amount' => (float) $record->prize_cash_value > 0 ? static::naira($record->prize_cash_value) : null,
+                    'lines' => [
+                        static::raffleTitles()[$record->raffle_id] ?? "Raffle #{$record->raffle_id}",
+                        "Ticket {$record->ticket_number} · ".($record->user?->display_name ?: $record->user?->user_login),
+                    ],
+                    'badges' => [
+                        $record->is_credited ? ['Paid', 'success'] : ['Not paid yet', 'warning'],
+                        $record->is_visible ? ['On Hall of Fame', 'info'] : ['Hidden', 'gray'],
+                    ],
+                    'meta' => $record->won_at?->diffForHumans(),
+                ]),
+                ...MobileCard::desktop([
+                    Tables\Columns\TextColumn::make('raffle_id')
+                        ->label('Raffle')
+                        ->formatStateUsing(fn (int $state) => static::raffleTitles()[$state] ?? "Raffle #{$state}")
+                        ->description(fn (RaffleWinner $record) => "#{$record->raffle_id}"),
+                    Tables\Columns\TextColumn::make('user.display_name')
+                        ->label('Winner')
+                        ->description(fn (RaffleWinner $record) => $record->user?->user_email)
+                        ->searchable(['display_name', 'user_login', 'user_email']),
+                    Tables\Columns\TextColumn::make('ticket_number')->label('Ticket')->alignCenter(),
+                    Tables\Columns\TextColumn::make('prize_name')
+                        ->label('Prize')
+                        ->description(fn (RaffleWinner $record) => (float) $record->prize_cash_value > 0
+                            ? static::naira($record->prize_cash_value)
+                            : 'Non-cash prize'),
+                    Tables\Columns\IconColumn::make('is_credited')->label('Paid')->boolean(),
+                    Tables\Columns\IconColumn::make('is_visible')->label('Public')->boolean()->tooltip('Shown on the Hall of Fame'),
+                    Tables\Columns\TextColumn::make('won_at')->label('Won')->since()->sortable()->toggleable(isToggledHiddenByDefault: true),
+                ]),
             ])
             ->filters([
                 Tables\Filters\TernaryFilter::make('is_credited')
