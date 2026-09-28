@@ -3,6 +3,7 @@
 namespace App\Filament\Resources;
 
 use App\Filament\Resources\AdminAuditLogResource\Pages;
+use App\Filament\Support\MobileCard;
 use App\Models\AdminAuditLog;
 use App\Models\Legacy\WpUser;
 use Filament\Forms;
@@ -84,6 +85,13 @@ class AdminAuditLogResource extends Resource
         return false;
     }
 
+    private static function details(AdminAuditLog $record): string
+    {
+        return collect($record->context ?? [])
+            ->map(fn ($v, $k) => str_replace('_', ' ', $k).': '.(is_scalar($v) || $v === null ? var_export($v, true) : json_encode($v)))
+            ->implode(' · ');
+    }
+
     public static function describe(string $action): string
     {
         return static::ACTIONS[$action] ?? ucfirst(str_replace(['.', '_'], [' · ', ' '], $action));
@@ -104,19 +112,28 @@ class AdminAuditLogResource extends Resource
         return $table
             ->defaultSort('created_at', 'desc')
             ->columns([
-                Tables\Columns\TextColumn::make('created_at')->label('When')->dateTime('j M Y, H:i')->sortable()->description(fn (AdminAuditLog $r) => $r->created_at?->diffForHumans()),
-                Tables\Columns\TextColumn::make('admin.display_name')->label('Admin')->placeholder('Unknown'),
-                Tables\Columns\TextColumn::make('action')->label('What')->formatStateUsing(fn (string $state) => static::describe($state))->searchable(),
-                Tables\Columns\TextColumn::make('subject_id')
-                    ->label('On')
-                    ->formatStateUsing(fn (AdminAuditLog $record) => class_basename($record->subject_type).' #'.$record->subject_id),
-                Tables\Columns\TextColumn::make('context')
-                    ->label('Details')
-                    ->state(fn (AdminAuditLog $record) => collect($record->context ?? [])
-                        ->map(fn ($v, $k) => str_replace('_', ' ', $k).': '.(is_scalar($v) || $v === null ? var_export($v, true) : json_encode($v)))
-                        ->implode(' · '))
-                    ->limit(80)
-                    ->wrap(),
+                // Phone: each row is one card (App\Filament\Support\MobileCard).
+                MobileCard::make(fn (AdminAuditLog $record) => [
+                    'title' => static::describe($record->action),
+                    'lines' => [
+                        'By '.($record->admin?->display_name ?: 'Unknown').' · on '.class_basename((string) $record->subject_type).' #'.$record->subject_id,
+                        str(static::details($record))->limit(120)->toString(),
+                    ],
+                    'meta' => $record->created_at?->format('j M Y, H:i').' · '.$record->created_at?->diffForHumans(),
+                ]),
+                ...MobileCard::desktop([
+                    Tables\Columns\TextColumn::make('created_at')->label('When')->dateTime('j M Y, H:i')->sortable()->description(fn (AdminAuditLog $r) => $r->created_at?->diffForHumans()),
+                    Tables\Columns\TextColumn::make('admin.display_name')->label('Admin')->placeholder('Unknown'),
+                    Tables\Columns\TextColumn::make('action')->label('What')->formatStateUsing(fn (string $state) => static::describe($state))->searchable(),
+                    Tables\Columns\TextColumn::make('subject_id')
+                        ->label('On')
+                        ->formatStateUsing(fn (AdminAuditLog $record) => class_basename($record->subject_type).' #'.$record->subject_id),
+                    Tables\Columns\TextColumn::make('context')
+                        ->label('Details')
+                        ->state(fn (AdminAuditLog $record) => static::details($record))
+                        ->limit(80)
+                        ->wrap(),
+                ]),
             ])
             ->filters([
                 Tables\Filters\SelectFilter::make('action')

@@ -4,6 +4,7 @@ namespace App\Filament\Resources;
 
 use App\Filament\Resources\RaffleResource\Pages;
 use App\Filament\Resources\RaffleResource\RelationManagers\PrizeTiersRelationManager;
+use App\Filament\Support\MobileCard;
 use App\Models\Raffle;
 use App\Services\LiveDrawService;
 use Filament\Forms;
@@ -97,54 +98,76 @@ class RaffleResource extends Resource
             ]);
     }
 
+    private static function salesState(Raffle $record): string
+    {
+        if ($record->status === 'draft') {
+            return 'Draft';
+        }
+
+        return match ($record->closedReason((int) ($record->sold_count ?? $record->soldTickets()))) {
+            null => 'On sale',
+            'ended' => 'Ended',
+            'sold_out' => 'Sold out',
+            default => 'Closed',
+        };
+    }
+
+    private static function salesColor(string $state): string
+    {
+        return $state === 'On sale' ? 'success' : ($state === 'Draft' ? 'gray' : 'warning');
+    }
+
     public static function table(Table $table): Table
     {
         return $table
             ->modifyQueryUsing(fn ($query) => $query->withCount('entries as sold_count'))
             ->columns([
-                Tables\Columns\TextColumn::make('public_id')
-                    ->label('No.')
-                    ->sortable()
-                    ->tooltip('The raffle\'s permanent public number — its page is /raffles/{number}.'),
-                Tables\Columns\TextColumn::make('title')->searchable()->limit(40),
-                Tables\Columns\TextColumn::make('price')->money('NGN'),
-                Tables\Columns\TextColumn::make('max_tickets')->label('Max tickets'),
-                Tables\Columns\TextColumn::make('sold')
-                    ->label('Sold')
-                    ->state(fn (Raffle $record): int => (int) ($record->sold_count ?? $record->soldTickets())),
-                Tables\Columns\TextColumn::make('sales')
-                    ->label('Sales')
-                    ->badge()
-                    ->state(function (Raffle $record): string {
-                        if ($record->status === 'draft') {
-                            return 'Draft';
-                        }
-
-                        return match ($record->closedReason((int) ($record->sold_count ?? $record->soldTickets()))) {
-                            null => 'On sale',
-                            'ended' => 'Ended',
-                            'sold_out' => 'Sold out',
-                            default => 'Closed',
-                        };
-                    })
-                    ->color(fn (string $state): string => $state === 'On sale' ? 'success' : ($state === 'Draft' ? 'gray' : 'warning')),
-                Tables\Columns\BadgeColumn::make('status')
-                    ->colors([
-                        'gray' => 'draft',
-                        'success' => 'published',
-                        'danger' => 'closed',
-                    ]),
-                Tables\Columns\TextColumn::make('expiry')->date(),
-                Tables\Columns\IconColumn::make('is_live_draw_enabled')
-                    ->label('Live draw')
-                    ->boolean(),
-                Tables\Columns\BadgeColumn::make('live_draw_status')
-                    ->label('Reveal')
-                    ->colors([
-                        'gray' => 'idle',
-                        'warning' => 'revealing',
-                        'success' => 'completed',
-                    ]),
+                // Phone: each row is one card (App\Filament\Support\MobileCard).
+                MobileCard::make(fn (Raffle $record) => [
+                    'title' => "#{$record->public_id} · {$record->title}",
+                    'amount' => '₦'.number_format((float) $record->price),
+                    'lines' => [
+                        ((int) ($record->sold_count ?? $record->soldTickets())).' / '.$record->max_tickets.' sold · '.($record->expiry ? 'last day '.$record->expiry->format('j M') : 'no end date'),
+                    ],
+                    'badges' => [
+                        [static::salesState($record), static::salesColor(static::salesState($record))],
+                        $record->is_live_draw_enabled ? ['Live draw · '.$record->live_draw_status, 'info'] : null,
+                    ],
+                ]),
+                ...MobileCard::desktop([
+                    Tables\Columns\TextColumn::make('public_id')
+                        ->label('No.')
+                        ->sortable()
+                        ->tooltip('The raffle\'s permanent public number — its page is /raffles/{number}.'),
+                    Tables\Columns\TextColumn::make('title')->searchable()->limit(40),
+                    Tables\Columns\TextColumn::make('price')->money('NGN'),
+                    Tables\Columns\TextColumn::make('max_tickets')->label('Max tickets'),
+                    Tables\Columns\TextColumn::make('sold')
+                        ->label('Sold')
+                        ->state(fn (Raffle $record): int => (int) ($record->sold_count ?? $record->soldTickets())),
+                    Tables\Columns\TextColumn::make('sales')
+                        ->label('Sales')
+                        ->badge()
+                        ->state(fn (Raffle $record): string => static::salesState($record))
+                        ->color(fn (string $state): string => static::salesColor($state)),
+                    Tables\Columns\BadgeColumn::make('status')
+                        ->colors([
+                            'gray' => 'draft',
+                            'success' => 'published',
+                            'danger' => 'closed',
+                        ]),
+                    Tables\Columns\TextColumn::make('expiry')->date(),
+                    Tables\Columns\IconColumn::make('is_live_draw_enabled')
+                        ->label('Live draw')
+                        ->boolean(),
+                    Tables\Columns\BadgeColumn::make('live_draw_status')
+                        ->label('Reveal')
+                        ->colors([
+                            'gray' => 'idle',
+                            'warning' => 'revealing',
+                            'success' => 'completed',
+                        ]),
+                ]),
             ])
             ->filters([
                 Tables\Filters\SelectFilter::make('status')

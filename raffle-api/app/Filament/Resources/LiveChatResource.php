@@ -4,6 +4,7 @@ namespace App\Filament\Resources;
 
 use App\Filament\Concerns\RunsAdminActions;
 use App\Filament\Resources\LiveChatResource\Pages;
+use App\Filament\Support\MobileCard;
 use App\Models\LiveDrawComment;
 use App\Services\ChatModerationService;
 use Filament\Forms;
@@ -73,18 +74,31 @@ class LiveChatResource extends Resource
             ->defaultSort('created_at', 'desc')
             ->poll('15s')
             ->columns([
-                Tables\Columns\TextColumn::make('body')
-                    ->label('Message')
-                    ->wrap()
-                    ->description(fn (LiveDrawComment $record) => ($record->user?->display_name ?: $record->user?->user_login ?: "User #{$record->user_id}")
-                        .(static::isMuted($record->user_id) ? ' · muted' : '')),
-                Tables\Columns\TextColumn::make('raffle.title')->label('Live draw')->limit(30),
-                Tables\Columns\TextColumn::make('created_at')->label('Posted')->since()->sortable(),
-                Tables\Columns\TextColumn::make('visibility')
-                    ->label('Status')
-                    ->badge()
-                    ->state(fn (LiveDrawComment $record) => $record->hidden_at ? 'Hidden' : 'Showing')
-                    ->color(fn (string $state) => $state === 'Hidden' ? 'gray' : 'success'),
+                // Phone: each row is one card (App\Filament\Support\MobileCard).
+                MobileCard::make(fn (LiveDrawComment $record) => [
+                    'title' => $record->user?->display_name ?: $record->user?->user_login ?: "User #{$record->user_id}",
+                    'body' => $record->body,
+                    'lines' => [$record->raffle?->title],
+                    'badges' => [
+                        $record->hidden_at ? ['Hidden', 'gray'] : ['Showing', 'success'],
+                        static::isMuted($record->user_id) ? ['Author muted', 'danger'] : null,
+                    ],
+                    'meta' => $record->created_at?->diffForHumans(),
+                ]),
+                ...MobileCard::desktop([
+                    Tables\Columns\TextColumn::make('body')
+                        ->label('Message')
+                        ->wrap()
+                        ->description(fn (LiveDrawComment $record) => ($record->user?->display_name ?: $record->user?->user_login ?: "User #{$record->user_id}")
+                            .(static::isMuted($record->user_id) ? ' · muted' : '')),
+                    Tables\Columns\TextColumn::make('raffle.title')->label('Live draw')->limit(30),
+                    Tables\Columns\TextColumn::make('created_at')->label('Posted')->since()->sortable(),
+                    Tables\Columns\TextColumn::make('visibility')
+                        ->label('Status')
+                        ->badge()
+                        ->state(fn (LiveDrawComment $record) => $record->hidden_at ? 'Hidden' : 'Showing')
+                        ->color(fn (string $state) => $state === 'Hidden' ? 'gray' : 'success'),
+                ]),
             ])
             ->filters([
                 Tables\Filters\SelectFilter::make('visibility')

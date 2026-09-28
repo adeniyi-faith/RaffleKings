@@ -3,6 +3,7 @@
 namespace App\Filament\Resources\Legacy;
 
 use App\Filament\Resources\Legacy\WpUserResource\Pages;
+use App\Filament\Support\MobileCard;
 use App\Models\Legacy\WpUser;
 use App\Models\Wallet;
 use App\Services\UserManagementService;
@@ -42,52 +43,55 @@ class WpUserResource extends Resource
         return $form->schema([]);
     }
 
+    /** @var array<int, ?Wallet> Looked up once per user per page. */
+    private static array $wallets = [];
+
+    private static function wallet(WpUser $record): ?Wallet
+    {
+        return static::$wallets[$record->ID] ??= Wallet::where('user_id', $record->ID)->first();
+    }
+
     public static function table(Table $table): Table
     {
         return $table
             ->columns([
-                Tables\Columns\TextColumn::make('ID')->sortable(),
-                Tables\Columns\TextColumn::make('user_login')->label('Username')->searchable(),
-                Tables\Columns\TextColumn::make('user_email')->label('Email')->searchable(),
-                Tables\Columns\TextColumn::make('display_name')->label('Display name'),
-                Tables\Columns\TextColumn::make('wallet_balance')
-                    ->label('Wallet')
-                    ->state(fn (WpUser $record) => Wallet::where('user_id', $record->ID)->value('wallet_balance') ?? 0)
-                    ->money('NGN'),
-                Tables\Columns\TextColumn::make('earnings_balance')
-                    ->label('Earnings')
-                    ->state(fn (WpUser $record) => Wallet::where('user_id', $record->ID)->value('earnings_balance') ?? 0)
-                    ->money('NGN'),
-                Tables\Columns\IconColumn::make('is_administrator')
-                    ->label('Admin')
-                    ->boolean()
-                    ->state(fn (WpUser $record) => $record->isAdministrator()),
-                Tables\Columns\IconColumn::make('is_banned')
-                    ->label('Banned')
-                    ->boolean()
-                    ->state(fn (WpUser $record) => $record->isBanned()),
+                // Phone: each row is one card (App\Filament\Support\MobileCard).
+                MobileCard::make(fn (WpUser $record) => [
+                    'title' => $record->display_name ?: $record->user_login,
+                    'amount' => '₦'.number_format((float) static::wallet($record)?->wallet_balance),
+                    'lines' => [
+                        $record->user_email,
+                        '@'.$record->user_login.' · #'.$record->ID.' · winnings ₦'.number_format((float) static::wallet($record)?->earnings_balance),
+                    ],
+                    'badges' => [
+                        $record->isAdministrator() ? ['Admin', 'primary'] : null,
+                        $record->isBanned() ? ['Banned', 'danger'] : null,
+                    ],
+                ]),
+                ...MobileCard::desktop([
+                    Tables\Columns\TextColumn::make('ID')->sortable(),
+                    Tables\Columns\TextColumn::make('user_login')->label('Username')->searchable(),
+                    Tables\Columns\TextColumn::make('user_email')->label('Email')->searchable(),
+                    Tables\Columns\TextColumn::make('display_name')->label('Display name'),
+                    Tables\Columns\TextColumn::make('wallet_balance')
+                        ->label('Wallet')
+                        ->state(fn (WpUser $record) => static::wallet($record)?->wallet_balance ?? 0)
+                        ->money('NGN'),
+                    Tables\Columns\TextColumn::make('earnings_balance')
+                        ->label('Earnings')
+                        ->state(fn (WpUser $record) => static::wallet($record)?->earnings_balance ?? 0)
+                        ->money('NGN'),
+                    Tables\Columns\IconColumn::make('is_administrator')
+                        ->label('Admin')
+                        ->boolean()
+                        ->state(fn (WpUser $record) => $record->isAdministrator()),
+                    Tables\Columns\IconColumn::make('is_banned')
+                        ->label('Banned')
+                        ->boolean()
+                        ->state(fn (WpUser $record) => $record->isBanned()),
+                ]),
             ])
             ->actions([
-                Tables\Actions\Action::make('ban')
-                    ->label('Ban')
-                    ->color('danger')
-                    ->icon('heroicon-o-no-symbol')
-                    ->visible(fn (WpUser $record) => ! $record->isBanned())
-                    ->requiresConfirmation()
-                    ->action(function (WpUser $record) {
-                        app(UserManagementService::class)->ban(auth('wordpress')->user(), $record);
-                        Notification::make()->title("#{$record->ID} banned.")->success()->send();
-                    }),
-                Tables\Actions\Action::make('unban')
-                    ->label('Unban')
-                    ->color('success')
-                    ->icon('heroicon-o-check-circle')
-                    ->visible(fn (WpUser $record) => $record->isBanned())
-                    ->requiresConfirmation()
-                    ->action(function (WpUser $record) {
-                        app(UserManagementService::class)->unban(auth('wordpress')->user(), $record);
-                        Notification::make()->title("#{$record->ID} unbanned.")->success()->send();
-                    }),
                 Tables\Actions\Action::make('adjustBalance')
                     ->label('Adjust balance')
                     ->color('warning')
@@ -115,37 +119,61 @@ class WpUserResource extends Resource
                         }
                         Notification::make()->title("#{$record->ID}'s balance updated.")->success()->send();
                     }),
-                Tables\Actions\Action::make('restrictions')
-                    ->label('Restrictions')
-                    ->color('gray')
-                    ->icon('heroicon-o-shield-exclamation')
-                    ->fillForm(fn (WpUser $record) => [
-                        'is_banned' => $record->isBanned(),
-                        'ban_withdraw' => $record->metaValue('rk_ban_withdraw') === '1',
-                        'ban_transfer' => $record->metaValue('rk_ban_transfer') === '1',
-                        'ban_expiry' => $record->metaValue('rk_ban_expiry') ?: null,
-                    ])
-                    ->form([
-                        Forms\Components\Checkbox::make('is_banned')->label('Full account ban (login blocked)'),
-                        Forms\Components\Checkbox::make('ban_withdraw')
-                            ->label('Block withdrawals')
-                            ->helperText('Not currently enforced anywhere — see the field\'s own tooltip in the legacy admin panel.'),
-                        Forms\Components\Checkbox::make('ban_transfer')
-                            ->label('Block transfers')
-                            ->helperText('Not currently enforced anywhere — see the field\'s own tooltip in the legacy admin panel.'),
-                        Forms\Components\DatePicker::make('ban_expiry')->label('Restriction expiry (optional)'),
-                    ])
-                    ->action(function (WpUser $record, array $data) {
-                        app(UserManagementService::class)->updateRestrictions(
-                            auth('wordpress')->user(),
-                            $record,
-                            (bool) ($data['is_banned'] ?? false),
-                            (bool) ($data['ban_withdraw'] ?? false),
-                            (bool) ($data['ban_transfer'] ?? false),
-                            $data['ban_expiry'] ?? null,
-                        );
-                        Notification::make()->title("#{$record->ID}'s restrictions updated.")->success()->send();
-                    }),
+                // Less frequent, and ban is drastic: tucked behind "More" so
+                // the row stays one line of buttons on a phone.
+                Tables\Actions\ActionGroup::make([
+                    Tables\Actions\Action::make('ban')
+                        ->label('Ban')
+                        ->color('danger')
+                        ->icon('heroicon-o-no-symbol')
+                        ->visible(fn (WpUser $record) => ! $record->isBanned())
+                        ->requiresConfirmation()
+                        ->action(function (WpUser $record) {
+                            app(UserManagementService::class)->ban(auth('wordpress')->user(), $record);
+                            Notification::make()->title("#{$record->ID} banned.")->success()->send();
+                        }),
+                    Tables\Actions\Action::make('unban')
+                        ->label('Unban')
+                        ->color('success')
+                        ->icon('heroicon-o-check-circle')
+                        ->visible(fn (WpUser $record) => $record->isBanned())
+                        ->requiresConfirmation()
+                        ->action(function (WpUser $record) {
+                            app(UserManagementService::class)->unban(auth('wordpress')->user(), $record);
+                            Notification::make()->title("#{$record->ID} unbanned.")->success()->send();
+                        }),
+                    Tables\Actions\Action::make('restrictions')
+                        ->label('Restrictions')
+                        ->color('gray')
+                        ->icon('heroicon-o-shield-exclamation')
+                        ->fillForm(fn (WpUser $record) => [
+                            'is_banned' => $record->isBanned(),
+                            'ban_withdraw' => $record->metaValue('rk_ban_withdraw') === '1',
+                            'ban_transfer' => $record->metaValue('rk_ban_transfer') === '1',
+                            'ban_expiry' => $record->metaValue('rk_ban_expiry') ?: null,
+                        ])
+                        ->form([
+                            Forms\Components\Checkbox::make('is_banned')->label('Full account ban (login blocked)'),
+                            Forms\Components\Checkbox::make('ban_withdraw')
+                                ->label('Block withdrawals')
+                                ->helperText('They can still play, but any withdrawal request is refused.'),
+                            Forms\Components\Checkbox::make('ban_transfer')
+                                ->label('Block transfers')
+                                ->helperText('Kept from the old site. The new site has no customer-to-customer transfers, so this has no effect today.'),
+                            Forms\Components\DatePicker::make('ban_expiry')->label('Restriction expiry (optional)'),
+                        ])
+                        ->action(function (WpUser $record, array $data) {
+                            app(UserManagementService::class)->updateRestrictions(
+                                auth('wordpress')->user(),
+                                $record,
+                                (bool) ($data['is_banned'] ?? false),
+                                (bool) ($data['ban_withdraw'] ?? false),
+                                (bool) ($data['ban_transfer'] ?? false),
+                                $data['ban_expiry'] ?? null,
+                            );
+                            Notification::make()->title("#{$record->ID}'s restrictions updated.")->success()->send();
+                        }),
+                ])->label('More')->icon('heroicon-m-ellipsis-vertical')->button()->color('gray'),
             ]);
     }
 

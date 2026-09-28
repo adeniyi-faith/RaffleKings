@@ -4,6 +4,7 @@ namespace App\Filament\Resources;
 
 use App\Filament\Concerns\RunsAdminActions;
 use App\Filament\Resources\WithdrawalRequestResource\Pages;
+use App\Filament\Support\MobileCard;
 use App\Models\WithdrawalRequest;
 use App\Services\WithdrawalService;
 use Filament\Forms;
@@ -71,33 +72,51 @@ class WithdrawalRequestResource extends Resource
             ->modifyQueryUsing(fn (Builder $query) => $query->with(['user', 'bankAccount']))
             ->defaultSort('created_at', 'asc')
             ->columns([
-                Tables\Columns\TextColumn::make('user.display_name')
-                    ->label('Customer')
-                    ->description(fn (WithdrawalRequest $record) => $record->user?->user_email)
-                    ->searchable(['display_name', 'user_login', 'user_email']),
-                Tables\Columns\TextColumn::make('amount_to_send')
-                    ->label('Send')
-                    ->formatStateUsing(fn ($state) => static::naira($state))
-                    ->weight('bold')
-                    ->description(fn (WithdrawalRequest $record) => (float) $record->fee_amount > 0
-                        ? 'Requested ₦'.number_format((float) $record->requested_amount).' · fee ₦'.number_format((float) $record->fee_amount)
-                        : null),
-                Tables\Columns\TextColumn::make('bankAccount.account_number')
-                    ->label('Send to')
-                    ->copyable()
-                    ->copyMessage('Account number copied')
-                    ->description(fn (WithdrawalRequest $record) => $record->bankAccount
-                        ? "{$record->bankAccount->bank_name} · {$record->bankAccount->account_name}"
-                        : 'No bank account on file'),
-                Tables\Columns\TextColumn::make('created_at')
-                    ->label('Requested')
-                    ->since()
-                    ->sortable()
-                    ->description(fn (WithdrawalRequest $record) => match ($record->status) {
-                        'pending' => 'Waiting to be paid',
-                        'paid' => 'Paid',
-                        default => 'Rejected',
-                    }),
+                // Phone: each row is one card (App\Filament\Support\MobileCard).
+                MobileCard::make(fn (WithdrawalRequest $record) => [
+                    'title' => $record->user?->display_name ?: $record->user?->user_login,
+                    'amount' => static::naira($record->amount_to_send),
+                    'lines' => [
+                        $record->bankAccount ? "{$record->bankAccount->bank_name} · {$record->bankAccount->account_name}" : 'No bank account on file',
+                        (float) $record->fee_amount > 0 ? 'Requested '.static::naira($record->requested_amount).' · fee '.static::naira($record->fee_amount) : null,
+                    ],
+                    'copy' => $record->bankAccount ? ['value' => $record->bankAccount->account_number] : null,
+                    'badges' => [match ($record->status) {
+                        'pending' => ['Waiting to be paid', 'warning'],
+                        'paid' => ['Paid', 'success'],
+                        default => ['Rejected', 'gray'],
+                    }],
+                    'meta' => $record->created_at?->diffForHumans(),
+                ]),
+                ...MobileCard::desktop([
+                    Tables\Columns\TextColumn::make('user.display_name')
+                        ->label('Customer')
+                        ->description(fn (WithdrawalRequest $record) => $record->user?->user_email)
+                        ->searchable(['display_name', 'user_login', 'user_email']),
+                    Tables\Columns\TextColumn::make('amount_to_send')
+                        ->label('Send')
+                        ->formatStateUsing(fn ($state) => static::naira($state))
+                        ->weight('bold')
+                        ->description(fn (WithdrawalRequest $record) => (float) $record->fee_amount > 0
+                            ? 'Requested ₦'.number_format((float) $record->requested_amount).' · fee ₦'.number_format((float) $record->fee_amount)
+                            : null),
+                    Tables\Columns\TextColumn::make('bankAccount.account_number')
+                        ->label('Send to')
+                        ->copyable()
+                        ->copyMessage('Account number copied')
+                        ->description(fn (WithdrawalRequest $record) => $record->bankAccount
+                            ? "{$record->bankAccount->bank_name} · {$record->bankAccount->account_name}"
+                            : 'No bank account on file'),
+                    Tables\Columns\TextColumn::make('created_at')
+                        ->label('Requested')
+                        ->since()
+                        ->sortable()
+                        ->description(fn (WithdrawalRequest $record) => match ($record->status) {
+                            'pending' => 'Waiting to be paid',
+                            'paid' => 'Paid',
+                            default => 'Rejected',
+                        }),
+                ]),
             ])
             ->filters([
                 Tables\Filters\SelectFilter::make('status')

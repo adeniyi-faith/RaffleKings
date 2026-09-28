@@ -9,6 +9,7 @@ use Filament\Pages;
 use Filament\Panel;
 use Filament\PanelProvider;
 use Filament\Support\Colors\Color;
+use Filament\View\PanelsRenderHook;
 use Illuminate\Cookie\Middleware\AddQueuedCookiesToResponse;
 use Illuminate\Cookie\Middleware\EncryptCookies;
 use Illuminate\Foundation\Http\Middleware\VerifyCsrfToken;
@@ -41,9 +42,19 @@ class AdminPanelProvider extends PanelProvider
             ->id('admin')
             ->path('admin')
             ->authGuard('wordpress')
+            ->brandName('RaffleKings')
             ->colors([
                 'primary' => Color::Amber,
             ])
+            // Pages swap in place instead of reloading the whole admin —
+            // noticeably quicker on a phone connection.
+            ->spa()
+            ->sidebarCollapsibleOnDesktop()
+            ->globalSearchKeyBindings(['command+k', 'ctrl+k'])
+            // Phone layout: styles + "menu starts closed", and the bottom
+            // tab bar (resources/views/filament/hooks).
+            ->renderHook(PanelsRenderHook::HEAD_END, fn () => view('filament.hooks.head'))
+            ->renderHook(PanelsRenderHook::BODY_END, fn () => view('filament.hooks.bottom-nav'))
             // Busiest daily queues first (item 44): money in/out, then
             // draws and winners, then the support inbox.
             ->navigationGroups(['Finance', 'Raffles', 'Support', 'Site', 'Users', 'System'])

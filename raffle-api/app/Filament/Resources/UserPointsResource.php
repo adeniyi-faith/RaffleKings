@@ -3,12 +3,14 @@
 namespace App\Filament\Resources;
 
 use App\Filament\Resources\UserPointsResource\Pages;
+use App\Filament\Support\MobileCard;
 use App\Models\UserPoints;
 use Filament\Forms\Form;
 use Filament\Resources\Resource;
 use Filament\Tables;
 use Filament\Tables\Table;
 use Illuminate\Database\Eloquent\Builder;
+use Illuminate\Support\Carbon;
 
 /**
  * OVERHAUL_CHECKLIST.md item 45 — reward points overview: who holds how
@@ -60,18 +62,29 @@ class UserPointsResource extends Resource
         return $table
             ->defaultSort('balance', 'desc')
             ->columns([
-                Tables\Columns\TextColumn::make('user.display_name')
-                    ->label('Customer')
-                    ->description(fn (UserPoints $r) => $r->user?->user_email)
-                    ->searchable(['display_name', 'user_login', 'user_email']),
-                Tables\Columns\TextColumn::make('balance')
-                    ->label('Points')
-                    ->numeric()
-                    ->sortable()
-                    ->description(fn (UserPoints $r) => 'worth ₦'.number_format($r->balance / 10))
-                    ->summarize(Tables\Columns\Summarizers\Sum::make()->label('Total owed')),
-                Tables\Columns\TextColumn::make('streak_count')->label('Streak (days)')->sortable(),
-                Tables\Columns\TextColumn::make('last_claim_date')->label('Last daily claim')->date()->placeholder('Never')->sortable(),
+                // Phone: each row is one card (App\Filament\Support\MobileCard).
+                MobileCard::make(fn (UserPoints $r) => [
+                    'title' => $r->user?->display_name ?: $r->user?->user_login,
+                    'amount' => number_format($r->balance).' pts',
+                    'lines' => [
+                        'Worth ₦'.number_format($r->balance / 10),
+                        'Streak '.$r->streak_count.' '.str('day')->plural($r->streak_count).' · last claim '.($r->last_claim_date ? Carbon::parse($r->last_claim_date)->format('j M') : 'never'),
+                    ],
+                ]),
+                ...MobileCard::desktop([
+                    Tables\Columns\TextColumn::make('user.display_name')
+                        ->label('Customer')
+                        ->description(fn (UserPoints $r) => $r->user?->user_email)
+                        ->searchable(['display_name', 'user_login', 'user_email']),
+                    Tables\Columns\TextColumn::make('balance')
+                        ->label('Points')
+                        ->numeric()
+                        ->sortable()
+                        ->description(fn (UserPoints $r) => 'worth ₦'.number_format($r->balance / 10))
+                        ->summarize(Tables\Columns\Summarizers\Sum::make()->label('Total owed')),
+                    Tables\Columns\TextColumn::make('streak_count')->label('Streak (days)')->sortable(),
+                    Tables\Columns\TextColumn::make('last_claim_date')->label('Last daily claim')->date()->placeholder('Never')->sortable(),
+                ]),
             ])
             ->filters([
                 Tables\Filters\Filter::make('redeemable')

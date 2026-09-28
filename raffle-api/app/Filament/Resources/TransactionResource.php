@@ -4,6 +4,7 @@ namespace App\Filament\Resources;
 
 use App\Filament\Concerns\RunsAdminActions;
 use App\Filament\Resources\TransactionResource\Pages;
+use App\Filament\Support\MobileCard;
 use App\Models\Legacy\RaffleTransaction;
 use App\Services\TransactionMonitorService;
 use Filament\Forms;
@@ -78,6 +79,26 @@ class TransactionResource extends Resource
         return $form->schema([]);
     }
 
+    private static function statusLabel(string $status): string
+    {
+        return match ($status) {
+            'verified_final', 'completed' => 'Done',
+            'pending', 'manual_review' => 'Waiting',
+            'rejected' => 'Rejected / reversed',
+            'reversed' => 'Reversed',
+            default => ucfirst(str_replace('_', ' ', $status)),
+        };
+    }
+
+    private static function statusColor(string $status): string
+    {
+        return match ($status) {
+            'verified_final', 'completed' => 'success',
+            'pending', 'manual_review' => 'warning',
+            default => 'gray',
+        };
+    }
+
     private static function ticketSummary(RaffleTransaction $record): ?string
     {
         if ($record->entries->isEmpty()) {
@@ -96,32 +117,32 @@ class TransactionResource extends Resource
         return $table
             ->defaultSort('id', 'desc')
             ->columns([
-                Tables\Columns\TextColumn::make('created_at')->label('When')->since()->sortable()->description(fn (RaffleTransaction $r) => $r->created_at?->format('j M, H:i')),
-                Tables\Columns\TextColumn::make('user.display_name')
-                    ->label('Customer')
-                    ->description(fn (RaffleTransaction $record) => $record->user?->user_email)
-                    ->searchable(['display_name', 'user_login', 'user_email']),
-                Tables\Columns\TextColumn::make('type')
-                    ->label('What')
-                    ->formatStateUsing(fn (string $state) => static::TYPES[$state] ?? ucfirst(str_replace('_', ' ', $state)))
-                    ->description(fn (RaffleTransaction $record) => static::ticketSummary($record))
-                    ->wrap(),
-                Tables\Columns\TextColumn::make('claimed_amount')->label('Amount')->formatStateUsing(fn ($state) => static::naira($state))->weight('bold')->sortable(),
-                Tables\Columns\TextColumn::make('status')
-                    ->badge()
-                    ->formatStateUsing(fn (string $state) => match ($state) {
-                        'verified_final', 'completed' => 'Done',
-                        'pending', 'manual_review' => 'Waiting',
-                        'rejected' => 'Rejected / reversed',
-                        'reversed' => 'Reversed',
-                        default => ucfirst(str_replace('_', ' ', $state)),
-                    })
-                    ->color(fn (string $state) => match ($state) {
-                        'verified_final', 'completed' => 'success',
-                        'pending', 'manual_review' => 'warning',
-                        default => 'gray',
-                    }),
-                Tables\Columns\TextColumn::make('order_id')->label('Reference')->placeholder('—')->searchable()->toggleable(isToggledHiddenByDefault: true),
+                // Phone: each row is one card (App\Filament\Support\MobileCard).
+                MobileCard::make(fn (RaffleTransaction $record) => [
+                    'title' => $record->user?->display_name ?: $record->user?->user_login,
+                    'amount' => static::naira($record->claimed_amount),
+                    'lines' => [static::TYPES[$record->type] ?? ucfirst(str_replace('_', ' ', (string) $record->type)), static::ticketSummary($record)],
+                    'badges' => [[static::statusLabel((string) $record->status), static::statusColor((string) $record->status)]],
+                    'meta' => $record->created_at?->format('j M, H:i'),
+                ]),
+                ...MobileCard::desktop([
+                    Tables\Columns\TextColumn::make('created_at')->label('When')->since()->sortable()->description(fn (RaffleTransaction $r) => $r->created_at?->format('j M, H:i')),
+                    Tables\Columns\TextColumn::make('user.display_name')
+                        ->label('Customer')
+                        ->description(fn (RaffleTransaction $record) => $record->user?->user_email)
+                        ->searchable(['display_name', 'user_login', 'user_email']),
+                    Tables\Columns\TextColumn::make('type')
+                        ->label('What')
+                        ->formatStateUsing(fn (string $state) => static::TYPES[$state] ?? ucfirst(str_replace('_', ' ', $state)))
+                        ->description(fn (RaffleTransaction $record) => static::ticketSummary($record))
+                        ->wrap(),
+                    Tables\Columns\TextColumn::make('claimed_amount')->label('Amount')->formatStateUsing(fn ($state) => static::naira($state))->weight('bold')->sortable(),
+                    Tables\Columns\TextColumn::make('status')
+                        ->badge()
+                        ->formatStateUsing(fn (string $state) => static::statusLabel($state))
+                        ->color(fn (string $state) => static::statusColor($state)),
+                    Tables\Columns\TextColumn::make('order_id')->label('Reference')->placeholder('—')->searchable()->toggleable(isToggledHiddenByDefault: true),
+                ]),
             ])
             ->filters([
                 Tables\Filters\SelectFilter::make('group')

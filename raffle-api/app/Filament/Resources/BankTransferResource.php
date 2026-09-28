@@ -4,6 +4,7 @@ namespace App\Filament\Resources;
 
 use App\Filament\Concerns\RunsAdminActions;
 use App\Filament\Resources\BankTransferResource\Pages;
+use App\Filament\Support\MobileCard;
 use App\Models\Legacy\RaffleTransaction;
 use App\Services\DepositApprovalService;
 use Filament\Forms;
@@ -82,39 +83,59 @@ class BankTransferResource extends Resource
         return $table
             ->defaultSort('created_at', 'asc')
             ->columns([
-                Tables\Columns\TextColumn::make('user.display_name')
-                    ->label('Customer')
-                    ->description(fn (RaffleTransaction $record) => $record->user?->user_email)
-                    ->searchable(['display_name', 'user_login', 'user_email']),
-                Tables\Columns\TextColumn::make('type')
-                    ->label('For')
-                    ->badge()
-                    ->formatStateUsing(fn (string $state) => $state === 'ticket_purchase' ? 'Tickets' : 'Wallet top-up')
-                    ->color(fn (string $state) => $state === 'ticket_purchase' ? 'info' : 'gray')
-                    ->description(fn (RaffleTransaction $record) => $record->type === 'ticket_purchase'
-                        ? ($record->pending_raffle_id ? "Raffle #{$record->pending_raffle_id} · numbers {$record->pending_numbers}" : 'No numbers recorded')
-                        : null),
-                Tables\Columns\TextColumn::make('claimed_amount')
-                    ->label('Amount')
-                    ->formatStateUsing(fn ($state) => static::naira($state))
-                    ->weight('bold')
-                    ->description(fn (RaffleTransaction $record) => $record->gemini_amount !== null
-                        ? 'Receipt check read '.static::naira($record->gemini_amount)
-                        : null),
-                Tables\Columns\TextColumn::make('order_id')
-                    ->label('Reference')
-                    ->copyable()
-                    ->placeholder('—')
-                    ->description(fn (RaffleTransaction $record) => $record->txn_ref),
-                Tables\Columns\TextColumn::make('created_at')
-                    ->label('Paid')
-                    ->since()
-                    ->sortable()
-                    ->description(fn (RaffleTransaction $record) => match (true) {
-                        static::isWaiting($record) => 'Waiting for review',
-                        $record->status === 'verified_final' => 'Approved',
-                        default => 'Rejected',
-                    }),
+                // Phone: each row is one card (App\Filament\Support\MobileCard).
+                MobileCard::make(fn (RaffleTransaction $record) => [
+                    'title' => $record->user?->display_name ?: $record->user?->user_login,
+                    'amount' => static::naira($record->claimed_amount),
+                    'lines' => [
+                        $record->type === 'ticket_purchase'
+                            ? 'Tickets'.($record->pending_raffle_id ? " · raffle #{$record->pending_raffle_id} · numbers {$record->pending_numbers}" : '')
+                            : 'Wallet top-up',
+                        $record->gemini_amount !== null ? 'Receipt check read '.static::naira($record->gemini_amount) : null,
+                    ],
+                    'copy' => $record->order_id ? ['label' => "Ref {$record->order_id}", 'value' => $record->order_id] : null,
+                    'badges' => [match (true) {
+                        static::isWaiting($record) => ['Waiting for review', 'warning'],
+                        $record->status === 'verified_final' => ['Approved', 'success'],
+                        default => ['Rejected', 'gray'],
+                    }],
+                    'meta' => $record->created_at?->diffForHumans(),
+                ]),
+                ...MobileCard::desktop([
+                    Tables\Columns\TextColumn::make('user.display_name')
+                        ->label('Customer')
+                        ->description(fn (RaffleTransaction $record) => $record->user?->user_email)
+                        ->searchable(['display_name', 'user_login', 'user_email']),
+                    Tables\Columns\TextColumn::make('type')
+                        ->label('For')
+                        ->badge()
+                        ->formatStateUsing(fn (string $state) => $state === 'ticket_purchase' ? 'Tickets' : 'Wallet top-up')
+                        ->color(fn (string $state) => $state === 'ticket_purchase' ? 'info' : 'gray')
+                        ->description(fn (RaffleTransaction $record) => $record->type === 'ticket_purchase'
+                            ? ($record->pending_raffle_id ? "Raffle #{$record->pending_raffle_id} · numbers {$record->pending_numbers}" : 'No numbers recorded')
+                            : null),
+                    Tables\Columns\TextColumn::make('claimed_amount')
+                        ->label('Amount')
+                        ->formatStateUsing(fn ($state) => static::naira($state))
+                        ->weight('bold')
+                        ->description(fn (RaffleTransaction $record) => $record->gemini_amount !== null
+                            ? 'Receipt check read '.static::naira($record->gemini_amount)
+                            : null),
+                    Tables\Columns\TextColumn::make('order_id')
+                        ->label('Reference')
+                        ->copyable()
+                        ->placeholder('—')
+                        ->description(fn (RaffleTransaction $record) => $record->txn_ref),
+                    Tables\Columns\TextColumn::make('created_at')
+                        ->label('Paid')
+                        ->since()
+                        ->sortable()
+                        ->description(fn (RaffleTransaction $record) => match (true) {
+                            static::isWaiting($record) => 'Waiting for review',
+                            $record->status === 'verified_final' => 'Approved',
+                            default => 'Rejected',
+                        }),
+                ]),
             ])
             ->filters([
                 Tables\Filters\SelectFilter::make('status')
