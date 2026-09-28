@@ -28,7 +28,10 @@ class TaskClaimService
      */
     private static function rewards(): array
     {
-        return array_map('intval', config('rewards.tasks'));
+        $boost = app(PointsBoost::class);
+
+        // A running points boost (Settings → Rewards) multiplies every task.
+        return array_map(fn ($p) => $boost->apply((int) $p), config('rewards.tasks'));
     }
 
     /**

@@ -2,6 +2,8 @@
 
 namespace App\Http\Middleware;
 
+use App\Models\CustomerMessage;
+use App\Services\PointsBoost;
 use App\Services\TicketPricingService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
@@ -53,6 +55,8 @@ class HandleInertiaRequests extends Middleware
                     // that reads this falls back to the same
                     // Dicebear-generated avatar they've always shown.
                     'avatar' => $user->metaValue('profile_pic_url') ?: null,
+                    // Unread messages in their inbox — the number on the bell.
+                    'unread_messages' => CustomerMessage::query()->where('user_id', $user->ID)->whereNull('read_at')->count(),
                 ] : null,
             ],
             // Admin-editable (Settings page): contact details, links, the
@@ -68,6 +72,7 @@ class HandleInertiaRequests extends Middleware
                 'minimum_redeem_points' => (int) config('rewards.minimum_redeem_points'),
                 'ticket_bundles' => app(TicketPricingService::class)->bundleQuantities(),
                 'big_order_above' => (int) config('pricing.above_quantity'),
+                'points_boost' => app(PointsBoost::class)->banner(),
             ],
         ];
     }

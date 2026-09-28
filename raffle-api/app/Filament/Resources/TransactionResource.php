@@ -2,6 +2,7 @@
 
 namespace App\Filament\Resources;
 
+use App\Filament\Concerns\GuardedByStaffRole;
 use App\Filament\Concerns\RunsAdminActions;
 use App\Filament\Resources\TransactionResource\Pages;
 use App\Filament\Support\MobileCard;
@@ -27,7 +28,12 @@ use Illuminate\Database\Eloquent\Builder;
  */
 class TransactionResource extends Resource
 {
-    use RunsAdminActions;
+    use GuardedByStaffRole, RunsAdminActions;
+
+    public static function canViewAny(): bool
+    {
+        return static::staffCanOpen();
+    }
 
     public const TYPES = [
         'ticket_purchase_wallet' => 'Tickets (wallet)',
@@ -170,6 +176,8 @@ class TransactionResource extends Resource
             ->actionsColumnLabel('Action')
             ->actions([
                 Tables\Actions\Action::make('reverse')
+                    // Only staff allowed to move money see this (App\Auth\StaffRoles).
+                    ->hidden(fn () => ! static::staffCan('money.pay'))
                     ->label('Reverse')
                     ->icon('heroicon-o-arrow-uturn-left')
                     ->color('danger')

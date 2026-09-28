@@ -3,6 +3,7 @@
 namespace App\Filament\Resources;
 
 use App\Exceptions\PaymentGatewayException;
+use App\Filament\Concerns\GuardedByStaffRole;
 use App\Filament\Concerns\RunsAdminActions;
 use App\Filament\Resources\PaymentMismatchResource\Pages;
 use App\Filament\Support\MobileCard;
@@ -26,7 +27,12 @@ use RuntimeException;
  */
 class PaymentMismatchResource extends Resource
 {
-    use RunsAdminActions;
+    use GuardedByStaffRole, RunsAdminActions;
+
+    public static function canViewAny(): bool
+    {
+        return static::staffCanOpen();
+    }
 
     protected static ?string $model = Deposit::class;
 
@@ -103,6 +109,8 @@ class PaymentMismatchResource extends Resource
             ->actionsColumnLabel('Action')
             ->actions([
                 Tables\Actions\Action::make('credit')
+                    // Only staff allowed to move money see this (App\Auth\StaffRoles).
+                    ->hidden(fn () => ! static::staffCan('money.pay'))
                     ->label('Credit confirmed amount')
                     ->icon('heroicon-o-check-circle')
                     ->color('success')
@@ -116,6 +124,8 @@ class PaymentMismatchResource extends Resource
                         }
                     }, "Payment #{$record->id} credited.")),
                 Tables\Actions\Action::make('reject')
+                    // Only staff allowed to move money see this (App\Auth\StaffRoles).
+                    ->hidden(fn () => ! static::staffCan('money.pay'))
                     ->label('Reject')
                     ->icon('heroicon-o-x-circle')
                     ->color('danger')

@@ -3,6 +3,7 @@
 namespace App\Filament\Pages;
 
 use App\Exceptions\StatementExtractionException;
+use App\Filament\Concerns\GuardedByStaffRole;
 use App\Models\Legacy\RaffleTransaction;
 use App\Models\Legacy\WpUser;
 use App\Services\AuditReconciliationService;
@@ -29,7 +30,12 @@ use RuntimeException;
  */
 class DailyAudit extends Page implements HasForms
 {
-    use InteractsWithForms;
+    use GuardedByStaffRole, InteractsWithForms;
+
+    public static function canAccess(): bool
+    {
+        return static::staffCanOpen();
+    }
 
     protected static ?string $navigationIcon = 'heroicon-o-document-magnifying-glass';
 

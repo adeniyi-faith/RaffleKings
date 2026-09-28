@@ -2,6 +2,7 @@
 
 namespace App\Filament\Resources;
 
+use App\Filament\Concerns\GuardedByStaffRole;
 use App\Filament\Resources\UserPointsResource\Pages;
 use App\Filament\Support\MobileCard;
 use App\Models\UserPoints;
@@ -20,6 +21,13 @@ use Illuminate\Support\Carbon;
  */
 class UserPointsResource extends Resource
 {
+    use GuardedByStaffRole;
+
+    public static function canViewAny(): bool
+    {
+        return static::staffCanOpen();
+    }
+
     protected static ?string $model = UserPoints::class;
 
     protected static ?string $slug = 'points';
@@ -88,8 +96,8 @@ class UserPointsResource extends Resource
             ])
             ->filters([
                 Tables\Filters\Filter::make('redeemable')
-                    ->label('Can redeem now (100+ points)')
-                    ->query(fn (Builder $q) => $q->where('balance', '>=', 100)),
+                    ->label(fn () => 'Can cash in now ('.number_format((int) config('rewards.minimum_redeem_points')).'+ points)')
+                    ->query(fn (Builder $query) => $query->where('balance', '>=', (int) config('rewards.minimum_redeem_points'))),
             ]);
     }
 

@@ -2,6 +2,7 @@
 
 namespace App\Filament\Resources;
 
+use App\Filament\Concerns\GuardedByStaffRole;
 use App\Filament\Resources\AdminAuditLogResource\Pages;
 use App\Filament\Support\MobileCard;
 use App\Models\AdminAuditLog;
@@ -24,9 +25,28 @@ use Illuminate\Support\Carbon;
  */
 class AdminAuditLogResource extends Resource
 {
+    use GuardedByStaffRole;
+
+    public static function canViewAny(): bool
+    {
+        return static::staffCanOpen();
+    }
+
     /** Plain descriptions for the actions the app records. */
     public const ACTIONS = [
         'settings.updated' => 'Settings changed',
+        'deposit.rechecked' => 'Online payment re-checked with the gateway',
+        'system.job_retried' => 'Failed email/alert retried',
+        'system.job_deleted' => 'Failed email/alert removed',
+        'system.errors_cleared' => 'Site error list cleared',
+        'report.downloaded' => 'Spreadsheet downloaded',
+        'staff.role_changed' => 'Staff role changed',
+        'broadcast.sent' => 'Message sent to customers',
+        'tutorial.created' => 'Tutorial written',
+        'tutorial.updated' => 'Tutorial edited',
+        'tutorial.shown' => 'Tutorial put on the site',
+        'tutorial.hidden' => 'Tutorial hidden',
+        'tutorial.deleted' => 'Tutorial deleted',
         'settings.reset' => 'Setting put back to the server value',
         'withdrawal.paid' => 'Withdrawal marked paid',
         'withdrawal.rejected' => 'Withdrawal rejected & refunded',
