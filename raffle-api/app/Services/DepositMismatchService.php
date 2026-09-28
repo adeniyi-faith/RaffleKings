@@ -71,8 +71,13 @@ class DepositMismatchService
         }
 
         $confirmedAmount = round($verification->amount, 2);
+        $expectedAmount = (float) $deposit->amount;
 
         DB::transaction(function () use ($deposit, $confirmedAmount, $verification) {
+            // Re-checked under a lock (item 44): two admins resolving the
+            // same mismatch at once used to be able to credit it twice.
+            $this->guardMismatch(Deposit::query()->whereKey($deposit->id)->lockForUpdate()->firstOrFail());
+
             $wallet = Wallet::query()->where('user_id', $deposit->user_id)->lockForUpdate()->first()
                 ?? Wallet::create(['user_id' => $deposit->user_id, 'wallet_balance' => 0, 'earnings_balance' => 0]);
 
@@ -99,7 +104,9 @@ class DepositMismatchService
 
         $this->auditLog->record($admin, 'deposit.mismatch_resolved_credited', Deposit::class, $deposit->id, [
             'user_id' => $deposit->user_id,
-            'expected_amount' => (float) $deposit->getOriginal('amount'),
+            // Captured before the update — getOriginal() after it returned
+            // the credited amount, so the log never showed the mismatch.
+            'expected_amount' => $expectedAmount,
             'credited_amount' => $confirmedAmount,
         ]);
 
@@ -121,10 +128,14 @@ class DepositMismatchService
     {
         $this->guardMismatch($deposit);
 
-        $deposit->update([
-            'status' => 'failed',
-            'failure_reason' => $reason ?? 'Amount mismatch rejected by admin.',
-        ]);
+        DB::transaction(function () use ($deposit, $reason) {
+            $this->guardMismatch(Deposit::query()->whereKey($deposit->id)->lockForUpdate()->firstOrFail());
+
+            $deposit->update([
+                'status' => 'failed',
+                'failure_reason' => $reason ?? 'Amount mismatch rejected by admin.',
+            ]);
+        });
 
         $this->auditLog->record($admin, 'deposit.mismatch_resolved_rejected', Deposit::class, $deposit->id, [
             'user_id' => $deposit->user_id,
