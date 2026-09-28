@@ -20,6 +20,7 @@ use App\Http\Controllers\Api\DepositController;
 use App\Http\Controllers\Api\DrawController;
 use App\Http\Controllers\Api\HallOfFameController;
 use App\Http\Controllers\Api\LiveDrawController;
+use App\Http\Controllers\Api\MessageController;
 use App\Http\Controllers\Api\PaymentWebhookController;
 use App\Http\Controllers\Api\ProfileController;
 use App\Http\Controllers\Api\PushDeviceController;
@@ -143,6 +144,11 @@ Route::middleware('auth:wordpress')->group(function () {
     // Same 3-per-5-minutes rate limit as the legacy rk_check_rate_limit('withdraw', 3, 300),
     // via Laravel's own throttle middleware instead of a bespoke transient-based limiter.
     Route::post('/withdrawals', [WithdrawalController::class, 'store'])->middleware(['feature:withdrawals', 'throttle:3,5']);
+
+    // The on-site inbox (the bell) — messages from Site → Message customers.
+    Route::get('/messages', [MessageController::class, 'index']);
+    Route::post('/messages/read-all', [MessageController::class, 'readAll']);
+    Route::post('/messages/{message}/read', [MessageController::class, 'read'])->whereNumber('message');
 
     Route::get('/support/tickets', [SupportTicketController::class, 'index']);
     Route::post('/support/tickets', [SupportTicketController::class, 'store']);

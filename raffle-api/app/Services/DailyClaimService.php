@@ -31,7 +31,10 @@ class DailyClaimService
      */
     private static function rewards(): array
     {
-        return array_map('intval', array_values(config('rewards.daily_claim')));
+        $boost = app(PointsBoost::class);
+
+        // A running points boost (Settings → Rewards) multiplies every day.
+        return array_map(fn ($p) => $boost->apply((int) $p), array_values(config('rewards.daily_claim')));
     }
 
     /** The 7-day reward schedule, safe to show to players. */

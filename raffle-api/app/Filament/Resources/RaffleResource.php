@@ -2,6 +2,7 @@
 
 namespace App\Filament\Resources;
 
+use App\Filament\Concerns\GuardedByStaffRole;
 use App\Filament\Resources\RaffleResource\Pages;
 use App\Filament\Resources\RaffleResource\RelationManagers\PrizeTiersRelationManager;
 use App\Filament\Support\MobileCard;
@@ -18,6 +19,13 @@ use RuntimeException;
 
 class RaffleResource extends Resource
 {
+    use GuardedByStaffRole;
+
+    public static function canViewAny(): bool
+    {
+        return static::staffCanOpen();
+    }
+
     protected static ?string $model = Raffle::class;
 
     protected static ?string $navigationIcon = 'heroicon-o-ticket';

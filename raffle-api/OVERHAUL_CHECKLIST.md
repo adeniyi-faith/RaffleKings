@@ -191,6 +191,54 @@ The new site replaced the WordPress site at rafflekings.com.ng (see `.github/wor
     - **Numbers moved out of code:** the fixed values in `TicketPricingService`, `DailyClaimService`, `SpinService`, `TaskClaimService` and `PointRedemptionService` now live in `config/pricing.php` and `config/rewards.php`, with the same defaults.
     - **Customer site fixes:** the "Join our Community" and "Follow on WhatsApp" reward tasks now open the real links. "Share on WhatsApp" opens WhatsApp with the customer's referral link. The support links and the points rate come from Settings.
     - **Not on the page:** the database login, APP_KEY and the WordPress cookie keys stay in `.env`. A wrong value there would lock everyone out, including the admin trying to fix it.
+- [x] **45b. Phase 5b — The admin pages the site still needed.** *(Done.)*
+  - **Users → Customers → a customer's profile.** Tap any customer to see everything about them on one page:
+    - Wallet, winnings, points and account status.
+    - Lifetime totals: topped up, tickets bought, won, withdrawn and referral earnings.
+    - Who referred them, when they joined, and their last activity.
+    - Their contact details and bank accounts (tap to copy).
+    - Tabs for every money movement, ticket, online top-up, withdrawal, referral, support ticket, and every admin action on them or their records.
+
+    The Adjust balance, Ban and Restrictions buttons work here too. Press Ctrl/⌘+K anywhere to find a customer.
+  - **Raffles → Ticket lookup.** Pick a raffle and type a ticket number (an exact match) to see who owns it, or search a customer to see all their tickets. Winning tickets are marked.
+  - **Finance → Online payments.** Every Paystack and Flutterwave top-up is listed: paid, failed, not finished or amount mismatch. Before, only the mismatches were visible. **Check again** asks the payment provider directly and credits the customer if the money really arrived. It can never credit twice (`DepositService::confirm`).
+  - **Site → Tutorials.** Write, edit, schedule, feature and hide Learning Hub guides. The WordPress admin that used to be the only editor is gone.
+    - Tutorials now live in a native `tutorials` table. The old WordPress tutorials were copied in with their ids and "helpful" counts (`TutorialImporter`, run by the migration).
+    - Unsafe HTML (scripts, event handlers, `javascript:` links) is removed when saved and again when shown. Only YouTube or Vimeo video links are allowed.
+  - **Points boost ("double points weekend").** Set a ×1.5, ×2 or ×3 multiplier with a start and end time in Settings → Rewards (`PointsBoost`). While it runs, daily-claim and task points are multiplied (not Spin & Win), and customers see a banner on the Rewards page.
+  - **Site → Message customers.** Send one message to a group:
+    - **Who:** everyone, a raffle's buyers, lapsed players, people who never bought, customers with money or winnings sitting unused, or one customer. Banned customers and staff are always left out.
+    - **How:** on the site, by email, and/or as a phone notification.
+    - **Writing it:** `{name}` becomes each customer's first name, and you can add an optional button. You get a live preview and see how many customers it will reach.
+    - **Before sending:** "Send me a test", then a confirmation showing the number of customers.
+    - **Saved messages:** reuse the old site's message templates, or save new ones.
+    - **Sending** runs in the background (`SendBroadcast`), 500 customers at a time.
+    - **On the customer site:** a new bell in the header shows the unread count and opens a Messages page. The API (`/api/messages`) only ever shows a customer their own messages.
+  - **Users → Staff & roles.** Five roles (`App\Auth\StaffRoles`):
+    - **Owner:** everything.
+    - **Manager:** everything except Settings and staff roles.
+    - **Finance:** payouts, transfers, payments, winners, customers and downloads.
+    - **Support:** tickets, customers (look only), ticket lookup, re-checking payments and chat.
+    - **Content:** raffles, draws, announcements, tutorials, chat and messages.
+
+    Each screen is opened by a role (one list, `StaffRoles::AREAS`). Money buttons also check `money.pay`, and balance and ban buttons check `customers.manage`: they're hidden and refused, not just greyed out. WordPress administrators are Owners until given a role. You can't change your own role, and the last Owner can't be removed. "Remove access" makes someone an ordinary customer again. Every change is audit-logged.
+  - **Finance → Downloads.** CSV spreadsheets for any range of days (business time zone): ticket sales, top-ups, withdrawals paid, winners, every money movement, referral commission and new customers. Totals are shown before you download. Cells that Excel would run as formulas are neutralised.
+  - **System → Health.**
+    - The same checks as `app:health-check` (logic moved into `HealthReport`).
+    - When the background tasks last ran, and how many emails and alerts are waiting.
+    - **Failed emails & alerts**, with Retry, Retry all and Remove.
+    - **Recent site errors**, grouped and counted: the new `site_errors` table, filled in by `ErrorAlerter`.
+    - It refreshes every 30 seconds, and the menu shows a badge when something failed.
+  - **Users → Fraud watch.** Plain-words warning signs, never automatic blocks (`FraudWatchService`):
+    - the same bank account saved on several customers;
+    - 3 or more top-ups within 30 minutes;
+    - a withdrawal soon after a top-up with little played, or from an account under 3 days old.
+
+    These also appear on the customer's profile and as a red **Check before paying** on the withdrawals queue and its "Mark paid" confirmation.
+  - **Fixed along the way:**
+    - The Reward points "can redeem" filter used a fixed 100 points. It now uses the Settings value.
+    - Two older admin tests signed in without passing the login to the page. They now use the shared helper, because pages check the role.
+
 - [ ] **46. Phase 6 — Checkout and wallet flows.** Insufficient balance at checkout is a dead end (greyed-out button): add "Top up ₦X" and "Use winnings to cover it", and return to the same checkout after a Paystack payment. Build the real winnings → spending-wallet transfer (no code exists; the Profile "Transfer" button only opens top-up). Live-updating number grid (taken numbers are a page-load snapshot) and a message when picking too many. Success modal shows the ticket numbers, "View my tickets" and "Share", with a celebration. Decide on the Golden Box 10% discount (supported by `TicketPricingService`, offered by no page).
 - [ ] **47. Phase 7 — Rewards that feel alive.** Restore the animated canvas wheel (glow, easing spin, confetti, "YOU WON!" modal) driven by the real server result and disclosed odds — today it's a button and a text modal. Tasks must open the WhatsApp channel / share sheet before awarding points (today "Claim" awards them for nothing). Daily-reset countdown, bouncing "claim today" circle, red "reward ready" dot on the bottom nav. A real guest preview (the streak row and task list are blank for guests). Error results get an error icon, not the green success tick.
 - [ ] **48. Phase 8 — Missing pages, sign-up and sharing.** Terms of Service (404 today) and About pages; Install App and WhatsApp channel entries in Profile; make the support-ticket page reachable (only linked from inside Tutorials today — Profile's "Get Help" goes to Telegram). Sign-up: terms/age acceptance, "Invited by X" banner, and actually pass `redirect` through the `/register` route (a guest sent to sign up mid-purchase lands on the homepage). Link previews (Open Graph title/description/image) and a real favicon (`public/favicon.ico` is 0 bytes). My Tickets shows "You won!" and links to results / live draw / verify.

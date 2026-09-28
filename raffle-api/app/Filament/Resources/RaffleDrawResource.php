@@ -6,6 +6,7 @@ use App\Exceptions\DrawAlreadyRunException;
 use App\Exceptions\DrawNotCommittedException;
 use App\Exceptions\NoEligibleEntriesException;
 use App\Exceptions\NoPrizeStructureException;
+use App\Filament\Concerns\GuardedByStaffRole;
 use App\Filament\Concerns\RunsAdminActions;
 use App\Filament\Resources\RaffleDrawResource\Pages;
 use App\Filament\Support\MobileCard;
@@ -39,7 +40,12 @@ use RuntimeException;
  */
 class RaffleDrawResource extends Resource
 {
-    use RunsAdminActions;
+    use GuardedByStaffRole, RunsAdminActions;
+
+    public static function canViewAny(): bool
+    {
+        return static::staffCanOpen();
+    }
 
     protected static ?string $model = Raffle::class;
 

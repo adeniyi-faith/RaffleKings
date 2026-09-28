@@ -2,6 +2,7 @@
 
 namespace App\Filament\Resources;
 
+use App\Filament\Concerns\GuardedByStaffRole;
 use App\Filament\Concerns\RunsAdminActions;
 use App\Filament\Resources\ReferralCommissionResource\Pages;
 use App\Filament\Support\MobileCard;
@@ -20,7 +21,12 @@ use Illuminate\Database\Eloquent\Builder;
  */
 class ReferralCommissionResource extends Resource
 {
-    use RunsAdminActions;
+    use GuardedByStaffRole, RunsAdminActions;
+
+    public static function canViewAny(): bool
+    {
+        return static::staffCanOpen();
+    }
 
     protected static ?string $model = ReferralCommission::class;
 

@@ -2,6 +2,7 @@
 
 namespace App\Filament\Resources;
 
+use App\Filament\Concerns\GuardedByStaffRole;
 use App\Filament\Concerns\RunsAdminActions;
 use App\Filament\Resources\BankTransferResource\Pages;
 use App\Filament\Support\MobileCard;
@@ -26,7 +27,12 @@ use Illuminate\Database\Eloquent\Builder;
  */
 class BankTransferResource extends Resource
 {
-    use RunsAdminActions;
+    use GuardedByStaffRole, RunsAdminActions;
+
+    public static function canViewAny(): bool
+    {
+        return static::staffCanOpen();
+    }
 
     private const TYPES = ['wallet_deposit', 'deposit_manual', 'ticket_purchase'];
 
@@ -157,6 +163,8 @@ class BankTransferResource extends Resource
             ->actionsColumnLabel('Action')
             ->actions([
                 Tables\Actions\Action::make('approve')
+                    // Only staff allowed to move money see this (App\Auth\StaffRoles).
+                    ->hidden(fn () => ! static::staffCan('money.pay'))
                     ->label('Approve')
                     ->icon('heroicon-o-check-circle')
                     ->color('success')
@@ -178,6 +186,8 @@ class BankTransferResource extends Resource
                         ->url(fn (RaffleTransaction $record) => $record->proof_url, shouldOpenInNewTab: true)
                         ->visible(fn (RaffleTransaction $record) => str_starts_with((string) $record->proof_url, 'http')),
                     Tables\Actions\Action::make('creditWalletInstead')
+                        // Only staff allowed to move money see this (App\Auth\StaffRoles).
+                        ->hidden(fn () => ! static::staffCan('money.pay'))
                         ->label('Credit wallet instead')
                         ->icon('heroicon-o-wallet')
                         ->color('warning')
@@ -189,6 +199,8 @@ class BankTransferResource extends Resource
                             "Payment #{$record->id} credited to the customer's wallet.",
                         )),
                     Tables\Actions\Action::make('reject')
+                        // Only staff allowed to move money see this (App\Auth\StaffRoles).
+                        ->hidden(fn () => ! static::staffCan('money.pay'))
                         ->label('Reject')
                         ->icon('heroicon-o-x-circle')
                         ->color('danger')

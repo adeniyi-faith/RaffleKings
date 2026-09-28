@@ -2,6 +2,7 @@
 
 namespace App\Filament\Resources;
 
+use App\Filament\Concerns\GuardedByStaffRole;
 use App\Filament\Concerns\RunsAdminActions;
 use App\Filament\Resources\SiteNoticeResource\Pages;
 use App\Filament\Support\MobileCard;
@@ -22,7 +23,12 @@ use Illuminate\Support\Facades\Cache;
  */
 class SiteNoticeResource extends Resource
 {
-    use RunsAdminActions;
+    use GuardedByStaffRole, RunsAdminActions;
+
+    public static function canViewAny(): bool
+    {
+        return static::staffCanOpen();
+    }
 
     protected static ?string $model = RaffleSiteNotice::class;
 

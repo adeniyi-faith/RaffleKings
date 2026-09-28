@@ -29,11 +29,12 @@ final class MobileTabs
             'active' => $exact ? $current === rtrim($url, '/') : Str::startsWith($current, rtrim($url, '/')),
         ];
 
-        return [
+        // Only the queues this staff member's role can open (App\Auth\StaffRoles).
+        return array_values(array_filter([
             $tab('Home', 'heroicon-o-home', Dashboard::getUrl(), exact: true),
-            $tab('Payouts', 'heroicon-o-arrow-up-tray', WithdrawalRequestResource::getUrl(), WithdrawalRequestResource::getNavigationBadge()),
-            $tab('Transfers', 'heroicon-o-building-library', BankTransferResource::getUrl(), BankTransferResource::getNavigationBadge()),
-            $tab('Support', 'heroicon-o-chat-bubble-left-right', SupportTicketResource::getUrl(), SupportTicketResource::getNavigationBadge()),
-        ];
+            WithdrawalRequestResource::canAccess() ? $tab('Payouts', 'heroicon-o-arrow-up-tray', WithdrawalRequestResource::getUrl(), WithdrawalRequestResource::getNavigationBadge()) : null,
+            BankTransferResource::canAccess() ? $tab('Transfers', 'heroicon-o-building-library', BankTransferResource::getUrl(), BankTransferResource::getNavigationBadge()) : null,
+            SupportTicketResource::canAccess() ? $tab('Support', 'heroicon-o-chat-bubble-left-right', SupportTicketResource::getUrl(), SupportTicketResource::getNavigationBadge()) : null,
+        ]));
     }
 }

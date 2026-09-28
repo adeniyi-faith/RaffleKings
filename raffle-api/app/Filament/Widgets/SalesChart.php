@@ -3,11 +3,20 @@
 namespace App\Filament\Widgets;
 
 use App\Filament\Widgets\Concerns\BusinessDay;
+use App\Models\Legacy\WpUser;
 use Filament\Widgets\ChartWidget;
 
 /** OVERHAUL_CHECKLIST.md item 45 — ticket sales and money in, last 14 days. */
 class SalesChart extends ChartWidget
 {
+    // Money figures: only staff who work with money or reports (App\Auth\StaffRoles).
+    public static function canView(): bool
+    {
+        $user = auth('wordpress')->user();
+
+        return $user instanceof WpUser && ($user->staffCan('money.view') || $user->staffCan('reports'));
+    }
+
     use BusinessDay;
 
     protected static ?int $sort = 3;

@@ -2,6 +2,7 @@
 
 namespace App\Filament\Pages;
 
+use App\Filament\Concerns\GuardedByStaffRole;
 use App\Filament\Concerns\RunsAdminActions;
 use App\Services\TicketPricingService;
 use App\Settings\ConnectionTester;
@@ -30,7 +31,12 @@ use Illuminate\Support\HtmlString;
  */
 class Settings extends Page implements HasForms
 {
-    use InteractsWithForms, RunsAdminActions;
+    use GuardedByStaffRole, InteractsWithForms, RunsAdminActions;
+
+    public static function canAccess(): bool
+    {
+        return static::staffCanOpen();
+    }
 
     protected static ?string $navigationIcon = 'heroicon-o-cog-6-tooth';
 
@@ -121,6 +127,8 @@ class Settings extends Page implements HasForms
         $field = match ($setting->type) {
             'text' => Forms\Components\TextInput::make($name)->maxLength(255),
             'textarea' => Forms\Components\Textarea::make($name)->rows(2),
+            'datetime' => Forms\Components\DateTimePicker::make($name)->seconds(false)->timezone(config('raffles.timezone'))
+                ->helperText(fn () => ($setting->help ? $setting->help.' ' : '').'In '.config('raffles.timezone').' time.'),
             'url' => Forms\Components\TextInput::make($name)->url()->maxLength(255),
             'email' => Forms\Components\TextInput::make($name)->email()->maxLength(150),
             'secret' => $this->secretField($setting),
@@ -463,6 +471,16 @@ class Settings extends Page implements HasForms
         }
         if (config('mail.default') === 'smtp' && blank(config('mail.mailers.smtp.host'))) {
             $warnings[] = 'Email is set to an email server but no server is filled in.';
+        }
+        if ((float) config('rewards.boost.multiplier') > 1) {
+            $ends = config('rewards.boost.ends_at');
+            if (blank($ends)) {
+                $warnings[] = 'The points boost has no end time, so it won\'t run. Add an end time.';
+            } elseif (now()->gte($ends)) {
+                $warnings[] = 'The points boost\'s end time has already passed.';
+            } elseif (filled(config('rewards.boost.starts_at')) && config('rewards.boost.starts_at') >= $ends) {
+                $warnings[] = 'The points boost ends before it starts.';
+            }
         }
         if (config('mail.default') === 'log') {
             $warnings[] = 'Emails are not being sent (log only). Customers won\'t get password-reset codes.';

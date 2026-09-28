@@ -2,6 +2,7 @@
 
 namespace App\Filament\Resources;
 
+use App\Filament\Concerns\GuardedByStaffRole;
 use App\Filament\Concerns\RunsAdminActions;
 use App\Filament\Resources\RaffleWinnerResource\Pages;
 use App\Filament\Support\MobileCard;
@@ -26,7 +27,12 @@ use Illuminate\Database\Eloquent\Collection;
  */
 class RaffleWinnerResource extends Resource
 {
-    use RunsAdminActions;
+    use GuardedByStaffRole, RunsAdminActions;
+
+    public static function canViewAny(): bool
+    {
+        return static::staffCanOpen();
+    }
 
     protected static ?string $model = RaffleWinner::class;
 
@@ -149,6 +155,8 @@ class RaffleWinnerResource extends Resource
             ->actionsColumnLabel('Action')
             ->actions([
                 Tables\Actions\Action::make('pay')
+                    // Only staff allowed to move money see this (App\Auth\StaffRoles).
+                    ->hidden(fn () => ! static::staffCan('money.pay'))
                     ->label(fn (RaffleWinner $record) => (float) $record->prize_cash_value > 0
                         ? 'Pay '.static::naira($record->prize_cash_value)
                         : 'Mark prize delivered')
