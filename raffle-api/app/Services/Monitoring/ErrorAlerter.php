@@ -77,7 +77,7 @@ class ErrorAlerter
                 return;
             }
 
-            $text = Str::limit("🚨 RaffleKings — {$title}\n".implode("\n", $lines), 3500);
+            $text = Str::limit("🚨 RaffleKings: {$title}\n".implode("\n", $lines), 3500);
 
             foreach ($chatIds as $chatId) {
                 Http::timeout(3)->post("https://api.telegram.org/bot{$token}/sendMessage", [

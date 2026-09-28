@@ -82,7 +82,7 @@ final class HealthReport
         $this->requireSetting(
             'MAIL_MAILER (+ MAIL_HOST / MAIL_USERNAME / MAIL_PASSWORD)',
             $mailWorks,
-            $mailWorks ? "Sending via '{$mailer}'." : "Set to '{$mailer}' — no email is delivered (password-reset codes, receipts, winner notices).",
+            $mailWorks ? "Sending via '{$mailer}'." : "Set to '{$mailer}', so no email is delivered (password-reset codes, receipts, winner notices).",
         );
 
         $this->optionalSetting('TELEGRAM_BOT_TOKEN / TELEGRAM_ADMIN_CHAT_IDS', filled(config('services.telegram.bot_token')) && ! empty(config('services.telegram.admin_chat_ids')), 'Admins get no Telegram alerts for server errors, new tickets, withdrawals or draws.');
@@ -94,7 +94,7 @@ final class HealthReport
         $this->optionalSetting(
             'BROADCAST_CONNECTION',
             ! in_array($broadcaster, ['log', 'null'], true),
-            "Set to '{$broadcaster}' — live draws, live ticket counts and live chat fall back to slow periodic refreshing.",
+            "Set to '{$broadcaster}', so live draws, live ticket counts and live chat fall back to slow periodic refreshing.",
         );
 
         if (str_starts_with((string) config('app.url'), 'https://')) {
@@ -102,14 +102,14 @@ final class HealthReport
         }
 
         if (config('app.debug') && app()->environment('production')) {
-            $this->addCritical('APP_DEBUG', 'Debug mode is on in production — error pages show internal details to customers.');
+            $this->addCritical('APP_DEBUG', 'Debug mode is on in production, so error pages show internal details to customers.');
         }
     }
 
     private function checkMaintenance(): void
     {
         if (app(Maintenance::class)->active()) {
-            $this->addWarning('Maintenance mode', 'ON — customers can\'t use the site. Switch it off in Settings → On / off.');
+            $this->addWarning('Maintenance mode', 'ON. Customers can\'t use the site. Switch it off in Settings → On / off.');
         }
     }
 
@@ -119,7 +119,7 @@ final class HealthReport
             DB::connection()->getPdo();
             $this->addOk('Database connection', 'Connected.');
         } catch (Throwable $e) {
-            $this->addCritical('Database connection', 'Cannot connect — check the DB_* settings.');
+            $this->addCritical('Database connection', 'Cannot connect. Check the DB_* settings.');
         }
     }
 
@@ -131,9 +131,9 @@ final class HealthReport
         $minutesAgo = intdiv(now()->timestamp - $heartbeat, 60);
 
         if ($heartbeat === 0) {
-            $this->addCritical('Scheduler (cPanel cron job)', 'Has never run — queued emails and alerts are never sent. Add the cron line from the deploy log.');
+            $this->addCritical('Scheduler (cPanel cron job)', 'Has never run, so queued emails and alerts are never sent. Add the cron line from the deploy log.');
         } elseif ($minutesAgo > 5) {
-            $this->addCritical('Scheduler (cPanel cron job)', "Last ran {$minutesAgo} minutes ago — the cron job seems to have stopped.");
+            $this->addCritical('Scheduler (cPanel cron job)', "Last ran {$minutesAgo} minutes ago. The cron job seems to have stopped.");
         } else {
             $this->addOk('Scheduler (cPanel cron job)', 'Running.');
         }
@@ -147,19 +147,19 @@ final class HealthReport
             $oldest = DB::table(config('queue.connections.database.table', 'jobs'))->min('available_at');
             $failedToday = DB::table(config('queue.failed.table', 'failed_jobs'))->where('failed_at', '>=', now()->subDay())->count();
         } catch (Throwable $e) {
-            $this->addWarning('Queue tables', 'Could not read the jobs/failed_jobs tables — have migrations run?');
+            $this->addWarning('Queue tables', 'Could not read the jobs/failed_jobs tables. Have migrations run?');
 
             return;
         }
 
         if ($oldest && now()->timestamp - (int) $oldest > 300) {
-            $this->addCritical('Queue backlog', "{$waiting} job(s) waiting, the oldest for over 5 minutes — nothing is sending them.");
+            $this->addCritical('Queue backlog', "{$waiting} job(s) waiting, the oldest for over 5 minutes. Nothing is sending them.");
         } else {
             $this->addOk('Queue backlog', "{$waiting} job(s) waiting.");
         }
 
         if ($failedToday > 0) {
-            $this->addWarning('Failed jobs (last 24h)', "{$failedToday} job(s) failed — see the failed_jobs table or `php artisan queue:failed`.");
+            $this->addWarning('Failed jobs (last 24h)', "{$failedToday} job(s) failed. See System → Health or `php artisan queue:failed`.");
         }
     }
 

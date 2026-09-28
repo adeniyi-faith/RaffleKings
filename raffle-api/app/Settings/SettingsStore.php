@@ -61,7 +61,7 @@ final class SettingsStore
             try {
                 $value = self::decode($setting, $raw);
             } catch (DecryptException) {
-                Log::warning("Setting {$key} could not be decrypted (was APP_KEY changed?) — using the .env value.");
+                Log::warning("Setting {$key} could not be decrypted (was APP_KEY changed?). Using the .env value.");
 
                 continue;
             }

@@ -63,7 +63,7 @@ class UnifiedSystemSettings extends Page implements HasForms
             'helper' => 'The admin "GENERATE WINNERS" button runs the provably-fair commit/reveal draw engine instead of the legacy non-cryptographic shuffle.',
         ],
         'rk_rewards_unified_enabled' => [
-            'label' => 'Rewards — points, streak, tasks, spin (item 35c)',
+            'label' => 'Rewards: points, streak, tasks, spin (item 35c)',
             'helper' => 'Daily claim, tasks, Spin & Win, and point redemption settle against the native user_points/completed_tasks tables. Point redemption additionally requires Wallets & payments above (it credits real money).',
         ],
         'rk_support_unified_enabled' => [
@@ -95,7 +95,7 @@ class UnifiedSystemSettings extends Page implements HasForms
 
         return $form->schema([
             Forms\Components\Section::make('Instant-rollback flags')
-                ->description('Each of these is read directly by the corresponding legacy PHP bridge on every request — flipping one here takes effect immediately, with zero deploy, exactly like flipping its legacy admin-page checkbox (they are the same underlying setting).')
+                ->description('Each of these is read directly by the corresponding legacy PHP bridge on every request. Flipping one here takes effect immediately, with zero deploy, exactly like flipping its legacy admin-page checkbox (they are the same underlying setting).')
                 ->schema($fields),
         ])->statePath('data');
     }

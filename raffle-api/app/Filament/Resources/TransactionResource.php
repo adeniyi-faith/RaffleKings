@@ -147,7 +147,7 @@ class TransactionResource extends Resource
                         ->badge()
                         ->formatStateUsing(fn (string $state) => static::statusLabel($state))
                         ->color(fn (string $state) => static::statusColor($state)),
-                    Tables\Columns\TextColumn::make('order_id')->label('Reference')->placeholder('—')->searchable()->toggleable(isToggledHiddenByDefault: true),
+                    Tables\Columns\TextColumn::make('order_id')->label('Reference')->placeholder('None')->searchable()->toggleable(isToggledHiddenByDefault: true),
                 ]),
             ])
             ->filters([
