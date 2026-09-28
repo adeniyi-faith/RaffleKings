@@ -3,9 +3,7 @@
 namespace App\Services;
 
 use App\Models\Legacy\RaffleTransaction;
-use App\Models\Legacy\WpOption;
 use App\Models\Legacy\WpUser;
-use App\Models\Legacy\WpUserMeta;
 use App\Models\Wallet;
 use App\Notifications\LegacyDepositApproved;
 use Illuminate\Database\Eloquent\Collection;
@@ -30,11 +28,11 @@ use RuntimeException;
  * stateful operation this pass deliberately does not duplicate in a
  * second language. Those stay on the legacy Financials page for now.
  *
- * Respects whichever balance store legacy is currently using
- * (wp_usermeta vs. the new `wallets` table), read from
- * rk_wallets_unified_enabled in wp_options — same flag wallet-bridge.php
- * itself checks — so an approval from here lands wherever legacy's OWN
- * approve button would have put it, whichever page an admin happens to use.
+ * Always credits the new `wallets` table (plus a ledger entry) — the
+ * only balance the live site reads since the WordPress site was retired.
+ * This used to follow the legacy rk_wallets_unified_enabled switch,
+ * which defaults to off, so an approval silently credited wp_usermeta
+ * where the customer could never see or spend it.
  */
 class DepositApprovalService
 {
@@ -138,34 +136,20 @@ class DepositApprovalService
 
     private function creditBalance(int $userId, string $balanceType, float $amount, string $reason, RaffleTransaction $transaction): void
     {
-        if (WpOption::flagEnabled('rk_wallets_unified_enabled')) {
-            $wallet = Wallet::query()->where('user_id', $userId)->lockForUpdate()->first()
-                ?? Wallet::create(['user_id' => $userId, 'wallet_balance' => 0, 'earnings_balance' => 0]);
+        $wallet = Wallet::query()->where('user_id', $userId)->lockForUpdate()->first()
+            ?? Wallet::create(['user_id' => $userId, 'wallet_balance' => 0, 'earnings_balance' => 0]);
 
-            $column = $balanceType === 'wallet' ? 'wallet_balance' : 'earnings_balance';
-            $wallet->{$column} = (float) $wallet->{$column} + $amount;
-            $wallet->save();
+        $column = $balanceType === 'wallet' ? 'wallet_balance' : 'earnings_balance';
+        $wallet->{$column} = (float) $wallet->{$column} + $amount;
+        $wallet->save();
 
-            $this->ledger->recordCredit(
-                userId: $userId,
-                balanceType: $balanceType,
-                amount: $amount,
-                reason: $reason,
-                referenceType: RaffleTransaction::class,
-                referenceId: (int) $transaction->id,
-            );
-
-            return;
-        }
-
-        $metaKey = $balanceType === 'wallet' ? 'wallet_balance' : 'earnings_balance';
-        $meta = WpUserMeta::query()->where('user_id', $userId)->where('meta_key', $metaKey)->first();
-        $current = (float) ($meta->meta_value ?? 0);
-
-        if ($meta) {
-            $meta->update(['meta_value' => $current + $amount]);
-        } else {
-            WpUserMeta::create(['user_id' => $userId, 'meta_key' => $metaKey, 'meta_value' => $current + $amount]);
-        }
+        $this->ledger->recordCredit(
+            userId: $userId,
+            balanceType: $balanceType,
+            amount: $amount,
+            reason: $reason,
+            referenceType: RaffleTransaction::class,
+            referenceId: (int) $transaction->id,
+        );
     }
 }

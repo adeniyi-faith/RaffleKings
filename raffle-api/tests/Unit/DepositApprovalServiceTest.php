@@ -8,6 +8,7 @@ use App\Models\Legacy\WpOption;
 use App\Models\Legacy\WpUser;
 use App\Models\Legacy\WpUserMeta;
 use App\Models\Wallet;
+use App\Models\WalletLedgerEntry;
 use App\Services\DepositApprovalService;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Notification;
@@ -18,10 +19,10 @@ use Tests\TestCase;
  * OVERHAUL_CHECKLIST.md Phase 3 item 36 — the Financials admin page's
  * "Pending Deposits" queue has no equivalent on the new console yet.
  * Proves the new DepositApprovalService correctly settles legacy's
- * manual bank-transfer deposits (wp_raffle_transactions), respecting
- * whichever balance store the rk_wallets_unified_enabled flag currently
- * points at, and applies the same cashback bonus Transaction Monitor's
- * own approve action already grants.
+ * manual bank-transfer deposits (wp_raffle_transactions) into the new
+ * `wallets` table — the only balance the live site reads — whatever the
+ * retired legacy rk_wallets_unified_enabled switch says, and applies the
+ * same cashback bonus Transaction Monitor's own approve action grants.
  */
 class DepositApprovalServiceTest extends TestCase
 {
@@ -44,7 +45,7 @@ class DepositApprovalServiceTest extends TestCase
         return WpUser::create(['user_login' => 'u'.uniqid(), 'user_pass' => 'x', 'user_email' => uniqid().'@example.com']);
     }
 
-    public function test_approving_a_pending_deposit_credits_wp_usermeta_when_the_wallet_flag_is_off(): void
+    public function test_approving_a_pending_deposit_credits_the_wallet_customers_actually_see(): void
     {
         $user = $this->makeUser();
         $txn = RaffleTransaction::create(['user_id' => $user->ID, 'claimed_amount' => 5000, 'status' => 'pending', 'type' => 'wallet_deposit', 'created_at' => now()]);
@@ -52,21 +53,23 @@ class DepositApprovalServiceTest extends TestCase
         $this->deposits->approve($this->admin, $txn);
 
         $this->assertSame('verified_final', $txn->fresh()->status);
-        $meta = WpUserMeta::where('user_id', $user->ID)->where('meta_key', 'wallet_balance')->first();
-        $this->assertEquals(5000, (float) $meta->meta_value);
-        $this->assertNull(Wallet::where('user_id', $user->ID)->first());
+        $this->assertEquals(5000, (float) Wallet::where('user_id', $user->ID)->value('wallet_balance'));
+        $this->assertNull(WpUserMeta::where('user_id', $user->ID)->where('meta_key', 'wallet_balance')->first());
+        $this->assertSame(1, WalletLedgerEntry::where('user_id', $user->ID)->where('direction', 'credit')->count());
     }
 
-    public function test_approving_credits_the_unified_wallet_when_the_flag_is_on(): void
+    public function test_approving_ignores_the_retired_legacy_wallet_switch_being_off(): void
     {
-        WpOption::create(['option_name' => 'rk_wallets_unified_enabled', 'option_value' => '1']);
+        // The regression this guards against: with the legacy switch off
+        // (its default), approvals used to credit wp_usermeta, which the
+        // live site never reads — the customer's money simply vanished.
+        WpOption::create(['option_name' => 'rk_wallets_unified_enabled', 'option_value' => '0']);
         $user = $this->makeUser();
         $txn = RaffleTransaction::create(['user_id' => $user->ID, 'claimed_amount' => 3000, 'status' => 'manual_review', 'type' => 'deposit_manual', 'created_at' => now()]);
 
         $this->deposits->approve($this->admin, $txn);
 
-        $wallet = Wallet::where('user_id', $user->ID)->first();
-        $this->assertEquals(3000, (float) $wallet->wallet_balance);
+        $this->assertEquals(3000, (float) Wallet::where('user_id', $user->ID)->value('wallet_balance'));
         $this->assertNull(WpUserMeta::where('user_id', $user->ID)->where('meta_key', 'wallet_balance')->first());
     }
 
@@ -78,8 +81,7 @@ class DepositApprovalServiceTest extends TestCase
 
         $this->deposits->approve($this->admin, $txn);
 
-        $earningsMeta = WpUserMeta::where('user_id', $user->ID)->where('meta_key', 'earnings_balance')->first();
-        $this->assertEquals(300, (float) $earningsMeta->meta_value);
+        $this->assertEquals(300, (float) Wallet::where('user_id', $user->ID)->value('earnings_balance'));
 
         $bonusTxn = RaffleTransaction::where('order_id', "Bonus for Txn #{$txn->id}")->first();
         $this->assertNotNull($bonusTxn);
@@ -105,6 +107,7 @@ class DepositApprovalServiceTest extends TestCase
         $this->deposits->reject($this->admin, $txn, 'Screenshot did not match.');
 
         $this->assertSame('rejected', $txn->fresh()->status);
+        $this->assertNull(Wallet::where('user_id', $user->ID)->first());
         $this->assertNull(WpUserMeta::where('user_id', $user->ID)->where('meta_key', 'wallet_balance')->first());
     }
 
