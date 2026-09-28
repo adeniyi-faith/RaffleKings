@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { Head, Link, router } from '@inertiajs/react';
 import { AlertTriangle, ArrowLeft, ArrowRight, Check, Info, Lock, ThumbsUp } from 'lucide-react';
 import { formatNaira } from '../../lib/format';
+import PausedNotice from '../../Components/layout/PausedNotice';
 
 // Faithful rebuild of withdraw.php + components/financials/withdraw-modals.php
 // against the real WithdrawalController/WithdrawalService (items 12/18) —
@@ -97,6 +98,7 @@ export default function AccountWithdraw() {
     return (
         <>
             <Head title="Withdraw Funds" />
+            <PausedNotice feature="withdrawals" className="mx-4 mt-3" />
             <div className="relative min-h-screen bg-gray-50 pb-28 dark:bg-dark-bg">
                 <div className="sticky top-0 z-40 border-b border-gray-100 bg-white px-5 pb-4 pt-4 shadow-sm dark:border-dark-border dark:bg-dark-bg dark:shadow-none">
                     <div className="flex items-center gap-3">

@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from 'react';
 import { Head, Link, usePage } from '@inertiajs/react';
 import { MessageCircle, Send, ShieldCheck, Trophy, Zap } from 'lucide-react';
 import { echoOrNull } from '../../lib/echo';
+import { isOn, useSite } from '../../lib/site';
 
 const REACTIONS = [
     { type: 'fire', emoji: '🔥' },
@@ -38,6 +39,7 @@ const REACTIONS = [
 // both new, real capabilities the legacy page never had at all.
 export default function LiveDrawShow({ raffle }) {
     const { auth } = usePage().props;
+    const site = useSite();
     const [state, setState] = useState(null);
     const [revealed, setRevealed] = useState([]);
     const [comments, setComments] = useState([]);
@@ -349,7 +351,9 @@ export default function LiveDrawShow({ raffle }) {
                         </p>
                     )}
                     <form onSubmit={postComment} className="flex items-center gap-2 border-t border-white/5 p-3">
-                        {auth?.user ? (
+                        {! isOn(site, 'live_chat') ? (
+                            <p className="w-full py-1 text-center text-[11px] font-medium text-white/50">Chat is paused for now — you can still watch and react.</p>
+                        ) : auth?.user ? (
                             <>
                                 <input
                                     value={commentDraft}

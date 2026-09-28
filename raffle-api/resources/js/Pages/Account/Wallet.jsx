@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { Head } from '@inertiajs/react';
 import { ArrowLeft, Building2, CheckCircle2, ShieldCheck, XCircle } from 'lucide-react';
 import { formatNaira } from '../../lib/format';
+import PausedNotice from '../../Components/layout/PausedNotice';
 
 // Rebuild of topup.php against the item 13 payment-gateway backend
 // (item 26). What's preserved from the legacy page: the layout shell
@@ -82,6 +83,7 @@ export default function AccountWallet() {
     return (
         <>
             <Head title="Top Up Wallet" />
+            <PausedNotice feature="deposits" className="mx-4 mt-3" />
             <div className="relative min-h-screen bg-gray-50 pb-28 dark:bg-dark-bg">
                 <div className="sticky top-0 z-10 border-b border-gray-100 bg-white px-5 pb-4 pt-4 dark:border-dark-border dark:bg-dark-bg">
                     <div className="mb-2 flex items-center gap-3">

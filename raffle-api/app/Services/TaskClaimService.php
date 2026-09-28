@@ -17,16 +17,19 @@ use Illuminate\Support\Facades\DB;
  */
 class TaskClaimService
 {
-    private const REWARDS = [
-        'push_notification' => 1500,
-        'join_community' => 1300,
-        'whatsapp_follow' => 800,
-        'whatsapp_share' => 500,
-    ];
-
     private const REPEATABLE_DAILY_TASKS = ['whatsapp_share'];
 
     public function __construct(private readonly PointsService $points) {}
+
+    /**
+     * Points per task (config/rewards.php, editable in Settings → Rewards).
+     *
+     * @return array<string, int>
+     */
+    private static function rewards(): array
+    {
+        return array_map('intval', config('rewards.tasks'));
+    }
 
     /**
      * The task list with each one's reward and whether this user has
@@ -47,7 +50,7 @@ class TaskClaimService
             ->whereDate('completed_at', now())
             ->pluck('task_id');
 
-        return collect(self::REWARDS)->map(function ($points, $taskId) use ($doneIds, $doneToday) {
+        return collect(self::rewards())->map(function ($points, $taskId) use ($doneIds, $doneToday) {
             $repeatable = in_array($taskId, self::REPEATABLE_DAILY_TASKS, true);
 
             return [
@@ -67,7 +70,7 @@ class TaskClaimService
      */
     public function claim(WpUser $user, string $taskId): array
     {
-        if (! array_key_exists($taskId, self::REWARDS)) {
+        if (! array_key_exists($taskId, self::rewards())) {
             throw new UnknownTaskException($taskId);
         }
 
@@ -82,7 +85,7 @@ class TaskClaimService
 
             CompletedTask::create(['user_id' => $user->ID, 'task_id' => $taskId, 'completed_at' => now()]);
 
-            $reward = self::REWARDS[$taskId];
+            $reward = self::rewards()[$taskId];
             $newBalance = $this->points->credit($user, $reward, 'task_claim', description: "Completed task: {$taskId}");
 
             return ['task_id' => $taskId, 'points_added' => $reward, 'new_total_points' => $newBalance];
