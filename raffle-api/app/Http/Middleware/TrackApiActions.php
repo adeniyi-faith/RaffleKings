@@ -25,7 +25,7 @@ class TrackApiActions
      *
      * @var array<string, string>
      */
-    private const EVENTS = [
+    public const EVENTS = [
         'api/deposits' => 'topup_started',
         'api/wallet/transfer' => 'winnings_moved_to_wallet',
         'api/golden-box/{offer}/claim' => 'golden_box_claimed',

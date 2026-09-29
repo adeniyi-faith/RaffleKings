@@ -34,7 +34,7 @@ class Analytics
      */
     public function capture(int|string|null $userId, string $event, array $properties = [], array $set = []): void
     {
-        if (! $this->enabled() || $userId === null || $userId === '') {
+        if (! $this->enabled() || $userId === null || $userId === '' || EventCatalog::isDisabled($event)) {
             return;
         }
 
