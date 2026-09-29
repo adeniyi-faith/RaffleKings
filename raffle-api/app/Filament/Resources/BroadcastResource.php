@@ -10,6 +10,7 @@ use App\Models\Legacy\RaffleNotificationTemplate;
 use App\Models\Legacy\RaffleSiteNotice;
 use App\Models\Legacy\WpUser;
 use App\Services\Messaging\Audience;
+use App\Filament\Support\AiAssist;
 use Filament\Forms;
 use Filament\Forms\Form;
 use Filament\Forms\Get;
@@ -116,7 +117,8 @@ class BroadcastResource extends Resource
                         }),
                     Forms\Components\TextInput::make('title')->label('Headline / email subject')->required()->maxLength(120)->live(onBlur: true),
                     Forms\Components\Textarea::make('body')->label('Message')->required()->rows(6)->maxLength(3000)->live(onBlur: true)
-                        ->helperText('{name} becomes each customer\'s first name. Leave an empty line between paragraphs.'),
+                        ->helperText('{name} becomes each customer\'s first name. Leave an empty line between paragraphs.')
+                        ->hintAction(AiAssist::action('a short message (email and app notification) sent to customers; you may use {name} for their first name', false, fn (Forms\Get $get) => 'Headline: '.$get('title'))),
                     Forms\Components\Grid::make(['md' => 2])->schema([
                         Forms\Components\TextInput::make('link_url')->label('Button link (optional)')->placeholder('/raffles/12 or https://…')
                             ->rule(fn () => function (string $attribute, $value, \Closure $fail) {

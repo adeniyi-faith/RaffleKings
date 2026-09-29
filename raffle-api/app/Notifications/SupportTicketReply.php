@@ -28,10 +28,15 @@ class SupportTicketReply extends Notification implements ShouldQueue
 
     public function toMail(mixed $notifiable): MailMessage
     {
-        return (new MailMessage)
+        $mail = (new MailMessage)
             ->subject('New reply on your support ticket')
-            ->greeting('You have a new reply')
-            ->line($this->message->message);
+            ->greeting('You have a new reply');
+
+        if ($this->message->is_automated) {
+            $mail->line('Automated reply (written by our assistant). Reply to the ticket if you would like a person to help.');
+        }
+
+        return $mail->line($this->message->message);
     }
 
     /** The bell alert is written straight away, not on the next background run. */
@@ -46,7 +51,7 @@ class SupportTicketReply extends Notification implements ShouldQueue
 
         return [
             'kind' => 'support',
-            'title' => 'Support replied'.($subject ? ": {$subject}" : ''),
+            'title' => ($this->message->is_automated ? 'Automated reply' : 'Support replied').($subject ? ": {$subject}" : ''),
             'body' => Str::limit($this->message->message, 300),
             'link_url' => '/support?ticket='.$this->message->support_ticket_id,
             'link_label' => 'Open ticket',

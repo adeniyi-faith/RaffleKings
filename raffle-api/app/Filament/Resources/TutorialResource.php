@@ -9,6 +9,7 @@ use App\Filament\Support\MobileCard;
 use App\Models\Tutorial;
 use App\Models\TutorialLike;
 use App\Services\AdminAuditLogService;
+use App\Filament\Support\AiAssist;
 use Filament\Forms;
 use Filament\Forms\Form;
 use Filament\Resources\Resource;
@@ -53,11 +54,13 @@ class TutorialResource extends Resource
             Forms\Components\Section::make('Tutorial')->columnSpan(['lg' => 2])->schema([
                 Forms\Components\TextInput::make('title')->required()->maxLength(150),
                 Forms\Components\Textarea::make('excerpt')->label('Short summary')->rows(2)->maxLength(300)
-                    ->helperText('Shown in the list. Leave empty to use the start of the tutorial.'),
+                    ->helperText('Shown in the list. Leave empty to use the start of the tutorial.')
+                    ->hintAction(AiAssist::action('a one or two sentence summary of a help guide for customers', false, fn (Forms\Get $get) => 'Title: '.$get('title'))),
                 Forms\Components\RichEditor::make('content')
                     ->required()
                     ->disableToolbarButtons(['attachFiles', 'codeBlock'])
-                    ->helperText('Anything unsafe (scripts, hidden code) is removed automatically when you save.'),
+                    ->helperText('Anything unsafe (scripts, hidden code) is removed automatically when you save.')
+                    ->hintAction(AiAssist::action('a step-by-step help guide for customers', true, fn (Forms\Get $get) => 'Title: '.$get('title'))),
             ]),
             Forms\Components\Section::make('Settings')->columnSpan(['lg' => 1])->schema([
                 Forms\Components\Toggle::make('is_published')->label('Show on the site')->default(true),

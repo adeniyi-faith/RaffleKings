@@ -61,4 +61,19 @@ class SupportTicketController extends Controller
 
         return response()->json($reply, 201);
     }
+
+    /** "Talk to a person": stops the automated replies and puts the ticket back in the team's open inbox. */
+    public function requestHuman(Request $request, SupportTicket $ticket): JsonResponse
+    {
+        /** @var WpUser $user */
+        $user = $request->user();
+
+        if ($ticket->user_id !== $user->ID) {
+            return response()->json(['message' => 'Ticket not found.'], 404);
+        }
+
+        $this->tickets->requestHuman($ticket);
+
+        return response()->json($ticket->refresh()->load('messages'));
+    }
 }
