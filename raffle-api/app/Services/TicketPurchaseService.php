@@ -11,6 +11,7 @@ use App\Models\Legacy\RaffleTransaction;
 use App\Models\Legacy\WpUser;
 use App\Models\Wallet;
 use App\Notifications\TicketPurchaseReceipt;
+use App\Services\Engagement\Perks;
 use App\Services\Engagement\Progress;
 use App\Support\Live;
 use Illuminate\Database\UniqueConstraintViolationException;
@@ -335,6 +336,9 @@ class TicketPurchaseService
 
         // Loyalty bonus entries, when this raffle's published rules give them.
         $this->rules->grantBonusEntries($userId, $raffleId);
+
+        // Phase 11: free bonus-entry tokens (e.g. from the Season Pass) go into this raffle.
+        $this->rules->addEarnedEntries($userId, $raffleId, app(Perks::class)->takeBonusTokens($userId), 'token');
 
         // Phase 11: badges, Season Pass XP, milestones (after the purchase saves).
         app(Progress::class)->ticketsBought($userId, count($ticketNumbers), $raffleId);

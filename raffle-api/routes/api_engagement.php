@@ -2,6 +2,7 @@
 
 use App\Http\Controllers\Api\Engagement\BadgeController;
 use App\Http\Controllers\Api\Engagement\ReferralLadderController;
+use App\Http\Controllers\Api\Engagement\SeasonPassController;
 use Illuminate\Support\Facades\Route;
 
 /*
@@ -14,4 +15,7 @@ Route::middleware('auth:wordpress')->group(function () {
     Route::post('/badges/showcase', [BadgeController::class, 'showcase']);
 
     Route::get('/referrals/overview', ReferralLadderController::class);
+
+    Route::get('/season', [SeasonPassController::class, 'show']);
+    Route::post('/season/claim', [SeasonPassController::class, 'claim'])->middleware('feature:season_pass');
 });

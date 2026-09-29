@@ -68,7 +68,7 @@ class RaffleRulesService
             return;
         }
 
-        $row = RaffleBonusEntry::query()->firstOrNew(['raffle_id' => $publicId, 'user_id' => $userId]);
+        $row = RaffleBonusEntry::query()->firstOrNew(['raffle_id' => $publicId, 'user_id' => $userId, 'reason' => 'loyalty']);
 
         if ($row->exists && $row->entries >= $tier['bonus_entries']) {
             return;
@@ -77,10 +77,26 @@ class RaffleRulesService
         $row->fill(['entries' => $tier['bonus_entries'], 'reason' => 'loyalty', 'tier' => $tier['key']])->save();
     }
 
+    /**
+     * Adds free bonus entries a customer earned somewhere on the site
+     * (reason: token, team, unlock) to one raffle.
+     */
+    public function addEarnedEntries(int $userId, int $publicId, int $count, string $reason): void
+    {
+        if ($count < 1) {
+            return;
+        }
+
+        $row = RaffleBonusEntry::query()->firstOrNew(['raffle_id' => $publicId, 'user_id' => $userId, 'reason' => $reason]);
+        $row->entries = (int) $row->entries + $count;
+        $row->tier = null;
+        $row->save();
+    }
+
     /** The customer's free bonus entries in one raffle (0 if none). */
     public function bonusEntries(int $userId, int $publicId): int
     {
-        return (int) RaffleBonusEntry::query()->where('raffle_id', $publicId)->where('user_id', $userId)->value('entries');
+        return (int) RaffleBonusEntry::query()->where('raffle_id', $publicId)->where('user_id', $userId)->sum('entries');
     }
 
     /**
