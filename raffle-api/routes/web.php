@@ -5,8 +5,11 @@ use App\Http\Controllers\LegacyRedirectController;
 use App\Models\Legacy\RaffleEntry;
 use App\Models\Raffle;
 use App\Services\Auth\TurnstileVerifier;
+use App\Services\DailyClaimService;
 use App\Services\GoldenBoxService;
 use App\Services\RaffleReadService;
+use App\Services\SpinService;
+use App\Services\TaskClaimService;
 use App\Services\TutorialReadService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
@@ -203,14 +206,24 @@ Route::get('/account/edit-profile', function (Request $request) use ($accountGua
 // Rewards hub (item 28) — daily streak, tasks, Spin & Win, and Referrals
 // as one page. Public, same as the legacy rewards.php: it only guards the
 // POST actions (claiming, spinning) on `is_user_logged_in()`, not the
-// page itself — a guest sees the same page with an empty/zeroed state
-// and a prompt to log in, not a redirect. `user_login` is passed as this
+// page itself. A guest gets `preview` (item 47): the real streak
+// rewards, tasks and spin odds, so the page shows what they'd earn
+// instead of blank rows. `user_login` is passed as this
 // user's own referral code when logged in — the exact value
 // RegistrationService::captureReferrer() already matches a new signup's
 // `?ref=` against, so the link this page hands out actually works.
-Route::get('/rewards', fn () => Inertia::render('Rewards/Index', [
-    'referralCode' => Auth::guard('wordpress')->user()?->user_login,
-]));
+Route::get('/rewards', function () {
+    $user = Auth::guard('wordpress')->user();
+
+    return Inertia::render('Rewards/Index', [
+        'referralCode' => $user?->user_login,
+        'preview' => $user ? null : [
+            'daily_schedule' => app(DailyClaimService::class)->schedule(),
+            'tasks' => app(TaskClaimService::class)->publicCatalog(),
+            'spin' => ['cost' => SpinService::cost(), 'odds' => app(SpinService::class)->odds()],
+        ],
+    ]);
+});
 
 // Help & Support (item 29) — same server-side login guard as the account
 // section: legacy support.php's ticket panel needs a real logged-in user

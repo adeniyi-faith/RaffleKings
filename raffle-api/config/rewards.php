@@ -20,6 +20,13 @@ return [
         'whatsapp_share' => 500,
     ],
 
+    // Link tasks (community, WhatsApp follow, WhatsApp share) are a
+    // two-step "Go" then "Claim": Claim only works once the customer has
+    // opened the link and at least this many seconds have passed. WhatsApp
+    // can't tell us whether they really followed or shared, so this is the
+    // honest check we can make (item 47).
+    'task_wait_seconds' => 10,
+
     'spin_cost' => 50,
 
     // Chances are "out of the total of all weights" (they need not add up

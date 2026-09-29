@@ -1,11 +1,15 @@
-import { useEffect, useState } from 'react';
-import { Head, Link, usePage } from '@inertiajs/react';
+import { useEffect, useRef, useState } from 'react';
+import { Head, Link, router, usePage } from '@inertiajs/react';
 import {
     ArrowLeft,
     ArrowRight,
+    Bell,
     CheckCircle2,
+    Clock,
     Coins,
     Copy,
+    ExternalLink,
+    Share2,
     Sparkles,
     Users,
     Zap,
@@ -15,6 +19,8 @@ import { isOn, useSite } from '../../lib/site';
 import PausedNotice from '../../Components/layout/PausedNotice';
 import { usePushPermission } from '../../hooks/usePushPermission';
 import BottomNav from '../../Components/layout/BottomNav';
+import SpinWheel from '../../Components/rewards/SpinWheel';
+import ResultModal from '../../Components/rewards/ResultModal';
 
 // Rebuild of rewards.php (item 28). What's preserved from the legacy
 // page: the blue hero with a points badge and a 7-day streak row, the
@@ -30,14 +36,43 @@ import BottomNav from '../../Components/layout/BottomNav';
 // Spin & Win actually spins against POST /api/rewards/spin and shows the
 // item-7 disclosed odds, and Refer & Earn shows this user's own working
 // referral link and real stats from GET /api/referrals/stats.
+//
+// Item 47 ("rewards that feel alive"): the animated wheel is back (driven
+// by the server's result), link tasks are "Go" then "Claim" after a short
+// wait (the server checks it), today's reward bounces with a countdown to
+// the next one, guests see a real preview, and errors look like errors.
 const TASK_LABELS = {
-    push_notification: { title: 'Enable Notifications', desc: 'Turn on push alerts', icon: Zap },
-    join_community: { title: 'Join our Community', desc: 'Follow our official group', icon: Users },
-    whatsapp_follow: { title: 'Follow on WhatsApp', desc: 'Follow our WhatsApp channel', icon: Zap },
-    whatsapp_share: { title: 'Share on WhatsApp', desc: 'Share with your friends (daily)', icon: Zap },
+    push_notification: { title: 'Enable Notifications', desc: 'Turn on push alerts', icon: Bell },
+    join_community: { title: 'Join our Community', desc: 'Join our official group', icon: Users },
+    whatsapp_follow: { title: 'Follow on WhatsApp', desc: 'Follow our WhatsApp channel', icon: ExternalLink },
+    whatsapp_share: { title: 'Share on WhatsApp', desc: 'Share with your friends (daily)', icon: Share2 },
 };
 
-export default function RewardsIndex({ referralCode }) {
+// Re-renders every second while something on the page counts down.
+function useNow(active) {
+    const [now, setNow] = useState(() => Date.now());
+
+    useEffect(() => {
+        if (! active) {
+            return undefined;
+        }
+
+        const interval = setInterval(() => setNow(Date.now()), 1000);
+
+        return () => clearInterval(interval);
+    }, [active]);
+
+    return now;
+}
+
+function hms(ms) {
+    const total = Math.max(0, Math.floor(ms / 1000));
+    const pad = (n) => String(n).padStart(2, '0');
+
+    return `${pad(Math.floor(total / 3600))}:${pad(Math.floor((total % 3600) / 60))}:${pad(total % 60)}`;
+}
+
+export default function RewardsIndex({ referralCode, preview = null }) {
     const { auth } = usePage().props;
     const site = useSite();
     // Both set in the admin's Settings → Rewards.
@@ -47,8 +82,11 @@ export default function RewardsIndex({ referralCode }) {
     const [state, setState] = useState(null);
     const [referral, setReferral] = useState(null);
     const [busy, setBusy] = useState(null); // id of whatever action is in flight
-    const [modal, setModal] = useState(null); // { title, message }
+    const [modal, setModal] = useState(null); // { kind, title, message, balance?, confetti? }
     const [copied, setCopied] = useState(false);
+    const [taskReadyAt, setTaskReadyAt] = useState({}); // task id → when Claim unlocks (ms)
+    const [spinning, setSpinning] = useState(false);
+    const wheelRef = useRef(null);
     const { requestPermission } = usePushPermission();
 
     const referralLink = referralCode ? `${window.location.origin}/register?ref=${encodeURIComponent(referralCode)}` : null;
@@ -70,9 +108,17 @@ export default function RewardsIndex({ referralCode }) {
     }, []);
 
     function loadState() {
-        fetch('/api/rewards/state', { credentials: 'same-origin' })
+        return fetch('/api/rewards/state', { credentials: 'same-origin', headers: { Accept: 'application/json' } })
             .then((res) => (res.ok ? res.json() : null))
-            .then(setState)
+            .then((data) => {
+                setState(data);
+                // Keep a "Claim in 8s" countdown going after a reload.
+                const ready = {};
+                (data?.tasks ?? []).forEach((t) => {
+                    if (t.claimable_at && ! t.completed) ready[t.task_id] = new Date(t.claimable_at).getTime();
+                });
+                setTaskReadyAt(ready);
+            })
             .catch(() => setState(null));
     }
 
@@ -85,7 +131,10 @@ export default function RewardsIndex({ referralCode }) {
         const data = await response.json().catch(() => ({}));
 
         if (! response.ok) {
-            throw new Error(data.message || 'Something went wrong. Please try again.');
+            const error = new Error(data.message || 'Something went wrong. Please try again.');
+            error.status = response.status;
+            error.data = data;
+            throw error;
         }
 
         return data;
@@ -95,10 +144,17 @@ export default function RewardsIndex({ referralCode }) {
         setBusy('daily');
         try {
             const result = await post('/api/rewards/daily-claim');
-            setModal({ title: 'Streak Claimed!', message: `You earned ${result.points_added} points. Day ${result.new_streak} streak.` });
+            setModal({
+                kind: 'success',
+                title: 'Streak Claimed!',
+                message: `You earned ${result.points_added} points. Day ${result.new_streak} streak. Come back tomorrow for more.`,
+                balance: result.new_total_points,
+                confetti: result.new_streak === 7,
+            });
             loadState();
+            router.reload({ only: ['auth'] }); // clears the red dot on the bottom nav
         } catch (err) {
-            setModal({ title: 'Not claimed', message: err.message });
+            setModal({ kind: 'error', title: 'Not claimed', message: err.message });
         } finally {
             setBusy(null);
         }
@@ -120,8 +176,22 @@ export default function RewardsIndex({ referralCode }) {
         }
     }
 
-    async function claimTask(taskId) {
+    // Step 1 of a link task: open the link (straight from the tap, so it
+    // isn't blocked as a pop-up), then tell the server, which starts the wait.
+    async function goTask(taskId) {
         openTaskLink(taskId);
+        setBusy(taskId);
+        try {
+            const result = await post(`/api/rewards/tasks/${taskId}/start`);
+            setTaskReadyAt((prev) => ({ ...prev, [taskId]: new Date(result.claimable_at).getTime() }));
+        } catch (err) {
+            setModal({ kind: 'error', title: 'Could not start this task', message: err.message });
+        } finally {
+            setBusy(null);
+        }
+    }
+
+    async function claimTask(taskId) {
         setBusy(taskId);
         try {
             // Item 31: the "Enable Notifications" reward is honestly tied
@@ -135,6 +205,7 @@ export default function RewardsIndex({ referralCode }) {
 
                 if (! granted) {
                     setModal({
+                        kind: 'error',
                         title: 'Notifications not enabled',
                         message: 'Please allow notifications in your browser to claim this reward.',
                     });
@@ -143,26 +214,47 @@ export default function RewardsIndex({ referralCode }) {
             }
 
             const result = await post(`/api/rewards/tasks/${taskId}/claim`);
-            setModal({ title: 'Task Complete!', message: `You earned ${result.points_added} points.` });
+            setModal({ kind: 'success', title: 'Task Complete!', message: `You earned ${result.points_added} points.`, balance: result.new_total_points });
             loadState();
         } catch (err) {
-            setModal({ title: 'Could not claim this task', message: err.message });
+            // Too soon: the server says how long is left, so the button counts down again.
+            if (err.status === 425 && err.data?.seconds_left) {
+                setTaskReadyAt((prev) => ({ ...prev, [taskId]: Date.now() + err.data.seconds_left * 1000 }));
+            } else if (err.status === 425) {
+                setTaskReadyAt((prev) => {
+                    const next = { ...prev };
+                    delete next[taskId];
+                    return next;
+                });
+            }
+            setModal({ kind: err.status === 425 ? 'info' : 'error', title: err.status === 425 ? 'Not yet' : 'Could not claim this task', message: err.message });
         } finally {
             setBusy(null);
         }
     }
 
+    // The server picks the prize first; the wheel then spins onto it.
     async function spin() {
         setBusy('spin');
         try {
             const result = await post('/api/rewards/spin');
-            setModal({
-                title: result.payout > 0 ? `You won ${result.payout} points!` : 'No win this time',
-                message: `Outcome: ${result.outcome}. New balance: ${result.new_balance} points.`,
-            });
+            setState((prev) => (prev ? { ...prev, points: Math.max(0, prev.points - spinCost) } : prev));
+            setSpinning(true);
+            await wheelRef.current?.spinTo(result.visual_index);
+            setSpinning(false);
+
+            const profit = result.payout - spinCost;
+            setModal(
+                profit > 0
+                    ? { kind: 'win', title: 'YOU WON!', message: `+${result.payout} points${result.outcome === 'jackpot' ? '. Jackpot!' : '!'}`, balance: result.new_balance, confetti: true }
+                    : profit === 0
+                      ? { kind: 'success', title: 'Points back!', message: `You got your ${result.payout} points back. Spin again?`, balance: result.new_balance }
+                      : { kind: 'info', title: 'So close!', message: `You won ${result.payout} points. Better luck on the next spin.`, balance: result.new_balance },
+            );
             loadState();
         } catch (err) {
-            setModal({ title: 'Could not spin', message: err.message });
+            setSpinning(false);
+            setModal({ kind: 'error', title: 'Could not spin', message: err.message });
         } finally {
             setBusy(null);
         }
@@ -173,12 +265,13 @@ export default function RewardsIndex({ referralCode }) {
         try {
             const result = await post('/api/rewards/redeem');
             setModal({
+                kind: 'success',
                 title: 'Redeemed!',
                 message: `${result.redeemed_points} points converted to ${formatNaira(result.wallet_added)} in your wallet.`,
             });
             loadState();
         } catch (err) {
-            setModal({ title: 'Could not redeem', message: err.message });
+            setModal({ kind: 'error', title: 'Could not redeem', message: err.message });
         } finally {
             setBusy(null);
         }
@@ -191,13 +284,28 @@ export default function RewardsIndex({ referralCode }) {
         });
     }
 
+    // A guest sees the real rewards (item 47) instead of blank rows.
+    const data = isGuest ? preview : state;
     const points = state?.points ?? 0;
     const streak = state?.streak ?? 0;
     const claimedToday = state?.is_claimed_today ?? false;
-    const schedule = state?.daily_schedule ?? [];
-    const tasks = state?.tasks ?? [];
-    const spinOdds = state?.spin?.odds ?? [];
-    const spinCost = state?.spin?.cost ?? 50;
+    const schedule = data?.daily_schedule ?? [];
+    const tasks = data?.tasks ?? [];
+    const spinOdds = data?.spin?.odds ?? [];
+    const spinCost = data?.spin?.cost ?? 50;
+    const loginUrl = `/login?redirect=${encodeURIComponent('/rewards')}`;
+
+    const counting = (! isGuest && claimedToday) || Object.keys(taskReadyAt).length > 0;
+    const now = useNow(counting);
+    const nextReset = state?.next_reset_at ? new Date(state.next_reset_at).getTime() - now : null;
+
+    // The new day started while the page was open: show today's reward.
+    useEffect(() => {
+        if (claimedToday && nextReset !== null && nextReset <= 0) {
+            loadState();
+        }
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [claimedToday, nextReset !== null && nextReset <= 0]);
 
     return (
         <>
@@ -208,41 +316,65 @@ export default function RewardsIndex({ referralCode }) {
 
                     <div className="relative z-10 mb-6 flex items-center justify-between">
                         <div className="flex items-center gap-3">
-                            <button onClick={() => window.history.back()} className="-ml-1 p-1 text-white/70 hover:text-white">
+                            <button onClick={() => window.history.back()} className="-ml-1 p-1 text-white/70 hover:text-white" aria-label="Back">
                                 <ArrowLeft className="h-6 w-6" />
                             </button>
-                            <h2 className="text-xl font-bold text-white">Rewards</h2>
+                            <div>
+                                <h2 className="text-xl font-bold text-white">Rewards</h2>
+                                {! isGuest && state && (
+                                    <p className="flex items-center gap-1 text-xs text-blue-200">
+                                        <Clock className="h-3 w-3" />
+                                        {claimedToday && nextReset !== null ? (
+                                            <>
+                                                Next reward in <span className="font-mono font-bold text-white">{hms(nextReset)}</span>
+                                            </>
+                                        ) : (
+                                            <span className="font-bold text-yellow-300">Today's reward is ready. Tap it!</span>
+                                        )}
+                                    </p>
+                                )}
+                                {isGuest && <p className="text-xs text-blue-200">Log in to collect points every day.</p>}
+                            </div>
                         </div>
 
-                        <div className="flex items-center gap-2 rounded-full border border-white/20 bg-white/10 px-3 py-1.5 backdrop-blur-md">
-                            <Coins className="h-4 w-4 fill-current text-yellow-400" />
-                            <span className="text-sm font-bold text-white">{points} Pts</span>
-                        </div>
+                        {isGuest ? (
+                            <Link href={loginUrl} className="rounded-full bg-yellow-400 px-4 py-1.5 text-xs font-bold text-gray-900 shadow-md active:scale-95">
+                                Log in
+                            </Link>
+                        ) : (
+                            <div className="flex items-center gap-2 rounded-full border border-white/20 bg-white/10 px-3 py-1.5 backdrop-blur-md">
+                                <Coins className="h-4 w-4 fill-current text-yellow-400" />
+                                <span className="text-sm font-bold text-white">{points} Pts</span>
+                            </div>
+                        )}
                     </div>
 
                     <div className="relative z-10 flex justify-between gap-2">
                         {schedule.map((reward, i) => {
                             const day = i + 1;
-                            const isDone = day < streak || (day === streak && claimedToday);
-                            const isToday = day === streak && ! claimedToday;
+                            const isDone = ! isGuest && (day < streak || (day === streak && claimedToday));
+                            const isToday = ! isGuest && day === streak && ! claimedToday && isOn(site, 'daily_claim');
+                            const Tag = isGuest ? Link : 'button';
 
                             return (
-                                <button
+                                <Tag
                                     key={day}
-                                    onClick={isToday ? claimDaily : undefined}
-                                    disabled={! isToday || busy === 'daily'}
-                                    className={`flex-1 rounded-xl border py-2 text-center transition-transform ${
+                                    {...(isGuest ? { href: loginUrl } : { onClick: isToday ? claimDaily : undefined, disabled: ! isToday || busy === 'daily' })}
+                                    aria-label={isToday ? `Claim day ${day} reward: ${reward} points` : undefined}
+                                    className={`relative flex-1 rounded-xl border py-2 text-center transition-transform ${
                                         isToday
-                                            ? 'scale-105 border-yellow-400 bg-yellow-400/20 active:scale-95'
+                                            ? 'animate-soft-bounce border-yellow-400 bg-yellow-400/30 shadow-lg shadow-yellow-400/30 active:scale-95'
                                             : isDone
                                               ? 'border-white/20 bg-white/10'
                                               : 'border-white/10 bg-white/5 opacity-60'
                                     }`}
                                 >
+                                    {isToday && <span className="absolute -right-1 -top-1 h-2.5 w-2.5 animate-ping rounded-full bg-yellow-300" />}
                                     <p className="text-[9px] font-bold uppercase text-blue-200">Day {day}</p>
                                     <p className="text-xs font-bold text-white">{reward}</p>
                                     {isDone && <CheckCircle2 className="mx-auto mt-0.5 h-3 w-3 text-green-400" />}
-                                </button>
+                                    {isToday && <p className="text-[8px] font-black uppercase text-yellow-300">{busy === 'daily' ? '…' : 'Claim'}</p>}
+                                </Tag>
                             );
                         })}
                     </div>
@@ -300,13 +432,38 @@ export default function RewardsIndex({ referralCode }) {
                                 </div>
                             </div>
 
-                            <button
-                                onClick={spin}
-                                disabled={busy === 'spin' || points < spinCost}
-                                className="flex items-center gap-1.5 rounded-full border border-white/20 bg-black/30 px-3 py-1.5 text-[10px] font-bold uppercase tracking-wider text-white backdrop-blur-md transition-transform active:scale-95 disabled:cursor-not-allowed disabled:opacity-50"
-                            >
-                                <Sparkles className="h-3 w-3" /> {busy === 'spin' ? 'Spinning…' : 'Spin'}
-                            </button>
+                        </div>
+
+                        {spinOdds.length > 0 && (
+                            <div className="relative z-10 mt-2">
+                                <SpinWheel ref={wheelRef} odds={spinOdds} spinning={spinning} />
+                            </div>
+                        )}
+
+                        <div className="relative z-10 mt-2">
+                            {isGuest ? (
+                                <Link
+                                    href={loginUrl}
+                                    className="flex w-full items-center justify-center gap-2 rounded-2xl bg-gradient-to-br from-yellow-300 to-yellow-500 py-3.5 text-base font-black text-amber-900 shadow-lg shadow-yellow-500/30 active:scale-95"
+                                >
+                                    Log in to spin
+                                </Link>
+                            ) : (
+                                <button
+                                    onClick={spin}
+                                    disabled={busy === 'spin' || points < spinCost || ! isOn(site, 'spin')}
+                                    className="flex w-full items-center justify-center gap-3 rounded-2xl bg-gradient-to-br from-yellow-300 to-yellow-500 py-3.5 text-base font-black text-amber-900 shadow-lg shadow-yellow-500/30 transition-transform active:scale-95 disabled:cursor-not-allowed disabled:opacity-60"
+                                >
+                                    <Sparkles className="h-4 w-4" />
+                                    {busy === 'spin' ? 'SPINNING…' : 'SPIN NOW'}
+                                    <span className="rounded-lg bg-white/40 px-2 py-0.5 text-xs font-bold">−{spinCost} pts</span>
+                                </button>
+                            )}
+                            {! isGuest && state && points < spinCost && (
+                                <p className="mt-2 text-center text-[11px] text-purple-100">
+                                    You need {spinCost - points} more points to spin. Claim today's reward or finish a task below.
+                                </p>
+                            )}
                         </div>
 
                         {spinOdds.length > 0 && (
@@ -375,9 +532,12 @@ export default function RewardsIndex({ referralCode }) {
                     <PausedNotice feature="tasks" />
                     {/* Quick Tasks */}
                     <div>
-                        <h3 className="mb-3 flex items-center gap-2 text-sm font-bold text-gray-900 dark:text-white">
+                        <h3 className="mb-1 flex items-center gap-2 text-sm font-bold text-gray-900 dark:text-white">
                             <Zap className="h-4 w-4 text-app-primary" /> Quick Tasks
                         </h3>
+                        <p className="mb-3 text-[11px] text-gray-400 dark:text-gray-500">
+                            Tap <span className="font-bold">Go</span>, do the task, then come back and tap <span className="font-bold">Claim</span>.
+                        </p>
                         <div className="space-y-3">
                             {tasks.map((task) => {
                                 const label = TASK_LABELS[task.task_id] ?? { title: task.task_id, desc: '', icon: Zap };
@@ -400,19 +560,16 @@ export default function RewardsIndex({ referralCode }) {
                                             </div>
                                         </div>
 
-                                        {task.completed ? (
-                                            <span className="flex items-center gap-1 text-xs font-bold text-green-600 dark:text-green-400">
-                                                <CheckCircle2 className="h-4 w-4" /> {task.repeatable ? 'Done today' : 'Done'}
-                                            </span>
-                                        ) : (
-                                            <button
-                                                onClick={() => claimTask(task.task_id)}
-                                                disabled={busy === task.task_id}
-                                                className="rounded-lg bg-gray-900 px-3 py-1.5 text-xs font-bold text-white active:scale-95 dark:bg-white dark:text-gray-900"
-                                            >
-                                                {busy === task.task_id ? 'Claiming…' : 'Claim'}
-                                            </button>
-                                        )}
+                                        <TaskAction
+                                            task={task}
+                                            isGuest={isGuest}
+                                            loginUrl={loginUrl}
+                                            busy={busy === task.task_id}
+                                            readyAt={taskReadyAt[task.task_id]}
+                                            now={now}
+                                            onGo={() => goTask(task.task_id)}
+                                            onClaim={() => claimTask(task.task_id)}
+                                        />
                                     </div>
                                 );
                             })}
@@ -421,25 +578,62 @@ export default function RewardsIndex({ referralCode }) {
                 </div>
             </div>
 
-            {modal && (
-                <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/80 p-5 backdrop-blur-sm">
-                    <div className="w-full max-w-sm rounded-3xl border border-gray-100 bg-white p-6 text-center dark:border-gray-800 dark:bg-dark-card">
-                        <div className="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-full bg-green-100 dark:bg-green-900/30">
-                            <CheckCircle2 className="h-8 w-8 text-green-600 dark:text-green-400" />
-                        </div>
-                        <h2 className="mb-1 text-xl font-bold text-gray-900 dark:text-white">{modal.title}</h2>
-                        <p className="mb-6 text-sm text-gray-500 dark:text-gray-400">{modal.message}</p>
-                        <button
-                            onClick={() => setModal(null)}
-                            className="w-full rounded-xl bg-gray-900 py-3 text-sm font-bold text-white dark:bg-white dark:text-gray-900"
-                        >
-                            Awesome
-                        </button>
-                    </div>
-                </div>
-            )}
+            <ResultModal modal={modal} onClose={() => setModal(null)} />
 
             <BottomNav />
         </>
+    );
+}
+
+function TaskAction({ task, isGuest, loginUrl, busy, readyAt, now, onGo, onClaim }) {
+    const button = 'rounded-lg px-3 py-1.5 text-xs font-bold active:scale-95 disabled:opacity-60';
+
+    if (task.completed) {
+        return (
+            <span className="flex flex-shrink-0 items-center gap-1 text-xs font-bold text-green-600 dark:text-green-400">
+                <CheckCircle2 className="h-4 w-4" /> {task.repeatable ? 'Done today' : 'Done'}
+            </span>
+        );
+    }
+
+    if (isGuest) {
+        return (
+            <Link href={loginUrl} className={`${button} flex-shrink-0 bg-gray-100 text-gray-700 dark:bg-gray-800 dark:text-gray-200`}>
+                Log in
+            </Link>
+        );
+    }
+
+    if (! task.needs_visit) {
+        return (
+            <button onClick={onClaim} disabled={busy} className={`${button} flex-shrink-0 bg-gray-900 text-white dark:bg-white dark:text-gray-900`}>
+                {busy ? 'Checking…' : 'Turn on'}
+            </button>
+        );
+    }
+
+    if (! readyAt) {
+        return (
+            <button onClick={onGo} disabled={busy} className={`${button} flex flex-shrink-0 items-center gap-1 bg-app-primary text-white`}>
+                {busy ? 'Opening…' : <>Go <ExternalLink className="h-3 w-3" /></>}
+            </button>
+        );
+    }
+
+    const secondsLeft = Math.ceil((readyAt - now) / 1000);
+
+    return (
+        <div className="flex flex-shrink-0 items-center gap-2">
+            {secondsLeft > 0 ? (
+                <span className={`${button} bg-gray-100 font-mono text-gray-500 dark:bg-gray-800 dark:text-gray-400`}>Claim in {secondsLeft}s</span>
+            ) : (
+                <button onClick={onClaim} disabled={busy} className={`${button} animate-soft-bounce bg-green-600 text-white`}>
+                    {busy ? 'Claiming…' : 'Claim'}
+                </button>
+            )}
+            <button onClick={onGo} disabled={busy} className="text-[10px] font-bold text-app-primary underline" aria-label="Open the link again">
+                Open again
+            </button>
+        </div>
     );
 }

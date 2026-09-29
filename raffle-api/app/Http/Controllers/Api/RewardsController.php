@@ -6,6 +6,7 @@ use App\Exceptions\AlreadyClaimedTodayException;
 use App\Exceptions\InsufficientPointsException;
 use App\Exceptions\MinimumRedemptionNotMetException;
 use App\Exceptions\TaskAlreadyCompletedException;
+use App\Exceptions\TaskNotReadyException;
 use App\Exceptions\UnknownTaskException;
 use App\Http\Controllers\Controller;
 use App\Models\Legacy\WpUser;
@@ -44,15 +45,18 @@ class RewardsController extends Controller
             'points' => $this->points->balance($user),
             ...$this->dailyClaim->state($user),
             'daily_schedule' => $this->dailyClaim->schedule(),
+            // When "today" ends for the daily claim (the server's own day),
+            // for the page's "next reward in" countdown (item 47).
+            'next_reset_at' => now()->addDay()->startOfDay()->toIso8601String(),
             'tasks' => $this->taskClaim->catalog($user),
-            'spin' => ['cost' => 50, 'odds' => $this->spin->odds()],
+            'spin' => ['cost' => SpinService::cost(), 'odds' => $this->spin->odds()],
         ]);
     }
 
     /** Public — the odds are meant to be shown to players, not hidden. */
     public function spinOdds(): JsonResponse
     {
-        return response()->json(['cost' => 50, 'odds' => $this->spin->odds()]);
+        return response()->json(['cost' => SpinService::cost(), 'odds' => $this->spin->odds()]);
     }
 
     public function claimDaily(Request $request): JsonResponse
@@ -69,6 +73,21 @@ class RewardsController extends Controller
         return response()->json($result);
     }
 
+    /** "Go" on a link task: starts the short wait before Claim works (item 47). */
+    public function startTask(Request $request, string $task): JsonResponse
+    {
+        /** @var WpUser $user */
+        $user = $request->user();
+
+        try {
+            return response()->json($this->taskClaim->start($user, $task));
+        } catch (UnknownTaskException $e) {
+            return response()->json(['message' => $e->getMessage()], 422);
+        } catch (TaskAlreadyCompletedException $e) {
+            return response()->json(['message' => $e->getMessage()], 409);
+        }
+    }
+
     public function claimTask(Request $request, string $task): JsonResponse
     {
         /** @var WpUser $user */
@@ -80,6 +99,8 @@ class RewardsController extends Controller
             return response()->json(['message' => $e->getMessage()], 422);
         } catch (TaskAlreadyCompletedException $e) {
             return response()->json(['message' => $e->getMessage()], 409);
+        } catch (TaskNotReadyException $e) {
+            return response()->json(['message' => $e->getMessage(), 'seconds_left' => $e->secondsLeft], 425);
         }
 
         return response()->json($result);

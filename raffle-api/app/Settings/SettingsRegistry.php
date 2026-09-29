@@ -167,6 +167,7 @@ final class SettingsRegistry
                             new Setting('rewards.tasks.join_community', 'Join our community (points)', 'int', rules: ['required', 'integer', 'min:0']),
                             new Setting('rewards.tasks.whatsapp_follow', 'Follow on WhatsApp (points)', 'int', rules: ['required', 'integer', 'min:0']),
                             new Setting('rewards.tasks.whatsapp_share', 'Share on WhatsApp, daily (points)', 'int', rules: ['required', 'integer', 'min:0']),
+                            new Setting('rewards.task_wait_seconds', 'Seconds between "Go" and "Claim"', 'int', 'Customers must open the link (community, WhatsApp channel, share) and wait this long before Claim works. The community and WhatsApp channel tasks only show once their links are set in General → Links.', rules: ['required', 'integer', 'min:0', 'max:600']),
                         ],
                     ],
                     'Spin & Win' => [

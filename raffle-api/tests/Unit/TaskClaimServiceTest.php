@@ -21,6 +21,8 @@ class TaskClaimServiceTest extends TestCase
     protected function setUp(): void
     {
         parent::setUp();
+        // The community task only exists once its link is set (item 47).
+        config(['site.links.community' => 'https://t.me/example']);
         $this->service = app(TaskClaimService::class);
         $this->points = app(PointsService::class);
     }
@@ -48,9 +50,17 @@ class TaskClaimServiceTest extends TestCase
         $this->service->claim($user, 'not_a_real_task');
     }
 
+    /** Item 47: a link task is "Go", then the wait, then "Claim". */
+    private function goAndWait(WpUser $user, string $taskId): void
+    {
+        $this->service->start($user, $taskId);
+        $this->travel(11)->seconds();
+    }
+
     public function test_a_one_time_task_cannot_be_claimed_twice(): void
     {
         $user = $this->makeUser();
+        $this->goAndWait($user, 'join_community');
         $this->service->claim($user, 'join_community');
 
         $this->expectException(TaskAlreadyCompletedException::class);
@@ -60,6 +70,7 @@ class TaskClaimServiceTest extends TestCase
     public function test_whatsapp_share_can_be_claimed_once_per_day_but_not_twice_the_same_day(): void
     {
         $user = $this->makeUser();
+        $this->goAndWait($user, 'whatsapp_share');
         $this->service->claim($user, 'whatsapp_share');
 
         $this->expectException(TaskAlreadyCompletedException::class);
