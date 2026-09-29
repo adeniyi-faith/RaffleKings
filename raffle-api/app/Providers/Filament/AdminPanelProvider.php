@@ -4,13 +4,17 @@ namespace App\Providers\Filament;
 
 use App\Filament\Pages\Auth\AdminLogin;
 use App\Services\Maintenance;
+use App\Support\Formats;
 use Filament\Http\Middleware\Authenticate;
 use Filament\Http\Middleware\DisableBladeIconComponents;
 use Filament\Http\Middleware\DispatchServingFilamentEvent;
+use Filament\Infolists\Components\TextEntry;
 use Filament\Pages;
 use Filament\Panel;
 use Filament\PanelProvider;
 use Filament\Support\Colors\Color;
+use Filament\Support\Facades\FilamentAsset;
+use Filament\Tables\Columns\TextColumn;
 use Filament\View\PanelsRenderHook;
 use Illuminate\Cookie\Middleware\AddQueuedCookiesToResponse;
 use Illuminate\Cookie\Middleware\EncryptCookies;
@@ -36,6 +40,22 @@ use Illuminate\View\Middleware\ShareErrorsFromSession;
  */
 class AdminPanelProvider extends PanelProvider
 {
+    public function boot(): void
+    {
+        // ->naira() / ->wholeNumber() instead of Filament's ->money() /
+        // ->numeric(): those need PHP's "intl" extension and crash the page
+        // on hosts without it (App\Support\Formats).
+        foreach ([TextColumn::class, TextEntry::class] as $component) {
+            $component::macro('naira', fn () => $this->formatStateUsing(fn ($state) => Formats::naira($state)));
+            $component::macro('wholeNumber', fn () => $this->formatStateUsing(fn ($state) => Formats::wholeNumber($state)));
+        }
+
+        // Adds ?v=<version> to the admin's CSS/JS links, so after a deploy
+        // browsers and Cloudflare fetch the new files instead of an old
+        // cached copy. Set ASSET_VERSION in .env (the deploy uses the commit id).
+        FilamentAsset::appVersion(config('app.asset_version'));
+    }
+
     public function panel(Panel $panel): Panel
     {
         return $panel

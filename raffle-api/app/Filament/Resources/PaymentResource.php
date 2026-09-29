@@ -100,7 +100,7 @@ class PaymentResource extends Resource
                     Tables\Columns\TextColumn::make('created_at')->label('Started')->dateTime('j M Y, H:i')->sortable()->description(fn (Deposit $d) => $d->created_at?->diffForHumans()),
                     Tables\Columns\TextColumn::make('user.display_name')->label('Customer')->description(fn (Deposit $d) => $d->user?->user_email)
                         ->searchable(['display_name', 'user_login', 'user_email']),
-                    Tables\Columns\TextColumn::make('amount')->money('NGN')->weight('bold')->sortable(),
+                    Tables\Columns\TextColumn::make('amount')->naira()->weight('bold')->sortable(),
                     Tables\Columns\TextColumn::make('gateway')->formatStateUsing(fn ($state) => ucfirst((string) $state)),
                     Tables\Columns\TextColumn::make('status')->badge()->state(fn (Deposit $d) => static::statusLabel($d))->color(fn (Deposit $d) => static::statusColor($d))
                         ->description(fn (Deposit $d) => $d->failure_reason ? str($d->failure_reason)->limit(50) : null),
@@ -168,7 +168,7 @@ class PaymentResource extends Resource
     {
         return $infolist->schema([
             Components\Section::make()->columns(['default' => 2, 'md' => 3])->schema([
-                Components\TextEntry::make('amount')->money('NGN')->size(Components\TextEntry\TextEntrySize::Large)->weight('bold'),
+                Components\TextEntry::make('amount')->naira()->size(Components\TextEntry\TextEntrySize::Large)->weight('bold'),
                 Components\TextEntry::make('status')->badge()->state(fn (Deposit $d) => static::statusLabel($d))->color(fn (Deposit $d) => static::statusColor($d)),
                 Components\TextEntry::make('gateway')->formatStateUsing(fn ($state) => ucfirst((string) $state)),
                 Components\TextEntry::make('user.display_name')->label('Customer')

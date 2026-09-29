@@ -32,6 +32,7 @@ final class HealthReport
         $this->checkDatabase();
         $this->checkBackgroundJobs();
         $this->checkMaintenance();
+        $this->checkPhpExtensions();
 
         return $this->rows;
     }
@@ -110,6 +111,30 @@ final class HealthReport
     {
         if (app(Maintenance::class)->active()) {
             $this->addWarning('Maintenance mode', 'ON. Customers can\'t use the site. Switch it off in Settings → On / off.');
+        }
+    }
+
+    /**
+     * PHP add-ons the host must switch on (cPanel → Select PHP Version →
+     * Extensions). The site copes without mbstring and intl, but runs
+     * slower and some number formats are plainer, so they're a warning.
+     */
+    private function checkPhpExtensions(): void
+    {
+        $required = ['openssl', 'curl', 'fileinfo', 'tokenizer', 'ctype'];
+        if (DB::connection()->getDriverName() === 'mysql') {
+            $required[] = 'pdo_mysql';
+        }
+
+        $missing = array_values(array_filter($required, fn ($ext) => ! extension_loaded($ext)));
+        $recommended = array_values(array_filter(['mbstring', 'intl'], fn ($ext) => ! extension_loaded($ext)));
+
+        if ($missing !== []) {
+            $this->addCritical('PHP extensions', 'Missing: '.implode(', ', $missing).'. Turn them on in cPanel → Select PHP Version → Extensions.');
+        } elseif ($recommended !== []) {
+            $this->addWarning('PHP extensions', 'Missing: '.implode(', ', $recommended).'. The site works, but turn them on in cPanel → Select PHP Version → Extensions for speed and full number formatting.');
+        } else {
+            $this->addOk('PHP extensions', 'All needed add-ons are on.');
         }
     }
 
