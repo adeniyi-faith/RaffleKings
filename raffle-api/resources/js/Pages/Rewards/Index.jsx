@@ -20,6 +20,7 @@ import { usePushPermission } from '../../hooks/usePushPermission';
 import BottomNav from '../../Components/layout/BottomNav';
 import { setBalances, useBalances } from '../../lib/balances';
 import ResultModal from '../../Components/rewards/ResultModal';
+import LoadError from '../../Components/ui/LoadError';
 
 // Rebuild of rewards.php (item 28). What's preserved from the legacy
 // page: the blue hero with a points badge and a 7-day streak row, the
@@ -82,6 +83,7 @@ export default function RewardsIndex({ referralCode, preview = null }) {
     const [state, setState] = useState(null);
     const [referral, setReferral] = useState(null);
     const [busy, setBusy] = useState(null); // id of whatever action is in flight
+    const [stateFailed, setStateFailed] = useState(false);
     const [modal, setModal] = useState(null); // { kind, title, message, balance?, confetti? }
     const [copied, setCopied] = useState(false);
     const [taskReadyAt, setTaskReadyAt] = useState({}); // task id → when Claim unlocks (ms)
@@ -106,8 +108,13 @@ export default function RewardsIndex({ referralCode, preview = null }) {
     }, []);
 
     function loadState() {
+        setStateFailed(false);
+
         return fetch('/api/rewards/state', { credentials: 'same-origin', headers: { Accept: 'application/json' } })
-            .then((res) => (res.ok ? res.json() : null))
+            .then((res) => {
+                if (! res.ok) throw new Error();
+                return res.json();
+            })
             .then((data) => {
                 setState(data);
                 if (data) setBalances({ points: data.points });
@@ -118,7 +125,8 @@ export default function RewardsIndex({ referralCode, preview = null }) {
                 });
                 setTaskReadyAt(ready);
             })
-            .catch(() => setState(null));
+            // Phase 9: say so (with Try again) instead of showing an empty streak and tasks.
+            .catch(() => setStateFailed(true));
     }
 
     async function post(url) {
@@ -354,6 +362,7 @@ export default function RewardsIndex({ referralCode, preview = null }) {
                 </div>
 
                 <div className="relative z-20 -mt-6 space-y-5 px-5">
+                    {stateFailed && ! state && <LoadError onRetry={loadState} message="Couldn't load your rewards. Check your connection and try again." />}
                     {site.points_boost && (
                         <div className="flex items-center gap-3 rounded-2xl bg-gradient-to-r from-amber-400 to-orange-500 p-4 text-white shadow-lg shadow-orange-500/20">
                             <div className="flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-full bg-white/20 text-lg font-black">

@@ -276,6 +276,16 @@ final class SettingsRegistry
                             new Setting('services.onesignal.api_key', 'REST API key', 'secret'),
                         ],
                     ],
+                    'Live updates (Pusher)' => [
+                        'description' => 'Makes live draws, the ticket counters, live chat and "N watching" update instantly. Create a free "Channels" app at pusher.com, then copy its App keys here. Without it, those pages refresh every few seconds instead.',
+                        'settings' => [
+                            new Setting('broadcasting.default', 'Live updates', 'select', options: ['log' => 'Off (pages refresh every few seconds)', 'pusher' => 'On, through Pusher']),
+                            new Setting('broadcasting.connections.pusher.app_id', 'app_id', 'text', placeholder: '1234567'),
+                            new Setting('broadcasting.connections.pusher.key', 'key', 'text', 'The public key (safe to show in the browser).', placeholder: 'a1b2c3d4e5f6a7b8c9d0'),
+                            new Setting('broadcasting.connections.pusher.secret', 'secret', 'secret'),
+                            new Setting('broadcasting.connections.pusher.options.cluster', 'cluster', 'text', 'Where the app lives, e.g. eu or mt1. Shown next to the keys.', placeholder: 'eu', rules: ['nullable', 'regex:/^[a-z0-9-]{2,10}$/']),
+                        ],
+                    ],
                 ],
             ],
 

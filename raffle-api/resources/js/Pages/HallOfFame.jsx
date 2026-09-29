@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { Head, Link } from '@inertiajs/react';
 import { Crown, Play, Trophy } from 'lucide-react';
+import LoadError from '../Components/ui/LoadError';
 
 // Rebuild of winners.php (item 27) against GET /api/hall-of-fame
 // (HallOfFameController). Preserved faithfully: the sticky header with
@@ -28,20 +29,27 @@ export default function HallOfFame() {
     const [recent, setRecent] = useState([]);
     const [totalWinners, setTotalWinners] = useState(0);
     const [liveRaffleId, setLiveRaffleId] = useState(null);
+    const [failed, setFailed] = useState(false);
 
-    useEffect(() => {
-        fetch('/api/hall-of-fame')
-            .then((res) => (res.ok ? res.json() : null))
+    function load() {
+        setIsLoading(true);
+        setFailed(false);
+        fetch('/api/hall-of-fame', { headers: { Accept: 'application/json' } })
+            .then((res) => {
+                if (! res.ok) throw new Error();
+                return res.json();
+            })
             .then((data) => {
-                if (! data) return;
                 setFeatured(data.featured ?? []);
                 setRecent(data.recent ?? []);
                 setTotalWinners(data.total_count ?? 0);
                 setLiveRaffleId(data.recent?.[0]?.raffle_native_id ?? null);
             })
-            .catch(() => {})
+            .catch(() => setFailed(true)) // Phase 9: say so, instead of "no winners yet"
             .finally(() => setIsLoading(false));
-    }, []);
+    }
+
+    useEffect(load, []);
 
     return (
         <>
@@ -49,7 +57,7 @@ export default function HallOfFame() {
             <div className="relative flex h-screen w-full flex-col overflow-y-auto bg-gray-50 pb-40 transition-colors duration-200 dark:bg-dark-bg">
                 <div className="sticky top-0 z-30 flex items-center justify-between border-b border-gray-100 bg-white px-5 pb-4 pt-4 shadow-sm backdrop-blur-md transition-colors duration-200 dark:border-dark-border dark:bg-dark-bg/95">
                     <h2 className="text-xl font-bold text-gray-900 dark:text-white">Hall of Fame 🏆</h2>
-                    {! isLoading && (
+                    {! isLoading && ! failed && (
                         <span className="rounded-full border border-gray-200 bg-gray-100 px-2 py-1 text-xs font-medium text-gray-500 dark:border-gray-700 dark:bg-dark-card dark:text-gray-400">
                             {totalWinners} Winners
                         </span>
@@ -59,7 +67,7 @@ export default function HallOfFame() {
                 <div className="space-y-6 p-5">
                     {liveRaffleId && (
                         <Link
-                            href={`/raffles/${liveRaffleId}/live-draw`}
+                            href="/live-draws"
                             className="relative block transform overflow-hidden rounded-2xl shadow-xl transition-transform active:scale-[0.98]"
                         >
                             <div className="absolute inset-0 animate-gradient-x bg-gradient-to-r from-red-600 via-orange-500 to-red-600 [background-size:200%_200%]" />
@@ -188,7 +196,9 @@ export default function HallOfFame() {
                         </div>
                     )}
 
-                    {! isLoading && featured.length === 0 && recent.length === 0 && (
+                    {failed && ! isLoading && <LoadError onRetry={load} />}
+
+                    {! isLoading && ! failed && featured.length === 0 && recent.length === 0 && (
                         <div className="py-10 text-center">
                             <div className="mx-auto mb-3 flex h-16 w-16 items-center justify-center rounded-full bg-gray-100 text-gray-400 dark:bg-dark-card dark:text-gray-500">
                                 <Trophy className="h-8 w-8" />

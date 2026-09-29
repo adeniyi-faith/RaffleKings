@@ -353,12 +353,6 @@ Route::get('/raffles/{raffle}/live-draw', function (Raffle $raffle) {
             'title' => $raffle->title,
             'grand_prize' => $raffle->grand_prize,
         ],
-        'reverb' => [
-            'key' => config('broadcasting.connections.reverb.key'),
-            'host' => config('broadcasting.connections.reverb.options.host'),
-            'port' => config('broadcasting.connections.reverb.options.port'),
-            'scheme' => config('broadcasting.connections.reverb.options.scheme'),
-        ],
     ]);
 });
 

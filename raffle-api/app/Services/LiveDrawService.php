@@ -14,6 +14,7 @@ use App\Models\LiveDrawReaction;
 use App\Models\LiveDrawReveal;
 use App\Models\Raffle;
 use App\Models\RaffleDraw;
+use App\Support\Live;
 use Illuminate\Support\Facades\DB;
 use RuntimeException;
 
@@ -192,7 +193,7 @@ class LiveDrawService
 
         $comment->setRelation('user', $user);
 
-        LiveDrawCommentPosted::dispatch($comment);
+        Live::send(new LiveDrawCommentPosted($comment));
 
         return $comment;
     }
@@ -212,7 +213,7 @@ class LiveDrawService
 
         $counts = $this->reactionCounts($raffle);
 
-        LiveDrawReactionPosted::dispatch($raffle->id, $type, $counts);
+        Live::send(new LiveDrawReactionPosted($raffle->id, $type, $counts));
 
         return $counts;
     }

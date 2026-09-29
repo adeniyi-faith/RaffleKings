@@ -6,6 +6,7 @@ use App\Events\LiveDrawCommentHidden;
 use App\Models\Legacy\WpUser;
 use App\Models\Legacy\WpUserMeta;
 use App\Models\LiveDrawComment;
+use App\Support\Live;
 use Illuminate\Support\Carbon;
 use RuntimeException;
 
@@ -80,7 +81,7 @@ class ChatModerationService
 
         $comment->update(['hidden_at' => now(), 'hidden_by' => $admin->ID]);
 
-        LiveDrawCommentHidden::dispatch($comment);
+        Live::send(new LiveDrawCommentHidden($comment));
 
         $this->auditLog->record($admin, 'chat.message_hidden', LiveDrawComment::class, $comment->id, [
             'author_user_id' => $comment->user_id,

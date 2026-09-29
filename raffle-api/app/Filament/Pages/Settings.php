@@ -294,6 +294,12 @@ class Settings extends Page implements HasForms
             'Google Gemini' => [$check('checkGemini', fn () => $tester()->gemini($typed('services.gemini.api_key'), $typed('services.gemini.model')))],
             'Bot protection (Cloudflare Turnstile)' => [$check('checkTurnstile', fn () => $tester()->turnstile($typed('services.turnstile.secret_key'), $typed('services.turnstile.site_key')))],
             'Brevo' => [$check('checkBrevo', fn () => $tester()->brevo($typed('services.brevo.key')))],
+            'Live updates (Pusher)' => [$check('checkPusher', fn () => $tester()->pusher(
+                $typed('broadcasting.connections.pusher.app_id'),
+                $typed('broadcasting.connections.pusher.key'),
+                $typed('broadcasting.connections.pusher.secret'),
+                $typed('broadcasting.connections.pusher.options.cluster'),
+            ))],
             'Telegram (staff alerts)' => [$check('checkTelegram', fn () => $tester()->telegram(
                 $typed('services.telegram.bot_token'),
                 array_values((array) ($this->data[self::field('services.telegram.admin_chat_ids')] ?? config('services.telegram.admin_chat_ids'))),

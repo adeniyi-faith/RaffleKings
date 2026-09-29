@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { Head, Link, usePage } from '@inertiajs/react';
 import { ArrowLeft, BookOpen, ChevronDown, Inbox, MessageSquarePlus, Plus, Send } from 'lucide-react';
 import Modal from '../../Components/ui/Modal';
+import LoadError from '../../Components/ui/LoadError';
 
 // Rebuild of support.php (item 29) against the real ticketing backend
 // (SupportTicketController/SupportTicketService) — replacing the legacy
@@ -50,11 +51,21 @@ export default function SupportIndex() {
         if (params.get('ticket')) toggleTicket(Number(params.get('ticket')));
     }, []);
 
+    // Phase 9: a failed load says so (with Try again) instead of "No conversations yet".
+    const [loadFailed, setLoadFailed] = useState(false);
+
     function loadTickets() {
-        fetch('/api/support/tickets', { credentials: 'same-origin' })
-            .then((res) => (res.ok ? res.json() : { tickets: [] }))
+        setLoadFailed(false);
+        fetch('/api/support/tickets', { credentials: 'same-origin', headers: { Accept: 'application/json' } })
+            .then((res) => {
+                if (! res.ok) throw new Error();
+                return res.json();
+            })
             .then((data) => setTickets(data.tickets ?? []))
-            .catch(() => setTickets([]));
+            .catch(() => {
+                setTickets(null);
+                setLoadFailed(true);
+            });
     }
 
     async function toggleTicket(id) {
@@ -174,7 +185,9 @@ export default function SupportIndex() {
                         </button>
                     </div>
 
-                    {tickets === null && (
+                    {loadFailed && <LoadError onRetry={loadTickets} />}
+
+                    {tickets === null && ! loadFailed && (
                         <div className="space-y-3">
                             <div className="h-20 animate-pulse rounded-xl border border-gray-100 bg-white dark:border-gray-800 dark:bg-dark-card" />
                             <div className="h-20 animate-pulse rounded-xl border border-gray-100 bg-white dark:border-gray-800 dark:bg-dark-card" />

@@ -4,6 +4,7 @@ import { ArrowLeft, Camera, CheckCircle2, ChevronDown, Loader2 } from 'lucide-re
 import Header from '../../Components/layout/Header';
 import { apiPost } from '../../lib/api';
 import { resolveAvatar } from '../../lib/avatar';
+import LoadError from '../../Components/ui/LoadError';
 
 // Nigeria's 36 states + FCT, same list and order as the legacy
 // edit-profile-form.php's <select>.
@@ -38,12 +39,24 @@ export default function EditProfile() {
     const [uploadingAvatar, setUploadingAvatar] = useState(false);
     const fileInputRef = useRef(null);
 
-    useEffect(() => {
+    // Phase 9: if the profile can't load, show Try again — never an empty
+    // form that could overwrite the customer's details when saved.
+    const [loadFailed, setLoadFailed] = useState(false);
+
+    function loadProfile() {
+        setLoading(true);
+        setLoadFailed(false);
         fetch('/api/profile', { credentials: 'same-origin', headers: { Accept: 'application/json' } })
-            .then((response) => response.json())
+            .then((response) => {
+                if (! response.ok) throw new Error();
+                return response.json();
+            })
             .then((data) => setForm({ ...EMPTY_FORM, ...data, password: '' }))
+            .catch(() => setLoadFailed(true))
             .finally(() => setLoading(false));
-    }, []);
+    }
+
+    useEffect(loadProfile, []);
 
     function update(field) {
         return (e) => setForm((f) => ({ ...f, [field]: e.target.value }));
@@ -127,7 +140,11 @@ export default function EditProfile() {
                     <h1 className="ml-2 text-lg font-bold text-gray-900 dark:text-white">Edit Profile</h1>
                 </div>
 
-                {loading ? (
+                {loadFailed ? (
+                    <div className="p-5">
+                        <LoadError onRetry={loadProfile} message="Couldn't load your details. Check your connection and try again." />
+                    </div>
+                ) : loading ? (
                     <p className="px-5 pt-6 text-sm text-gray-500 dark:text-gray-400">Loading…</p>
                 ) : (
                     <form onSubmit={save} className="space-y-6 px-5 pb-10 pt-6">
