@@ -328,6 +328,21 @@ final class SettingsRegistry
                             ]),
                         ],
                     ],
+                    'AI assistant' => [
+                        'description' => 'The "Write with AI" buttons next to text boxes, and the support agent that can answer tickets from the Knowledge base. Uses the Gemini key above. AI replies to customers are always labelled "Automated reply".',
+                        'settings' => [
+                            new Setting('ai.enabled', 'AI helpers on', 'bool', 'Turns off every AI button and the support agent.'),
+                            new Setting('services.gemini.assistant_model', 'Model for writing and replying', 'select', 'Pick a Gemini 3 Flash model. Use "Test connection" on the Google Gemini section to check the key. If a model shows as unavailable, choose another.', [
+                                'gemini-3-flash-preview' => 'Gemini 3 Flash (recommended)',
+                                'gemini-3.1-flash-lite-preview' => 'Gemini 3.1 Flash-Lite (cheapest, fastest)',
+                                'gemini-2.5-flash' => 'Gemini 2.5 Flash (older, steady)',
+                            ]),
+                            new Setting('ai.auto_reply', 'Support agent answers tickets by itself', 'bool', 'It only replies when the Knowledge base clearly has the answer. Otherwise the ticket waits for your team.'),
+                            new Setting('ai.max_auto_replies', 'Automated replies per ticket before a person takes over', 'int', rules: ['required', 'integer', 'min:1', 'max:10']),
+                            new Setting('ai.daily_limit', 'Most AI calls per day', 'int', 'A safety cap on cost. When it is reached the AI stops until tomorrow.', rules: ['required', 'integer', 'min:0', 'max:5000']),
+                            new Setting('ai.instructions', 'House rules for the AI', 'textarea', 'Optional. Tone and things to avoid, e.g. "Be warm and brief. Never promise a win."', rules: ['nullable', 'max:1000']),
+                        ],
+                    ],
                 ],
             ],
 

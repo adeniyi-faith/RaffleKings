@@ -2,6 +2,7 @@
 
 namespace App\Services;
 
+use App\Jobs\AutoReplyToTicket;
 use App\Models\Legacy\WpUser;
 use App\Models\SupportTicket;
 use App\Models\SupportTicketMessage;
@@ -39,6 +40,8 @@ class SupportTicketService
 
         Notification::send(new AnonymousNotifiable, new NewSupportTicketAdminAlert($ticket));
 
+        $this->offerToAi($ticket);
+
         return $ticket;
     }
 
@@ -66,9 +69,53 @@ class SupportTicketService
 
         if ($isFromAdmin) {
             $ticket->user?->notify(new SupportTicketReply($reply));
+        } else {
+            $this->offerToAi($ticket);
         }
 
         return $reply;
+    }
+
+    /**
+     * A reply written by the AI support agent. Marked "automated" everywhere
+     * the customer and staff see it, and the ticket stays with the team's
+     * inbox as "pending" until the customer answers or a person steps in.
+     */
+    public function replyAutomated(SupportTicket $ticket, string $message): SupportTicketMessage
+    {
+        $reply = DB::transaction(function () use ($ticket, $message) {
+            $reply = SupportTicketMessage::create([
+                'support_ticket_id' => $ticket->id,
+                'author_id' => 0,
+                'is_from_admin' => true,
+                'is_automated' => true,
+                'message' => $message,
+                'created_at' => now(),
+            ]);
+
+            $ticket->update(['status' => 'pending']);
+
+            return $reply;
+        });
+
+        $ticket->user?->notify(new SupportTicketReply($reply));
+
+        return $reply;
+    }
+
+    /** The customer wants a person: the AI stops replying and the ticket goes back to the open inbox. */
+    public function requestHuman(SupportTicket $ticket): SupportTicket
+    {
+        $ticket->update(['needs_human' => true, 'status' => 'open']);
+
+        return $ticket;
+    }
+
+    private function offerToAi(SupportTicket $ticket): void
+    {
+        if (config('ai.enabled') && config('ai.auto_reply')) {
+            AutoReplyToTicket::dispatch($ticket->id)->afterCommit();
+        }
     }
 
     /**

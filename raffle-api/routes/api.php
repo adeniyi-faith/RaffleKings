@@ -164,6 +164,7 @@ Route::middleware('auth:wordpress')->group(function () {
     Route::post('/support/tickets', [SupportTicketController::class, 'store'])->middleware('throttle:support-open');
     Route::get('/support/tickets/{ticket}', [SupportTicketController::class, 'show']);
     Route::post('/support/tickets/{ticket}/reply', [SupportTicketController::class, 'reply'])->middleware('throttle:support-reply');
+    Route::post('/support/tickets/{ticket}/human', [SupportTicketController::class, 'requestHuman'])->middleware('throttle:support-reply');
 
     // Live comments/reactions (item 27) — any logged-in viewer, same
     // guard as everything else in this group. Rate-limited like the

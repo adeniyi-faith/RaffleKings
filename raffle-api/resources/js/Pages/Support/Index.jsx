@@ -106,6 +106,23 @@ export default function SupportIndex() {
         }
     }
 
+    async function askForPerson(id) {
+        setBusy(true);
+        try {
+            const res = await fetch(`/api/support/tickets/${id}/human`, {
+                method: 'POST',
+                headers: { Accept: 'application/json' },
+                credentials: 'same-origin',
+            });
+            if (res.ok) {
+                setThread(await res.json());
+                loadTickets();
+            }
+        } finally {
+            setBusy(false);
+        }
+    }
+
     async function submitTicket(e) {
         e.preventDefault();
         setFormError(null);
@@ -233,7 +250,12 @@ export default function SupportIndex() {
                                                             className={`rounded-lg p-3 ${m.is_from_admin ? 'bg-blue-50 dark:bg-blue-900/20' : 'bg-gray-50 dark:bg-gray-800'}`}
                                                         >
                                                             <p className={`mb-1 text-[10px] font-bold ${m.is_from_admin ? 'text-blue-800 dark:text-blue-300' : 'text-gray-500 dark:text-gray-400'}`}>
-                                                                {m.is_from_admin ? 'Support Team' : 'You'}
+                                                                {m.is_from_admin ? (m.is_automated ? 'Support Assistant' : 'Support Team') : 'You'}
+                                                                {m.is_automated && (
+                                                                    <span className="ml-2 rounded bg-amber-100 px-1.5 py-0.5 text-[9px] font-bold uppercase text-amber-800 dark:bg-amber-900/40 dark:text-amber-300">
+                                                                        Automated reply
+                                                                    </span>
+                                                                )}
                                                             </p>
                                                             <p className={`whitespace-pre-line text-xs [overflow-wrap:anywhere] ${m.is_from_admin ? 'text-blue-700 dark:text-blue-200' : 'text-gray-700 dark:text-gray-200'}`}>
                                                                 {m.message}
@@ -241,6 +263,19 @@ export default function SupportIndex() {
                                                         </div>
                                                     ))}
                                                 </div>
+                                                {thread.messages.some((m) => m.is_automated) && ! thread.needs_human && (
+                                                    <button
+                                                        type="button"
+                                                        onClick={() => askForPerson(t.id)}
+                                                        disabled={busy}
+                                                        className="mb-2 w-full rounded-lg border border-gray-200 px-3 py-2 text-[11px] font-bold text-gray-700 disabled:opacity-50 dark:border-gray-700 dark:text-gray-200"
+                                                    >
+                                                        This didn&apos;t help. Talk to a person
+                                                    </button>
+                                                )}
+                                                {thread.needs_human && (
+                                                    <p className="mb-2 text-center text-[11px] font-semibold text-gray-500 dark:text-gray-400">A team member will reply to you here.</p>
+                                                )}
                                                 <div className="flex gap-2">
                                                     <input
                                                         type="text"
