@@ -119,7 +119,7 @@ export default function AccountBankAccounts() {
     return (
         <>
             <Head title="Bank Accounts" />
-            <div className="relative min-h-screen bg-gray-50 dark:bg-dark-bg">
+            <div data-rk-block className="relative min-h-screen bg-gray-50 dark:bg-dark-bg">
                 <div className="sticky top-0 z-40 flex items-center gap-3 border-b border-gray-100 bg-white px-5 pb-4 pt-4 shadow-sm dark:border-dark-border dark:bg-dark-bg dark:shadow-none">
                     <button
                         onClick={() => goBack('/account/wallet')}

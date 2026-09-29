@@ -6,6 +6,7 @@ import LoadError from '../../Components/ui/LoadError';
 import { formatNaira } from '../../lib/format';
 import { useApi } from '../../lib/useApi';
 import { useSite } from '../../lib/site';
+import { track } from '../../lib/analytics';
 import BottomNav from '../../Components/layout/BottomNav';
 
 // Phase 11: the full referral page — your link, the ladder of rewards for
@@ -24,6 +25,7 @@ export default function ReferralsIndex({ ladder = [], commissionPercent = 0 }) {
     const shareText = data ? `Join me on ${site.name || 'RaffleKings'} and let's win together! Sign up with my link: ${data.link}` : '';
 
     function copy() {
+        track('referral_link_shared', { method: 'copy', from: 'referrals' });
         navigator.clipboard?.writeText(data.link).then(() => {
             setCopied(true);
             setTimeout(() => setCopied(false), 2000);
@@ -31,6 +33,7 @@ export default function ReferralsIndex({ ladder = [], commissionPercent = 0 }) {
     }
 
     function share() {
+        track('referral_link_shared', { method: navigator.share ? 'share_sheet' : 'whatsapp', from: 'referrals' });
         if (navigator.share) {
             navigator.share({ title: site.name, text: shareText }).catch(() => {});
         } else {

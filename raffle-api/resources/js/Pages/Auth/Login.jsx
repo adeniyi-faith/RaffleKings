@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { Head, router } from '@inertiajs/react';
 import { AlertCircle, ArrowRight, Eye, EyeOff, Lock, Mail, Zap } from 'lucide-react';
 import { apiPost } from '../../lib/api';
+import { track } from '../../lib/analytics';
 import { useSite } from '../../lib/site';
 import Turnstile from '../../Components/Turnstile';
 import { safeRedirect } from '../../lib/safeRedirect';
@@ -32,8 +33,10 @@ export default function Login({ redirect }) {
 
         try {
             await apiPost('/api/auth/login', { ...form, turnstile_token: turnstileToken || null });
+            track('login_succeeded');
             router.visit(safeRedirect(redirect));
         } catch (err) {
+            track('login_failed');
             setError(err.message);
         } finally {
             setSubmitting(false);
