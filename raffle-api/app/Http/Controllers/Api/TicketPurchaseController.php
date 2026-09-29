@@ -9,6 +9,7 @@ use App\Http\Controllers\Controller;
 use App\Http\Requests\PurchaseTicketsRequest;
 use App\Models\Legacy\RaffleEntry;
 use App\Models\Legacy\WpUser;
+use App\Services\RaffleRulesService;
 use App\Services\TicketPurchaseService;
 use Illuminate\Http\JsonResponse;
 use InvalidArgumentException;
@@ -84,6 +85,8 @@ class TicketPurchaseController extends Controller
                 ->pluck('ticket_number')
                 ->map(fn ($n) => (int) $n)
                 ->values(),
+            // Phase 11: every free bonus entry the customer now holds in this raffle.
+            'bonus_entries' => app(RaffleRulesService::class)->bonusEntries($user->ID, (int) $request->integer('raffle_id')),
         ], 201);
     }
 }

@@ -11,6 +11,9 @@ use App\Exceptions\UnknownTaskException;
 use App\Http\Controllers\Controller;
 use App\Models\Legacy\WpUser;
 use App\Services\DailyClaimService;
+use App\Services\Engagement\FreeSpinGifts;
+use App\Services\Engagement\Perks;
+use App\Services\Engagement\SeasonPass;
 use App\Services\LoyaltyService;
 use App\Services\PointRedemptionService;
 use App\Services\PointsService;
@@ -42,6 +45,9 @@ class RewardsController extends Controller
         /** @var WpUser $user */
         $user = $request->user();
 
+        // Phase 11: birthday / anniversary free spins arrive when Rewards opens.
+        app(FreeSpinGifts::class)->checkOccasions($user);
+
         return response()->json([
             'points' => $this->points->balance($user),
             ...$this->dailyClaim->state($user),
@@ -53,6 +59,9 @@ class RewardsController extends Controller
             'spin' => ['cost' => SpinService::cost(), 'odds' => $this->spin->odds()],
             // Raffle Rules Engine: loyalty tier and progress to the next one.
             'loyalty' => app(LoyaltyService::class)->profile($user->ID),
+            // Phase 11: Season Pass level, free spins waiting.
+            'season' => collect(app(SeasonPass::class)->state($user->ID))->only(['level', 'claimable', 'season'])->all(),
+            'free_spins' => app(Perks::class)->freeSpins($user->ID),
         ]);
     }
 
@@ -115,7 +124,7 @@ class RewardsController extends Controller
         $user = $request->user();
 
         try {
-            $result = $this->spin->spin($user);
+            $result = $this->spin->spin($user, $request->boolean('free'));
         } catch (InsufficientPointsException $e) {
             return response()->json(['message' => $e->getMessage(), 'shortfall' => $e->shortfall], 402);
         }

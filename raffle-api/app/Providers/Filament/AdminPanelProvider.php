@@ -93,7 +93,7 @@ class AdminPanelProvider extends PanelProvider
             ->renderHook(PanelsRenderHook::CONTENT_START, fn () => app(Maintenance::class)->active() ? view('filament.hooks.maintenance-banner') : '')
             // Busiest daily queues first (item 44): money in/out, then
             // draws and winners, then the support inbox.
-            ->navigationGroups(['Finance', 'Raffles', 'Support', 'Site', 'Users', 'System'])
+            ->navigationGroups(['Finance', 'Raffles', 'Community', 'Support', 'Site', 'Users', 'System'])
             ->discoverResources(in: app_path('Filament/Resources'), for: 'App\\Filament\\Resources')
             ->discoverPages(in: app_path('Filament/Pages'), for: 'App\\Filament\\Pages')
             ->pages([

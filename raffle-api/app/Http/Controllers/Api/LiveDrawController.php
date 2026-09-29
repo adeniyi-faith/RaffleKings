@@ -6,9 +6,11 @@ use App\Exceptions\DrawNotCommittedException;
 use App\Http\Controllers\Controller;
 use App\Models\Legacy\WpUser;
 use App\Models\Raffle;
+use App\Services\Engagement\RedEnvelopes;
 use App\Services\LiveDrawService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Auth;
 use Illuminate\Validation\Rule;
 use RuntimeException;
 
@@ -35,7 +37,10 @@ class LiveDrawController extends Controller
 
     public function show(Raffle $raffle): JsonResponse
     {
-        return response()->json($this->liveDraw->pageState($raffle));
+        return response()->json($this->liveDraw->pageState($raffle) + [
+            // Phase 11: red envelopes still open in this chat.
+            'envelopes' => app(RedEnvelopes::class)->open($raffle->id, Auth::guard('wordpress')->id()),
+        ]);
     }
 
     public function storeComment(Request $request, Raffle $raffle): JsonResponse
