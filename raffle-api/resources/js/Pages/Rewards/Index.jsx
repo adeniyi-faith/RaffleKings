@@ -72,7 +72,17 @@ function hms(ms) {
     return `${pad(Math.floor(total / 3600))}:${pad(Math.floor((total % 3600) / 60))}:${pad(total % 60)}`;
 }
 
-export default function RewardsIndex({ referralCode, preview = null }) {
+// Which task "Claim in 8s" countdowns are still running, from the state.
+function readyTimes(data) {
+    const ready = {};
+    (data?.tasks ?? []).forEach((t) => {
+        if (t.claimable_at && ! t.completed) ready[t.task_id] = new Date(t.claimable_at).getTime();
+    });
+
+    return ready;
+}
+
+export default function RewardsIndex({ referralCode, initialState = null, referralStats = null, preview = null }) {
     const { auth } = usePage().props;
     const site = useSite();
     // Both set in the admin's Settings → Rewards.
@@ -80,13 +90,15 @@ export default function RewardsIndex({ referralCode, preview = null }) {
     const minRedeem = site.minimum_redeem_points || 100;
     const isGuest = ! auth?.user;
     const pageBalances = useBalances();
-    const [state, setState] = useState(null);
-    const [referral, setReferral] = useState(null);
+    // Sent with the page for a signed-in customer, so nothing pops in (and
+    // pushes the page around) a moment after it opens.
+    const [state, setState] = useState(initialState);
+    const [referral, setReferral] = useState(referralStats);
     const [busy, setBusy] = useState(null); // id of whatever action is in flight
     const [stateFailed, setStateFailed] = useState(false);
     const [modal, setModal] = useState(null); // { kind, title, message, balance?, confetti? }
     const [copied, setCopied] = useState(false);
-    const [taskReadyAt, setTaskReadyAt] = useState({}); // task id → when Claim unlocks (ms)
+    const [taskReadyAt, setTaskReadyAt] = useState(() => readyTimes(initialState)); // task id → when Claim unlocks (ms)
     const { requestPermission } = usePushPermission();
 
     const referralLink = referralCode ? `${window.location.origin}/register?ref=${encodeURIComponent(referralCode)}` : null;
@@ -99,11 +111,13 @@ export default function RewardsIndex({ referralCode, preview = null }) {
             return;
         }
 
+        // Refreshed quietly even when sent with the page (Back can show an
+        // older copy); the page is already full, so this can't make it jump.
         loadState();
         fetch('/api/referrals/stats', { credentials: 'same-origin' })
             .then((res) => (res.ok ? res.json() : null))
-            .then(setReferral)
-            .catch(() => setReferral(null));
+            .then((stats) => stats && setReferral(stats))
+            .catch(() => {});
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, []);
 
@@ -119,11 +133,7 @@ export default function RewardsIndex({ referralCode, preview = null }) {
                 setState(data);
                 if (data) setBalances({ points: data.points });
                 // Keep a "Claim in 8s" countdown going after a reload.
-                const ready = {};
-                (data?.tasks ?? []).forEach((t) => {
-                    if (t.claimable_at && ! t.completed) ready[t.task_id] = new Date(t.claimable_at).getTime();
-                });
-                setTaskReadyAt(ready);
+                setTaskReadyAt(readyTimes(data));
             })
             // Phase 9: say so (with Try again) instead of showing an empty streak and tasks.
             .catch(() => setStateFailed(true));

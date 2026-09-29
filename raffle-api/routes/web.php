@@ -1,5 +1,6 @@
 <?php
 
+use App\Http\Controllers\Api\RewardsController;
 use App\Http\Controllers\Api\TutorialController;
 use App\Http\Controllers\LegacyRedirectController;
 use App\Models\Deposit;
@@ -16,6 +17,7 @@ use App\Services\LiveDrawService;
 use App\Services\PointsService;
 use App\Services\RaffleReadService;
 use App\Services\RaffleRulesService;
+use App\Services\ReferralCommissionService;
 use App\Services\SpinService;
 use App\Services\TaskClaimService;
 use App\Services\TutorialReadService;
@@ -275,6 +277,10 @@ Route::get('/rewards', function () {
 
     return Inertia::render('Rewards/Index', [
         'referralCode' => $user?->user_login,
+        // A signed-in customer's own rewards and referral numbers come with
+        // the page, so it doesn't jump when they would otherwise load after.
+        'initialState' => $user ? app(RewardsController::class)->stateFor($user) : null,
+        'referralStats' => $user ? app(ReferralCommissionService::class)->stats($user) : null,
         'preview' => $user ? null : [
             'daily_schedule' => app(DailyClaimService::class)->schedule(),
             'tasks' => app(TaskClaimService::class)->publicCatalog(),
