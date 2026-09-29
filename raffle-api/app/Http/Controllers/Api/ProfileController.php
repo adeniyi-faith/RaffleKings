@@ -58,7 +58,7 @@ class ProfileController extends Controller
         $user = $this->user();
 
         $request->validate([
-            'avatar' => ['required', 'image', 'max:4096'],
+            'avatar' => ['required', 'image', 'mimes:jpg,jpeg,png,webp,gif', 'max:4096'],
         ]);
 
         // Clear out any previous upload for this user first, whatever
@@ -71,7 +71,10 @@ class ProfileController extends Controller
         }
 
         $path = $request->file('avatar')->storeAs('avatars', $user->ID.'.'.$request->file('avatar')->extension(), 'public');
-        $url = Storage::disk('public')->url($path);
+        // "?v=<time>" makes every upload a brand-new address, so browsers can keep
+        // a picture for a year (see public/.htaccess and public/sw.js) and still
+        // show the new one the moment it changes.
+        $url = Storage::disk('public')->url($path).'?v='.time();
 
         $this->setMeta($user->ID, 'profile_pic_url', $url);
 

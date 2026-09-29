@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { Head, Link } from '@inertiajs/react';
+import { Head, Link, usePage } from '@inertiajs/react';
 import { ArrowLeft, BookOpen, Play, RotateCw, WifiOff } from 'lucide-react';
 import HeartButton from '../../Components/support/HeartButton';
 import { deviceId } from '../../lib/tutorialLikes';
@@ -12,6 +12,8 @@ import { deviceId } from '../../lib/tutorialLikes';
 // thumbnail/heart-count/category badge. Each guide opens on its own page
 // (Support/Tutorial.jsx) instead of a pop-up sheet.
 export default function Tutorials() {
+    const { url } = usePage();
+    const cameFromSupport = new URLSearchParams(url.split('?')[1] ?? '').get('from') === 'support';
     const [state, setState] = useState('loading'); // loading | error | ready
     const [featured, setFeatured] = useState(null);
     const [articles, setArticles] = useState([]);
@@ -38,7 +40,10 @@ export default function Tutorials() {
             <div className="relative min-h-screen bg-gray-50 pb-28 dark:bg-dark-bg">
                 <div className="sticky top-0 z-40 flex items-center justify-between border-b border-gray-100 bg-white px-5 pb-4 pt-4 dark:border-dark-border dark:bg-dark-bg">
                     <div className="flex items-center gap-3">
-                        <Link href="/support" className="-ml-1 p-1 text-gray-400 hover:text-gray-600 dark:hover:text-white">
+                        {/* Back goes to wherever the visitor came from: Help & Support only if they
+                            opened the hub from there, otherwise their profile. Never a history "back",
+                            which used to bounce between this page and Help & Support forever. */}
+                        <Link href={cameFromSupport ? '/support' : '/profile'} className="-ml-1 p-1 text-gray-400 hover:text-gray-600 dark:hover:text-white" aria-label="Back">
                             <ArrowLeft className="h-5 w-5" />
                         </Link>
                         <h2 className="text-xl font-bold text-gray-900 dark:text-white">Learning Hub</h2>

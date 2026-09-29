@@ -75,6 +75,9 @@ export default function Register({ turnstileSiteKey, referralCode, referrerName,
                         <TextInput
                             label="Username"
                             icon={User}
+                            placeholder="e.g. lucky_winner"
+                            autoComplete="username"
+                            maxLength={60}
                             value={form.username}
                             onChange={update('username')}
                             required
@@ -84,6 +87,9 @@ export default function Register({ turnstileSiteKey, referralCode, referrerName,
                             label="Email address"
                             icon={Mail}
                             type="email"
+                            placeholder="you@example.com"
+                            autoComplete="email"
+                            maxLength={100}
                             value={form.email}
                             onChange={update('email')}
                             required
@@ -91,10 +97,12 @@ export default function Register({ turnstileSiteKey, referralCode, referrerName,
                         <PasswordInput
                             label="Password"
                             icon={Lock}
+                            placeholder="At least 8 characters, with a number"
+                            autoComplete="new-password"
                             value={form.password}
                             onChange={update('password')}
                             required
-                            minLength={6}
+                            minLength={8}
                         />
 
                         <label className="flex cursor-pointer items-start gap-3 rounded-xl border border-gray-200 bg-gray-50 p-3 text-xs leading-relaxed text-gray-600 dark:border-gray-700 dark:bg-gray-800/50 dark:text-gray-300">
