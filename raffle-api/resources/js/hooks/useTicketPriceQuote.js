@@ -10,6 +10,7 @@ export function useTicketPriceQuote(raffleId, quantity) {
     const [quote, setQuote] = useState(null);
     const [loading, setLoading] = useState(false);
     const [error, setError] = useState(null);
+    const [version, setVersion] = useState(0);
 
     useEffect(() => {
         if (! raffleId || ! quantity || quantity < 1) {
@@ -21,7 +22,11 @@ export function useTicketPriceQuote(raffleId, quantity) {
         setLoading(true);
         setError(null);
 
-        fetch(`/api/raffles/${raffleId}/price-quote?quantity=${quantity}`, { signal: controller.signal })
+        fetch(`/api/raffles/${raffleId}/price-quote?quantity=${quantity}`, {
+            signal: controller.signal,
+            credentials: 'same-origin',
+            headers: { Accept: 'application/json' },
+        })
             .then((res) => {
                 if (! res.ok) {
                     throw new Error('Could not price this raffle.');
@@ -37,7 +42,11 @@ export function useTicketPriceQuote(raffleId, quantity) {
             .finally(() => setLoading(false));
 
         return () => controller.abort();
-    }, [raffleId, quantity]);
+    }, [raffleId, quantity, version]);
 
-    return { quote, loading, error };
+    // Ask again, e.g. after the server says the price changed (a Golden
+    // Box discount ran out while the page was open).
+    const refresh = () => setVersion((v) => v + 1);
+
+    return { quote, loading, error, refresh };
 }

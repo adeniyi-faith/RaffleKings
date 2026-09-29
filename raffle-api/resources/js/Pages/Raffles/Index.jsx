@@ -5,6 +5,7 @@ import { TextInput } from '../../Components/ui/TextInput';
 import RaffleCard from '../../Components/raffles/RaffleCard';
 import Header from '../../Components/layout/Header';
 import BottomNav from '../../Components/layout/BottomNav';
+import GoldenBoxBanner from '../../Components/raffles/GoldenBoxBanner';
 
 const SORT_OPTIONS = [
     { value: 'newest', label: 'Newest' },
@@ -88,6 +89,8 @@ export default function RafflesIndex({ initial }) {
 
                 <div className="mx-auto w-full max-w-6xl flex-1 px-4 pb-28 pt-6">
                     <h1 className="mb-6 text-2xl font-bold text-gray-900 dark:text-white">Raffles</h1>
+
+                    <GoldenBoxBanner className="mb-6" />
 
                 {hotPicks.length > 0 && (
                     <div className="mb-6">

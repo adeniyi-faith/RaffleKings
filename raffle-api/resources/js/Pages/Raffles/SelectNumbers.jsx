@@ -1,32 +1,97 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { Head, Link, router } from '@inertiajs/react';
-import { ArrowLeft, ArrowRight, Shuffle, X } from 'lucide-react';
+import { AlertCircle, ArrowLeft, ArrowRight, Shuffle, X } from 'lucide-react';
 import { useTicketPriceQuote } from '../../hooks/useTicketPriceQuote';
 import { formatNaira } from '../../lib/format';
+import { echoOrNull } from '../../lib/echo';
 
-export default function SelectNumbers({ raffle, qty, takenNumbers, maxTickets }) {
-    const [selected, setSelected] = useState([]);
-    const takenSet = useMemo(() => new Set(takenNumbers), [takenNumbers]);
+export default function SelectNumbers({ raffle, qty, takenNumbers, maxTickets, preselected = [] }) {
+    const [selected, setSelected] = useState(preselected);
+    const [taken, setTaken] = useState(takenNumbers);
+    const [notice, setNotice] = useState(null);
+    const noticeTimer = useRef(null);
+    const takenSet = useMemo(() => new Set(taken), [taken]);
     const { quote } = useTicketPriceQuote(raffle.id, qty);
 
     const numbers = useMemo(() => Array.from({ length: maxTickets }, (_, i) => i + 1), [maxTickets]);
 
+    function flash(message) {
+        setNotice(message);
+        clearTimeout(noticeTimer.current);
+        noticeTimer.current = setTimeout(() => setNotice(null), 4000);
+    }
+
+    useEffect(() => () => clearTimeout(noticeTimer.current), []);
+
+    // Item 46: taken numbers used to be a snapshot from when the page
+    // opened, so a number someone else bought a minute ago still looked
+    // free until checkout failed. Every purchase now broadcasts the numbers
+    // it took; with no live connection, the list is re-read every 10
+    // seconds instead. A full re-read every minute catches anything missed.
+    useEffect(() => {
+        function markTaken(newlyTaken) {
+            if (! newlyTaken?.length) {
+                return;
+            }
+
+            setTaken((prev) => Array.from(new Set([...prev, ...newlyTaken])));
+            setSelected((prev) => {
+                const lost = prev.filter((n) => newlyTaken.includes(n));
+
+                if (lost.length) {
+                    flash(
+                        lost.length === 1
+                            ? `Number ${lost[0]} was just taken by someone else. Please pick another.`
+                            : `Numbers ${lost.join(', ')} were just taken by someone else. Please pick others.`,
+                    );
+                }
+
+                return prev.filter((n) => ! newlyTaken.includes(n));
+            });
+        }
+
+        function refetch() {
+            fetch(`/api/raffles/${raffle.id}/tickets`, { headers: { Accept: 'application/json' } })
+                .then((res) => (res.ok ? res.json() : null))
+                .then((data) => data && markTaken(data.taken_numbers))
+                .catch(() => {});
+        }
+
+        const echo = echoOrNull();
+        const interval = setInterval(refetch, echo ? 60000 : 10000);
+
+        if (echo) {
+            echo.channel(`raffle.${raffle.id}`).listen('.tickets.updated', (payload) => markTaken(payload.taken_numbers));
+        }
+
+        return () => {
+            clearInterval(interval);
+            if (echo) echo.leave(`raffle.${raffle.id}`);
+        };
+    }, [raffle.id]);
+
     function toggle(n) {
         if (takenSet.has(n)) {
+            flash(`Number ${n} is already taken.`);
             return;
         }
 
-        setSelected((prev) => {
-            if (prev.includes(n)) {
-                return prev.filter((x) => x !== n);
-            }
+        if (selected.includes(n)) {
+            setSelected(selected.filter((x) => x !== n));
+            return;
+        }
 
-            if (prev.length >= qty) {
-                return prev;
-            }
+        if (selected.length >= qty) {
+            // Item 46: this used to do nothing at all.
+            flash(
+                `You're buying ${qty} ticket${qty === 1 ? '' : 's'}, so you can pick ${qty} number${qty === 1 ? '' : 's'}. `
+                    + 'Tap a yellow number to swap it, or go back to buy more tickets.',
+            );
+            return;
+        }
 
-            return [...prev, n];
-        });
+        setNotice(null);
+        setSelected([...selected, n]);
     }
 
     function quickPick() {
@@ -77,6 +142,16 @@ export default function SelectNumbers({ raffle, qty, takenNumbers, maxTickets })
                         <Shuffle className="h-3.5 w-3.5 text-yellow-500" /> Quick Pick
                     </button>
                 </div>
+
+                {notice && (
+                    <div
+                        role="status"
+                        className="sticky top-[73px] z-30 mx-4 mt-2 flex items-start gap-2 rounded-xl border border-orange-200 bg-orange-50 px-3 py-2 text-xs font-medium text-orange-800 shadow-sm dark:border-orange-900/40 dark:bg-orange-900/30 dark:text-orange-200"
+                    >
+                        <AlertCircle className="mt-0.5 h-4 w-4 flex-shrink-0" />
+                        <span>{notice}</span>
+                    </div>
+                )}
 
                 {selected.length > 0 && (
                     <div className="flex justify-end px-5 pt-2">

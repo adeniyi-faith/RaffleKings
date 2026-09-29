@@ -31,5 +31,19 @@ return [
     'above_quantity' => 10,
     'above_percent_off' => 50,
 
+    /*
+    | The Golden Box (App\Services\GoldenBoxService): a customer who leaves
+    | checkout unpaid with an order of at least golden_box_minimum_order is
+    | offered golden_box_percent_off extra off that order on the raffle list.
+    | The offer shows for golden_box_offer_minutes; once tapped, the discount
+    | lasts golden_box_claim_minutes. A customer who used one can't get
+    | another for golden_box_cooldown_days, so leaving checkout on purpose
+    | doesn't become the normal way to pay.
+    */
+    'golden_box_enabled' => true,
     'golden_box_percent_off' => 10,
+    'golden_box_minimum_order' => 1000,
+    'golden_box_offer_minutes' => 30,
+    'golden_box_claim_minutes' => 25,
+    'golden_box_cooldown_days' => 7,
 ];

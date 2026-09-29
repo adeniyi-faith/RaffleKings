@@ -131,8 +131,11 @@ class AccountReadService
                 'source' => 'legacy',
             ]);
 
+        // A move from winnings to the wallet is two ledger entries (one per
+        // balance); the customer sees it once, as money into the wallet.
         $ledger = WalletLedgerEntry::query()
             ->where('user_id', $user->getKey())
+            ->whereNot(fn ($q) => $q->where('reason', 'earnings_transfer')->where('direction', 'debit'))
             ->orderByDesc('created_at')
             ->limit($limit)
             ->get()
@@ -170,6 +173,7 @@ class AccountReadService
             'points_redemption' => 'points_redemption',
             'prize_payout' => 'prize_win',
             'opening_balance' => 'opening_balance',
+            'earnings_transfer' => 'earnings_transfer',
             default => $direction === 'credit' ? 'credit_'.$reason : 'debit_'.$reason,
         };
     }

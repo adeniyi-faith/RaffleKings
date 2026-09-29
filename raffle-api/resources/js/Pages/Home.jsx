@@ -3,6 +3,7 @@ import { Banknote, ChevronRight, GraduationCap, Lock, Plus, Smartphone } from 'l
 import Header from '../Components/layout/Header';
 import BottomNav from '../Components/layout/BottomNav';
 import HeroCarousel from '../Components/home/HeroCarousel';
+import GoldenBoxBanner from '../Components/raffles/GoldenBoxBanner';
 import TrendingCard from '../Components/home/TrendingCard';
 
 // Faithful rebuild of the legacy homepage (index.php + header.php +
@@ -21,6 +22,10 @@ export default function Home({ trending }) {
 
                 <div className="no-scrollbar relative flex-1 overflow-y-auto bg-gray-50 pb-28 transition-colors duration-200 dark:bg-dark-bg">
                     <HeroCarousel />
+
+                    <div className="px-5 pt-5 empty:hidden">
+                        <GoldenBoxBanner />
+                    </div>
 
                     <section className="px-5 py-6">
                         <div className="mb-4 flex items-center justify-between">

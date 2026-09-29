@@ -31,6 +31,8 @@ class RaffleTicketsUpdated implements ShouldBroadcastNow
         public readonly int $soldTickets,
         public readonly int $remainingTickets,
         public readonly bool $isClosed,
+        /** @var int[] the numbers this purchase just took, for live number grids */
+        public readonly array $takenNumbers = [],
     ) {}
 
     public function broadcastOn(): array
@@ -49,6 +51,7 @@ class RaffleTicketsUpdated implements ShouldBroadcastNow
             'sold_tickets' => $this->soldTickets,
             'remaining_tickets' => $this->remainingTickets,
             'is_closed' => $this->isClosed,
+            'taken_numbers' => $this->takenNumbers,
         ];
     }
 }

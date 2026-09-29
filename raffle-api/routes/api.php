@@ -18,6 +18,7 @@ use App\Http\Controllers\Api\AuthBridgeController;
 use App\Http\Controllers\Api\BankAccountController;
 use App\Http\Controllers\Api\DepositController;
 use App\Http\Controllers\Api\DrawController;
+use App\Http\Controllers\Api\GoldenBoxController;
 use App\Http\Controllers\Api\HallOfFameController;
 use App\Http\Controllers\Api\LiveDrawController;
 use App\Http\Controllers\Api\MessageController;
@@ -106,6 +107,13 @@ Route::middleware('auth:wordpress')->group(function () {
     // The authenticated user's balance on that same NEW wallets table —
     // what the checkout payment-method cards show (item 25).
     Route::get('/wallet', [WalletController::class, 'show']);
+
+    // Item 46: move winnings into the spending wallet (free, instant, one way).
+    Route::post('/wallet/transfer', [WalletController::class, 'transfer'])->middleware('throttle:10,1');
+
+    // Item 46: the Golden Box offer for a customer who left checkout unpaid.
+    Route::get('/golden-box', [GoldenBoxController::class, 'show']);
+    Route::post('/golden-box/{offer}/claim', [GoldenBoxController::class, 'claim'])->whereNumber('offer')->middleware('feature:ticket_sales');
 
     // "Edit Personal Details" (item 26 follow-up) — same target fields
     // as the legacy edit-profile.php.
