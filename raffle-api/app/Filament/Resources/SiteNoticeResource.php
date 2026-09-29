@@ -9,6 +9,7 @@ use App\Filament\Support\MobileCard;
 use App\Http\Controllers\Api\SiteNoticeController;
 use App\Models\Legacy\RaffleSiteNotice;
 use App\Services\AdminAuditLogService;
+use App\Filament\Support\AiAssist;
 use Filament\Forms;
 use Filament\Forms\Form;
 use Filament\Resources\Resource;
@@ -54,7 +55,8 @@ class SiteNoticeResource extends Resource
                         ->options(RaffleSiteNotice::TYPES)
                         ->default('info')
                         ->required(),
-                    Forms\Components\Textarea::make('message')->required()->rows(3)->maxLength(500)->columnSpanFull(),
+                    Forms\Components\Textarea::make('message')->required()->rows(3)->maxLength(500)->columnSpanFull()
+                        ->hintAction(AiAssist::action('a short announcement shown to every customer on the site (under 300 characters)', false, fn (Forms\Get $get) => 'Heading: '.$get('title'))),
                     Forms\Components\TextInput::make('link_label')->label('Button text')->maxLength(40)->placeholder('e.g. See raffles'),
                     Forms\Components\TextInput::make('link_url')
                         ->label('Button link')

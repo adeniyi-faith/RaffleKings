@@ -132,6 +132,8 @@ return [
     'gemini' => [
         'api_key' => env('GEMINI_API_KEY'),
         'model' => env('GEMINI_MODEL', 'gemini-2.5-flash-preview-09-2025'),
+        // Used by the AI writing helpers and the support agent (see config/ai.php).
+        'assistant_model' => env('GEMINI_ASSISTANT_MODEL', 'gemini-3-flash-preview'),
     ],
 
 ];

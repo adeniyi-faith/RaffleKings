@@ -156,7 +156,7 @@ class SupportTicketResource extends Resource
                             Infolists\Components\TextEntry::make('message')
                                 ->hiddenLabel()
                                 ->prose()
-                                ->helperText(fn (SupportTicketMessage $record) => ($record->is_from_admin ? 'RaffleKings team' : 'Customer')
+                                ->helperText(fn (SupportTicketMessage $record) => ($record->is_from_admin ? ($record->is_automated ? 'Automated reply (AI)' : 'RaffleKings team') : 'Customer')
                                     .' · '.$record->created_at?->diffForHumans()),
                         ]),
                 ]),
@@ -189,17 +189,57 @@ class SupportTicketResource extends Resource
     }
 
     /** @return array<int, Forms\Components\Component> */
-    public static function replyForm(): array
+    public static function replyForm(?SupportTicket $ticket = null): array
     {
         return [
             Forms\Components\Textarea::make('message')
                 ->label('Your reply (emailed to the customer)')
                 ->required()
                 ->rows(5)
-                ->maxLength(5000),
+                ->maxLength(5000)
+                ->hintAction($ticket ? static::draftWithAi($ticket) : null),
             Forms\Components\Toggle::make('resolve')
                 ->label('Mark as resolved after sending'),
         ];
+    }
+
+    /**
+     * "Draft with AI": fills the reply box with a suggested answer built from
+     * the Knowledge base and this customer's balances and recent activity.
+     * The team reads and edits it before sending; nothing is sent by itself.
+     */
+    public static function draftWithAi(SupportTicket $ticket): Forms\Components\Actions\Action
+    {
+        return Forms\Components\Actions\Action::make('aiDraft')
+            ->label('Draft with AI')
+            ->icon('heroicon-o-sparkles')
+            ->visible(fn () => app(\App\Services\Ai\GeminiClient::class)->available())
+            ->modalHeading('Draft a reply with AI')
+            ->modalDescription('It reads the conversation, the Knowledge base and this customer\'s account (balances, recent activity). Press again for a new version.')
+            ->modalSubmitActionLabel('Draft it')
+            ->form([
+                Forms\Components\Textarea::make('instruction')->label('Anything it should know? (optional)')->rows(2)->maxLength(500)
+                    ->placeholder('e.g. Tell them we have found the payment and it will show shortly'),
+            ])
+            ->action(function (array $data, Forms\Set $set) use ($ticket) {
+                try {
+                    $result = app(\App\Services\Ai\SupportAi::class)->answer($ticket->fresh(), (string) ($data['instruction'] ?? ''));
+                } catch (\App\Exceptions\AiUnavailableException $e) {
+                    \Filament\Notifications\Notification::make()->title('AI could not draft this')->body($e->getMessage())->danger()->send();
+
+                    return;
+                }
+
+                if ($result['reply'] === '') {
+                    \Filament\Notifications\Notification::make()->title('No draft')->body($result['reason'] ?: 'The AI was not sure how to answer.')->warning()->send();
+
+                    return;
+                }
+
+                $set('message', $result['reply']);
+                \Filament\Notifications\Notification::make()->title('Draft ready. Check it before sending.')
+                    ->body($result['answerable'] ? null : 'The AI was not fully sure: '.$result['reason'])->success()->send();
+            });
     }
 
     public static function getPages(): array

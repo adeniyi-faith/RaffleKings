@@ -29,7 +29,7 @@ class ViewSupportTicket extends ViewRecord
             Actions\Action::make('reply')
                 ->label('Reply')
                 ->icon('heroicon-o-paper-airplane')
-                ->form(SupportTicketResource::replyForm())
+                ->form(SupportTicketResource::replyForm($this->getRecord()))
                 ->action(function (array $data) {
                     $this->run(
                         fn () => SupportTicketResource::reply($this->getRecord(), $data['message'], (bool) ($data['resolve'] ?? false)),

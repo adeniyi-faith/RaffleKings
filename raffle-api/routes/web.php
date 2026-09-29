@@ -38,6 +38,8 @@ Route::get('/', function (Request $request, RaffleReadService $raffles) {
     }
 
     return Inertia::render('Home', [
+        // The sections and cards staff arranged in the admin (Site → Homepage).
+        'layout' => app(\App\Services\HomeLayoutService::class)->forVisitor(Auth::guard('wordpress')->check()),
         'trending' => $raffles->listActive(['sort' => 'closing_soon', 'per_page' => 10])['raffles'],
         // Sent with the page so the gold banner doesn't pop in late.
         'goldenBox' => ($user = Auth::guard('wordpress')->user()) ? app(GoldenBoxService::class)->offerFor($user) : null,
