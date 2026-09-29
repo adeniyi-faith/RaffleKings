@@ -22,9 +22,11 @@ class RegisterController extends Controller
     {
         $data = $request->validate([
             'username' => ['required', 'string', 'min:3', 'max:60', 'regex:/^[A-Za-z0-9_.-]+$/'],
-            'email' => ['required', 'email'],
-            'password' => ['required', 'string', 'min:6', 'regex:/^(?=.*[A-Za-z])(?=.*\d).+$/'],
-            'referral_code' => ['nullable', 'string'],
+            // Max lengths match the wp_users columns (email 100), so a too-long
+            // value is a clear message instead of a database error.
+            'email' => ['required', 'email', 'max:100'],
+            'password' => ['required', 'string', 'min:8', 'max:128', 'regex:/^(?=.*[A-Za-z])(?=.*\d).+$/'],
+            'referral_code' => ['nullable', 'string', 'max:60'],
             // Item 48: customers must be 18+ and accept the Terms of Service.
             'accept_terms' => ['accepted'],
             'turnstile_token' => [$this->turnstile->enabled() ? 'required' : 'nullable', 'string'],

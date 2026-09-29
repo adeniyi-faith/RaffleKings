@@ -20,6 +20,12 @@
     RewriteCond %{THE_REQUEST} \s/+public/+([^\s?]*) [NC]
     RewriteRule ^ /%1 [R=301,L,NE]
 
+    # Profile pictures: an upload's address ends in ?v=<time>, so a given
+    # address never changes and can be kept by the browser for a year.
+    RewriteCond %{QUERY_STRING} (^|&)v=\d+
+    RewriteCond %{REQUEST_FILENAME} -f
+    RewriteRule ^storage/avatars/ - [E=RK_AVATAR_CACHE:1,L]
+
     # Redirect Trailing Slashes If Not A Folder...
     RewriteCond %{REQUEST_FILENAME} !-d
     RewriteCond %{REQUEST_URI} (.+)/$
@@ -29,4 +35,8 @@
     RewriteCond %{REQUEST_FILENAME} !-d
     RewriteCond %{REQUEST_FILENAME} !-f
     RewriteRule ^ index.php [L]
+</IfModule>
+
+<IfModule mod_headers.c>
+    Header set Cache-Control "public, max-age=31536000, immutable" env=RK_AVATAR_CACHE
 </IfModule>
