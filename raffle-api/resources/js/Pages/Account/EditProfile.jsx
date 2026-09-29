@@ -16,7 +16,8 @@ const STATES = [
     'Yobe', 'Zamfara',
 ];
 
-const EMPTY_FORM = { first_name: '', last_name: '', display_name: '', email: '', phone: '', state: '', password: '' };
+const EMPTY_FORM = { first_name: '', last_name: '', display_name: '', email: '', phone: '', state: '', password: '', birthday: '' };
+const MONTHS = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
 
 // Faithful rebuild of the legacy edit-profile.php: same top sticky
 // "Edit Profile" bar with a back arrow, same two grouped cards
@@ -31,6 +32,8 @@ const EMPTY_FORM = { first_name: '', last_name: '', display_name: '', email: '',
 export default function EditProfile() {
     const { auth } = usePage().props;
     const [form, setForm] = useState(EMPTY_FORM);
+    // Phase 11: the birthday (for a free birthday spin) can only be set once.
+    const [birthdayLocked, setBirthdayLocked] = useState(false);
     const [loading, setLoading] = useState(true);
     const [saving, setSaving] = useState(false);
     const [message, setMessage] = useState(null);
@@ -51,7 +54,10 @@ export default function EditProfile() {
                 if (! response.ok) throw new Error();
                 return response.json();
             })
-            .then((data) => setForm({ ...EMPTY_FORM, ...data, password: '' }))
+            .then((data) => {
+                setForm({ ...EMPTY_FORM, ...data, birthday: data.birthday || '', password: '' });
+                setBirthdayLocked(!! data.birthday);
+            })
             .catch(() => setLoadFailed(true))
             .finally(() => setLoading(false));
     }
@@ -113,6 +119,7 @@ export default function EditProfile() {
             setIsError(false);
             setMessage('Profile updated successfully!');
             setForm((f) => ({ ...f, password: '' }));
+            if (form.birthday) setBirthdayLocked(true);
             router.reload({ only: ['auth'] });
         } catch (err) {
             setIsError(true);
@@ -200,6 +207,12 @@ export default function EditProfile() {
                             <Field label="Email Address" type="email" value={form.email} onChange={update('email')} required />
                             <Field label="Phone Number" type="tel" value={form.phone} onChange={update('phone')} placeholder="08012345678" />
 
+                            <BirthdayField
+                                value={form.birthday}
+                                locked={birthdayLocked}
+                                onChange={(birthday) => setForm((f) => ({ ...f, birthday }))}
+                            />
+
                             <div>
                                 <label className="mb-1.5 block text-xs font-bold uppercase text-gray-500 dark:text-gray-400">
                                     State of Residence
@@ -262,6 +275,42 @@ function Field({ label, required, ...props }) {
                 required={required}
                 className="w-full appearance-none rounded-xl border border-gray-200 bg-gray-50 px-4 py-3 text-base font-medium text-gray-900 placeholder-gray-400 outline-none transition-colors focus:ring-2 focus:ring-app-primary/20 dark:border-gray-700 dark:bg-dark-bg dark:text-white dark:placeholder-gray-600"
             />
+        </div>
+    );
+}
+
+// Day and month only (no year): used for a free spin of the lucky wheel on
+// the customer's birthday. Set once; support can change it after that.
+function BirthdayField({ value, locked, onChange }) {
+    const [month, day] = value ? value.split('-') : ['', ''];
+    const cls =
+        'w-full appearance-none rounded-xl border border-gray-200 bg-gray-50 px-4 py-3 text-base font-medium text-gray-900 outline-none focus:ring-2 focus:ring-app-primary/20 disabled:opacity-60 dark:border-gray-700 dark:bg-dark-bg dark:text-white';
+    const set = (m, d) => onChange(m && d ? `${m}-${d}` : '');
+
+    return (
+        <div>
+            <label className="mb-1.5 block text-xs font-bold uppercase text-gray-500 dark:text-gray-400">Birthday 🎂</label>
+            <div className="grid grid-cols-2 gap-3">
+                <select aria-label="Birthday month" value={month} disabled={locked} onChange={(e) => set(e.target.value, day)} className={cls}>
+                    <option value="">Month</option>
+                    {MONTHS.map((m, i) => (
+                        <option key={m} value={String(i + 1).padStart(2, '0')}>
+                            {m}
+                        </option>
+                    ))}
+                </select>
+                <select aria-label="Birthday day" value={day} disabled={locked} onChange={(e) => set(month, e.target.value)} className={cls}>
+                    <option value="">Day</option>
+                    {Array.from({ length: 31 }, (_, i) => String(i + 1).padStart(2, '0')).map((d) => (
+                        <option key={d} value={d}>
+                            {Number(d)}
+                        </option>
+                    ))}
+                </select>
+            </div>
+            <p className="mt-1 text-[11px] text-gray-400">
+                {locked ? 'Set. To change it, contact support.' : 'Get a free spin of the lucky wheel on your birthday. You can set this once.'}
+            </p>
         </div>
     );
 }

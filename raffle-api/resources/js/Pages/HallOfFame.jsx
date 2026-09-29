@@ -92,6 +92,19 @@ export default function HallOfFame() {
                         </Link>
                     )}
 
+                    {/* Phase 11: winners' own photos and videos. */}
+                    <Link
+                        href="/winners/stories"
+                        className="flex items-center gap-3 rounded-2xl border border-yellow-200 bg-gradient-to-r from-yellow-50 to-amber-50 p-4 shadow-sm active:scale-[0.98] dark:border-yellow-900/40 dark:from-yellow-900/20 dark:to-amber-900/10"
+                    >
+                        <span className="text-2xl">📸</span>
+                        <span className="min-w-0 flex-1">
+                            <span className="block text-sm font-black text-gray-900 dark:text-white">Winner Stories</span>
+                            <span className="block text-xs text-gray-500 dark:text-gray-400">Photos and videos from real winners with their prizes</span>
+                        </span>
+                        <span className="text-sm font-bold text-amber-600">See →</span>
+                    </Link>
+
                     {isLoading && (
                         <div className="space-y-4">
                             {[0, 1, 2, 3].map((i) => (

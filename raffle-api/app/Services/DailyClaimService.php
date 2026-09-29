@@ -5,6 +5,7 @@ namespace App\Services;
 use App\Exceptions\AlreadyClaimedTodayException;
 use App\Models\Legacy\WpUser;
 use App\Models\UserPoints;
+use App\Services\Engagement\Progress;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\DB;
 
@@ -107,6 +108,7 @@ class DailyClaimService
             $record->save();
 
             $newBalance = $this->points->credit($user, $reward, 'daily_claim', description: "Day {$streak} login streak reward");
+            app(Progress::class)->dailyClaimed($user->ID, $streak);
 
             return ['points_added' => $reward, 'new_streak' => $streak, 'new_total_points' => $newBalance];
         });
