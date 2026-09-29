@@ -14,6 +14,7 @@ use App\Models\Raffle;
 use App\Models\RaffleDraw;
 use App\Services\AdminAuditLogService;
 use App\Services\LiveDrawService;
+use App\Services\LoyaltyService;
 use App\Services\ProvablyFairDrawService;
 use Filament\Forms\Form;
 use Filament\Resources\Resource;
@@ -231,6 +232,20 @@ class RaffleDrawResource extends Resource
 
                         static::audit('draw.live_reveal_started', $record);
                     }, 'Live reveal started.')),
+                // Raffle Rules Engine: try the rules on the current tickets
+                // 1,000 times (nothing is saved) before the real draw.
+                Tables\Actions\Action::make('simulate')
+                    ->label('Simulate')
+                    ->icon('heroicon-o-beaker')
+                    ->color('gray')
+                    ->visible(fn (Raffle $record) => static::stage($record) !== 'drawn' && $record->soldTickets() > 0)
+                    ->modalHeading(fn (Raffle $record) => 'Simulation: '.$record->title)
+                    ->modalContent(fn (Raffle $record) => view('filament.draw-simulation', [
+                        'result' => app(ProvablyFairDrawService::class)->simulate($record),
+                        'rules' => $record->drawRules()->describe(app(LoyaltyService::class)->tiers()),
+                    ]))
+                    ->modalSubmitAction(false)
+                    ->modalCancelActionLabel('Close'),
                 Tables\Actions\Action::make('verify')
                     ->label('Public proof')
                     ->icon('heroicon-o-shield-check')

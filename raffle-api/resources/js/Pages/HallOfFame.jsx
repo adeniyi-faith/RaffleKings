@@ -23,6 +23,9 @@ import LoadError from '../Components/ui/LoadError';
 //    HallOfFameController's docblock) is replaced with a real "Verify
 //    this draw" link into the item 14 provably-fair verification page
 //    for that winner's raffle.
+// A win from a free loyalty bonus entry has ticket 0 (Raffle Rules Engine).
+const ticketLabel = (ticket) => (Number(ticket) === 0 ? 'Bonus entry' : `#${ticket}`);
+
 export default function HallOfFame() {
     const [isLoading, setIsLoading] = useState(true);
     const [featured, setFeatured] = useState([]);
@@ -136,7 +139,7 @@ export default function HallOfFame() {
                                             <div className="mt-3 w-full rounded-lg border border-gray-100 bg-gray-50 py-2 dark:border-gray-800 dark:bg-dark-bg">
                                                 <p className="mb-0.5 text-[9px] font-bold uppercase text-gray-400">Winning Ticket</p>
                                                 <p className="font-mono text-base font-bold tracking-widest text-gray-800 dark:text-gray-200">
-                                                    #{winner.ticket}
+                                                    {ticketLabel(winner.ticket)}
                                                 </p>
                                                 {winner.raffle_native_id && (
                                                     <Link
@@ -174,7 +177,7 @@ export default function HallOfFame() {
                                         <div className="mb-1 flex items-center justify-between">
                                             <h4 className="truncate pr-2 text-sm font-bold text-gray-900 dark:text-white">{winner.name}</h4>
                                             <span className="shrink-0 whitespace-nowrap rounded border border-gray-200 bg-gray-100 px-2 py-0.5 font-mono text-[10px] font-bold text-gray-600 dark:border-gray-600 dark:bg-gray-700 dark:text-gray-300">
-                                                #{winner.ticket}
+                                                {ticketLabel(winner.ticket)}
                                             </span>
                                         </div>
                                         <div className="flex items-center justify-between">

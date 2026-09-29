@@ -113,6 +113,22 @@ export default function LiveDrawVerify({ raffle }) {
                                 plain
                             />
 
+                            {data.rules_described?.length > 0 && (
+                                <div className="rounded-2xl border border-gray-100 bg-white p-4 dark:border-dark-border dark:bg-dark-card">
+                                    <p className="mb-2 text-[10px] font-bold uppercase tracking-wider text-gray-400 dark:text-gray-500">
+                                        Draw rules (locked in with the commitment)
+                                    </p>
+                                    <ul className="list-disc space-y-1 pl-4 text-xs leading-relaxed text-gray-700 dark:text-gray-300">
+                                        {data.rules_described.map((line, i) => (
+                                            <li key={i}>{line}</li>
+                                        ))}
+                                    </ul>
+                                    {data.rules_hash && (
+                                        <p className="mt-2 break-all font-mono text-[10px] text-gray-400">Rules fingerprint: {data.rules_hash}</p>
+                                    )}
+                                </div>
+                            )}
+
                             {! data.has_run && (
                                 <div className="rounded-xl border border-yellow-200 bg-yellow-50 p-4 text-sm text-yellow-800 dark:border-yellow-900/30 dark:bg-yellow-900/20 dark:text-yellow-300">
                                     This draw hasn't run yet. The secret seed stays hidden until it does, which is the
@@ -148,6 +164,12 @@ export default function LiveDrawVerify({ raffle }) {
                                             ok={data.verification.client_seed_matches}
                                             text="The ticket-pool code matches the real, final list of eligible tickets"
                                         />
+                                        {data.verification.rules_match !== undefined && (
+                                            <CheckLine
+                                                ok={data.verification.rules_match}
+                                                text="The draw followed the rules locked in before it ran"
+                                            />
+                                        )}
                                         <CheckLine
                                             ok={data.verification.winners_match}
                                             text="Re-running the draw with these codes produces the exact published winners"

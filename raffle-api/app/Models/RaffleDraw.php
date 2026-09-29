@@ -14,9 +14,12 @@ class RaffleDraw extends Model
         'client_seed',
         'committed_at',
         'executed_at',
+        'rules',
+        'rules_hash',
     ];
 
     protected $casts = [
+        'rules' => 'array',
         'committed_at' => 'datetime',
         'executed_at' => 'datetime',
     ];
@@ -44,6 +47,9 @@ class RaffleDraw extends Model
             'server_seed_hash' => $this->server_seed_hash,
             'committed_at' => $this->committed_at,
             'has_run' => $this->hasRun(),
+            // Raffle Rules Engine: the rules locked into this draw, and their fingerprint.
+            'rules' => $this->rules,
+            'rules_hash' => $this->rules_hash,
         ];
     }
 }

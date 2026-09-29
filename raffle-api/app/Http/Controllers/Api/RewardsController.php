@@ -11,6 +11,7 @@ use App\Exceptions\UnknownTaskException;
 use App\Http\Controllers\Controller;
 use App\Models\Legacy\WpUser;
 use App\Services\DailyClaimService;
+use App\Services\LoyaltyService;
 use App\Services\PointRedemptionService;
 use App\Services\PointsService;
 use App\Services\SpinService;
@@ -50,6 +51,8 @@ class RewardsController extends Controller
             'next_reset_at' => DailyClaimService::nextReset()->toIso8601String(),
             'tasks' => $this->taskClaim->catalog($user),
             'spin' => ['cost' => SpinService::cost(), 'odds' => $this->spin->odds()],
+            // Raffle Rules Engine: loyalty tier and progress to the next one.
+            'loyalty' => app(LoyaltyService::class)->profile($user->ID),
         ]);
     }
 

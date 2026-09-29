@@ -50,6 +50,7 @@ class TicketPurchaseService
         private readonly RaffleReadService $raffles,
         private readonly GoldenBoxService $goldenBox,
         private readonly WinningsTransferService $winnings,
+        private readonly RaffleRulesService $rules,
     ) {}
 
     /**
@@ -113,6 +114,11 @@ class TicketPurchaseService
 
         if (! $raffle || $raffle['is_closed']) {
             throw new RaffleNotOnSaleException($raffle['closed_reason'] ?? null);
+        }
+
+        // Raffle Rules Engine: members-only / new-players-only raffles.
+        if ($reason = $this->rules->whyNotEligible($user->ID, $raffleId)) {
+            throw new InvalidArgumentException($reason.' No money has been taken.');
         }
 
         if (abs($unitPrice - $raffle['price']) > 0.001) {
@@ -325,6 +331,9 @@ class TicketPurchaseService
             ],
             $ticketNumbers
         ));
+
+        // Loyalty bonus entries, when this raffle's published rules give them.
+        $this->rules->grantBonusEntries($userId, $raffleId);
     }
 
     /**
