@@ -11,6 +11,7 @@ import { useTicketPriceQuote } from '../../hooks/useTicketPriceQuote';
 import { formatNaira } from '../../lib/format';
 import { isOn, useSite } from '../../lib/site';
 import PausedNotice from '../../Components/layout/PausedNotice';
+import BoostPanel from '../../Components/social/BoostPanel';
 
 const DEFAULT_QUANTITIES = [1, 2, 3, 5, 10];
 
@@ -195,6 +196,12 @@ export default function RaffleShow({ raffle, drawInfo = null }) {
                         )}
                     </Card>
                 </section>
+
+                {auth.user && ! isClosed && (
+                    <section className="px-5 pb-2">
+                        <BoostPanel raffleId={raffle.id} raffleTitle={raffle.title} />
+                    </section>
+                )}
 
                 {drawInfo?.rules?.length > 0 && (
                     <section className="px-5 pb-2 text-left">
