@@ -35,10 +35,27 @@ class HomeItem extends Model
         'is_locked', 'locked_label', 'unlock_at', 'audience', 'starts_at', 'ends_at', 'is_visible', 'sort_order',
     ];
 
+    /** Starting values, so a card saved without them (e.g. a toggle left untouched) is still valid. */
+    protected $attributes = [
+        'theme' => 'blue', 'style' => 'featured', 'size' => 'half', 'audience' => 'all',
+        'is_locked' => false, 'is_visible' => true, 'sort_order' => 0,
+    ];
+
     protected $casts = [
         'is_locked' => 'boolean', 'is_visible' => 'boolean', 'sort_order' => 'integer',
         'unlock_at' => 'datetime', 'starts_at' => 'datetime', 'ends_at' => 'datetime',
     ];
+
+    // A switch the admin form leaves empty means "off" (visible defaults to on), never NULL.
+    public function setIsLockedAttribute($value): void
+    {
+        $this->attributes['is_locked'] = (bool) $value;
+    }
+
+    public function setIsVisibleAttribute($value): void
+    {
+        $this->attributes['is_visible'] = $value === null ? true : (bool) $value;
+    }
 
     public function section(): BelongsTo
     {
