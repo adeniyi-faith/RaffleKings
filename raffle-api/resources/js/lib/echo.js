@@ -2,17 +2,12 @@ import Echo from 'laravel-echo';
 import Pusher from 'pusher-js';
 
 /**
- * Item 27's real-time layer: Laravel Reverb, spoken to with the same
- * laravel-echo + pusher-js client Laravel's own docs use for Reverb
- * (Reverb speaks the Pusher protocol). This file is the ONE place that
- * constructs the Echo client, and it is written to degrade sanely when
- * Reverb isn't running (a local dev box that never started
- * `php artisan reverb:start`, or a REVERB_APP_KEY that was never
- * configured for this environment) — per the product owner's
- * requirement, that must never crash the page, only silently drop the
- * "live" part of Live Draw. Every page using this checks
- * `echoOrNull() === null` and falls back to its own initial HTTP fetch,
- * so a page always has real content on load either way.
+ * The site's live-update connection (live draws, ticket counters, live
+ * chat, "N watching"), through Pusher since Phase 9. This file is the ONE
+ * place that constructs the Echo client, and it degrades sanely when live
+ * updates are off or unreachable: it never crashes the page. Every page
+ * using this checks `echoOrNull() === null` and falls back to refreshing
+ * on a timer, so a page always has real content either way.
  */
 let echoInstance;
 let attempted = false;
@@ -24,11 +19,14 @@ export function echoOrNull() {
 
     attempted = true;
 
-    const key = import.meta.env.VITE_REVERB_APP_KEY;
+    // Phase 9: live updates go through Pusher (shared cPanel hosting can't
+    // keep a WebSocket server of its own running). The page template sets
+    // window.__rkLive only when they're switched on in Settings.
+    const live = window.__rkLive;
 
-    if (! key) {
-        // No Reverb configured for this environment at all — degrade
-        // immediately instead of trying (and logging noisy errors).
+    if (! live?.key) {
+        // Live updates are off — degrade immediately instead of trying
+        // (and logging noisy errors); pages fall back to refreshing.
         return null;
     }
 
@@ -36,13 +34,13 @@ export function echoOrNull() {
         window.Pusher = Pusher;
 
         echoInstance = new Echo({
-            broadcaster: 'reverb',
-            key,
-            wsHost: import.meta.env.VITE_REVERB_HOST,
-            wsPort: import.meta.env.VITE_REVERB_PORT ?? 80,
-            wssPort: import.meta.env.VITE_REVERB_PORT ?? 443,
-            forceTLS: (import.meta.env.VITE_REVERB_SCHEME ?? 'https') === 'https',
-            enabledTransports: ['ws', 'wss'],
+            broadcaster: 'pusher',
+            key: live.key,
+            cluster: live.cluster || 'mt1',
+            forceTLS: true,
+            // "N watching" (presence channels) signs in against the same
+            // WordPress login cookie as the rest of the site.
+            authEndpoint: '/broadcasting/auth',
             // Comments/reactions/winner reveals are broadcast on a
             // PUBLIC channel by design (see routes/channels.php) — no
             // auth handshake needed to subscribe, so a guest watching
@@ -52,7 +50,7 @@ export function echoOrNull() {
 
         return echoInstance;
     } catch (e) {
-        console.warn('Reverb/Echo unavailable: live updates are disabled for this session.', e);
+        console.warn('Live updates unavailable: this page will refresh every few seconds instead.', e);
         echoInstance = null;
         return null;
     }

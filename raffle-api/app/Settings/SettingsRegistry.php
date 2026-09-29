@@ -185,6 +185,13 @@ final class SettingsRegistry
                             new Setting('rewards.boost.ends_at', 'Ends', 'datetime', 'Required for a boost to run.'),
                         ],
                     ],
+                    'Loyalty tiers' => [
+                        'description' => 'Tiers reward playing regularly: a customer reaches a tier by playing in enough of the recent weeks AND buying enough tickets in that time. Customers see their tier and what the next one needs. A tier\'s perk is free bonus entries in raffles whose draw rules turn them on.',
+                        'settings' => [
+                            new Setting('loyalty.window_weeks', 'Weeks counted', 'int', 'How many recent weeks (Monday to Sunday, Lagos time) count towards a tier.', rules: ['required', 'integer', 'min:1', 'max:52']),
+                            new Setting('loyalty.tiers', 'Tiers', 'loyalty_tiers', 'Each higher tier should need at least as much as the one below it.'),
+                        ],
+                    ],
                     'Cashing in points' => [
                         'settings' => [
                             new Setting('rewards.points_per_naira', 'Points per ₦1', 'int', rules: ['required', 'integer', 'min:1']),
@@ -274,6 +281,16 @@ final class SettingsRegistry
                         'settings' => [
                             new Setting('services.onesignal.app_id', 'App ID', 'text', 'In OneSignal: Settings → Keys & IDs → "OneSignal App ID". It looks like 1a2b3c4d-1111-2222-3333-444455556666 (not the API key).', rules: ['nullable', 'regex:/^\s*[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}\s*$/']),
                             new Setting('services.onesignal.api_key', 'REST API key', 'secret'),
+                        ],
+                    ],
+                    'Live updates (Pusher)' => [
+                        'description' => 'Makes live draws, the ticket counters, live chat and "N watching" update instantly. Create a free "Channels" app at pusher.com, then copy its App keys here. Without it, those pages refresh every few seconds instead.',
+                        'settings' => [
+                            new Setting('broadcasting.default', 'Live updates', 'select', options: ['log' => 'Off (pages refresh every few seconds)', 'pusher' => 'On, through Pusher']),
+                            new Setting('broadcasting.connections.pusher.app_id', 'app_id', 'text', placeholder: '1234567'),
+                            new Setting('broadcasting.connections.pusher.key', 'key', 'text', 'The public key (safe to show in the browser).', placeholder: 'a1b2c3d4e5f6a7b8c9d0'),
+                            new Setting('broadcasting.connections.pusher.secret', 'secret', 'secret'),
+                            new Setting('broadcasting.connections.pusher.options.cluster', 'cluster', 'text', 'Where the app lives, e.g. eu or mt1. Shown next to the keys.', placeholder: 'eu', rules: ['nullable', 'regex:/^[a-z0-9-]{2,10}$/']),
                         ],
                     ],
                 ],

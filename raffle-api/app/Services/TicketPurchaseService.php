@@ -11,6 +11,7 @@ use App\Models\Legacy\RaffleTransaction;
 use App\Models\Legacy\WpUser;
 use App\Models\Wallet;
 use App\Notifications\TicketPurchaseReceipt;
+use App\Support\Live;
 use Illuminate\Database\UniqueConstraintViolationException;
 use Illuminate\Support\Facades\DB;
 use InvalidArgumentException;
@@ -49,6 +50,7 @@ class TicketPurchaseService
         private readonly RaffleReadService $raffles,
         private readonly GoldenBoxService $goldenBox,
         private readonly WinningsTransferService $winnings,
+        private readonly RaffleRulesService $rules,
     ) {}
 
     /**
@@ -112,6 +114,11 @@ class TicketPurchaseService
 
         if (! $raffle || $raffle['is_closed']) {
             throw new RaffleNotOnSaleException($raffle['closed_reason'] ?? null);
+        }
+
+        // Raffle Rules Engine: members-only / new-players-only raffles.
+        if ($reason = $this->rules->whyNotEligible($user->ID, $raffleId)) {
+            throw new InvalidArgumentException($reason.' No money has been taken.');
         }
 
         if (abs($unitPrice - $raffle['price']) > 0.001) {
@@ -298,7 +305,7 @@ class TicketPurchaseService
             return;
         }
 
-        broadcast(new RaffleTicketsUpdated(
+        Live::send(new RaffleTicketsUpdated(
             raffleId: $raffleId,
             soldTickets: $raffle['sold_tickets'],
             remainingTickets: $raffle['remaining_tickets'],
@@ -324,6 +331,9 @@ class TicketPurchaseService
             ],
             $ticketNumbers
         ));
+
+        // Loyalty bonus entries, when this raffle's published rules give them.
+        $this->rules->grantBonusEntries($userId, $raffleId);
     }
 
     /**

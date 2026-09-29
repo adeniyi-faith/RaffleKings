@@ -9,6 +9,7 @@ use App\Exceptions\NoPrizeStructureException;
 use App\Http\Controllers\Controller;
 use App\Models\Raffle;
 use App\Models\RaffleDraw;
+use App\Services\LoyaltyService;
 use App\Services\ProvablyFairDrawService;
 use Illuminate\Http\JsonResponse;
 
@@ -32,7 +33,11 @@ class DrawController extends Controller
 
         return response()->json(array_merge(
             $commitment->publicCommitment(),
-            ['verification' => $this->draws->verify($raffle)],
+            [
+                // Raffle Rules Engine: the rules locked in with the commitment, in plain words.
+                'rules_described' => $this->draws->rulesFor($commitment)->describe(app(LoyaltyService::class)->tiers()),
+                'verification' => $this->draws->verify($raffle),
+            ],
         ));
     }
 

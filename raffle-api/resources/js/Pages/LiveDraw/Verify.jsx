@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { Head, Link } from '@inertiajs/react';
 import { CheckCircle2, Copy, HelpCircle, Lock, ShieldCheck, Unlock, XCircle } from 'lucide-react';
+import LoadError from '../../Components/ui/LoadError';
 
 // The real, user-facing "verify this draw yourself" view item 27 asks
 // for, built on the item 14 provably-fair engine
@@ -16,18 +17,25 @@ export default function LiveDrawVerify({ raffle }) {
     const [notFound, setNotFound] = useState(false);
     const [copied, setCopied] = useState(null);
 
-    useEffect(() => {
-        fetch(`/api/raffles/${raffle.id}/draw`)
+    const [failed, setFailed] = useState(false);
+
+    function load() {
+        setFailed(false);
+        fetch(`/api/raffles/${raffle.id}/draw`, { headers: { Accept: 'application/json' } })
             .then((res) => {
                 if (res.status === 404) {
                     setNotFound(true);
                     return null;
                 }
+                if (! res.ok) throw new Error();
                 return res.json();
             })
             .then((json) => json && setData(json))
-            .catch(() => setNotFound(true));
-    }, [raffle.id]);
+            // A dropped connection isn't "no draw yet" (Phase 9).
+            .catch(() => setFailed(true));
+    }
+
+    useEffect(load, [raffle.id]);
 
     function copy(label, value) {
         navigator.clipboard?.writeText(value).then(() => {
@@ -52,7 +60,9 @@ export default function LiveDrawVerify({ raffle }) {
                         </div>
                     )}
 
-                    {! notFound && ! data && (
+                    {failed && <LoadError onRetry={load} />}
+
+                    {! notFound && ! failed && ! data && (
                         <div className="flex justify-center py-10">
                             <div className="h-8 w-8 animate-spin rounded-full border-b-2 border-app-primary" />
                         </div>
@@ -103,6 +113,22 @@ export default function LiveDrawVerify({ raffle }) {
                                 plain
                             />
 
+                            {data.rules_described?.length > 0 && (
+                                <div className="rounded-2xl border border-gray-100 bg-white p-4 dark:border-dark-border dark:bg-dark-card">
+                                    <p className="mb-2 text-[10px] font-bold uppercase tracking-wider text-gray-400 dark:text-gray-500">
+                                        Draw rules (locked in with the commitment)
+                                    </p>
+                                    <ul className="list-disc space-y-1 pl-4 text-xs leading-relaxed text-gray-700 dark:text-gray-300">
+                                        {data.rules_described.map((line, i) => (
+                                            <li key={i}>{line}</li>
+                                        ))}
+                                    </ul>
+                                    {data.rules_hash && (
+                                        <p className="mt-2 break-all font-mono text-[10px] text-gray-400">Rules fingerprint: {data.rules_hash}</p>
+                                    )}
+                                </div>
+                            )}
+
                             {! data.has_run && (
                                 <div className="rounded-xl border border-yellow-200 bg-yellow-50 p-4 text-sm text-yellow-800 dark:border-yellow-900/30 dark:bg-yellow-900/20 dark:text-yellow-300">
                                     This draw hasn't run yet. The secret seed stays hidden until it does, which is the
@@ -138,6 +164,12 @@ export default function LiveDrawVerify({ raffle }) {
                                             ok={data.verification.client_seed_matches}
                                             text="The ticket-pool code matches the real, final list of eligible tickets"
                                         />
+                                        {data.verification.rules_match !== undefined && (
+                                            <CheckLine
+                                                ok={data.verification.rules_match}
+                                                text="The draw followed the rules locked in before it ran"
+                                            />
+                                        )}
                                         <CheckLine
                                             ok={data.verification.winners_match}
                                             text="Re-running the draw with these codes produces the exact published winners"

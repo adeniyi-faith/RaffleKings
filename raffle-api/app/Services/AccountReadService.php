@@ -7,6 +7,7 @@ use App\Models\Legacy\RaffleTransaction;
 use App\Models\Legacy\RaffleWinner;
 use App\Models\Legacy\WpUser;
 use App\Models\Raffle;
+use App\Models\RaffleBonusEntry;
 use App\Models\RaffleDraw;
 use App\Models\WalletLedgerEntry;
 use Illuminate\Support\Collection;
@@ -70,7 +71,9 @@ class AccountReadService
             ->get()
             ->groupBy('raffle_id');
 
-        $grouped = $entries->groupBy('raffle_id')->map(function (Collection $group, $raffleId) use ($raffles, $natives, $draws, $wins) {
+        $bonus = RaffleBonusEntry::query()->where('user_id', $user->getKey())->whereIn('raffle_id', $raffleIds)->pluck('entries', 'raffle_id');
+
+        $grouped = $entries->groupBy('raffle_id')->map(function (Collection $group, $raffleId) use ($raffles, $natives, $draws, $wins, $bonus) {
             $raffle = $raffles->get((int) $raffleId);
             $native = $natives->get((int) $raffleId);
             $draw = $native ? $draws->get($native->id) : null;
@@ -91,13 +94,15 @@ class AccountReadService
                 ],
                 'wins' => $resultsPublic
                     ? $wins->get((int) $raffleId, collect())->map(fn (RaffleWinner $w) => [
-                        'ticket_number' => str_pad((string) $w->ticket_number, 3, '0', STR_PAD_LEFT),
+                        // 0 = won with a free loyalty bonus entry (Raffle Rules Engine).
+                        'ticket_number' => (int) $w->ticket_number === 0 ? 'Bonus entry' : str_pad((string) $w->ticket_number, 3, '0', STR_PAD_LEFT),
                         'prize_name' => $w->prize_name,
                         'prize_rank' => (int) $w->prize_rank,
                         'prize_cash_value' => (float) $w->prize_cash_value,
                         'is_credited' => (bool) $w->is_credited,
                     ])->values()->all()
                     : [],
+                'bonus_entries' => (int) ($bonus[(int) $raffleId] ?? 0),
                 'tickets' => $group->pluck('ticket_number')
                     ->map(fn ($n) => str_pad((string) $n, 3, '0', STR_PAD_LEFT))
                     ->values()

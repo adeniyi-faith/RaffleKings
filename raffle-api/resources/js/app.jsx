@@ -8,9 +8,11 @@ const appName = import.meta.env.VITE_APP_NAME || 'RaffleKings';
 
 createInertiaApp({
     title: (title) => (title ? `${title} - ${appName}` : appName),
+    // Phase 9: each page is its own small file, downloaded only when that
+    // page is opened, instead of one ~700 KB file with every page in it.
     resolve: (name) => {
-        const pages = import.meta.glob('./Pages/**/*.jsx', { eager: true });
-        return pages[`./Pages/${name}.jsx`];
+        const pages = import.meta.glob('./Pages/**/*.jsx');
+        return pages[`./Pages/${name}.jsx`]();
     },
     setup({ el, App, props }) {
         // SiteNotices sits beside the page (item 45), so announcements show

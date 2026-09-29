@@ -338,7 +338,7 @@ export default function LiveDrawShow({ raffle }) {
                                                             {r.winner.prize_name}
                                                         </span>
                                                         <span className="inline-block rounded-md bg-white/5 px-2 py-0.5 font-mono text-[9px] text-white/40">
-                                                            #{r.winner.ticket_number}
+                                                            {Number(r.winner.ticket_number) === 0 ? 'Bonus entry' : `#${r.winner.ticket_number}`}
                                                         </span>
                                                     </div>
                                                 </div>

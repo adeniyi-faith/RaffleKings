@@ -6,6 +6,7 @@ import RaffleCard from '../../Components/raffles/RaffleCard';
 import Header from '../../Components/layout/Header';
 import BottomNav from '../../Components/layout/BottomNav';
 import GoldenBoxBanner from '../../Components/raffles/GoldenBoxBanner';
+import LoadError from '../../Components/ui/LoadError';
 
 const SORT_OPTIONS = [
     { value: 'newest', label: 'Newest' },
@@ -25,6 +26,7 @@ export default function RafflesIndex({ initial }) {
     const [sort, setSort] = useState('newest');
     const [page, setPage] = useState(1);
     const [loading, setLoading] = useState(false);
+    const [failed, setFailed] = useState(false);
     const debounceRef = useRef(null);
 
     useEffect(() => {
@@ -53,9 +55,15 @@ export default function RafflesIndex({ initial }) {
             ...(maxPrice ? { max_price: maxPrice } : {}),
         });
 
+        setFailed(false);
+
         try {
-            const response = await fetch(`/api/raffles?${params}`);
+            const response = await fetch(`/api/raffles?${params}`, { headers: { Accept: 'application/json' } });
+            if (! response.ok) throw new Error();
             setResult(await response.json());
+        } catch {
+            // Phase 9: keep what's on screen and offer Try again.
+            setFailed(true);
         } finally {
             setLoading(false);
         }
@@ -189,6 +197,7 @@ export default function RafflesIndex({ initial }) {
                 </div>
 
                 {loading && <p className="mb-4 text-sm text-gray-500">Loading…</p>}
+                {failed && ! loading && <LoadError className="mb-4" onRetry={fetchRaffles} message="Couldn't update the list. Check your connection and try again." />}
 
                 {result.raffles.length === 0 ? (
                     <p className="text-sm text-gray-500 dark:text-gray-400">No raffles match your filters.</p>
