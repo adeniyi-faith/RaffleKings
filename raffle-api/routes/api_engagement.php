@@ -6,6 +6,7 @@ use App\Http\Controllers\Api\Engagement\RedEnvelopeController;
 use App\Http\Controllers\Api\Engagement\ReferralLadderController;
 use App\Http\Controllers\Api\Engagement\SeasonPassController;
 use App\Http\Controllers\Api\Engagement\SocialBoostController;
+use App\Http\Controllers\Api\Engagement\WinnerStoryController;
 use Illuminate\Support\Facades\Route;
 
 /*
@@ -30,6 +31,10 @@ Route::middleware('auth:wordpress')->group(function () {
 
     Route::post('/raffles/{raffle}/live-draw/envelopes', [RedEnvelopeController::class, 'send'])->middleware(['feature:red_envelopes', 'feature:live_chat', 'throttle:6,1']);
     Route::post('/envelopes/{envelope}/claim', [RedEnvelopeController::class, 'claim'])->whereNumber('envelope')->middleware(['feature:red_envelopes', 'throttle:30,1']);
+
+    Route::get('/stories/my-wins', [WinnerStoryController::class, 'mine']);
+    Route::post('/stories', [WinnerStoryController::class, 'store'])->middleware(['feature:winner_stories', 'throttle:5,1']);
+    Route::post('/stories/{story}/react', [WinnerStoryController::class, 'react'])->whereNumber('story')->middleware('throttle:60,1');
 
     Route::get('/season', [SeasonPassController::class, 'show']);
     Route::post('/season/claim', [SeasonPassController::class, 'claim'])->middleware('feature:season_pass');

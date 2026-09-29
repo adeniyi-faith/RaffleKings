@@ -69,6 +69,7 @@ final class StaffRoles
         Filament\Resources\RaffleResource::class => 'raffles',
         Filament\Resources\RaffleDrawResource::class => 'raffles',
         Filament\Resources\PredictionResource::class => 'content',
+        Filament\Resources\WinnerStoryResource::class => 'content',
         Filament\Resources\SiteNoticeResource::class => 'content',
         Filament\Resources\TutorialResource::class => 'content',
         Filament\Resources\SitePageResource::class => 'content',
