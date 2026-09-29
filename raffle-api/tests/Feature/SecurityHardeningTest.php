@@ -40,7 +40,8 @@ class SecurityHardeningTest extends TestCase
         $user = $this->actingAsWordPressUser();
         Wallet::create(['user_id' => $user->ID, 'wallet_balance' => 0, 'earnings_balance' => 0]);
 
-        $this->withHeader('Origin', 'http://localhost')->postJson('/api/rewards/daily-claim')->assertOk();
+        // The site's own address, whatever APP_URL is in this environment.
+        $this->withHeader('Origin', rtrim(config('app.url'), '/'))->postJson('/api/rewards/daily-claim')->assertOk();
     }
 
     public function test_extra_trusted_hosts_can_be_allowed(): void
