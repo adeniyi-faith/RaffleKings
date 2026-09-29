@@ -1,6 +1,7 @@
 <?php
 
 use App\Http\Controllers\Api\Engagement\BadgeController;
+use App\Http\Controllers\Api\Engagement\ReferralLadderController;
 use Illuminate\Support\Facades\Route;
 
 /*
@@ -11,4 +12,6 @@ use Illuminate\Support\Facades\Route;
 Route::middleware('auth:wordpress')->group(function () {
     Route::get('/badges', [BadgeController::class, 'index']);
     Route::post('/badges/showcase', [BadgeController::class, 'showcase']);
+
+    Route::get('/referrals/overview', ReferralLadderController::class);
 });
