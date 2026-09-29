@@ -15,6 +15,14 @@ use Filament\Widgets\StatsOverviewWidget\Stat;
  */
 class TodayOverview extends StatsOverviewWidget
 {
+    // Money figures: only staff who work with money or reports (App\Auth\StaffRoles).
+    public static function canView(): bool
+    {
+        $user = auth('wordpress')->user();
+
+        return $user instanceof WpUser && ($user->staffCan('money.view') || $user->staffCan('reports'));
+    }
+
     use BusinessDay;
 
     protected static ?int $sort = 2;
@@ -49,7 +57,7 @@ class TodayOverview extends StatsOverviewWidget
             Stat::make('New sign-ups', (string) $signUps)
                 ->description('Accounts created today'),
             Stat::make('Points owed', number_format($pointsOwed).' pts')
-                ->description('Worth '.static::naira($pointsOwed / 10).' if everyone redeemed'),
+                ->description('Worth '.static::naira($pointsOwed / max(1, (int) config('rewards.points_per_naira'))).' if everyone redeemed'),
         ];
     }
 }

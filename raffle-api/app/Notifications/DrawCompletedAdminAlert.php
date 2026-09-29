@@ -33,6 +33,6 @@ class DrawCompletedAdminAlert extends Notification implements ShouldQueue
 
     public function toTelegram(mixed $notifiable): string
     {
-        return "🎉 Draw completed for raffle #{$this->raffleId} — {$this->winnerCount} winner(s) generated (hidden, pending admin review).";
+        return "🎉 Draw completed for raffle #{$this->raffleId}: {$this->winnerCount} winner(s) generated (hidden, pending admin review).";
     }
 }

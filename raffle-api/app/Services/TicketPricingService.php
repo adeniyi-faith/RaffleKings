@@ -25,29 +25,55 @@ class TicketPricingService
     public function calculate(int $quantity, float $unitPrice, bool $isGoldenBox = false): float
     {
         $originalPrice = $quantity * $unitPrice;
-        $multiplier = 1.0;
-
-        if ($unitPrice <= 200) {
-            if ($quantity >= 2) {
-                $multiplier = 0.90;
-            }
-        } else {
-            $multiplier = match (true) {
-                $quantity === 1 => 1.0,
-                $quantity === 2 => 0.75,
-                $quantity === 3 => 0.65,
-                $quantity === 5 => 0.60,
-                $quantity === 10 => 0.55,
-                $quantity > 10 => 0.50,
-                default => 1.0,
-            };
-        }
+        $multiplier = 1 - $this->percentOff($quantity, $unitPrice) / 100;
 
         if ($isGoldenBox) {
-            $multiplier *= 0.90;
+            $multiplier *= 1 - (float) config('pricing.golden_box_percent_off', 0) / 100;
         }
 
         return round($originalPrice * $multiplier, 2);
+    }
+
+    /**
+     * The bulk discount for this quantity at this ticket price — the
+     * rules and numbers are in config/pricing.php, editable in the admin
+     * (Settings → Raffles & pricing).
+     */
+    public function percentOff(int $quantity, float $unitPrice): float
+    {
+        $pricing = config('pricing');
+
+        if ($unitPrice <= (float) $pricing['cheap_ticket_max_price']) {
+            return $quantity >= (int) $pricing['cheap_bulk_min_quantity'] ? (float) $pricing['cheap_bulk_percent_off'] : 0.0;
+        }
+
+        foreach ($pricing['bundles'] ?? [] as $bundle) {
+            if ((int) $bundle['quantity'] === $quantity) {
+                return (float) $bundle['percent_off'];
+            }
+        }
+
+        $above = (int) ($pricing['above_quantity'] ?? 0);
+
+        return $above > 0 && $quantity > $above ? (float) $pricing['above_percent_off'] : 0.0;
+    }
+
+    /**
+     * The ticket counts the raffle page offers as one-tap buttons: a
+     * single ticket plus every bundle size.
+     *
+     * @return list<int>
+     */
+    public function bundleQuantities(): array
+    {
+        return collect(config('pricing.bundles', []))
+            ->pluck('quantity')
+            ->map(fn ($q) => (int) $q)
+            ->prepend(1)
+            ->unique()
+            ->sort()
+            ->values()
+            ->all();
     }
 
     /**

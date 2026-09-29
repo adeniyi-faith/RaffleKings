@@ -117,14 +117,38 @@ class RegisterControllerTest extends TestCase
         ])->assertStatus(422);
     }
 
-    public function test_turnstile_is_required_when_a_secret_key_is_configured(): void
+    public function test_turnstile_is_required_when_both_keys_are_configured(): void
     {
-        config(['services.turnstile.secret_key' => 'fake-secret']);
+        config(['services.turnstile.secret_key' => 'fake-secret', 'services.turnstile.site_key' => 'fake-site']);
 
         $this->postJson('/api/auth/register', [
             'username' => 'botlike',
             'email' => 'botlike@example.com',
             'password' => 'letmein1',
         ])->assertStatus(422);
+    }
+
+    public function test_a_secret_key_alone_never_blocks_sign_ups(): void
+    {
+        // The page can't show the check without the site key, so demanding
+        // one would lock every new customer out.
+        config(['services.turnstile.secret_key' => 'fake-secret', 'services.turnstile.site_key' => null]);
+
+        $this->postJson('/api/auth/register', [
+            'username' => 'realperson',
+            'email' => 'real@example.com',
+            'password' => 'letmein1',
+        ])->assertCreated();
+    }
+
+    public function test_turnstile_can_be_switched_off_for_sign_up(): void
+    {
+        config(['services.turnstile.secret_key' => 'fake-secret', 'services.turnstile.site_key' => 'fake-site', 'services.turnstile.forms.register' => false]);
+
+        $this->postJson('/api/auth/register', [
+            'username' => 'realperson',
+            'email' => 'real@example.com',
+            'password' => 'letmein1',
+        ])->assertCreated();
     }
 }

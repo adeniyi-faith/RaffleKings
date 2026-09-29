@@ -21,7 +21,7 @@ trait RunsAdminActions
         $admin = auth('wordpress')->user();
 
         if (! $admin instanceof WpUser) {
-            throw new RuntimeException('Your admin login has expired. Please sign in again — nothing was changed.');
+            throw new RuntimeException('Your admin login has expired. Please sign in again. Nothing was changed.');
         }
 
         return $admin;

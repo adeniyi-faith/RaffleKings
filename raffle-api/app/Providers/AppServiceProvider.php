@@ -2,8 +2,11 @@
 
 namespace App\Providers;
 
+use App\Mail\Transport\BrevoTransport;
 use App\Services\Payments\FlutterwaveGateway;
 use App\Services\Payments\PaystackGateway;
+use App\Settings\SettingsStore;
+use Illuminate\Support\Facades\Mail;
 use Illuminate\Support\ServiceProvider;
 
 class AppServiceProvider extends ServiceProvider
@@ -28,6 +31,20 @@ class AppServiceProvider extends ServiceProvider
      */
     public function boot(): void
     {
-        //
+        // Admin-edited settings (Settings page) on top of .env — except
+        // while `config:cache` / `optimize` snapshot the config to a file:
+        // that snapshot must hold only .env values, never database values
+        // or decrypted secrets.
+        if (! $this->isCachingConfig()) {
+            SettingsStore::apply();
+        }
+
+        Mail::extend('brevo', fn () => new BrevoTransport);
+    }
+
+    private function isCachingConfig(): bool
+    {
+        return $this->app->runningInConsole()
+            && in_array($_SERVER['argv'][1] ?? null, ['config:cache', 'optimize'], true);
     }
 }

@@ -2,6 +2,16 @@
 
 namespace App\Models\Legacy;
 
+use App\Auth\StaffRoles;
+use App\Models\AdminAuditLog;
+use App\Models\BankAccount;
+use App\Models\Deposit;
+use App\Models\ReferralCommission;
+use App\Models\SupportTicket;
+use App\Models\UserPoints;
+use App\Models\Wallet;
+use App\Models\WalletLedgerEntry;
+use App\Models\WithdrawalRequest;
 use Filament\Models\Contracts\FilamentUser;
 use Filament\Models\Contracts\HasName;
 use Filament\Panel;
@@ -75,6 +85,55 @@ class WpUser extends LegacyModel implements Authenticatable, FilamentUser, HasNa
     public function wins()
     {
         return $this->hasMany(RaffleWinner::class, 'user_id', 'ID');
+    }
+
+    // -- The customer's own records (admin customer profile) ------------
+
+    public function wallet()
+    {
+        return $this->hasOne(Wallet::class, 'user_id', 'ID');
+    }
+
+    public function points()
+    {
+        return $this->hasOne(UserPoints::class, 'user_id', 'ID');
+    }
+
+    public function ledgerEntries()
+    {
+        return $this->hasMany(WalletLedgerEntry::class, 'user_id', 'ID');
+    }
+
+    public function deposits()
+    {
+        return $this->hasMany(Deposit::class, 'user_id', 'ID');
+    }
+
+    public function withdrawalRequests()
+    {
+        return $this->hasMany(WithdrawalRequest::class, 'user_id', 'ID');
+    }
+
+    public function bankAccounts()
+    {
+        return $this->hasMany(BankAccount::class, 'user_id', 'ID');
+    }
+
+    public function supportTickets()
+    {
+        return $this->hasMany(SupportTicket::class, 'user_id', 'ID');
+    }
+
+    /** Commissions this customer earned by referring friends. */
+    public function referralCommissions()
+    {
+        return $this->hasMany(ReferralCommission::class, 'referrer_user_id', 'ID');
+    }
+
+    /** Admin actions taken directly on this account (the profile widens this to their records too). */
+    public function adminActions()
+    {
+        return $this->hasMany(AdminAuditLog::class, 'subject_id', 'ID')->where('subject_type', self::class);
     }
 
     /** Convenience reader — usermeta is unstructured, so keep the awkward
@@ -171,11 +230,48 @@ class WpUser extends LegacyModel implements Authenticatable, FilamentUser, HasNa
         return $this->metaValue('rk_onesignal_id') ?: null;
     }
 
+    // -- Staff roles (App\Auth\StaffRoles) -------------------------------
+
+    /** Worked out once per request. */
+    private ?string $resolvedStaffRole = null;
+
+    private bool $staffRoleResolved = false;
+
+    /**
+     * owner / manager / finance / support / content, or null for a
+     * customer. A WordPress administrator with no role set is an owner.
+     */
+    public function staffRole(): ?string
+    {
+        if (! $this->staffRoleResolved) {
+            $stored = $this->metaValue(StaffRoles::META_KEY);
+
+            $this->resolvedStaffRole = match (true) {
+                $stored === StaffRoles::NO_ACCESS => null,
+                isset(StaffRoles::ROLES[$stored]) => $stored,
+                default => $this->isAdministrator() ? 'owner' : null,
+            };
+            $this->staffRoleResolved = true;
+        }
+
+        return $this->resolvedStaffRole;
+    }
+
+    public function staffCan(string $ability): bool
+    {
+        return StaffRoles::allows($this->staffRole(), $ability);
+    }
+
+    public function forgetStaffRole(): void
+    {
+        $this->staffRoleResolved = false;
+    }
+
     // -- Filament\Models\Contracts\FilamentUser ------------------------
 
     public function canAccessPanel(Panel $panel): bool
     {
-        return $this->isAdministrator();
+        return $this->staffRole() !== null;
     }
 
     // -- Filament\Models\Contracts\HasName ------------------------------

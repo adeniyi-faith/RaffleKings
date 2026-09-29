@@ -18,13 +18,13 @@
             <h2 class="text-lg font-semibold mb-2">Flagged transactions</h2>
 
             @if (empty($flagged))
-                <p class="text-sm text-gray-500">Every verified transaction in this period matched a bank credit — nothing flagged.</p>
+                <p class="text-sm text-gray-500">Every verified transaction in this period matched a bank credit. Nothing flagged.</p>
             @else
                 <div class="space-y-2">
                     @foreach ($flagged as $row)
                         <div class="flex items-center justify-between rounded-lg border border-gray-200 dark:border-gray-700 p-3">
                             <div>
-                                <div class="font-medium">Txn #{{ $row['transaction']->id }} — user #{{ $row['transaction']->user_id }} — ₦{{ number_format((float) $row['transaction']->claimed_amount) }}</div>
+                                <div class="font-medium">Txn #{{ $row['transaction']->id }} · user #{{ $row['transaction']->user_id }} · ₦{{ number_format((float) $row['transaction']->claimed_amount) }}</div>
                                 <div class="text-sm text-gray-500">{{ $row['reason'] }}</div>
                             </div>
                             <x-filament::button

@@ -94,7 +94,7 @@ class StatementExtractionService
         $apiKey = config('services.gemini.api_key');
 
         if (empty($apiKey)) {
-            throw new StatementExtractionException('No Gemini API key configured — set GEMINI_API_KEY to enable statement extraction.');
+            throw new StatementExtractionException('No Gemini API key is set. Add one in Settings → AI to read bank statements.');
         }
 
         $parts = [['text' => $this->prompt()]];
@@ -129,7 +129,7 @@ class StatementExtractionService
         if (! is_array($json)) {
             Log::warning('StatementExtractionService: could not parse a JSON array from the model response.', ['raw' => $text]);
 
-            throw new StatementExtractionException('Could not read any transactions out of the uploaded statement — try a clearer image or enter credits manually.');
+            throw new StatementExtractionException('Could not read any transactions out of the uploaded statement. Try a clearer image or enter credits manually.');
         }
 
         $credits = [];

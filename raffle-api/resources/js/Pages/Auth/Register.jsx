@@ -6,6 +6,7 @@ import { Card } from '../../Components/ui/Card';
 import { TextInput, PasswordInput } from '../../Components/ui/TextInput';
 import Turnstile from '../../Components/Turnstile';
 import { apiPost } from '../../lib/api';
+import PausedNotice from '../../Components/layout/PausedNotice';
 import { safeRedirect } from '../../lib/safeRedirect';
 
 export default function Register({ turnstileSiteKey, referralCode, redirect }) {
@@ -38,6 +39,7 @@ export default function Register({ turnstileSiteKey, referralCode, redirect }) {
     return (
         <>
             <Head title="Create account" />
+            <PausedNotice feature="registrations" className="mx-4 mt-3" />
             <div className="flex min-h-screen items-center justify-center bg-app-bg px-4 py-12 dark:bg-dark-bg">
                 <Card className="w-full max-w-sm rounded-3xl p-8 shadow-xl shadow-gray-200/50 dark:shadow-none">
                     <div className="mb-6 text-center">

@@ -76,7 +76,7 @@ class StatementExtractionControllerTest extends TestCase
         ]);
 
         $response->assertStatus(422);
-        $response->assertJsonFragment(['message' => 'No Gemini API key configured — set GEMINI_API_KEY to enable statement extraction.']);
+        $response->assertJsonFragment(['message' => 'No Gemini API key is set. Add one in Settings → AI to read bank statements.']);
     }
 
     public function test_a_non_statement_file_type_is_rejected_by_validation(): void

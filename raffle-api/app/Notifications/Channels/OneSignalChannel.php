@@ -46,7 +46,7 @@ class OneSignalChannel
             ));
 
         if ($response->failed()) {
-            throw new RuntimeException("OneSignal push failed: HTTP {$response->status()} — {$response->body()}");
+            throw new RuntimeException("OneSignal push failed: HTTP {$response->status()}: {$response->body()}");
         }
     }
 }

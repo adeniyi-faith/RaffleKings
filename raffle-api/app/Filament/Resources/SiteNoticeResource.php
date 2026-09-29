@@ -2,8 +2,10 @@
 
 namespace App\Filament\Resources;
 
+use App\Filament\Concerns\GuardedByStaffRole;
 use App\Filament\Concerns\RunsAdminActions;
 use App\Filament\Resources\SiteNoticeResource\Pages;
+use App\Filament\Support\MobileCard;
 use App\Http\Controllers\Api\SiteNoticeController;
 use App\Models\Legacy\RaffleSiteNotice;
 use App\Services\AdminAuditLogService;
@@ -21,7 +23,12 @@ use Illuminate\Support\Facades\Cache;
  */
 class SiteNoticeResource extends Resource
 {
-    use RunsAdminActions;
+    use GuardedByStaffRole, RunsAdminActions;
+
+    public static function canViewAny(): bool
+    {
+        return static::staffCanOpen();
+    }
 
     protected static ?string $model = RaffleSiteNotice::class;
 
@@ -86,33 +93,47 @@ class SiteNoticeResource extends Resource
         ]);
     }
 
+    private static function showingState(RaffleSiteNotice $record): string
+    {
+        return match (true) {
+            $record->isLive() => 'Showing',
+            ! $record->is_active => 'Switched off',
+            $record->starts_at?->isFuture() => 'Starts '.$record->starts_at->diffForHumans(),
+            default => 'Ended',
+        };
+    }
+
     public static function table(Table $table): Table
     {
         return $table
             ->defaultSort('id', 'desc')
             ->columns([
-                Tables\Columns\TextColumn::make('message')
-                    ->label('Announcement')
-                    ->limit(70)
-                    ->wrap()
-                    ->description(fn (RaffleSiteNotice $record) => $record->title),
-                Tables\Columns\TextColumn::make('location')
-                    ->label('Placement')
-                    ->formatStateUsing(fn (string $state) => RaffleSiteNotice::LOCATIONS[$state] ?? $state)
-                    ->description(fn (RaffleSiteNotice $record) => RaffleSiteNotice::FREQUENCIES[$record->frequency] ?? $record->frequency),
-                Tables\Columns\TextColumn::make('showing')
-                    ->label('On the site now')
-                    ->badge()
-                    ->state(fn (RaffleSiteNotice $record) => match (true) {
-                        $record->isLive() => 'Showing',
-                        ! $record->is_active => 'Switched off',
-                        $record->starts_at?->isFuture() => 'Starts '.$record->starts_at->diffForHumans(),
-                        default => 'Ended',
-                    })
-                    ->color(fn (string $state) => $state === 'Showing' ? 'success' : 'gray'),
-                Tables\Columns\ToggleColumn::make('is_active')
-                    ->label('On')
-                    ->afterStateUpdated(fn (RaffleSiteNotice $record, bool $state) => static::changed($state ? 'site_notice.switched_on' : 'site_notice.switched_off', $record)),
+                // Phone: each row is one card (App\Filament\Support\MobileCard).
+                MobileCard::make(fn (RaffleSiteNotice $record) => [
+                    'title' => $record->title ?: 'Announcement',
+                    'body' => $record->message,
+                    'lines' => [(RaffleSiteNotice::LOCATIONS[$record->location] ?? $record->location).' · '.(RaffleSiteNotice::FREQUENCIES[$record->frequency] ?? $record->frequency)],
+                    'badges' => [[static::showingState($record), static::showingState($record) === 'Showing' ? 'success' : 'gray']],
+                ]),
+                ...MobileCard::desktop([
+                    Tables\Columns\TextColumn::make('message')
+                        ->label('Announcement')
+                        ->limit(70)
+                        ->wrap()
+                        ->description(fn (RaffleSiteNotice $record) => $record->title),
+                    Tables\Columns\TextColumn::make('location')
+                        ->label('Placement')
+                        ->formatStateUsing(fn (string $state) => RaffleSiteNotice::LOCATIONS[$state] ?? $state)
+                        ->description(fn (RaffleSiteNotice $record) => RaffleSiteNotice::FREQUENCIES[$record->frequency] ?? $record->frequency),
+                    Tables\Columns\TextColumn::make('showing')
+                        ->label('On the site now')
+                        ->badge()
+                        ->state(fn (RaffleSiteNotice $record) => static::showingState($record))
+                        ->color(fn (string $state) => $state === 'Showing' ? 'success' : 'gray'),
+                    Tables\Columns\ToggleColumn::make('is_active')
+                        ->label('On')
+                        ->afterStateUpdated(fn (RaffleSiteNotice $record, bool $state) => static::changed($state ? 'site_notice.switched_on' : 'site_notice.switched_off', $record)),
+                ]),
             ])
             ->actions([
                 Tables\Actions\EditAction::make(),

@@ -95,6 +95,6 @@ class HealthCheckCommandTest extends TestCase
         ]);
 
         $this->assertSame(1, Artisan::call('app:health-check', ['--strict' => true]));
-        $this->assertStringContainsString('nothing is sending them', Artisan::output());
+        $this->assertStringContainsString('Nothing is sending them', Artisan::output());
     }
 }

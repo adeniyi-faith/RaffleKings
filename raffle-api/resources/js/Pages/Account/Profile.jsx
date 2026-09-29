@@ -24,12 +24,14 @@ import BottomNav from '../../Components/layout/BottomNav';
 import { formatNaira } from '../../lib/format';
 import { apiPost } from '../../lib/api';
 import { resolveAvatar } from '../../lib/avatar';
+import { useSite } from '../../lib/site';
 
 // Faithful rebuild of the legacy profile.php: the blue avatar header,
 // the guest "join now" card (or the two wallet cards when logged in),
 // and the grouped menu list below.
 export default function Profile() {
     const { auth } = usePage().props;
+    const site = useSite();
     const user = auth?.user;
     const [wallet, setWallet] = useState(0);
     const [earnings, setEarnings] = useState(0);
@@ -214,8 +216,9 @@ export default function Profile() {
 
                         <MenuGroup title="Legal & Support">
                             <MenuLink href="/privacy-policy" icon={ShieldCheck} iconClass="bg-gray-50 text-gray-500 dark:bg-gray-700/50 dark:text-gray-400" title="Privacy Policy" />
+                            {site.links?.telegram_support && (
                             <a
-                                href="https://t.me/rafflekings_customersupport"
+                                href={site.links.telegram_support}
                                 target="_blank"
                                 rel="noreferrer"
                                 className="flex items-center justify-between border-b border-gray-50 p-4 transition-colors hover:bg-gray-50 dark:border-gray-800 dark:hover:bg-gray-800"
@@ -231,21 +234,24 @@ export default function Profile() {
                                 </div>
                                 <ChevronRight className="h-4 w-4 text-gray-300 dark:text-gray-600" />
                             </a>
-                            <a href="mailto:help@rafflekings.com.ng" className="flex items-center justify-between p-4 transition-colors hover:bg-gray-50 dark:hover:bg-gray-800">
+                            )}
+                            {site.support_email && (
+                            <a href={`mailto:${site.support_email}`} className="flex items-center justify-between p-4 transition-colors hover:bg-gray-50 dark:hover:bg-gray-800">
                                 <div className="flex items-center gap-3">
                                     <div className="flex h-8 w-8 items-center justify-center rounded-full bg-blue-50 text-blue-600 dark:bg-blue-900/30 dark:text-blue-400">
                                         <Mail className="h-4 w-4" />
                                     </div>
                                     <div className="flex flex-col">
                                         <span className="text-sm font-medium text-gray-700 dark:text-gray-200">Email Us</span>
-                                        <span className="text-[10px] text-gray-400 dark:text-gray-500">help@rafflekings.com.ng</span>
+                                        <span className="text-[10px] text-gray-400 dark:text-gray-500">{site.support_email}</span>
                                     </div>
                                 </div>
                                 <ChevronRight className="h-4 w-4 text-gray-300 dark:text-gray-600" />
                             </a>
+                            )}
                         </MenuGroup>
 
-                        <p className="pb-2 pt-2 text-center text-[10px] text-gray-400 dark:text-gray-600">RaffleKings</p>
+                        <p className="pb-2 pt-2 text-center text-[10px] text-gray-400 dark:text-gray-600">{site.name || 'RaffleKings'}</p>
                     </div>
                 </div>
 

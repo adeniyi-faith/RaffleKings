@@ -33,13 +33,13 @@ const CONTENT = {
     503: {
         emoji: '🛠️',
         title: 'Quick maintenance',
-        message: "We're making RaffleKings better. We'll be back in a few minutes — your tickets and balance are safe.",
+        message: "We're making RaffleKings better. We'll be back in a few minutes. Your tickets and balance are safe.",
         retry: true,
     },
     500: {
         emoji: '😵',
         title: 'Something went wrong',
-        message: "That's on us, not you. Our team has been alerted. Your tickets and balance are safe — please try again shortly.",
+        message: "That's on us, not you. Our team has been alerted. Your tickets and balance are safe. Please try again shortly.",
         retry: true,
     },
 };

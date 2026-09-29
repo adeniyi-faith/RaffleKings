@@ -5,11 +5,10 @@ namespace Tests\Feature;
 use App\Filament\Pages\DailyAudit;
 use App\Models\Legacy\RaffleTransaction;
 use App\Models\Legacy\WpUser;
-use App\Models\Legacy\WpUserMeta;
 use App\Models\Wallet;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Livewire\Livewire;
-use Tests\Support\AuthenticatesWithWordPressCookie;
+use Tests\Support\ActsAsAdministrator;
 use Tests\TestCase;
 
 /**
@@ -32,20 +31,7 @@ use Tests\TestCase;
  */
 class DailyAuditTest extends TestCase
 {
-    use AuthenticatesWithWordPressCookie, RefreshDatabase;
-
-    private function actingAsAdministrator(): WpUser
-    {
-        $admin = $this->actingAsWordPressUser();
-
-        WpUserMeta::create([
-            'user_id' => $admin->ID,
-            'meta_key' => config('legacy.wp_prefix').'capabilities',
-            'meta_value' => serialize(['administrator' => true]),
-        ]);
-
-        return $admin;
-    }
+    use ActsAsAdministrator, RefreshDatabase;
 
     public function test_a_transaction_with_no_matching_credit_is_flagged_and_can_be_revoked(): void
     {

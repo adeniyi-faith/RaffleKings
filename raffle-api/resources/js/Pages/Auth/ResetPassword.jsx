@@ -22,7 +22,7 @@ export default function ResetPassword({ email }) {
 
         try {
             await apiPost('/api/auth/verify-reset-code', { email, otp });
-            setStatus({ type: 'success', message: 'Code verified — set your new password below.' });
+            setStatus({ type: 'success', message: 'Code verified. Set your new password below.' });
         } catch (err) {
             setStatus({ type: err.message.includes('expired') ? 'warning' : 'error', message: err.message });
         } finally {

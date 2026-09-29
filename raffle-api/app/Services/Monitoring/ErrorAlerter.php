@@ -2,6 +2,7 @@
 
 namespace App\Services\Monitoring;
 
+use App\Models\SiteError;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Log;
@@ -57,6 +58,8 @@ class ErrorAlerter
     /** @param  array<int, string>  $lines */
     private function send(string $fingerprint, string $title, array $lines): void
     {
+        $this->remember($fingerprint, $title, $lines);
+
         try {
             $token = config('services.telegram.bot_token');
             $chatIds = config('services.telegram.admin_chat_ids', []);
@@ -74,7 +77,7 @@ class ErrorAlerter
                 return;
             }
 
-            $text = Str::limit("🚨 RaffleKings — {$title}\n".implode("\n", $lines), 3500);
+            $text = Str::limit("🚨 RaffleKings: {$title}\n".implode("\n", $lines), 3500);
 
             foreach ($chatIds as $chatId) {
                 Http::timeout(3)->post("https://api.telegram.org/bot{$token}/sendMessage", [
@@ -84,6 +87,37 @@ class ErrorAlerter
             }
         } catch (Throwable $alertFailure) {
             Log::warning('Could not send an admin error alert.', ['error' => $alertFailure->getMessage()]);
+        }
+    }
+
+    /**
+     * Keep a count of every distinct error for the admin's System → Health
+     * page. Never throws — a broken database must not hide the real error.
+     *
+     * @param  array<int, string>  $lines
+     */
+    private function remember(string $fingerprint, string $title, array $lines): void
+    {
+        try {
+            $key = sha1($fingerprint);
+            $existing = SiteError::query()->where('fingerprint', $key)->first();
+
+            if ($existing) {
+                $existing->update(['occurrences' => $existing->occurrences + 1, 'last_seen_at' => now(), 'details' => implode("\n", array_slice($lines, 1))]);
+
+                return;
+            }
+
+            SiteError::create([
+                'fingerprint' => $key,
+                'title' => Str::limit($title, 145),
+                'message' => Str::limit($lines[0] ?? $title, 2000),
+                'details' => implode("\n", array_slice($lines, 1)),
+                'first_seen_at' => now(),
+                'last_seen_at' => now(),
+            ]);
+        } catch (Throwable) {
+            // No table yet, or the database itself is the problem.
         }
     }
 

@@ -17,10 +17,6 @@ use Illuminate\Support\Facades\DB;
  */
 class PointRedemptionService
 {
-    private const CONVERSION_RATE = 10; // points per naira
-
-    private const MINIMUM_POINTS = 100;
-
     public function __construct(
         private readonly PointsService $points,
         private readonly WalletLedgerService $walletLedger,
@@ -35,12 +31,14 @@ class PointRedemptionService
     {
         return DB::transaction(function () use ($user) {
             $currentPoints = $this->points->balance($user);
+            // Both editable in Settings → Rewards (config/rewards.php).
+            $minimum = (int) config('rewards.minimum_redeem_points');
 
-            if ($currentPoints < self::MINIMUM_POINTS) {
-                throw new MinimumRedemptionNotMetException(self::MINIMUM_POINTS, $currentPoints);
+            if ($currentPoints < $minimum) {
+                throw new MinimumRedemptionNotMetException($minimum, $currentPoints);
             }
 
-            $walletValue = intdiv($currentPoints, self::CONVERSION_RATE);
+            $walletValue = intdiv($currentPoints, max(1, (int) config('rewards.points_per_naira')));
 
             $this->points->debit($user, $currentPoints, 'redemption', description: "Redeemed {$currentPoints} points for ₦{$walletValue}");
 

@@ -2,6 +2,8 @@
 
 namespace App\Providers\Filament;
 
+use App\Filament\Pages\Auth\AdminLogin;
+use App\Services\Maintenance;
 use Filament\Http\Middleware\Authenticate;
 use Filament\Http\Middleware\DisableBladeIconComponents;
 use Filament\Http\Middleware\DispatchServingFilamentEvent;
@@ -9,6 +11,7 @@ use Filament\Pages;
 use Filament\Panel;
 use Filament\PanelProvider;
 use Filament\Support\Colors\Color;
+use Filament\View\PanelsRenderHook;
 use Illuminate\Cookie\Middleware\AddQueuedCookiesToResponse;
 use Illuminate\Cookie\Middleware\EncryptCookies;
 use Illuminate\Foundation\Http\Middleware\VerifyCsrfToken;
@@ -17,14 +20,13 @@ use Illuminate\Session\Middleware\StartSession;
 use Illuminate\View\Middleware\ShareErrorsFromSession;
 
 /**
- * No `->login()` here on purpose — there is no separate Filament
- * password. An admin logs in through the same legacy WordPress login
- * every other part of this app already bridges (see
- * App\Auth\WordPressSessionGuard); visiting /admin while logged in with
- * an administrator account (WpUser::isAdministrator()) is what grants
- * access, same as every existing `/api/admin/*` route. The cookie this
- * relies on is excepted from EncryptCookies globally in bootstrap/app.php
- * — WordPress sets it, so it was never Laravel-encrypted to begin with.
+ * Staff sign in at /admin/login (App\Filament\Pages\Auth\AdminLogin). It
+ * checks the same WordPress account and password as the customer site and
+ * sets the same login cookie (App\Auth\WordPressSessionGuard), so there is
+ * still only one account and one password per person; only staff roles
+ * (App\Auth\StaffRoles) get in. The cookie is excepted from EncryptCookies
+ * globally in bootstrap/app.php: WordPress sets it, so it was never
+ * Laravel-encrypted. Sign-out is WordPressOrSanctumGuard::logout().
  *
  * No AuthenticateSession middleware either — it calls a StatefulGuard
  * method (viaRemember()) our WordPressSessionGuard deliberately doesn't
@@ -41,9 +43,25 @@ class AdminPanelProvider extends PanelProvider
             ->id('admin')
             ->path('admin')
             ->authGuard('wordpress')
+            // The admin's own sign-in page: same accounts and password check
+            // as the site, staff only (App\Filament\Pages\Auth\AdminLogin).
+            ->login(AdminLogin::class)
+            ->brandName('RaffleKings')
             ->colors([
                 'primary' => Color::Amber,
             ])
+            // Pages swap in place instead of reloading the whole admin —
+            // noticeably quicker on a phone connection.
+            ->spa()
+            ->sidebarCollapsibleOnDesktop()
+            ->sidebarWidth('17rem')
+            ->globalSearchKeyBindings(['command+k', 'ctrl+k'])
+            // Phone layout: styles + "menu starts closed", and the bottom
+            // tab bar (resources/views/filament/hooks).
+            ->renderHook(PanelsRenderHook::HEAD_END, fn () => view('filament.hooks.head'))
+            ->renderHook(PanelsRenderHook::BODY_END, fn () => auth('wordpress')->user()?->staffRole() ? view('filament.hooks.bottom-nav') : '')
+            // A red reminder on every admin page while maintenance mode is on.
+            ->renderHook(PanelsRenderHook::CONTENT_START, fn () => app(Maintenance::class)->active() ? view('filament.hooks.maintenance-banner') : '')
             // Busiest daily queues first (item 44): money in/out, then
             // draws and winners, then the support inbox.
             ->navigationGroups(['Finance', 'Raffles', 'Support', 'Site', 'Users', 'System'])

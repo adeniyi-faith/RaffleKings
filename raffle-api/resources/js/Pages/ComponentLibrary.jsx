@@ -78,7 +78,7 @@ export default function ComponentLibrary({ demoRaffleId }) {
                         </>
                     ) : (
                         <p className="text-sm text-gray-500">
-                            No demo raffle available to quote — seed one to see live price data here.
+                            No demo raffle available to quote. Seed one to see live price data here.
                         </p>
                     )}
                 </section>
