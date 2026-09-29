@@ -2,7 +2,9 @@ name: CI
 
 # Phase 0 item 4: the live PHP site had no tests at all and deployed
 # straight to production on every push to main. This workflow is the gate —
-# deploy.yml requires it to pass before it will touch the live server.
+# (The old site's deploy.yml used to require it; that workflow was removed
+# when the old site was archived. These checks still guard the legacy code
+# until it is deleted in item 40.)
 on:
   push:
     branches: [main]

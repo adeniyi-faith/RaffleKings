@@ -61,6 +61,7 @@ final class StaffRoles
         Filament\Pages\FinancialReconciliation::class => 'money.pay',
         Filament\Resources\PaymentResource::class => ['money.view', 'payments.view'],
         Filament\Pages\Downloads::class => 'reports',
+        Filament\Pages\BusinessInsights::class => 'reports',
         Filament\Resources\Legacy\WpUserResource::class => 'customers.view',
         Filament\Resources\TicketResource::class => 'customers.view',
         Filament\Pages\FraudWatch::class => 'customers.view',
