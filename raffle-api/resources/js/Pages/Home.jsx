@@ -5,6 +5,7 @@ import BottomNav from '../Components/layout/BottomNav';
 import HeroCarousel from '../Components/home/HeroCarousel';
 import GoldenBoxBanner from '../Components/raffles/GoldenBoxBanner';
 import TrendingCard from '../Components/home/TrendingCard';
+import RaffleCard from '../Components/raffles/RaffleCard';
 
 // Faithful rebuild of the legacy homepage (index.php + header.php +
 // footer.php): same top bar, hero carousel, "Play & Win" action grid,
@@ -13,6 +14,8 @@ import TrendingCard from '../Components/home/TrendingCard';
 // $initial_raffles, now via RaffleReadService (see routes/web.php).
 export default function Home({ trending }) {
     const activeTrending = trending.filter((r) => !r.is_closed).slice(0, 10);
+    // Phase 11: flash raffles get their own strip at the top of the list.
+    const flash = activeTrending.filter((r) => r.is_flash);
 
     return (
         <>
@@ -110,6 +113,15 @@ export default function Home({ trending }) {
                             </Link>
                         </div>
                     </section>
+
+                    {flash.length > 0 && (
+                        <section className="mt-2 space-y-3 px-5">
+                            <h2 className="text-lg font-bold tracking-tight text-gray-900 dark:text-white">Flash Raffles ⚡</h2>
+                            {flash.slice(0, 3).map((raffle) => (
+                                <RaffleCard key={raffle.id} raffle={raffle} />
+                            ))}
+                        </section>
+                    )}
 
                     <section className="mb-6 mt-2">
                         <div className="mb-4 flex items-end justify-between px-5">
