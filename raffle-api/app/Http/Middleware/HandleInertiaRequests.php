@@ -72,6 +72,13 @@ class HandleInertiaRequests extends Middleware
                         && ! app(DailyClaimService::class)->state($user)['is_claimed_today'],
                 ] : null,
             ],
+            // Product analytics (Settings → Analytics). No key = the browser
+            // never loads PostHog at all.
+            'analytics' => fn () => filled(config('services.posthog.project_key')) ? [
+                'key' => config('services.posthog.project_key'),
+                'host' => config('services.posthog.host'),
+                'recordings' => (bool) config('services.posthog.recordings'),
+            ] : null,
             // Admin-editable (Settings page): contact details, links, the
             // on/off switches and the numbers pages show customers.
             'site' => fn () => [

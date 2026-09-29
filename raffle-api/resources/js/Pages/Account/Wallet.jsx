@@ -129,7 +129,7 @@ export default function AccountWallet({ minimumDeposit = 100, recentTopups = [] 
                                 <p className="flex items-center gap-1.5 text-[11px] font-bold uppercase tracking-wider text-blue-100">
                                     <WalletIcon className="h-3.5 w-3.5" /> Spending wallet
                                 </p>
-                                <p className="mt-1 text-3xl font-black tracking-tight">{balances ? show(balances.wallet) : '…'}</p>
+                                <p data-rk-mask className="mt-1 text-3xl font-black tracking-tight">{balances ? show(balances.wallet) : '…'}</p>
                             </div>
                             <button
                                 type="button"
@@ -145,7 +145,7 @@ export default function AccountWallet({ minimumDeposit = 100, recentTopups = [] 
                                 <p className="flex items-center gap-1.5 text-[10px] font-bold uppercase tracking-wider text-blue-100">
                                     <Award className="h-3 w-3" /> Winnings
                                 </p>
-                                <p className="text-lg font-black">{balances ? show(balances.earnings) : '…'}</p>
+                                <p data-rk-mask className="text-lg font-black">{balances ? show(balances.earnings) : '…'}</p>
                             </div>
                             {balances?.earnings > 0 && (
                                 <button

@@ -21,6 +21,7 @@ import { useTimeLeft } from '../../hooks/useTimeLeft';
 import { formatNaira } from '../../lib/format';
 import BoostPanel from '../../Components/social/BoostPanel';
 import { apiPost } from '../../lib/api';
+import { track } from '../../lib/analytics';
 import { refreshBalances, useBalances } from '../../lib/balances';
 import PausedNotice from '../../Components/layout/PausedNotice';
 import Confetti from '../../Components/ui/Confetti';
@@ -129,6 +130,11 @@ export default function CheckoutIndex({ raffle, ticketNumbers, qty, minimumDepos
     // A top-up lands in the wallet, so it's sized for the wallet's gap.
     const topUpAmount = Math.max(Number(minimumDeposit) || 0, Math.ceil(winningsGap));
 
+    // Someone reached the payment step (paid or not is recorded by the server).
+    useEffect(() => {
+        track('checkout_viewed', { raffle_id: raffle.id, ticket_count: ticketNumbers.length });
+    }, [raffle.id]);
+
     async function pay({ coverWithWinnings = false } = {}) {
         setError(null);
         setTakenNumbers([]);
@@ -153,6 +159,9 @@ export default function CheckoutIndex({ raffle, ticketNumbers, qty, minimumDepos
             const data = await response.json().catch(() => ({}));
 
             if (! response.ok) {
+                // The customer tried to pay and it didn't go through (409 = numbers taken, 402 = not enough money).
+                track('payment_failed', { raffle_id: raffle.id, http_status: response.status });
+
                 if (response.status === 409 && data.unavailable_numbers) {
                     setTakenNumbers(data.unavailable_numbers);
                     throw new Error(
@@ -488,7 +497,7 @@ function PaymentMethodCard({ icon: Icon, iconClass, title, balance, selected, af
                 </div>
                 <div className="flex-1">
                     <p className="font-bold text-gray-900 dark:text-white">{title}</p>
-                    <p className="text-xs text-gray-500 dark:text-gray-400">
+                    <p data-rk-mask className="text-xs text-gray-500 dark:text-gray-400">
                         Balance: {balance === undefined || balance === null ? '…' : formatNaira(balance)}
                     </p>
                     {balance !== undefined && balance !== null && ! affordable && (

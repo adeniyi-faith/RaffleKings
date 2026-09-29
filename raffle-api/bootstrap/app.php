@@ -7,6 +7,7 @@ use App\Http\Middleware\EnsureUserIsAdministrator;
 use App\Http\Middleware\HandleInertiaRequests;
 use App\Http\Middleware\MaintenanceMode;
 use App\Http\Middleware\SecurityHeaders;
+use App\Http\Middleware\TrackApiActions;
 use App\Http\Middleware\VerifyApiOrigin;
 use App\Services\Monitoring\ErrorAlerter;
 use Illuminate\Foundation\Application;
@@ -38,7 +39,7 @@ return Application::configure(basePath: dirname(__DIR__))
         $middleware->alias(['admin' => EnsureUserIsAdministrator::class, 'feature' => EnsureFeatureOn::class, 'not-on-break' => EnsureNotOnBreak::class]);
         $middleware->web(append: [HandleInertiaRequests::class, MaintenanceMode::class]);
         // Maintenance mode (Settings → On / off) covers the API too.
-        $middleware->api(append: [MaintenanceMode::class]);
+        $middleware->api(append: [MaintenanceMode::class, TrackApiActions::class]);
 
         // Phase 10 security pass: browser security headers everywhere,
         // cross-site request checks on the cookie-signed-in API, and a

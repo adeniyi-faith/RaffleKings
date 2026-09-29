@@ -4,6 +4,7 @@ import { AlertCircle, ArrowLeft, ArrowRight, Shuffle, X } from 'lucide-react';
 import { useTicketPriceQuote } from '../../hooks/useTicketPriceQuote';
 import { formatNaira } from '../../lib/format';
 import { echoOrNull } from '../../lib/echo';
+import { track } from '../../lib/analytics';
 
 export default function SelectNumbers({ raffle, qty, takenNumbers, maxTickets, preselected = [] }) {
     const [selected, setSelected] = useState(preselected);
@@ -116,6 +117,7 @@ export default function SelectNumbers({ raffle, qty, takenNumbers, maxTickets, p
             numbers: selected.join(','),
         });
 
+        track('checkout_started', { raffle_id: raffle.id, ticket_count: selected.length });
         router.visit(`/checkout?${params}`);
     }
 

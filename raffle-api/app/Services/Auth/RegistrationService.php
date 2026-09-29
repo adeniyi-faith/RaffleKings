@@ -96,6 +96,10 @@ class RegistrationService
 
         $cookie = $this->cookieIssuer->issue($user, ttlSeconds: 14 * 24 * 60 * 60, ip: $ip, userAgent: $userAgent);
 
+        app(\App\Services\Analytics\Analytics::class)->capture($user->ID, 'signup_completed', [
+            'referred' => filled($data['referral_code'] ?? null),
+        ], ['signed_up_at' => now()->toIso8601String()]);
+
         return ['user' => $user, 'cookie' => $cookie];
     }
 
