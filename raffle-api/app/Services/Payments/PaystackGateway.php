@@ -89,7 +89,8 @@ class PaystackGateway implements PaymentGateway
 
         $signature = $request->header('x-paystack-signature');
 
-        if (! $signature) {
+        // With no secret key, anyone could produce a "valid" signature.
+        if (! $signature || ! $this->secretKey) {
             return false;
         }
 
