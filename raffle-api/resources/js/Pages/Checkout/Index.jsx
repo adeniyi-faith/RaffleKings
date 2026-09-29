@@ -19,6 +19,7 @@ import { useLiveRaffle } from '../../hooks/useLiveRaffle';
 import { useTicketPriceQuote } from '../../hooks/useTicketPriceQuote';
 import { useTimeLeft } from '../../hooks/useTimeLeft';
 import { formatNaira } from '../../lib/format';
+import BoostPanel from '../../Components/social/BoostPanel';
 import { apiPost } from '../../lib/api';
 import { refreshBalances, useBalances } from '../../lib/balances';
 import PausedNotice from '../../Components/layout/PausedNotice';
@@ -557,6 +558,10 @@ function SuccessModal({ raffle, amount, numbers, bonusEntries = 0 }) {
                                 ⭐ Plus {bonusEntries} free bonus {bonusEntries === 1 ? 'entry' : 'entries'} in this draw
                             </p>
                         )}
+
+                        <div className="mb-4 w-full">
+                            <BoostPanel raffleId={raffle.id} raffleTitle={raffle.title} compact />
+                        </div>
 
                         <div className="mb-6 w-full rounded-2xl border border-gray-100 bg-gray-50 p-3 dark:border-gray-700 dark:bg-dark-bg/50">
                             <p className="mb-2 flex items-center justify-center gap-1 text-[10px] font-bold uppercase tracking-wider text-gray-400">
