@@ -7,6 +7,7 @@ use App\Exceptions\TaskNotReadyException;
 use App\Exceptions\UnknownTaskException;
 use App\Models\CompletedTask;
 use App\Models\Legacy\WpUser;
+use App\Services\Engagement\Progress;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
@@ -186,6 +187,7 @@ class TaskClaimService
 
             $reward = self::rewards()[$taskId];
             $newBalance = $this->points->credit($user, $reward, 'task_claim', description: "Completed task: {$taskId}");
+            app(Progress::class)->taskCompleted($user->ID, $taskId);
 
             return ['task_id' => $taskId, 'points_added' => $reward, 'new_total_points' => $newBalance];
         });

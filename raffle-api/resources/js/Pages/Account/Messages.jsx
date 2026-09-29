@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { Head, Link, router } from '@inertiajs/react';
-import { ArrowLeft, ArrowRight, ArrowUpRight, BellOff, CheckCheck, Gift, LifeBuoy, Trophy, Users, Wallet } from 'lucide-react';
+import { ArrowLeft, ArrowRight, ArrowUpRight, BellOff, CheckCheck, Gift, LifeBuoy, Star, Trophy, Users, Wallet } from 'lucide-react';
 import { apiPost } from '../../lib/api';
 
 // The customer's notifications (the bell): personal alerts (support
@@ -14,6 +14,7 @@ const KINDS = {
     wallet: { icon: Wallet, colour: 'bg-emerald-500' },
     withdrawal: { icon: ArrowUpRight, colour: 'bg-sky-500' },
     referral: { icon: Users, colour: 'bg-pink-500' },
+    reward: { icon: Star, colour: 'bg-fuchsia-500' },
     news: { icon: Gift, colour: 'bg-app-primary' },
 };
 

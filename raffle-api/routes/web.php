@@ -371,6 +371,9 @@ Route::get('/raffles/{raffle}/verify', function (Raffle $raffle) {
     ]);
 });
 
+// Phase 11 community and engagement pages.
+require __DIR__.'/engagement.php';
+
 // Old-site addresses (OVERHAUL_CHECKLIST.md item 42) — registered after
 // every real page above, so a new page always wins over a redirect. Both
 // `winners.php` and `/winners` worked on the old site, so both redirect,
