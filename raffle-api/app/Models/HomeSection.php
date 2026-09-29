@@ -18,7 +18,14 @@ class HomeSection extends Model
 
     protected $fillable = ['type', 'title', 'subtitle', 'badge', 'link_label', 'link_url', 'sort_order', 'is_visible'];
 
+    protected $attributes = ['is_visible' => true, 'sort_order' => 0];
+
     protected $casts = ['is_visible' => 'boolean', 'sort_order' => 'integer'];
+
+    public function setIsVisibleAttribute($value): void
+    {
+        $this->attributes['is_visible'] = $value === null ? true : (bool) $value;
+    }
 
     public function items(): HasMany
     {
