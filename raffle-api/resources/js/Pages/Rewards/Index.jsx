@@ -399,6 +399,20 @@ export default function RewardsIndex({ referralCode, preview = null }) {
                     <PausedNotice feature="point_redemption" />
                     <PausedNotice feature="daily_claim" />
 
+                    {/* Phase 11: daily predictions and invite friends. */}
+                    <div className="grid grid-cols-2 gap-3">
+                        <Link href="/rewards/predict" className="rounded-2xl bg-gradient-to-br from-emerald-500 to-teal-700 p-4 text-white shadow-lg shadow-emerald-500/20 active:scale-[0.98]">
+                            <p className="text-2xl">🔮</p>
+                            <p className="mt-1 text-sm font-black">Daily Predictions</p>
+                            <p className="text-[11px] text-emerald-100">Call it right, earn points</p>
+                        </Link>
+                        <Link href="/referrals" className="rounded-2xl bg-gradient-to-br from-orange-500 to-red-600 p-4 text-white shadow-lg shadow-orange-500/20 active:scale-[0.98]">
+                            <p className="text-2xl">🤝</p>
+                            <p className="mt-1 text-sm font-black">Invite Friends</p>
+                            <p className="text-[11px] text-orange-100">Climb the referral ladder</p>
+                        </Link>
+                    </div>
+
                     {/* Phase 11: the free Season Pass track. */}
                     <Link
                         href="/rewards/season"
