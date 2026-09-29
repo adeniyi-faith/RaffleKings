@@ -168,6 +168,17 @@ export default function AccountTickets() {
                                                     {n}
                                                 </span>
                                             ))}
+                                            {group.bonus_entries > 0 && (
+                                                <span
+                                                    className={`rounded border px-2 py-1 text-xs font-bold shadow-sm ${
+                                                        winning.has('Bonus entry')
+                                                            ? 'border-yellow-500 bg-yellow-400 text-yellow-950'
+                                                            : 'border-yellow-300 bg-yellow-50 text-yellow-800 dark:border-yellow-800/50 dark:bg-yellow-900/20 dark:text-yellow-300'
+                                                    }`}
+                                                >
+                                                    +{group.bonus_entries} free bonus {group.bonus_entries === 1 ? 'entry' : 'entries'}
+                                                </span>
+                                            )}
                                         </div>
                                     </div>
 
@@ -184,7 +195,7 @@ export default function AccountTickets() {
                                                             You won {w.prize_cash_value > 0 ? formatNaira(w.prize_cash_value) : w.prize_name}!
                                                         </p>
                                                         <p className="text-[11px] font-semibold">
-                                                            Ticket {w.ticket_number}
+                                                            {w.ticket_number === 'Bonus entry' ? 'Free bonus entry' : `Ticket ${w.ticket_number}`}
                                                             {' · '}
                                                             {w.prize_cash_value > 0
                                                                 ? w.is_credited

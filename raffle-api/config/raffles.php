@@ -17,4 +17,20 @@ return [
     */
     'list_closed_for_days' => (int) env('RAFFLES_LIST_CLOSED_FOR_DAYS', 14),
 
+    /*
+    | Draw rules a raffle uses unless an admin changes them on the raffle
+    | (App\Services\Draw\DrawRules). These defaults are exactly how draws
+    | have always worked: one prize per person, and anyone who won any
+    | raffle in the 3 days before the draw sits this one out.
+    */
+    'default_draw_rules' => [
+        'max_wins_per_person' => 1,
+        'recent_winner_cooldown_days' => 3,
+        'top_prize_cooldown_days' => 0,
+        'min_tier' => null,
+        'new_players_only' => false,
+        'loyalty_bonus_entries' => false,
+        'consolation_min_tickets' => 0,
+        'consolation_points' => 0,
+    ],
 ];

@@ -105,6 +105,15 @@
             </script>
         @endif
 
+        {{--
+            Live updates (Phase 9): the PUBLIC Pusher key and cluster, only
+            when live updates are switched on (Settings → Alerts & push).
+            The secret never leaves the server.
+        --}}
+        @if(config('broadcasting.default') === 'pusher' && filled(config('broadcasting.connections.pusher.key')))
+            <script>window.__rkLive = @json(['key' => config('broadcasting.connections.pusher.key'), 'cluster' => config('broadcasting.connections.pusher.options.cluster', 'mt1')]);</script>
+        @endif
+
         @vite(['resources/css/app.css', 'resources/js/app.jsx'])
         @inertiaHead
     </head>

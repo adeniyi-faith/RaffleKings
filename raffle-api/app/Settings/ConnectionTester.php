@@ -5,6 +5,8 @@ namespace App\Settings;
 use Illuminate\Http\Client\Response;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Mail;
+use Pusher\ApiErrorException;
+use Pusher\Pusher;
 use Throwable;
 
 /**
@@ -147,6 +149,31 @@ final class ConnectionTester
         }
 
         return [true, "Test email sent to {$to}. Check the inbox (and spam folder)."];
+    }
+
+    /**
+     * Pusher (live updates, Phase 9): a signed request for the app's
+     * channels proves the app id, key, secret and cluster all match.
+     *
+     * @return array{0: bool, 1: string}
+     */
+    public function pusher(?string $appId, ?string $key, ?string $secret, ?string $cluster): array
+    {
+        if (blank($appId) || blank($key) || blank($secret)) {
+            return [false, 'Enter the app_id, key and secret first (all three are on the Pusher app\'s "App Keys" page).'];
+        }
+
+        try {
+            (new Pusher($key, $secret, $appId, ['cluster' => $cluster ?: 'mt1', 'useTLS' => true]))->getChannels();
+        } catch (ApiErrorException $e) {
+            return [false, in_array($e->getCode(), [401, 403], true)
+                ? 'Pusher rejected the keys. Check the app_id, key and secret were copied in full, with no spaces.'
+                : 'Pusher replied with an error ('.$e->getCode().'). Check the cluster (e.g. eu or mt1).'];
+        } catch (Throwable $e) {
+            return [false, 'Could not reach Pusher. Check the cluster (e.g. eu or mt1).'];
+        }
+
+        return [true, 'Pusher accepted the keys. Set "Live updates" to On and save.'];
     }
 
     /** @return array{0: bool, 1: string} */

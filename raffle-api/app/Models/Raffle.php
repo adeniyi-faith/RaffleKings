@@ -3,6 +3,7 @@
 namespace App\Models;
 
 use App\Models\Legacy\RaffleEntry;
+use App\Services\Draw\DrawRules;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\HasMany;
@@ -47,9 +48,12 @@ class Raffle extends Model
         'live_draw_theme_color',
         'live_draw_scheduled_at',
         'live_draw_started_at',
+        // Raffle Rules Engine: this raffle's published draw rules.
+        'draw_rules',
     ];
 
     protected $casts = [
+        'draw_rules' => 'array',
         'price' => 'decimal:2',
         'public_id' => 'integer',
         'max_tickets' => 'integer',
@@ -180,5 +184,20 @@ class Raffle extends Model
     public function isClosed(): bool
     {
         return $this->closedReason() !== null;
+    }
+
+    /** This raffle's draw rules, with the site defaults filling any gaps (Raffle Rules Engine). */
+    public function drawRules(): DrawRules
+    {
+        return DrawRules::fromArray($this->draw_rules);
+    }
+
+    /**
+     * Draw rules can't change once anyone has bought a ticket or the draw
+     * seed is locked — customers bought under the published rules.
+     */
+    public function drawRulesLocked(): bool
+    {
+        return $this->soldTickets() > 0 || RaffleDraw::query()->where('raffle_id', $this->id)->exists();
     }
 }

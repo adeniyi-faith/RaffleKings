@@ -98,6 +98,15 @@ final class HealthReport
         $this->optionalSetting('GEMINI_API_KEY', filled(config('services.gemini.api_key')), 'The admin Daily Audit statement reader is unavailable.');
 
         $broadcaster = (string) config('broadcasting.default');
+
+        if ($broadcaster === 'pusher') {
+            $pusher = config('broadcasting.connections.pusher');
+            $complete = filled($pusher['app_id'] ?? null) && filled($pusher['key'] ?? null) && filled($pusher['secret'] ?? null);
+            $complete
+                ? $this->addOk('Live updates (Pusher)', 'On, cluster '.($pusher['options']['cluster'] ?? 'mt1').'.')
+                : $this->addCritical('Live updates (Pusher)', 'Switched on but the app_id, key or secret is missing, so live events fail. Fill them in Settings → Alerts & push, or switch live updates off.');
+        }
+
         $this->optionalSetting(
             'BROADCAST_CONNECTION',
             ! in_array($broadcaster, ['log', 'null'], true),

@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { Head } from '@inertiajs/react';
 import { ArrowLeft, CreditCard, Lock, PlusCircle, Trash2 } from 'lucide-react';
+import LoadError from '../../Components/ui/LoadError';
 
 // Faithful rebuild of bank-details.php + components/user/bank-accounts-list.php
 // and add-bank-sheet.php against BankAccountController (item 12) — same
@@ -22,11 +23,21 @@ export default function AccountBankAccounts() {
     const [formError, setFormError] = useState('');
     const [saving, setSaving] = useState(false);
 
+    // Phase 9: a failed load says so, instead of "no bank accounts yet".
+    const [loadFailed, setLoadFailed] = useState(false);
+
     function loadAccounts() {
-        fetch('/api/bank-accounts')
-            .then((res) => (res.ok ? res.json() : { accounts: [] }))
+        setLoadFailed(false);
+        fetch('/api/bank-accounts', { headers: { Accept: 'application/json' } })
+            .then((res) => {
+                if (! res.ok) throw new Error();
+                return res.json();
+            })
             .then((data) => setAccounts(data.accounts || []))
-            .catch(() => setAccounts([]));
+            .catch(() => {
+                setAccounts(null);
+                setLoadFailed(true);
+            });
     }
 
     useEffect(loadAccounts, []);
@@ -122,7 +133,9 @@ export default function AccountBankAccounts() {
                 </div>
 
                 <section className="space-y-4 p-5">
-                    {accounts === null && (
+                    {loadFailed && <LoadError onRetry={loadAccounts} />}
+
+                    {accounts === null && ! loadFailed && (
                         <div className="space-y-4">
                             {[0, 1].map((i) => (
                                 <div key={i} className="h-20 animate-pulse rounded-xl bg-gray-100 dark:bg-gray-800" />

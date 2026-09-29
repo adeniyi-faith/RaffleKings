@@ -20,6 +20,7 @@ import { usePushPermission } from '../../hooks/usePushPermission';
 import BottomNav from '../../Components/layout/BottomNav';
 import { setBalances, useBalances } from '../../lib/balances';
 import ResultModal from '../../Components/rewards/ResultModal';
+import LoadError from '../../Components/ui/LoadError';
 
 // Rebuild of rewards.php (item 28). What's preserved from the legacy
 // page: the blue hero with a points badge and a 7-day streak row, the
@@ -82,6 +83,7 @@ export default function RewardsIndex({ referralCode, preview = null }) {
     const [state, setState] = useState(null);
     const [referral, setReferral] = useState(null);
     const [busy, setBusy] = useState(null); // id of whatever action is in flight
+    const [stateFailed, setStateFailed] = useState(false);
     const [modal, setModal] = useState(null); // { kind, title, message, balance?, confetti? }
     const [copied, setCopied] = useState(false);
     const [taskReadyAt, setTaskReadyAt] = useState({}); // task id → when Claim unlocks (ms)
@@ -106,8 +108,13 @@ export default function RewardsIndex({ referralCode, preview = null }) {
     }, []);
 
     function loadState() {
+        setStateFailed(false);
+
         return fetch('/api/rewards/state', { credentials: 'same-origin', headers: { Accept: 'application/json' } })
-            .then((res) => (res.ok ? res.json() : null))
+            .then((res) => {
+                if (! res.ok) throw new Error();
+                return res.json();
+            })
             .then((data) => {
                 setState(data);
                 if (data) setBalances({ points: data.points });
@@ -118,7 +125,8 @@ export default function RewardsIndex({ referralCode, preview = null }) {
                 });
                 setTaskReadyAt(ready);
             })
-            .catch(() => setState(null));
+            // Phase 9: say so (with Try again) instead of showing an empty streak and tasks.
+            .catch(() => setStateFailed(true));
     }
 
     async function post(url) {
@@ -354,6 +362,7 @@ export default function RewardsIndex({ referralCode, preview = null }) {
                 </div>
 
                 <div className="relative z-20 -mt-6 space-y-5 px-5">
+                    {stateFailed && ! state && <LoadError onRetry={loadState} message="Couldn't load your rewards. Check your connection and try again." />}
                     {site.points_boost && (
                         <div className="flex items-center gap-3 rounded-2xl bg-gradient-to-r from-amber-400 to-orange-500 p-4 text-white shadow-lg shadow-orange-500/20">
                             <div className="flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-full bg-white/20 text-lg font-black">
@@ -368,6 +377,7 @@ export default function RewardsIndex({ referralCode, preview = null }) {
                             </div>
                         </div>
                     )}
+                    {state?.loyalty && <LoyaltyCard loyalty={state.loyalty} />}
                     {/* Redeem card */}
                     <div className="flex items-center justify-between rounded-2xl border border-gray-100 bg-white p-5 shadow-sm dark:border-gray-800 dark:bg-dark-card">
                         <div>
@@ -593,6 +603,72 @@ function MiniWheel({ odds }) {
             />
             <span className="absolute left-1/2 top-1/2 h-4 w-4 -translate-x-1/2 -translate-y-1/2 rounded-full border-2 border-amber-200 bg-white" />
             <span className="absolute -top-1 left-1/2 h-0 w-0 -translate-x-1/2 border-x-[6px] border-t-[9px] border-x-transparent border-t-red-600" />
+        </div>
+    );
+}
+
+const TIER_STYLES = {
+    bronze: 'from-amber-700 to-orange-800',
+    silver: 'from-slate-400 to-slate-600',
+    gold: 'from-yellow-400 to-amber-500',
+    diamond: 'from-cyan-400 to-blue-600',
+};
+
+// Raffle Rules Engine: the customer's loyalty tier, what it gives, and
+// exactly what the next tier still needs.
+function LoyaltyCard({ loyalty }) {
+    const { tier, next, active_weeks: weeks, tickets, window_weeks: windowWeeks } = loyalty;
+    const weeksPct = next ? Math.min(100, Math.round((weeks / Math.max(1, next.min_active_weeks)) * 100)) : 100;
+    const ticketsPct = next ? Math.min(100, Math.round((tickets / Math.max(1, next.min_tickets)) * 100)) : 100;
+
+    return (
+        <div className="overflow-hidden rounded-2xl border border-gray-100 bg-white shadow-sm dark:border-gray-800 dark:bg-dark-card">
+            <div className={`flex items-center gap-3 bg-gradient-to-r ${TIER_STYLES[tier.key] ?? TIER_STYLES.bronze} p-4 text-white`}>
+                <div className="flex h-11 w-11 flex-shrink-0 items-center justify-center rounded-full bg-white/20 text-lg font-black">
+                    {tier.name.charAt(0)}
+                </div>
+                <div className="min-w-0 flex-1">
+                    <p className="text-[10px] font-bold uppercase tracking-wider text-white/80">Loyalty tier</p>
+                    <h3 className="text-lg font-black">{tier.name}</h3>
+                </div>
+                {tier.bonus_entries > 0 && (
+                    <span className="rounded-full bg-white/20 px-3 py-1 text-[11px] font-bold">
+                        +{tier.bonus_entries} bonus {tier.bonus_entries === 1 ? 'entry' : 'entries'}
+                    </span>
+                )}
+            </div>
+            <div className="space-y-3 p-4 text-xs text-gray-600 dark:text-gray-300">
+                <p>
+                    In the last {windowWeeks} weeks you played in <strong>{weeks}</strong> {weeks === 1 ? 'week' : 'weeks'} and bought{' '}
+                    <strong>{tickets}</strong> {tickets === 1 ? 'ticket' : 'tickets'}.
+                </p>
+                {next ? (
+                    <>
+                        <p className="font-bold text-gray-900 dark:text-white">
+                            Next: {next.name}
+                            {next.bonus_entries > 0 && ` (+${next.bonus_entries} free bonus ${next.bonus_entries === 1 ? 'entry' : 'entries'} in bonus raffles)`}
+                        </p>
+                        <Progress label={`Weeks played: ${weeks} of ${next.min_active_weeks}`} pct={weeksPct} />
+                        <Progress label={`Tickets: ${tickets} of ${next.min_tickets}`} pct={ticketsPct} />
+                    </>
+                ) : (
+                    <p className="font-bold text-gray-900 dark:text-white">You're at the top tier. Keep playing each week to stay here.</p>
+                )}
+                <p className="text-[11px] text-gray-400">
+                    Play a little each week to move up. Bonus entries are free extra chances in raffles marked for them, shown on each raffle's "How this draw works".
+                </p>
+            </div>
+        </div>
+    );
+}
+
+function Progress({ label, pct }) {
+    return (
+        <div>
+            <p className="mb-1 text-[11px]">{label}</p>
+            <div className="h-2 overflow-hidden rounded-full bg-gray-100 dark:bg-gray-700">
+                <div className="h-full rounded-full bg-app-primary transition-all" style={{ width: `${pct}%` }} />
+            </div>
         </div>
     );
 }

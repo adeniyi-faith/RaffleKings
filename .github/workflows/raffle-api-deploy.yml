@@ -232,6 +232,10 @@ jobs:
         #              MAIL_USERNAME, MAIL_PASSWORD, MAIL_FROM_ADDRESS
         #   Alerts:    TELEGRAM_BOT_TOKEN, TELEGRAM_ADMIN_CHAT_IDS,
         #              ONESIGNAL_APP_ID, ONESIGNAL_API_KEY
+        #   Live:      PUSHER_APP_ID, PUSHER_APP_KEY, PUSHER_APP_SECRET,
+        #              PUSHER_APP_CLUSTER (live updates go through Pusher
+        #              once all four are set; they can also be entered in
+        #              the admin's Settings → Alerts & push instead)
         #   Other:     TURNSTILE_SITE_KEY, TURNSTILE_SECRET_KEY,
         #              GEMINI_API_KEY
         # Any that are missing are listed by the "Health check" step at
@@ -299,7 +303,13 @@ jobs:
             # the WordPress-compatible login cookie (WordPressCookieFactory).
             SESSION_SECURE_COOKIE=true
 
-            BROADCAST_CONNECTION=log
+            # Live draws, ticket counters and "N watching" (Phase 9): Pusher
+            # when its keys are set, otherwise pages refresh every few seconds.
+            BROADCAST_CONNECTION=${{ secrets.PUSHER_APP_KEY != '' && 'pusher' || 'log' }}
+            PUSHER_APP_ID=${{ secrets.PUSHER_APP_ID }}
+            PUSHER_APP_KEY=${{ secrets.PUSHER_APP_KEY }}
+            PUSHER_APP_SECRET=${{ secrets.PUSHER_APP_SECRET }}
+            PUSHER_APP_CLUSTER=${{ secrets.PUSHER_APP_CLUSTER }}
             FILESYSTEM_DISK=local
             QUEUE_CONNECTION=database
             # Longer than the scheduled worker's --timeout=600

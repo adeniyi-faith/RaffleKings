@@ -104,6 +104,51 @@ class RaffleResource extends Resource
                             ->content(fn (?Raffle $record) => $record ? ucfirst($record->live_draw_status) : 'idle')
                             ->visible(fn (Forms\Get $get, ?Raffle $record) => $get('is_live_draw_enabled') && $record),
                     ]),
+
+                // Raffle Rules Engine: every rule here is published on the
+                // raffle page and locked into the draw's fairness proof.
+                Forms\Components\Section::make('Draw rules')
+                    ->description(fn (?Raffle $record) => $record?->drawRulesLocked()
+                        ? '🔒 Locked: tickets have been sold or the draw seed is locked, and customers bought under these rules.'
+                        : 'Shape how prizes spread. Winners are still picked at random, and every rule here is shown to customers on the raffle page ("How this draw works").')
+                    ->collapsible()
+                    ->disabled(fn (?Raffle $record) => (bool) $record?->drawRulesLocked())
+                    ->columns(2)
+                    ->schema([
+                        Forms\Components\TextInput::make('draw_rules.max_wins_per_person')
+                            ->label('Most prizes one person can win')
+                            ->numeric()->minValue(1)->maxValue(50)
+                            ->default(fn () => config('raffles.default_draw_rules.max_wins_per_person'))
+                            ->helperText('1 = everyone wins at most one prize.'),
+                        Forms\Components\TextInput::make('draw_rules.recent_winner_cooldown_days')
+                            ->label('Recent-winner rest (days)')
+                            ->numeric()->minValue(0)->maxValue(365)
+                            ->default(fn () => config('raffles.default_draw_rules.recent_winner_cooldown_days'))
+                            ->helperText('Anyone who won any raffle this many days before the draw sits it out. 0 = off.'),
+                        Forms\Components\TextInput::make('draw_rules.top_prize_cooldown_days')
+                            ->label('Top-prize rest (days)')
+                            ->numeric()->minValue(0)->maxValue(365)
+                            ->default(0)
+                            ->helperText('A recent top-prize winner can\'t take this top prize (other prizes are fine). 0 = off.'),
+                        Forms\Components\Select::make('draw_rules.min_tier')
+                            ->label('Who can enter')
+                            ->options(['' => 'Everyone', 'silver' => 'Silver members and above', 'gold' => 'Gold members and above', 'diamond' => 'Diamond members only'])
+                            ->default(''),
+                        Forms\Components\Toggle::make('draw_rules.new_players_only')
+                            ->label('New players only')
+                            ->helperText('Only people who have never bought a ticket in another raffle.'),
+                        Forms\Components\Toggle::make('draw_rules.loyalty_bonus_entries')
+                            ->label('Give loyalty bonus entries')
+                            ->helperText('Loyal players get free extra entries (numbers set in Settings → Loyalty). They join the draw like tickets.'),
+                        Forms\Components\TextInput::make('draw_rules.consolation_min_tickets')
+                            ->label('Consolation: tickets needed')
+                            ->numeric()->minValue(0)->default(0)
+                            ->helperText('Buy at least this many and don\'t win…'),
+                        Forms\Components\TextInput::make('draw_rules.consolation_points')
+                            ->label('Consolation: reward points')
+                            ->numeric()->minValue(0)->default(0)
+                            ->helperText('…and get this many points. 0 = off.'),
+                    ]),
             ]);
     }
 
