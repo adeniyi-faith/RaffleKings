@@ -135,6 +135,7 @@ Route::middleware('auth:wordpress')->group(function () {
 
     Route::get('/rewards/state', [RewardsController::class, 'state']);
     Route::post('/rewards/daily-claim', [RewardsController::class, 'claimDaily'])->middleware('feature:daily_claim');
+    Route::post('/rewards/tasks/{task}/start', [RewardsController::class, 'startTask'])->middleware(['feature:tasks', 'throttle:30,1']);
     Route::post('/rewards/tasks/{task}/claim', [RewardsController::class, 'claimTask'])->middleware('feature:tasks');
     Route::post('/rewards/spin', [RewardsController::class, 'spin'])->middleware('feature:spin');
     Route::post('/rewards/redeem', [RewardsController::class, 'redeem'])->middleware('feature:point_redemption');

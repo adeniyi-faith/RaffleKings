@@ -18,10 +18,26 @@ use Illuminate\Support\Facades\DB;
  * no locking), the whole read-decide-write sequence happens inside one
  * locked transaction via PointsService, so two rapid claims can't both
  * see "not claimed yet" and both succeed.
+ *
+ * "A day" is a day in the business time zone (raffles.timezone, Lagos by
+ * default; Settings → General), so the reward resets at midnight there,
+ * not at midnight on the server's UTC clock (1am in Lagos).
  */
 class DailyClaimService
 {
     public function __construct(private readonly PointsService $points) {}
+
+    /** "Now" in the business time zone, which decides where one day ends. */
+    public static function now(): Carbon
+    {
+        return now(config('raffles.timezone', 'Africa/Lagos'));
+    }
+
+    /** When the next daily reward unlocks: the coming midnight in the business time zone. */
+    public static function nextReset(): Carbon
+    {
+        return self::now()->addDay()->startOfDay();
+    }
 
     /**
      * Points for day 1..7 (config/rewards.php, editable in Settings →
@@ -55,9 +71,9 @@ class DailyClaimService
      */
     public function state(WpUser $user, ?Carbon $now = null): array
     {
-        $now ??= now();
+        $now = ($now ?? self::now())->copy()->setTimezone(config('raffles.timezone', 'Africa/Lagos'));
         $record = UserPoints::query()->where('user_id', $user->ID)->first();
-        $claimedToday = (bool) $record?->last_claim_date?->isSameDay($now);
+        $claimedToday = $record?->last_claim_date?->toDateString() === $now->toDateString();
 
         $streak = $claimedToday
             ? $record->streak_count
@@ -73,13 +89,13 @@ class DailyClaimService
      */
     public function claim(WpUser $user, ?Carbon $now = null): array
     {
-        $now ??= now();
+        $now = ($now ?? self::now())->copy()->setTimezone(config('raffles.timezone', 'Africa/Lagos'));
 
         return DB::transaction(function () use ($user, $now) {
             $record = UserPoints::query()->where('user_id', $user->ID)->lockForUpdate()->first()
                 ?? UserPoints::create(['user_id' => $user->ID, 'balance' => 0, 'streak_count' => 0]);
 
-            if ($record->last_claim_date?->isSameDay($now)) {
+            if ($record->last_claim_date?->toDateString() === $now->toDateString()) {
                 throw new AlreadyClaimedTodayException;
             }
 
@@ -102,7 +118,7 @@ class DailyClaimService
             return 1;
         }
 
-        if ($lastClaimDate->isSameDay($now->copy()->subDay())) {
+        if ($lastClaimDate->toDateString() === $now->copy()->subDay()->toDateString()) {
             $next = ($currentStreak ?: 1) + 1;
 
             return $next > 7 ? 1 : $next;

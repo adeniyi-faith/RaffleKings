@@ -10,6 +10,22 @@ class RewardsControllerTest extends TestCase
 {
     use AuthenticatesWithWordPressCookie, RefreshDatabase;
 
+    protected function setUp(): void
+    {
+        parent::setUp();
+        // The community and WhatsApp channel tasks only show once their links are set (item 47).
+        config(['site.links.community' => 'https://t.me/example', 'site.links.whatsapp_channel' => 'https://whatsapp.com/channel/x']);
+    }
+
+    /** Item 47: a link task is "Go", then a short wait, then "Claim". */
+    private function completeTask(string $taskId)
+    {
+        $this->postJson("/api/rewards/tasks/{$taskId}/start")->assertOk();
+        $this->travel(11)->seconds();
+
+        return $this->postJson("/api/rewards/tasks/{$taskId}/claim");
+    }
+
     public function test_the_spin_odds_are_public(): void
     {
         $response = $this->getJson('/api/rewards/spin/odds');
@@ -43,7 +59,7 @@ class RewardsControllerTest extends TestCase
     {
         $this->actingAsWordPressUser();
         $this->postJson('/api/rewards/daily-claim')->assertOk();
-        $this->postJson('/api/rewards/tasks/join_community/claim')->assertOk();
+        $this->completeTask('join_community')->assertOk();
 
         $response = $this->getJson('/api/rewards/state');
 
@@ -74,7 +90,7 @@ class RewardsControllerTest extends TestCase
     {
         $this->actingAsWordPressUser();
 
-        $response = $this->postJson('/api/rewards/tasks/join_community/claim');
+        $response = $this->completeTask('join_community');
 
         $response->assertOk();
         $response->assertJson(['task_id' => 'join_community', 'points_added' => 1300]);
@@ -97,7 +113,7 @@ class RewardsControllerTest extends TestCase
     public function test_an_authenticated_user_can_spin_once_they_have_enough_points(): void
     {
         $this->actingAsWordPressUser();
-        $this->postJson('/api/rewards/tasks/join_community/claim')->assertOk(); // +1300 points
+        $this->completeTask('join_community')->assertOk(); // +1300 points
 
         $response = $this->postJson('/api/rewards/spin');
 
@@ -115,7 +131,7 @@ class RewardsControllerTest extends TestCase
     public function test_an_authenticated_user_can_redeem_points_for_wallet_cash(): void
     {
         $this->actingAsWordPressUser();
-        $this->postJson('/api/rewards/tasks/join_community/claim')->assertOk(); // +1300 points
+        $this->completeTask('join_community')->assertOk(); // +1300 points
 
         $response = $this->postJson('/api/rewards/redeem');
 
