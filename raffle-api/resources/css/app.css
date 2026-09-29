@@ -114,3 +114,50 @@
         transform: translateX(100%);
     }
 }
+
+/*
+ * Tutorial text written in the admin (Site → Tutorials) on its own page
+ * (Pages/Support/Tutorial.jsx). Plain CSS because the site doesn't ship
+ * Tailwind's typography plugin, so `prose` classes did nothing.
+ */
+.rk-article {
+    font-size: 15px;
+    line-height: 1.75;
+    color: var(--color-gray-700, #374151);
+    overflow-wrap: anywhere;
+}
+.dark .rk-article { color: var(--color-gray-300, #d1d5db); }
+.rk-article > * + * { margin-top: 1em; }
+.rk-article h1, .rk-article h2, .rk-article h3, .rk-article h4 {
+    margin-top: 1.6em;
+    font-weight: 700;
+    line-height: 1.3;
+    color: var(--color-gray-900, #111827);
+}
+.dark .rk-article :is(h1, h2, h3, h4, strong, b) { color: #fff; }
+.rk-article h1, .rk-article h2 { font-size: 1.25em; }
+.rk-article h3 { font-size: 1.1em; }
+.rk-article strong, .rk-article b { font-weight: 700; color: var(--color-gray-900, #111827); }
+.rk-article a { color: var(--color-app-primary, #2563eb); font-weight: 600; text-decoration: underline; text-underline-offset: 2px; }
+.rk-article ul, .rk-article ol { padding-left: 1.4em; }
+.rk-article ul { list-style: disc; }
+.rk-article ol { list-style: decimal; }
+.rk-article li + li { margin-top: 0.35em; }
+.rk-article li::marker { color: var(--color-gray-400, #9ca3af); }
+.rk-article blockquote {
+    border-left: 3px solid var(--color-app-primary, #2563eb);
+    padding: 0.25em 0 0.25em 1em;
+    color: var(--color-gray-600, #4b5563);
+    font-style: italic;
+}
+.rk-article img, .rk-article video, .rk-article iframe { max-width: 100%; height: auto; border-radius: 12px; }
+.rk-article code {
+    font-size: 0.9em;
+    background: var(--color-gray-100, #f3f4f6);
+    padding: 0.1em 0.35em;
+    border-radius: 6px;
+}
+.dark .rk-article code { background: var(--color-gray-800, #1f2937); }
+.rk-article hr { border-color: var(--color-gray-200, #e5e7eb); margin: 2em 0; }
+.rk-article table { width: 100%; border-collapse: collapse; font-size: 0.9em; display: block; overflow-x: auto; }
+.rk-article th, .rk-article td { border: 1px solid var(--color-gray-200, #e5e7eb); padding: 0.5em 0.75em; text-align: left; }

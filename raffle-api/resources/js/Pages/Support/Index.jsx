@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { Head, Link } from '@inertiajs/react';
+import { Head, Link, usePage } from '@inertiajs/react';
 import { ArrowLeft, BookOpen, ChevronDown, Inbox, MessageSquarePlus, Plus, Send } from 'lucide-react';
 import Modal from '../../Components/ui/Modal';
 
@@ -29,6 +29,7 @@ function timeAgo(dateStr) {
 }
 
 export default function SupportIndex() {
+    const { url } = usePage();
     const [tickets, setTickets] = useState(null); // null = loading
     const [openId, setOpenId] = useState(null);
     const [thread, setThread] = useState(null);
@@ -42,6 +43,11 @@ export default function SupportIndex() {
 
     useEffect(() => {
         loadTickets();
+        // "Submit a support ticket" on the profile page links to /support?new=1;
+        // a "Support replied" notification links to /support?ticket=<id>.
+        const params = new URLSearchParams(url.split('?')[1] ?? '');
+        if (params.get('new') === '1') setShowNewTicket(true);
+        if (params.get('ticket')) toggleTicket(Number(params.get('ticket')));
     }, []);
 
     function loadTickets() {
@@ -187,12 +193,12 @@ export default function SupportIndex() {
                             <div
                                 key={t.id}
                                 onClick={() => toggleTicket(t.id)}
-                                className="cursor-pointer rounded-xl border border-gray-100 bg-white p-4 shadow-sm transition-colors active:bg-gray-50 dark:border-gray-800 dark:bg-dark-card dark:active:bg-gray-800"
+                                className="min-w-0 cursor-pointer overflow-hidden rounded-xl border border-gray-100 bg-white p-4 shadow-sm transition-colors active:bg-gray-50 dark:border-gray-800 dark:bg-dark-card dark:active:bg-gray-800"
                             >
-                                <div className="mb-1 flex items-start justify-between">
-                                    <div className="flex items-center gap-2">
+                                <div className="mb-1 flex items-start justify-between gap-2">
+                                    <div className="flex min-w-0 items-center gap-2">
                                         <div className={`h-2 w-2 rounded-full ${STATUS_DOT[t.status] ?? 'bg-gray-400'}`} />
-                                        <h4 className="text-sm font-bold text-gray-800 dark:text-gray-100">{t.subject}</h4>
+                                        <h4 className="min-w-0 break-words text-sm font-bold text-gray-800 dark:text-gray-100">{t.subject}</h4>
                                     </div>
                                     <div className="flex items-center gap-2">
                                         <span className="text-[10px] text-gray-400">{timeAgo(t.updated_at ?? t.created_at)}</span>
@@ -216,7 +222,7 @@ export default function SupportIndex() {
                                                             <p className={`mb-1 text-[10px] font-bold ${m.is_from_admin ? 'text-blue-800 dark:text-blue-300' : 'text-gray-500 dark:text-gray-400'}`}>
                                                                 {m.is_from_admin ? 'Support Team' : 'You'}
                                                             </p>
-                                                            <p className={`text-xs ${m.is_from_admin ? 'text-blue-700 dark:text-blue-200' : 'text-gray-700 dark:text-gray-200'}`}>
+                                                            <p className={`whitespace-pre-line text-xs [overflow-wrap:anywhere] ${m.is_from_admin ? 'text-blue-700 dark:text-blue-200' : 'text-gray-700 dark:text-gray-200'}`}>
                                                                 {m.message}
                                                             </p>
                                                         </div>
@@ -228,7 +234,7 @@ export default function SupportIndex() {
                                                         value={replyText}
                                                         onChange={(e) => setReplyText(e.target.value)}
                                                         placeholder="Type a reply..."
-                                                        className="flex-1 rounded-full border border-gray-200 bg-gray-50 px-3 py-2 text-xs outline-none focus:ring-2 focus:ring-app-primary/20 dark:border-gray-700 dark:bg-gray-800 dark:text-white"
+                                                        className="min-w-0 flex-1 rounded-full border border-gray-200 bg-gray-50 px-3 py-2 text-xs outline-none focus:ring-2 focus:ring-app-primary/20 dark:border-gray-700 dark:bg-gray-800 dark:text-white"
                                                     />
                                                     <button
                                                         onClick={() => sendReply(t.id)}

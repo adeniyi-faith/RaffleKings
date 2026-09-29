@@ -3,6 +3,7 @@
 namespace App\Notifications;
 
 use App\Models\Legacy\RaffleWinner;
+use App\Notifications\Channels\InboxChannel;
 use App\Notifications\Channels\OneSignalChannel;
 use Illuminate\Bus\Queueable;
 use Illuminate\Contracts\Queue\ShouldQueue;
@@ -35,7 +36,7 @@ class WinnerAnnounced extends Notification implements ShouldQueue
 
     public function via(mixed $notifiable): array
     {
-        return ['mail', OneSignalChannel::class];
+        return ['mail', OneSignalChannel::class, InboxChannel::class];
     }
 
     public function toMail(mixed $notifiable): MailMessage
@@ -60,6 +61,27 @@ class WinnerAnnounced extends Notification implements ShouldQueue
         return [
             'headings' => ['en' => 'You won! 🎉'],
             'contents' => ['en' => "Ticket #{$this->winner->ticket_number} won {$prize}."],
+        ];
+    }
+
+    /** The bell alert is written straight away, not on the next background run. */
+    public function viaConnections(): array
+    {
+        return [InboxChannel::class => 'sync'];
+    }
+
+    public function toInbox(mixed $notifiable): array
+    {
+        $prize = $this->winner->prize_cash_value > 0
+            ? '₦'.number_format((float) $this->winner->prize_cash_value)
+            : $this->winner->prize_name;
+
+        return [
+            'kind' => 'win',
+            'title' => 'You won! 🎉',
+            'body' => "Ticket #{$this->winner->ticket_number} won {$prize}. Your prize is being checked and will be credited soon.",
+            'link_url' => '/account/tickets',
+            'link_label' => 'My tickets',
         ];
     }
 }

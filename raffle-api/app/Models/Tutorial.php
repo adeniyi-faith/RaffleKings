@@ -4,6 +4,7 @@ namespace App\Models;
 
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Support\Str;
 
 /**
@@ -35,6 +36,11 @@ class Tutorial extends Model
                 static::query()->whereKeyNot($tutorial->getKey())->where('is_featured', true)->update(['is_featured' => false]);
             }
         });
+    }
+
+    public function likes(): HasMany
+    {
+        return $this->hasMany(TutorialLike::class);
     }
 
     public function scopeLive(Builder $query): Builder

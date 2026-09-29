@@ -74,6 +74,20 @@ return Application::configure(basePath: dirname(__DIR__))
                 return $response;
             }
 
+            // The admin gets its own self-contained page (see the view).
+            if ($request->is('admin', 'admin/*')) {
+                [$emoji, $title, $message] = match ($status) {
+                    403 => ['🔒', 'Not allowed', 'Your staff role can\'t open this page. Ask the owner if you need it.'],
+                    404 => ['🚧', 'Page not found', 'This admin page doesn\'t exist or has moved.'],
+                    419 => ['⌛', 'Page expired', 'This page was open for a while. Reload it and try again.'],
+                    429 => ['✋', 'Slow down a little', 'Too many requests in a short time. Wait a moment, then try again.'],
+                    503 => ['🛠️', 'Quick maintenance', 'The site is being updated. Try again in a minute.'],
+                    default => ['😵', 'Something went wrong', 'The error was recorded and shows on System → Health. Try again, or come back to it later.'],
+                };
+
+                return response()->view('errors.admin', compact('status', 'emoji', 'title', 'message'), $status);
+            }
+
             try {
                 return Inertia::render('Error', ['status' => $status])
                     ->toResponse($request)
