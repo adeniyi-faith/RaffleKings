@@ -58,7 +58,7 @@ export default function SelectNumbers({ raffle, qty, takenNumbers, maxTickets })
 
     return (
         <>
-            <Head title={`Pick your numbers — ${raffle.title}`} />
+            <Head title={`Pick your numbers: ${raffle.title}`} />
             <div className="min-h-screen bg-app-bg pb-32 dark:bg-dark-bg">
                 <div className="sticky top-0 z-40 flex items-center gap-3 border-b border-gray-100 bg-white/95 px-5 py-4 backdrop-blur-md dark:border-dark-border dark:bg-dark-bg/95">
                     <Link href={`/raffles/${raffle.id}`} className="-ml-1 p-1 text-gray-400 hover:text-gray-600 dark:hover:text-white">

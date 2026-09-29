@@ -74,6 +74,6 @@ class WithdrawalRestrictionTest extends TestCase
             'amount' => 3000, 'bank_account_id' => $account->id, 'authorize_verification_fee' => true,
         ])->assertCreated();
 
-        $this->assertDatabaseMissing('wp_usermeta', ['user_id' => $user->ID, 'meta_key' => 'rk_is_banned']);
+        $this->assertDatabaseMissing(config('legacy.wp_prefix').'usermeta', ['user_id' => $user->ID, 'meta_key' => 'rk_is_banned']);
     }
 }

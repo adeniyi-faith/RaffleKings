@@ -17,7 +17,7 @@ export default function MaintenanceBanner() {
             <div className="sticky top-0 z-[60] flex items-center justify-center gap-2 bg-red-600 px-4 py-2 text-center text-xs font-semibold text-white">
                 <Wrench className="h-3.5 w-3.5 flex-shrink-0" />
                 <span>
-                    Maintenance mode is ON — customers see the "back soon" page.{' '}
+                    Maintenance mode is ON. Customers see the "back soon" page.{' '}
                     <a href="/admin/settings" className="underline">Switch it off</a>
                 </span>
             </div>

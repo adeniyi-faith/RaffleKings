@@ -252,6 +252,26 @@ The new site replaced the WordPress site at rafflekings.com.ng (see `.github/wor
     - Switches choose which forms show the check: **sign-up** (on by default), **log-in** and **forgot password**. Log-in and forgot password now verify the check on the server too.
     - **Fix:** the check only switches on when BOTH keys are set. Before, a secret key without a site key made every sign-up fail, because the page couldn't show the check it was demanding.
 
+- [x] **45d. Live-site fixes, admin sign-in, public em dashes.** *(Done.)*
+  - **Why the live admin looked broken.** The app is uploaded into the domain's web folder (`public_html/rafflekings.com.ng`), and nothing told the server to serve only `public/`, so everything was reached through `/public/...`.
+    - The admin's styles loaded from `/public/css/...`, but its interactive engine (`/livewire/livewire.js`, `/livewire/update`) is linked from the site root, which was blocked. Menus couldn't close, dropdowns and pop-ups spilled onto the page, and buttons failed.
+    - Worse, the private `.env` file, logs, code and the old WordPress backup sat inside the web folder.
+    - **Fix:** a new root `.htaccess` serves ONLY `public/` and blocks everything else. Old `/public/...` links 301 to the clean address (rule in both `.htaccess` files, so it works whether cPanel's document root is the folder or `public/`). SSL checks (`.well-known/acme-challenge`) still work.
+    - Tested on Apache + MariaDB with the live `wpxn_` table prefix: every admin page, the redirects, blocked files, and interactive menus and pop-ups.
+  - **The phone layout, Settings, Phase 5b and maintenance mode weren't live** because PRs #80 to #84 were merged into their stacked branches, not `main`. This change brings them all to `main`.
+  - **Admin sign-in page** (`/admin/login`, `App\Filament\Pages\Auth\AdminLogin`):
+    - Branded: brand panel plus card on a computer, header plus card on a phone.
+    - Same account and password as the site (`LoginService` plus the WordPress cookie). Only staff roles get in; a customer with the right password is refused and not left signed in.
+    - 5 tries a minute, Turnstile when switched on for log-in, and every staff sign-in audit-logged.
+    - **Sign out now works:** `WordPressOrSanctumGuard::logout()` ends the session and clears the cookie. It used to crash.
+  - **Admin on laptops and tablets.** Nine lists were wider than a 1280px screen, hiding their buttons.
+    - Table text now wraps on wide screens.
+    - Rows are cards below 1280px (`MobileCard::TABLE_FROM = 'xl'`).
+    - The raffles, customers, winners and mismatches lists were slimmed; buttons come first; the side menu is slightly narrower.
+    - Checked at 390, 768, 1024, 1280, 1366, 1440 and 1920px: every list fits.
+  - **No em dashes on customer pages either:** error pages, live draw, draw proof, reset password, raffle bundles, the home page and customer error messages.
+  - **Tests** run on MySQL as well as SQLite (559 each). One test had the `wp_` prefix hard-coded.
+
 - [ ] **46. Phase 6 — Checkout and wallet flows.** Insufficient balance at checkout is a dead end (greyed-out button): add "Top up ₦X" and "Use winnings to cover it", and return to the same checkout after a Paystack payment. Build the real winnings → spending-wallet transfer (no code exists; the Profile "Transfer" button only opens top-up). Live-updating number grid (taken numbers are a page-load snapshot) and a message when picking too many. Success modal shows the ticket numbers, "View my tickets" and "Share", with a celebration. Decide on the Golden Box 10% discount (supported by `TicketPricingService`, offered by no page).
 - [ ] **47. Phase 7 — Rewards that feel alive.** Restore the animated canvas wheel (glow, easing spin, confetti, "YOU WON!" modal) driven by the real server result and disclosed odds — today it's a button and a text modal. Tasks must open the WhatsApp channel / share sheet before awarding points (today "Claim" awards them for nothing). Daily-reset countdown, bouncing "claim today" circle, red "reward ready" dot on the bottom nav. A real guest preview (the streak row and task list are blank for guests). Error results get an error icon, not the green success tick.
 - [ ] **48. Phase 8 — Missing pages, sign-up and sharing.** Terms of Service (404 today) and About pages; Install App and WhatsApp channel entries in Profile; make the support-ticket page reachable (only linked from inside Tutorials today — Profile's "Get Help" goes to Telegram). Sign-up: terms/age acceptance, "Invited by X" banner, and actually pass `redirect` through the `/register` route (a guest sent to sign up mid-purchase lands on the homepage). Link previews (Open Graph title/description/image) and a real favicon (`public/favicon.ico` is 0 bytes). My Tickets shows "You won!" and links to results / live draw / verify.

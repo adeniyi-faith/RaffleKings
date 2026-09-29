@@ -96,6 +96,7 @@ class PaymentMismatchResource extends Resource
                     Tables\Columns\TextColumn::make('amount')->label('Started with')->formatStateUsing(fn ($state) => static::naira($state)),
                     Tables\Columns\TextColumn::make('failure_reason')->label('What the gateway said')->wrap()->limit(120),
                     Tables\Columns\TextColumn::make('reference')
+                        ->visibleFrom('2xl')
                         ->copyable()
                         ->fontFamily('mono')
                         ->size('xs')
@@ -111,7 +112,8 @@ class PaymentMismatchResource extends Resource
                 Tables\Actions\Action::make('credit')
                     // Only staff allowed to move money see this (App\Auth\StaffRoles).
                     ->hidden(fn () => ! static::staffCan('money.pay'))
-                    ->label('Credit confirmed amount')
+                    ->label('Credit')
+                    ->tooltip('Credit the amount the gateway confirmed')
                     ->icon('heroicon-o-check-circle')
                     ->color('success')
                     ->requiresConfirmation()

@@ -14,6 +14,7 @@ use Filament\Forms\Form;
 use Filament\Notifications\Notification;
 use Filament\Resources\Resource;
 use Filament\Tables;
+use Filament\Tables\Enums\ActionsPosition;
 use Filament\Tables\Table;
 use Illuminate\Database\Eloquent\Model;
 use InvalidArgumentException;
@@ -96,10 +97,9 @@ class WpUserResource extends Resource
                     ],
                 ]),
                 ...MobileCard::desktop([
-                    Tables\Columns\TextColumn::make('ID')->label('#')->sortable(),
                     Tables\Columns\TextColumn::make('display_name')
                         ->label('Customer')
-                        ->description(fn (WpUser $record) => '@'.$record->user_login)
+                        ->description(fn (WpUser $record) => '@'.$record->user_login.' · #'.$record->ID)
                         ->searchable(['display_name', 'user_login']),
                     Tables\Columns\TextColumn::make('user_email')->label('Email')->searchable(),
                     Tables\Columns\TextColumn::make('wallet_balance')
@@ -110,17 +110,16 @@ class WpUserResource extends Resource
                         ->label('Winnings')
                         ->state(fn (WpUser $record) => $record->wallet?->earnings_balance ?? 0)
                         ->money('NGN'),
-                    Tables\Columns\TextColumn::make('user_registered')->label('Joined')->since()->sortable(),
+                    Tables\Columns\TextColumn::make('user_registered')->label('Joined')->since()->sortable()->visibleFrom('2xl'),
                     Tables\Columns\IconColumn::make('is_banned')
                         ->label('Banned')
                         ->boolean()
                         ->state(fn (WpUser $record) => $record->isBanned()),
                 ]),
             ])
-            ->actions([
-                Tables\Actions\ViewAction::make()->label('Open'),
-                ...static::accountActions(table: true),
-            ]);
+            // Tapping a customer opens their profile, so no separate Open button.
+            ->actionsPosition(ActionsPosition::BeforeColumns)
+            ->actions(static::accountActions(table: true));
     }
 
     /**

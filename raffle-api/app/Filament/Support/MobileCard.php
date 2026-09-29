@@ -11,7 +11,7 @@ use Illuminate\Database\Eloquent\Model;
  * Phone layout for admin tables. On a phone a wide table needs sideways
  * scrolling, and the buttons are cut off. So each table gets one extra
  * "card" column that only shows on small screens. The card is the row's
- * key facts, stacked. The normal columns only show from tablet width up.
+ * key facts, stacked. The normal columns only show from laptop width (1280px) up.
  * The admin stylesheet (filament/hooks/head) then turns every row that
  * has a card into a card, with its buttons along the bottom.
  *
@@ -27,13 +27,21 @@ use Illuminate\Database\Eloquent\Model;
  */
 final class MobileCard
 {
+    /**
+     * Below this Tailwind breakpoint (xl = 1280px) rows are cards: phones,
+     * tablets and small laptops, where a full table would be squashed or
+     * push its buttons off-screen. Keep in step with the max-width in
+     * resources/views/filament/hooks/head.blade.php.
+     */
+    public const TABLE_FROM = 'xl';
+
     public static function make(Closure $build): ViewColumn
     {
         return ViewColumn::make('mobile_card')
             ->label('')
             ->view('filament.tables.mobile-card')
             ->state(fn (Model $record): array => array_filter($build($record), fn ($v) => filled($v)))
-            ->hiddenFrom('md');
+            ->hiddenFrom(self::TABLE_FROM);
     }
 
     /**
@@ -44,6 +52,7 @@ final class MobileCard
      */
     public static function desktop(array $columns): array
     {
-        return array_map(fn (Column $column) => $column->visibleFrom('md'), $columns);
+        // A column already set to show only on wider screens keeps that.
+        return array_map(fn (Column $column) => $column->getVisibleFrom() ? $column : $column->visibleFrom(self::TABLE_FROM), $columns);
     }
 }
