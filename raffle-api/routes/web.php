@@ -12,6 +12,7 @@ use App\Services\Auth\TurnstileVerifier;
 use App\Services\DailyClaimService;
 use App\Services\Engagement\FreeSpinGifts;
 use App\Services\Engagement\Perks;
+use App\Services\Engagement\PlayerProfiles;
 use App\Services\GoldenBoxService;
 use App\Services\LiveDrawService;
 use App\Services\PointsService;
@@ -350,6 +351,19 @@ foreach (SitePage::SLUGS as $slug => $path) {
 // Standalone Privacy Policy (matching the legacy privacy-policy.php) --
 // public, static content, same as the legacy page.
 Route::get('/privacy-policy', fn () => Inertia::render('PrivacyPolicy'));
+
+// Public player card: username, picture and badges only (see
+// App\Services\Engagement\PlayerProfiles). An unknown username and a
+// private profile look identical, and the page is kept out of search engines.
+Route::get('/player/{username}', function (Request $request, string $username, PlayerProfiles $profiles) {
+    $card = $profiles->card($username);
+    $viewer = Auth::guard('wordpress')->user();
+
+    return Inertia::render('Player/Show', [
+        'profile' => $card,
+        'is_you' => $card && $viewer && strcasecmp($viewer->user_login, $card['username']) === 0,
+    ])->toResponse($request)->setStatusCode($card ? 200 : 404);
+})->middleware('throttle:60,1');
 
 // Hall of Fame (item 27) — public, same as the legacy winners.php (no
 // login check there). Data itself comes from GET /api/hall-of-fame.

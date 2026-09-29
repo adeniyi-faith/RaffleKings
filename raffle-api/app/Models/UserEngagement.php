@@ -13,7 +13,7 @@ class UserEngagement extends Model
 {
     protected $table = 'user_engagement';
 
-    protected $fillable = ['user_id', 'free_spins', 'bonus_entry_tokens', 'showcase', 'birthday', 'birthday_spin_year', 'milestones'];
+    protected $fillable = ['user_id', 'free_spins', 'bonus_entry_tokens', 'showcase', 'birthday', 'birthday_spin_year', 'milestones', 'profile_visibility', 'show_wins'];
 
     protected $casts = [
         'user_id' => 'integer',
@@ -21,6 +21,7 @@ class UserEngagement extends Model
         'bonus_entry_tokens' => 'integer',
         'showcase' => 'array',
         'milestones' => 'array',
+        'show_wins' => 'boolean',
     ];
 
     /** This customer's row, created on first use. */
