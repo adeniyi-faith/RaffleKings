@@ -197,4 +197,28 @@ class RewardsThatFeelAliveTest extends TestCase
 
         $this->get('/raffles')->assertInertia(fn (AssertableInertia $page) => $page->where('auth.user.reward_ready', false));
     }
+
+    // --- Spin & Win game page ----------------------------------------------------
+
+    public function test_the_spin_game_page_shows_a_guest_the_real_odds_and_cost(): void
+    {
+        config(['rewards.spin_cost' => 60]);
+
+        $this->get('/rewards/spin')
+            ->assertOk()
+            ->assertInertia(fn (AssertableInertia $page) => $page
+                ->component('Rewards/Spin')
+                ->where('cost', 60)
+                ->has('odds', 4)
+                ->where('odds.3.outcome', 'jackpot')
+                ->where('points', null));
+    }
+
+    public function test_the_spin_game_page_starts_with_the_customers_points(): void
+    {
+        $this->actingAsWordPressUser();
+        $this->postJson('/api/rewards/tasks/push_notification/claim')->assertOk(); // +1500
+
+        $this->get('/rewards/spin')->assertOk()->assertInertia(fn (AssertableInertia $page) => $page->where('points', 1500));
+    }
 }

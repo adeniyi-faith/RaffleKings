@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useState } from 'react';
 import { Head, Link, router, usePage } from '@inertiajs/react';
 import {
     ArrowLeft,
@@ -10,7 +10,6 @@ import {
     Copy,
     ExternalLink,
     Share2,
-    Sparkles,
     Users,
     Zap,
 } from 'lucide-react';
@@ -19,7 +18,6 @@ import { isOn, useSite } from '../../lib/site';
 import PausedNotice from '../../Components/layout/PausedNotice';
 import { usePushPermission } from '../../hooks/usePushPermission';
 import BottomNav from '../../Components/layout/BottomNav';
-import SpinWheel from '../../Components/rewards/SpinWheel';
 import ResultModal from '../../Components/rewards/ResultModal';
 
 // Rebuild of rewards.php (item 28). What's preserved from the legacy
@@ -85,8 +83,6 @@ export default function RewardsIndex({ referralCode, preview = null }) {
     const [modal, setModal] = useState(null); // { kind, title, message, balance?, confetti? }
     const [copied, setCopied] = useState(false);
     const [taskReadyAt, setTaskReadyAt] = useState({}); // task id → when Claim unlocks (ms)
-    const [spinning, setSpinning] = useState(false);
-    const wheelRef = useRef(null);
     const { requestPermission } = usePushPermission();
 
     const referralLink = referralCode ? `${window.location.origin}/register?ref=${encodeURIComponent(referralCode)}` : null;
@@ -228,33 +224,6 @@ export default function RewardsIndex({ referralCode, preview = null }) {
                 });
             }
             setModal({ kind: err.status === 425 ? 'info' : 'error', title: err.status === 425 ? 'Not yet' : 'Could not claim this task', message: err.message });
-        } finally {
-            setBusy(null);
-        }
-    }
-
-    // The server picks the prize first; the wheel then spins onto it.
-    async function spin() {
-        setBusy('spin');
-        try {
-            const result = await post('/api/rewards/spin');
-            setState((prev) => (prev ? { ...prev, points: Math.max(0, prev.points - spinCost) } : prev));
-            setSpinning(true);
-            await wheelRef.current?.spinTo(result.visual_index);
-            setSpinning(false);
-
-            const profit = result.payout - spinCost;
-            setModal(
-                profit > 0
-                    ? { kind: 'win', title: 'YOU WON!', message: `+${result.payout} points${result.outcome === 'jackpot' ? '. Jackpot!' : '!'}`, balance: result.new_balance, confetti: true }
-                    : profit === 0
-                      ? { kind: 'success', title: 'Points back!', message: `You got your ${result.payout} points back. Spin again?`, balance: result.new_balance }
-                      : { kind: 'info', title: 'So close!', message: `You won ${result.payout} points. Better luck on the next spin.`, balance: result.new_balance },
-            );
-            loadState();
-        } catch (err) {
-            setSpinning(false);
-            setModal({ kind: 'error', title: 'Could not spin', message: err.message });
         } finally {
             setBusy(null);
         }
@@ -417,66 +386,27 @@ export default function RewardsIndex({ referralCode, preview = null }) {
                     <PausedNotice feature="daily_claim" />
 
                     <PausedNotice feature="spin" />
-                    {/* Spin & Win — real, working feature */}
-                    <div className="relative overflow-hidden rounded-2xl bg-gradient-to-r from-purple-600 to-indigo-600 p-5 text-white shadow-lg shadow-purple-500/20 dark:from-purple-800 dark:to-indigo-900">
-                        <div className="pointer-events-none absolute right-0 top-0 h-32 w-32 -translate-y-1/2 translate-x-1/2 rounded-full bg-white/10 blur-2xl" />
-
-                        <div className="relative z-10 flex items-center justify-between">
-                            <div className="flex items-center gap-4">
-                                <div className="flex h-12 w-12 items-center justify-center rounded-full bg-white/20 shadow-md backdrop-blur-md">
-                                    <span className="text-2xl">🎰</span>
-                                </div>
-                                <div>
-                                    <h3 className="text-lg font-bold text-white">Spin & Win</h3>
-                                    <p className="text-xs text-purple-100">Costs {spinCost} points a spin</p>
-                                </div>
-                            </div>
-
-                        </div>
-
-                        {spinOdds.length > 0 && (
-                            <div className="relative z-10 mt-2">
-                                <SpinWheel ref={wheelRef} odds={spinOdds} spinning={spinning} />
-                            </div>
-                        )}
-
-                        <div className="relative z-10 mt-2">
-                            {isGuest ? (
-                                <Link
-                                    href={loginUrl}
-                                    className="flex w-full items-center justify-center gap-2 rounded-2xl bg-gradient-to-br from-yellow-300 to-yellow-500 py-3.5 text-base font-black text-amber-900 shadow-lg shadow-yellow-500/30 active:scale-95"
-                                >
-                                    Log in to spin
-                                </Link>
-                            ) : (
-                                <button
-                                    onClick={spin}
-                                    disabled={busy === 'spin' || points < spinCost || ! isOn(site, 'spin')}
-                                    className="flex w-full items-center justify-center gap-3 rounded-2xl bg-gradient-to-br from-yellow-300 to-yellow-500 py-3.5 text-base font-black text-amber-900 shadow-lg shadow-yellow-500/30 transition-transform active:scale-95 disabled:cursor-not-allowed disabled:opacity-60"
-                                >
-                                    <Sparkles className="h-4 w-4" />
-                                    {busy === 'spin' ? 'SPINNING…' : 'SPIN NOW'}
-                                    <span className="rounded-lg bg-white/40 px-2 py-0.5 text-xs font-bold">−{spinCost} pts</span>
-                                </button>
-                            )}
-                            {! isGuest && state && points < spinCost && (
-                                <p className="mt-2 text-center text-[11px] text-purple-100">
-                                    You need {spinCost - points} more points to spin. Claim today's reward or finish a task below.
+                    {/* Spin & Win lives on its own full-screen game page. */}
+                    <Link
+                        href="/rewards/spin"
+                        className="group relative block overflow-hidden rounded-2xl bg-gradient-to-br from-purple-700 via-indigo-700 to-[#1e1b4b] p-5 text-white shadow-lg shadow-purple-500/25 transition-transform active:scale-[0.98]"
+                    >
+                        <div className="pointer-events-none absolute -right-10 -top-10 h-40 w-40 rounded-full bg-yellow-400/20 blur-2xl" />
+                        <div className="relative z-10 flex items-center gap-4">
+                            <MiniWheel odds={spinOdds} />
+                            <div className="min-w-0 flex-1">
+                                <p className="text-[10px] font-black uppercase tracking-[0.2em] text-yellow-300">Game</p>
+                                <h3 className="text-xl font-black italic">Spin &amp; Win</h3>
+                                <p className="text-xs text-purple-100">
+                                    {spinCost} points a spin
+                                    {spinOdds.length > 0 && ` · top prize ${Math.max(...spinOdds.map((o) => o.payout))} pts`}
                                 </p>
-                            )}
-                        </div>
-
-                        {spinOdds.length > 0 && (
-                            <div className="relative z-10 mt-4 grid grid-cols-4 gap-2 border-t border-white/10 pt-3">
-                                {spinOdds.map((o) => (
-                                    <div key={o.outcome} className="text-center">
-                                        <p className="text-xs font-bold text-white">{o.payout}pt</p>
-                                        <p className="text-[9px] text-purple-200">{Math.round(o.probability * 100)}%</p>
-                                    </div>
-                                ))}
                             </div>
-                        )}
-                    </div>
+                            <span className="flex items-center gap-1 rounded-full bg-gradient-to-b from-yellow-300 to-amber-500 px-4 py-2 text-sm font-black uppercase text-amber-950 shadow-[0_4px_0_#b45309]">
+                                Play <ArrowRight className="h-4 w-4 transition-transform group-hover:translate-x-0.5" />
+                            </span>
+                        </div>
+                    </Link>
 
                     {/* Refer & Earn — real, working feature */}
                     <div className="relative overflow-hidden rounded-2xl bg-gradient-to-br from-orange-500 to-red-600 p-5 text-white shadow-lg shadow-orange-500/20 dark:from-orange-700 dark:to-red-800">
@@ -634,6 +564,31 @@ function TaskAction({ task, isGuest, loginUrl, busy, readyAt, now, onGo, onClaim
             <button onClick={onGo} disabled={busy} className="text-[10px] font-bold text-app-primary underline" aria-label="Open the link again">
                 Open again
             </button>
+        </div>
+    );
+}
+
+// A small, slowly turning picture of the real wheel for the "Play" card.
+function MiniWheel({ odds }) {
+    const colors = { loss: '#475569', tie: '#8b5cf6', win: '#16a34a', jackpot: '#facc15' };
+    const total = odds.reduce((sum, o) => sum + o.probability, 0) || 1;
+    let cursor = 0;
+    const stops = odds
+        .map((o) => {
+            const from = (cursor / total) * 360;
+            cursor += o.probability;
+            return `${colors[o.outcome] ?? '#2563eb'} ${from}deg ${(cursor / total) * 360}deg`;
+        })
+        .join(', ');
+
+    return (
+        <div className="relative h-16 w-16 flex-shrink-0">
+            <div
+                className="h-full w-full animate-[spin_8s_linear_infinite] rounded-full border-4 border-yellow-300 shadow-[0_0_18px_rgba(250,204,21,0.5)]"
+                style={{ background: stops ? `conic-gradient(${stops})` : '#6d28d9' }}
+            />
+            <span className="absolute left-1/2 top-1/2 h-4 w-4 -translate-x-1/2 -translate-y-1/2 rounded-full border-2 border-amber-200 bg-white" />
+            <span className="absolute -top-1 left-1/2 h-0 w-0 -translate-x-1/2 border-x-[6px] border-t-[9px] border-x-transparent border-t-red-600" />
         </div>
     );
 }

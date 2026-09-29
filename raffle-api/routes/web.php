@@ -7,6 +7,7 @@ use App\Models\Raffle;
 use App\Services\Auth\TurnstileVerifier;
 use App\Services\DailyClaimService;
 use App\Services\GoldenBoxService;
+use App\Services\PointsService;
 use App\Services\RaffleReadService;
 use App\Services\SpinService;
 use App\Services\TaskClaimService;
@@ -222,6 +223,19 @@ Route::get('/rewards', function () {
             'tasks' => app(TaskClaimService::class)->publicCatalog(),
             'spin' => ['cost' => SpinService::cost(), 'odds' => app(SpinService::class)->odds()],
         ],
+    ]);
+});
+
+// Spin & Win as its own full-screen game, linked from the Rewards page.
+// Public like the Rewards page: a guest sees the wheel and the real odds
+// and is asked to log in to play. Spinning itself is POST /api/rewards/spin.
+Route::get('/rewards/spin', function () {
+    $user = Auth::guard('wordpress')->user();
+
+    return Inertia::render('Rewards/Spin', [
+        'cost' => SpinService::cost(),
+        'odds' => app(SpinService::class)->odds(),
+        'points' => $user ? app(PointsService::class)->balance($user) : null,
     ]);
 });
 
