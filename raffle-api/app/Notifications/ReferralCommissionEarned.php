@@ -3,6 +3,7 @@
 namespace App\Notifications;
 
 use App\Models\ReferralCommission;
+use App\Notifications\Channels\InboxChannel;
 use App\Notifications\Channels\OneSignalChannel;
 use Illuminate\Bus\Queueable;
 use Illuminate\Contracts\Queue\ShouldQueue;
@@ -29,7 +30,7 @@ class ReferralCommissionEarned extends Notification implements ShouldQueue
 
     public function via(mixed $notifiable): array
     {
-        return ['mail', OneSignalChannel::class];
+        return ['mail', OneSignalChannel::class, InboxChannel::class];
     }
 
     public function toMail(mixed $notifiable): MailMessage
@@ -45,6 +46,23 @@ class ReferralCommissionEarned extends Notification implements ShouldQueue
         return [
             'headings' => ['en' => 'Referral commission earned 🤝'],
             'contents' => ['en' => '₦'.number_format((float) $this->commission->commission_amount).' added to your earnings.'],
+        ];
+    }
+
+    /** The bell alert is written straight away, not on the next background run. */
+    public function viaConnections(): array
+    {
+        return [InboxChannel::class => 'sync'];
+    }
+
+    public function toInbox(mixed $notifiable): array
+    {
+        return [
+            'kind' => 'referral',
+            'title' => 'Referral commission earned',
+            'body' => '₦'.number_format((float) $this->commission->commission_amount).' has been added to your winnings from a friend you invited.',
+            'link_url' => '/rewards',
+            'link_label' => 'See rewards',
         ];
     }
 }

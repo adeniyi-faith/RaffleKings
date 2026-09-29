@@ -7,12 +7,14 @@ use App\Filament\Concerns\RunsAdminActions;
 use App\Filament\Resources\TutorialResource\Pages;
 use App\Filament\Support\MobileCard;
 use App\Models\Tutorial;
+use App\Models\TutorialLike;
 use App\Services\AdminAuditLogService;
 use Filament\Forms;
 use Filament\Forms\Form;
 use Filament\Resources\Resource;
 use Filament\Tables;
 use Filament\Tables\Table;
+use Illuminate\Support\Str;
 
 /**
  * Site → Tutorials (item 45b): write, edit, schedule, feature and hide the
@@ -77,18 +79,30 @@ class TutorialResource extends Resource
     {
         return $table
             ->defaultSort('updated_at', 'desc')
+            // How customers rate the guides: the hearts ("helpful") they tap.
+            ->heading('Guides')
+            ->description(function () {
+                $total = (int) Tutorial::query()->sum('helpful_count');
+                $top = Tutorial::query()->where('helpful_count', '>', 0)->orderByDesc('helpful_count')->first();
+                $recent = TutorialLike::query()->where('created_at', '>=', now()->subDays(7))->count();
+
+                return number_format($total).' hearts in total · '.number_format($recent).' this week'
+                    .($top ? ' · most loved: "'.Str::limit($top->title, 40).'" ('.number_format($top->helpful_count).')' : '');
+            })
             ->columns([
                 MobileCard::make(fn (Tutorial $t) => [
                     'title' => ($t->is_featured ? '★ ' : '').$t->title,
-                    'lines' => [$t->category.' · '.$t->read_time.' · '.$t->helpful_count.' found it helpful'],
+                    'lines' => [$t->category.' · '.$t->read_time.' · '.$t->helpful_count.' ♥'],
                     'badges' => [static::status($t)],
                     'meta' => 'Edited '.$t->updated_at?->diffForHumans(),
                 ]),
                 ...MobileCard::desktop([
-                    Tables\Columns\IconColumn::make('is_featured')->label('')->icon(fn ($state) => $state ? 'heroicon-s-star' : null)->color('warning'),
+                    // Only the featured guide gets a star (an icon column drew a ⊗ on the rest).
+                    Tables\Columns\TextColumn::make('is_featured')->label('')->formatStateUsing(fn ($state) => $state ? '★' : '')->color('warning')->size('lg')->tooltip(fn (Tutorial $t) => $t->is_featured ? 'Featured' : null),
                     Tables\Columns\TextColumn::make('title')->searchable()->weight('bold')->limit(60)->description(fn (Tutorial $t) => $t->category.' · '.$t->read_time),
                     Tables\Columns\TextColumn::make('status')->badge()->state(fn (Tutorial $t) => static::status($t)[0])->color(fn (Tutorial $t) => static::status($t)[1]),
-                    Tables\Columns\TextColumn::make('helpful_count')->label('Helpful')->sortable()->alignCenter(),
+                    Tables\Columns\TextColumn::make('helpful_count')->label('♥ Hearts')->sortable()->alignCenter()->wholeNumber()
+                        ->description(fn (Tutorial $t) => ($n = $t->likes_this_week) ? "+{$n} this week" : null),
                     Tables\Columns\TextColumn::make('updated_at')->label('Edited')->since()->sortable(),
                 ]),
             ])
@@ -96,8 +110,15 @@ class TutorialResource extends Resource
                 Tables\Filters\TernaryFilter::make('is_published')->label('On the site'),
                 Tables\Filters\SelectFilter::make('category')->options(array_combine(Tutorial::CATEGORIES, Tutorial::CATEGORIES)),
             ])
+            ->modifyQueryUsing(fn ($query) => $query->withCount(['likes as likes_this_week' => fn ($query) => $query->where('created_at', '>=', now()->subDays(7))]))
             ->actions([
                 Tables\Actions\EditAction::make(),
+                Tables\Actions\Action::make('open')
+                    ->label('View')
+                    ->icon('heroicon-o-arrow-top-right-on-square')
+                    ->color('gray')
+                    ->url(fn (Tutorial $t) => '/support/tutorials/'.$t->id.'-'.Str::slug($t->title), shouldOpenInNewTab: true)
+                    ->visible(fn (Tutorial $t) => $t->is_published),
                 Tables\Actions\Action::make('toggle')
                     ->label(fn (Tutorial $t) => $t->is_published ? 'Hide' : 'Show')
                     ->icon(fn (Tutorial $t) => $t->is_published ? 'heroicon-o-eye-slash' : 'heroicon-o-eye')

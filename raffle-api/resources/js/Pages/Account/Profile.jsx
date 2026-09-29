@@ -2,11 +2,13 @@ import { useEffect, useState } from 'react';
 import { Head, Link, usePage } from '@inertiajs/react';
 import {
     Award,
+    Bell,
     BookOpen,
     ChevronRight,
     CreditCard,
     History,
     Landmark,
+    LifeBuoy,
     LogOut,
     Mail,
     MessageCircle,
@@ -166,7 +168,10 @@ export default function Profile() {
                     <div className="mt-8 space-y-6 px-5 pb-6">
                         <MenuGroup title="Activity">
                             <MenuLink href="/account/tickets" icon={Ticket} iconClass="bg-green-50 text-green-600 dark:bg-green-900/30 dark:text-green-400" title="My Tickets" subtitle="View active & past tickets" />
-                            <MenuLink href="/account/transactions" icon={History} iconClass="bg-purple-50 text-purple-600 dark:bg-purple-900/30 dark:text-purple-400" title="Transaction History" last />
+                            <MenuLink href="/account/transactions" icon={History} iconClass="bg-purple-50 text-purple-600 dark:bg-purple-900/30 dark:text-purple-400" title="Transaction History" last={!user} />
+                            {user && (
+                                <MenuLink href="/messages" icon={Bell} iconClass="bg-amber-50 text-amber-600 dark:bg-amber-900/30 dark:text-amber-400" title="Notifications" subtitle="Replies, wins, payouts and news" last />
+                            )}
                         </MenuGroup>
 
                         {user && (
@@ -213,6 +218,13 @@ export default function Profile() {
                                 </button>
                             )}
                         </MenuGroup>
+
+                        {user && (
+                            <MenuGroup title="Help">
+                                <MenuLink href="/support?new=1" icon={PlusCircle} iconClass="bg-violet-50 text-violet-600 dark:bg-violet-900/30 dark:text-violet-400" title="Submit a support ticket" subtitle="Tell us what's wrong; we reply here and by email" />
+                                <MenuLink href="/support" icon={LifeBuoy} iconClass="bg-sky-50 text-sky-600 dark:bg-sky-900/30 dark:text-sky-400" title="My support tickets" subtitle="See replies and continue a conversation" last />
+                            </MenuGroup>
+                        )}
 
                         <MenuGroup title="Legal & Support">
                             <MenuLink href="/privacy-policy" icon={ShieldCheck} iconClass="bg-gray-50 text-gray-500 dark:bg-gray-700/50 dark:text-gray-400" title="Privacy Policy" />

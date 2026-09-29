@@ -70,7 +70,8 @@ Route::get('/rewards/spin/odds', [RewardsController::class, 'spinOdds']);
 // is rate-limited since it's an honest counter, not something one
 // visitor should be able to inflate by clicking repeatedly.
 Route::get('/tutorials', [TutorialController::class, 'index']);
-Route::post('/tutorials/{tutorial}/helpful', [TutorialController::class, 'markHelpful'])->middleware('throttle:10,1');
+Route::get('/tutorials/{tutorial}', [TutorialController::class, 'show'])->whereNumber('tutorial');
+Route::match(['post', 'delete'], '/tutorials/{tutorial}/helpful', [TutorialController::class, 'markHelpful'])->middleware('throttle:10,1');
 
 // Public — where the gateway's hosted checkout redirects the user's
 // browser back to after payment (see DepositController::callback()'s

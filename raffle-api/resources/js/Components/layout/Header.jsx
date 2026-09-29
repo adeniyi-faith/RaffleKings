@@ -62,7 +62,7 @@ export default function Header() {
                 </button>
 
                 {user && (
-                    <Link href="/messages" aria-label={`Messages${user.unread_messages ? `, ${user.unread_messages} unread` : ''}`} className="relative p-1 text-gray-500 transition-transform active:scale-90 dark:text-gray-300">
+                    <Link href="/messages" aria-label={`Notifications${user.unread_messages ? `, ${user.unread_messages} unread` : ''}`} className="relative p-1 text-gray-500 transition-transform active:scale-90 dark:text-gray-300">
                         <Bell className="h-5 w-5" />
                         {user.unread_messages > 0 && (
                             <span className="absolute -right-1 -top-0.5 flex h-4 min-w-4 items-center justify-center rounded-full bg-red-500 px-1 text-[9px] font-bold text-white ring-2 ring-white dark:ring-dark-bg">

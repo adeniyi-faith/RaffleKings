@@ -1,10 +1,12 @@
 <?php
 
+use App\Http\Controllers\Api\TutorialController;
 use App\Http\Controllers\LegacyRedirectController;
 use App\Models\Legacy\RaffleEntry;
 use App\Models\Raffle;
 use App\Services\Auth\TurnstileVerifier;
 use App\Services\RaffleReadService;
+use App\Services\TutorialReadService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Route;
@@ -203,6 +205,14 @@ Route::get('/support', function (Request $request) use ($accountGuard) {
 });
 
 Route::get('/support/tutorials', fn () => Inertia::render('Support/Tutorials'));
+// One tutorial on its own page ("/support/tutorials/12-how-to-win"; only
+// the number matters, so a renamed title doesn't break old links).
+Route::get('/support/tutorials/{tutorial}', function (Request $request, string $tutorial, TutorialReadService $tutorials) {
+    $found = preg_match('/^(\d+)/', $tutorial, $m) ? $tutorials->find((int) $m[1], TutorialController::voter($request, required: false)) : null;
+    abort_if(! $found, 404);
+
+    return Inertia::render('Support/Tutorial', $found);
+});
 
 // Standalone Privacy Policy (matching the legacy privacy-policy.php) --
 // public, static content, same as the legacy page.
