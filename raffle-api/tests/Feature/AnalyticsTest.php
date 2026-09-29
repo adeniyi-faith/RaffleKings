@@ -161,4 +161,31 @@ class AnalyticsTest extends TestCase
         $sent = Http::recorded(fn (Request $r) => str_contains($r->url(), 'posthog.com') && $r['event'] === 'topup_completed');
         $this->assertCount(1, $sent);
     }
+
+    public function test_a_switched_off_event_is_not_sent_by_the_server_but_others_still_are(): void
+    {
+        $this->switchOn();
+        config(['services.analytics.disabled_events' => ['tickets_purchased']]);
+        Http::fake(['us.i.posthog.com/*' => Http::response([])]);
+
+        app(Analytics::class)->capture(7, 'tickets_purchased');
+        app(Analytics::class)->capture(7, 'raffle_won');
+        $this->flush();
+
+        Http::assertNotSent(fn (Request $r) => $r['event'] === 'tickets_purchased');
+        Http::assertSent(fn (Request $r) => $r['event'] === 'raffle_won');
+    }
+
+    public function test_the_browser_is_told_which_events_are_switched_off(): void
+    {
+        $this->switchOn();
+        config(['services.analytics.disabled_events' => ['$autocapture', 'raffle_viewed']]);
+
+        $this->get('/')->assertInertia(fn ($page) => $page->where('analytics.disabled_events', ['$autocapture', 'raffle_viewed']));
+    }
+
+    public function test_every_event_the_site_records_is_on_the_admin_screen(): void
+    {
+        $this->assertSame([], \App\Services\Analytics\EventCatalog::unlisted());
+    }
 }

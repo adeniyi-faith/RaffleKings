@@ -150,6 +150,8 @@ return [
         'privacy_email' => null,
         'dpo_name' => null,
         'retention' => '12 months',
+        // Events an admin turned off (System → Tracked Events). Keys from App\Services\Analytics\EventCatalog.
+        'disabled_events' => [],
     ],
 
     'gemini' => [

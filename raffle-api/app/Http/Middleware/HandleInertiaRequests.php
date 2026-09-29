@@ -7,6 +7,7 @@ use App\Models\Legacy\WpUser;
 use App\Models\UserPoints;
 use App\Models\Wallet;
 use App\Services\Auth\TurnstileVerifier;
+use App\Services\Analytics\EventCatalog;
 use App\Services\DailyClaimService;
 use App\Services\Maintenance;
 use App\Services\PointsBoost;
@@ -79,6 +80,8 @@ class HandleInertiaRequests extends Middleware
                 'host' => config('services.posthog.host'),
                 'recordings' => (bool) config('services.posthog.recordings'),
                 'ga_id' => config('services.google_analytics.measurement_id') ?: null,
+                // Switched off under System → Tracked Events.
+                'disabled_events' => EventCatalog::disabled(),
                 'consent' => [
                     'required' => (bool) config('services.analytics.require_consent'),
                     'message' => config('services.analytics.consent_message'),

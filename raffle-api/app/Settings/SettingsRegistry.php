@@ -462,7 +462,25 @@ final class SettingsRegistry
             }
         }
 
+        foreach (self::hidden() as $setting) {
+            $all[$setting->key] = $setting;
+        }
+
         return $all;
+    }
+
+    /**
+     * Settings stored like any other but edited on their own admin screen
+     * rather than on the Settings page.
+     *
+     * @return list<Setting>
+     */
+    private static function hidden(): array
+    {
+        return [
+            // System → Tracked Events.
+            new Setting('services.analytics.disabled_events', 'Turned-off tracking events', 'tags'),
+        ];
     }
 
     public static function find(string $key): ?Setting

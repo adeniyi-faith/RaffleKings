@@ -36,6 +36,11 @@ function allowed() {
     return Boolean(config) && (! config.consent?.required || consentStatus() === 'granted');
 }
 
+// Switched off by an admin under System → Tracked Events.
+function off(name) {
+    return Boolean(config?.disabled_events?.includes(name));
+}
+
 function ph(method, ...args) {
     if (! phLoaded) {
         return;
@@ -65,7 +70,7 @@ function loadPostHog() {
             // We send page views ourselves: the site changes pages without a reload.
             capture_pageview: false,
             capture_pageleave: true,
-            autocapture: true,
+            autocapture: ! off('$autocapture'),
             // A visitor profile is only created once we know who they are.
             person_profiles: 'identified_only',
             disable_session_recording: ! config.recordings,
@@ -133,17 +138,20 @@ function sync() {
     // Reloading the same page in place (live updates, refreshing balances) is not a new visit.
     if (currentUrl !== null && currentUrl !== sentUrl) {
         sentUrl = currentUrl;
-        ph('capture', '$pageview');
-        gtag('event', 'page_view', {
-            page_path: currentUrl,
-            page_location: window.location.href,
-            page_title: document.title,
-        });
+
+        if (! off('$pageview')) {
+            ph('capture', '$pageview');
+            gtag('event', 'page_view', {
+                page_path: currentUrl,
+                page_location: window.location.href,
+                page_title: document.title,
+            });
+        }
     }
 }
 
 export function track(name, props = {}) {
-    if (! allowed()) {
+    if (! allowed() || off(name)) {
         return;
     }
 
