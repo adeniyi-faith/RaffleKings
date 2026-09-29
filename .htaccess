@@ -48,7 +48,7 @@ RewriteRule ^$ register.php [L,QSA]
 
     # Content Security Policy
     Header set Content-Security-Policy "default-src 'self'; \
-    script-src 'self' 'unsafe-inline' 'unsafe-eval' https://cdn.tailwindcss.com https://unpkg.com https://cdn.jsdelivr.net https://www.googletagmanager.com https://us-assets.i.posthog.com https://eu-assets.i.posthog.com https://static.cloudflareinsights.com https://challenges.cloudflare.com https://cdn.onesignal.com https://onesignal.com https://api.onesignal.com; \
+    script-src 'self' 'unsafe-inline' 'unsafe-eval' https://cdn.tailwindcss.com https://unpkg.com https://cdn.jsdelivr.net https://www.googletagmanager.com https://static.cloudflareinsights.com https://challenges.cloudflare.com https://cdn.onesignal.com https://onesignal.com https://api.onesignal.com; \
     worker-src 'self' blob: https://cdn.onesignal.com https://onesignal.com; \
     style-src 'self' 'unsafe-inline' https://fonts.googleapis.com https://onesignal.com https://cdn.onesignal.com; \
     font-src 'self' https://fonts.gstatic.com; \
