@@ -67,7 +67,21 @@ class RaffleResource extends Resource
                     ->columnSpanFull(),
                 Forms\Components\DatePicker::make('expiry')
                     ->label('Last day of sales')
-                    ->helperText('Ticket sales stop automatically at the end of this day (Lagos time). Leave empty for no end date.'),
+                    ->helperText('Ticket sales stop automatically at the end of this day (Lagos time). Leave empty for no end date.')
+                    ->hidden(fn (Forms\Get $get) => (bool) $get('is_flash')),
+                // Phase 11 flash raffles: a short raffle with a real countdown.
+                Forms\Components\Toggle::make('is_flash')
+                    ->label('⚡ Flash raffle')
+                    ->helperText('A short raffle that stops selling at an exact time (for example in 1 hour), shown with a live countdown and a Flash badge. Keep the number of tickets small.')
+                    ->live()
+                    ->inline(false),
+                Forms\Components\DateTimePicker::make('sales_end_at')
+                    ->label('Sales stop at (exact time)')
+                    ->seconds(false)
+                    ->timezone(config('raffles.timezone'))
+                    ->required(fn (Forms\Get $get) => (bool) $get('is_flash'))
+                    ->visible(fn (Forms\Get $get) => (bool) $get('is_flash'))
+                    ->helperText('In '.config('raffles.timezone').' time. The countdown customers see ends here.'),
                 Forms\Components\Select::make('status')
                     ->options(['draft' => 'Draft (hidden from customers)', 'published' => 'Published (on sale)', 'closed' => 'Closed (visible, not on sale)'])
                     ->default('draft')

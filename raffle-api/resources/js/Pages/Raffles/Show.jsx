@@ -94,6 +94,11 @@ export default function RaffleShow({ raffle, drawInfo = null }) {
                         <div className="absolute right-0 top-0 h-40 w-40 -translate-y-1/2 translate-x-1/2 rounded-full bg-white/10 blur-3xl" />
 
                         <div className="mb-3 flex flex-wrap items-center justify-center gap-2">
+                            {raffle.is_flash && ! isClosed && (
+                                <span className="flex items-center gap-1 rounded-full bg-fuchsia-600 px-3 py-1 text-[10px] font-black uppercase tracking-widest text-yellow-200 shadow-sm">
+                                    <Zap className="h-3 w-3 fill-current" /> Flash · {timeLeft}
+                                </span>
+                            )}
                             <span
                                 className={[
                                     'rounded-full px-3 py-1 text-[10px] font-bold shadow-sm',

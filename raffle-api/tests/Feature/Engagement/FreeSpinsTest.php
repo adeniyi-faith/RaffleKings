@@ -3,6 +3,7 @@
 namespace Tests\Feature\Engagement;
 
 use App\Models\UserEngagement;
+use App\Models\UserPoints;
 use App\Services\Engagement\BadgeService;
 use App\Services\Engagement\Perks;
 use App\Services\PointsService;
@@ -24,8 +25,9 @@ class FreeSpinsTest extends TestCase
             ->assertJsonPath('free_spins_left', 0);
 
         // With no free spins and no points, a spin is refused and nothing is taken.
+        UserPoints::query()->where('user_id', $user->ID)->update(['balance' => 0]);
         $this->postJson('/api/rewards/spin', ['free' => true])->assertStatus(402);
-        $this->assertGreaterThanOrEqual(0, app(PointsService::class)->balance($user));
+        $this->assertSame(0, app(PointsService::class)->balance($user));
     }
 
     public function test_the_birthday_is_set_once_and_gives_one_spin_a_year(): void
