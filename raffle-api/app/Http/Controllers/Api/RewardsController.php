@@ -45,9 +45,9 @@ class RewardsController extends Controller
             'points' => $this->points->balance($user),
             ...$this->dailyClaim->state($user),
             'daily_schedule' => $this->dailyClaim->schedule(),
-            // When "today" ends for the daily claim (the server's own day),
-            // for the page's "next reward in" countdown (item 47).
-            'next_reset_at' => now()->addDay()->startOfDay()->toIso8601String(),
+            // When "today" ends for the daily claim (midnight in the business
+            // time zone), for the page's "next reward in" countdown (item 47).
+            'next_reset_at' => DailyClaimService::nextReset()->toIso8601String(),
             'tasks' => $this->taskClaim->catalog($user),
             'spin' => ['cost' => SpinService::cost(), 'odds' => $this->spin->odds()],
         ]);
