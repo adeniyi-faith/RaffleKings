@@ -9,6 +9,7 @@ use App\Models\LiveDrawReveal;
 use App\Models\Raffle;
 use App\Models\RaffleDraw;
 use App\Services\LiveDrawService;
+use App\Support\Live;
 use Illuminate\Bus\Queueable;
 use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Foundation\Bus\Dispatchable;
@@ -103,10 +104,10 @@ class RunLiveDrawRevealJob implements ShouldQueue
             // a deliberate, separate admin action either way.
             $winner->update(['is_visible' => true]);
 
-            LiveDrawWinnerRevealed::dispatch($reveal, $liveDraw->winnerPayload($winner->fresh()));
+            Live::send(new LiveDrawWinnerRevealed($reveal, $liveDraw->winnerPayload($winner->fresh())));
         }
 
         $raffle->update(['live_draw_status' => 'completed']);
-        LiveDrawStateChanged::dispatch($raffle->id, 'completed');
+        Live::send(new LiveDrawStateChanged($raffle->id, 'completed'));
     }
 }

@@ -11,6 +11,7 @@ use App\Models\Legacy\RaffleTransaction;
 use App\Models\Legacy\WpUser;
 use App\Models\Wallet;
 use App\Notifications\TicketPurchaseReceipt;
+use App\Support\Live;
 use Illuminate\Database\UniqueConstraintViolationException;
 use Illuminate\Support\Facades\DB;
 use InvalidArgumentException;
@@ -298,7 +299,7 @@ class TicketPurchaseService
             return;
         }
 
-        broadcast(new RaffleTicketsUpdated(
+        Live::send(new RaffleTicketsUpdated(
             raffleId: $raffleId,
             soldTickets: $raffle['sold_tickets'],
             remainingTickets: $raffle['remaining_tickets'],

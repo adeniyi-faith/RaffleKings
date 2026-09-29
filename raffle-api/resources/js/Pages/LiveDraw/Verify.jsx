@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { Head, Link } from '@inertiajs/react';
 import { CheckCircle2, Copy, HelpCircle, Lock, ShieldCheck, Unlock, XCircle } from 'lucide-react';
+import LoadError from '../../Components/ui/LoadError';
 
 // The real, user-facing "verify this draw yourself" view item 27 asks
 // for, built on the item 14 provably-fair engine
@@ -16,18 +17,25 @@ export default function LiveDrawVerify({ raffle }) {
     const [notFound, setNotFound] = useState(false);
     const [copied, setCopied] = useState(null);
 
-    useEffect(() => {
-        fetch(`/api/raffles/${raffle.id}/draw`)
+    const [failed, setFailed] = useState(false);
+
+    function load() {
+        setFailed(false);
+        fetch(`/api/raffles/${raffle.id}/draw`, { headers: { Accept: 'application/json' } })
             .then((res) => {
                 if (res.status === 404) {
                     setNotFound(true);
                     return null;
                 }
+                if (! res.ok) throw new Error();
                 return res.json();
             })
             .then((json) => json && setData(json))
-            .catch(() => setNotFound(true));
-    }, [raffle.id]);
+            // A dropped connection isn't "no draw yet" (Phase 9).
+            .catch(() => setFailed(true));
+    }
+
+    useEffect(load, [raffle.id]);
 
     function copy(label, value) {
         navigator.clipboard?.writeText(value).then(() => {
@@ -52,7 +60,9 @@ export default function LiveDrawVerify({ raffle }) {
                         </div>
                     )}
 
-                    {! notFound && ! data && (
+                    {failed && <LoadError onRetry={load} />}
+
+                    {! notFound && ! failed && ! data && (
                         <div className="flex justify-center py-10">
                             <div className="h-8 w-8 animate-spin rounded-full border-b-2 border-app-primary" />
                         </div>

@@ -4,6 +4,7 @@ import { AlertTriangle, ArrowLeft, ArrowRight, Check, Info, Lock, ThumbsUp } fro
 import { formatNaira } from '../../lib/format';
 import PausedNotice from '../../Components/layout/PausedNotice';
 import { refreshBalances, useBalances } from '../../lib/balances';
+import LoadError from '../../Components/ui/LoadError';
 
 // Faithful rebuild of withdraw.php + components/financials/withdraw-modals.php
 // against the real WithdrawalController/WithdrawalService (items 12/18) —
@@ -25,22 +26,33 @@ export default function AccountWithdraw() {
     const [submitting, setSubmitting] = useState(false);
     const [successMessage, setSuccessMessage] = useState('');
 
-    useEffect(() => {
-        refreshBalances(true);
+    // 'error' = couldn't load (Phase 9): say so instead of "+ Add Bank Account".
+    function loadDetails() {
+        setPrimaryAccount(undefined);
 
-        fetch('/api/bank-accounts')
-            .then((res) => (res.ok ? res.json() : { accounts: [] }))
+        fetch('/api/bank-accounts', { headers: { Accept: 'application/json' } })
+            .then((res) => {
+                if (! res.ok) throw new Error();
+                return res.json();
+            })
             .then((data) => {
                 const accounts = data.accounts || [];
                 setPrimaryAccount(accounts.find((a) => a.is_primary) || accounts[0] || null);
             })
-            .catch(() => setPrimaryAccount(null));
+            .catch(() => setPrimaryAccount('error'));
 
-        fetch('/api/withdrawals/requirements')
+        fetch('/api/withdrawals/requirements', { headers: { Accept: 'application/json' } })
             .then((res) => (res.ok ? res.json() : null))
             .then(setRequirements)
             .catch(() => setRequirements(null));
+    }
+
+    useEffect(() => {
+        refreshBalances(true);
+        loadDetails();
     }, []);
+
+    const hasAccount = primaryAccount && primaryAccount !== 'error';
 
     function setMaxAmount() {
         setAmount(String(Math.floor(earnings || 0)));
@@ -55,7 +67,7 @@ export default function AccountWithdraw() {
             return;
         }
 
-        if (! primaryAccount) {
+        if (! hasAccount) {
             setErrorMessage('Add a bank account first.');
             return;
         }
@@ -155,7 +167,11 @@ export default function AccountWithdraw() {
                             </Link>
                         )}
 
-                        {primaryAccount && (
+                        {primaryAccount === 'error' && (
+                            <LoadError onRetry={loadDetails} message="Couldn't load your bank details. Check your connection and try again." />
+                        )}
+
+                        {hasAccount && (
                             <div className="relative flex items-center gap-4 overflow-hidden rounded-xl border border-green-200 bg-white p-4 shadow-sm dark:border-green-900/50 dark:bg-dark-card">
                                 <div className="absolute left-0 top-0 rounded-br-lg bg-green-500 px-2 py-0.5 text-[9px] font-bold text-white">
                                     SELECTED
@@ -218,7 +234,7 @@ export default function AccountWithdraw() {
 
                     <button
                         onClick={() => submit(false)}
-                        disabled={! primaryAccount || submitting}
+                        disabled={! hasAccount || submitting}
                         className="flex w-full items-center justify-center gap-2 rounded-xl bg-app-primary py-4 font-bold text-white shadow-lg shadow-blue-500/30 transition-transform active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-50 disabled:shadow-none"
                     >
                         {submitting ? 'Processing…' : 'Withdraw Funds'} <ArrowRight className="h-4 w-4" />
