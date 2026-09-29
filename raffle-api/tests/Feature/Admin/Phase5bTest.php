@@ -175,6 +175,10 @@ class Phase5bTest extends TestCase
 
     public function test_a_points_boost_multiplies_daily_claim_points_only_while_it_runs(): void
     {
+        // A fixed midday in Lagos: the test moves the clock forward 2 hours, which
+        // would otherwise cross Lagos midnight (and break the streak) whenever it ran late in the evening.
+        $this->travelTo(now('Africa/Lagos')->setDate(2026, 9, 15)->setTime(12, 0));
+
         $ada = $this->customer('ada');
         config(['rewards.boost' => ['multiplier' => 2, 'starts_at' => now()->subHour()->toDateTimeString(), 'ends_at' => now()->addHour()->toDateTimeString(), 'label' => 'Double']]);
 
