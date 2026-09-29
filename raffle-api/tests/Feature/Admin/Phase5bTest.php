@@ -330,8 +330,9 @@ class Phase5bTest extends TestCase
 
         $response = Livewire::test(Downloads::class)
             ->set('data.report', 'sales')
-            ->set('data.from', now()->subDay()->toDateString())
-            ->set('data.to', now()->toDateString())
+            // Dates are the business's (Lagos) days, which are a day ahead of UTC late in the evening.
+            ->set('data.from', now(config('raffles.timezone'))->subDay()->toDateString())
+            ->set('data.to', now(config('raffles.timezone'))->toDateString())
             ->call('download');
 
         $csv = $response->effects['download']['content'] ?? '';
