@@ -12,8 +12,10 @@ name: Deploy Raffle API (New Site)
 # deploys to that exact same folder
 # (/home2/worldin6/public_html/rafflekings.com.ng), replacing the old
 # WordPress files there with this app -- that's the whole point of the
-# swap. deploy.yml itself has been switched to manual-only so it can't
-# fight this workflow for the same folder.
+# swap. The old site's deploy.yml and rollback.yml were removed once it
+# was archived (OVERHAUL_CHECKLIST.md item 36): both did a git reset in
+# this same folder, which no longer holds the old site. They remain in
+# git history if the archived WordPress copy is ever needed again.
 #
 # Nothing is deleted. The first run automatically MOVES whatever is
 # currently in that folder (the old WordPress site) into a sibling folder
