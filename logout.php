@@ -37,6 +37,7 @@
             localStorage.removeItem('user_nicename');
             localStorage.removeItem('user_display_name');
             localStorage.removeItem('user_avatar_url');
+            if (typeof rkAnalyticsReset === 'function') { rkAnalyticsReset(); }
 
             // Clear cached financial data to prevent flicker on next login
             localStorage.removeItem('walletBalance');

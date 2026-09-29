@@ -229,6 +229,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
                     if (result.user) {
                         localStorage.setItem('user_email', result.user.email);
                         localStorage.setItem('user_display_name', result.user.name);
+                        if (typeof rkIdentify === 'function') { rkIdentify(result.user.id || result.user.ID); }
+                        if (typeof rkTrack === 'function') { rkTrack('login_success'); }
                     }
 
                     // --- REDIRECT LOGIC ---

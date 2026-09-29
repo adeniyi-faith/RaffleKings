@@ -65,6 +65,7 @@
     </script>
 
     <script src="analytics-tracker.js" data-cfasync="false"></script>
+    <script src="assets/js/analytics.js" data-cfasync="false"></script>
 
     <!-- Tailwind CSS -->
     <script src="https://cdn.tailwindcss.com" data-cfasync="false"></script>
