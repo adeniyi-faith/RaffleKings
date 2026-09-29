@@ -37,6 +37,9 @@
         <h1 class="rk-err-code">{{ $status }}</h1>
         <h2 class="rk-err-title">{{ $title }}</h2>
         <p class="rk-err-text">{{ $message }}</p>
+        @if (! empty($reference))
+            <p class="rk-err-text">Error code: <strong>{{ $reference }}</strong> (search for it on System → Health or in the log)</p>
+        @endif
         <button type="button" class="rk-err-btn rk-err-primary" onclick="window.location.reload()">↻ Try again</button>
         <a href="{{ url('/admin') }}" class="rk-err-btn rk-err-secondary">← Admin dashboard</a>
     </main>

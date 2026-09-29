@@ -5,6 +5,8 @@ import SiteNotices from './Components/layout/SiteNotices';
 import MaintenanceBanner from './Components/layout/MaintenanceBanner';
 // Starts tracking pages visited, for the Back buttons (lib/nav.js).
 import './lib/nav';
+// Reports JavaScript errors to System → Health (lib/errorReporter.js).
+import './lib/errorReporter';
 
 const appName = import.meta.env.VITE_APP_NAME || 'RaffleKings';
 

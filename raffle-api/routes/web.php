@@ -257,6 +257,11 @@ Route::get('/account/bank-accounts', function (Request $request) use ($accountGu
     return $accountGuard($request) ?? Inertia::render('Account/BankAccounts');
 });
 
+// Responsible play (Phase 10, item 38): spending limits and taking a break.
+Route::get('/account/play-limits', function (Request $request) use ($accountGuard) {
+    return $accountGuard($request) ?? Inertia::render('Account/PlayLimits');
+});
+
 // "Edit Personal Details" (matching legacy edit-profile.php) — same guard
 // as the rest of the account section.
 Route::get('/account/edit-profile', function (Request $request) use ($accountGuard) {
