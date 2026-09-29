@@ -8,6 +8,7 @@ import Turnstile from '../../Components/Turnstile';
 import { apiPost } from '../../lib/api';
 import PausedNotice from '../../Components/layout/PausedNotice';
 import { safeRedirect } from '../../lib/safeRedirect';
+import SimpleTop from '../../Components/layout/SimpleTop';
 
 export default function Register({ turnstileSiteKey, referralCode, referrerName, redirect }) {
     const [form, setForm] = useState({ username: '', email: '', password: '' });
@@ -42,13 +43,15 @@ export default function Register({ turnstileSiteKey, referralCode, referrerName,
         <>
             <Head title="Create account" />
             <PausedNotice feature="registrations" className="mx-4 mt-3" />
-            <div className="flex min-h-screen items-center justify-center bg-app-bg px-4 py-12 dark:bg-dark-bg">
+            <div className="flex min-h-[100dvh] flex-col bg-app-bg dark:bg-dark-bg">
+                <SimpleTop back={'/'} />
+                <div className="flex flex-1 items-center justify-center px-4 pb-12 pt-4">
                 <Card className="w-full max-w-sm rounded-3xl p-8 shadow-xl shadow-gray-200/50 dark:shadow-none">
                     <div className="mb-6 text-center">
                         <div className="mx-auto mb-3 flex h-12 w-12 items-center justify-center rounded-2xl bg-blue-100 text-blue-600 dark:bg-blue-900/30 dark:text-blue-400">
                             <UserPlus className="h-6 w-6" />
                         </div>
-                        <h1 className="text-xl font-extrabold text-gray-900 dark:text-white">Create Identity</h1>
+                        <h1 className="text-xl font-extrabold text-gray-900 dark:text-white">Create an account</h1>
                         <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">
                             Join RaffleKings and get a ₦300 welcome bonus.
                         </p>
@@ -146,6 +149,7 @@ export default function Register({ turnstileSiteKey, referralCode, referrerName,
                         </a>
                     </p>
                 </Card>
+            </div>
             </div>
         </>
     );

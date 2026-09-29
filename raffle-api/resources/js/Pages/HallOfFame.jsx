@@ -2,6 +2,8 @@ import { useEffect, useState } from 'react';
 import { Head, Link } from '@inertiajs/react';
 import { Crown, Play, Trophy } from 'lucide-react';
 import LoadError from '../Components/ui/LoadError';
+import BottomNav from '../Components/layout/BottomNav';
+import Header from '../Components/layout/Header';
 
 // Rebuild of winners.php (item 27) against GET /api/hall-of-fame
 // (HallOfFameController). Preserved faithfully: the sticky header with
@@ -58,7 +60,8 @@ export default function HallOfFame() {
         <>
             <Head title="Hall of Fame" />
             <div className="relative flex h-screen w-full flex-col overflow-y-auto bg-gray-50 pb-40 transition-colors duration-200 dark:bg-dark-bg">
-                <div className="sticky top-0 z-30 flex items-center justify-between border-b border-gray-100 bg-white px-5 pb-4 pt-4 shadow-sm backdrop-blur-md transition-colors duration-200 dark:border-dark-border dark:bg-dark-bg/95">
+                <Header />
+                <div className="flex items-center justify-between px-5 pt-5">
                     <h2 className="text-xl font-bold text-gray-900 dark:text-white">Hall of Fame 🏆</h2>
                     {! isLoading && ! failed && (
                         <span className="rounded-full border border-gray-200 bg-gray-100 px-2 py-1 text-xs font-medium text-gray-500 dark:border-gray-700 dark:bg-dark-card dark:text-gray-400">
@@ -224,6 +227,7 @@ export default function HallOfFame() {
                     )}
                 </div>
             </div>
+            <BottomNav />
         </>
     );
 }

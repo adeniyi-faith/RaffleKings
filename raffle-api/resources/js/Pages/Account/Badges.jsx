@@ -5,6 +5,7 @@ import PageTop from '../../Components/ui/PageTop';
 import LoadError from '../../Components/ui/LoadError';
 import { apiPost } from '../../lib/api';
 import { useApi } from '../../lib/useApi';
+import BottomNav from '../../Components/layout/BottomNav';
 
 // Phase 11: every badge, earned or still to earn, and up to three pinned
 // to the customer's profile.
@@ -41,7 +42,7 @@ export default function Badges() {
         <>
             <Head title="My Badges" />
             <div className="min-h-screen bg-gray-50 pb-28 dark:bg-dark-bg">
-                <PageTop title="My Badges" subtitle={data ? `${earned.length} of ${badges.length} collected` : null} />
+                <PageTop title="My Badges" back="/profile" subtitle={data ? `${earned.length} of ${badges.length} collected` : null} />
 
                 <div className="space-y-4 p-5">
                     {failed && <LoadError onRetry={reload} />}
@@ -124,6 +125,7 @@ export default function Badges() {
                     )}
                 </div>
             </div>
+            <BottomNav />
         </>
     );
 }

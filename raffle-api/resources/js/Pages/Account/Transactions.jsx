@@ -13,6 +13,8 @@ import {
     Users,
 } from 'lucide-react';
 import { formatNaira } from '../../lib/format';
+import { goBack } from '../../lib/nav';
+import BottomNav from '../../Components/layout/BottomNav';
 
 // Faithful rebuild of transactions.php + assets/js/financials/transactions.js
 // against the merged legacy-transaction + wallet-ledger history (item 26)
@@ -93,7 +95,7 @@ export default function AccountTransactions() {
             <div className="relative min-h-screen bg-gray-50 pb-28 dark:bg-dark-bg">
                 <div className="sticky top-0 z-40 flex items-center gap-3 border-b border-gray-100 bg-white px-5 pb-4 pt-4 shadow-sm dark:border-dark-border dark:bg-dark-bg dark:shadow-none">
                     <button
-                        onClick={() => window.history.back()}
+                        onClick={() => goBack('/account/wallet')}
                         className="-ml-1 p-1 text-gray-400 transition-colors hover:text-gray-600 dark:hover:text-gray-200"
                     >
                         <BackIcon className="h-5 w-5" />
@@ -202,6 +204,7 @@ export default function AccountTransactions() {
                         })}
                 </section>
             </div>
+            <BottomNav />
         </>
     );
 }

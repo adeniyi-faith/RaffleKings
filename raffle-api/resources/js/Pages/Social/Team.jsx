@@ -4,6 +4,7 @@ import { Clock, Users } from 'lucide-react';
 import { apiPost } from '../../lib/api';
 import { formatNaira } from '../../lib/format';
 import { rememberTeam, shareLink } from '../../lib/share';
+import SimpleTop from '../../Components/layout/SimpleTop';
 
 // Phase 11: the page a friend opens from a Team Up invite.
 export default function TeamPage({ team: initial, referrer, hasTicket }) {
@@ -37,7 +38,10 @@ export default function TeamPage({ team: initial, referrer, hasTicket }) {
     return (
         <>
             <Head title={`Join ${team.captain}'s team`} />
-            <div className="flex min-h-screen flex-col items-center bg-gradient-to-b from-sky-600 via-indigo-700 to-violet-900 px-5 pb-16 pt-10 text-white">
+            <div className="flex min-h-screen flex-col items-center bg-gradient-to-b from-sky-600 via-indigo-700 to-violet-900 px-5 pb-16 text-white">
+                <div className="-mx-5 mb-6 w-[calc(100%+2.5rem)]">
+                    <SimpleTop onDark back="/raffles" />
+                </div>
                 <div className="flex h-20 w-20 items-center justify-center rounded-full bg-white/20 text-4xl shadow-xl">{team.completed ? '🏆' : '🤜'}</div>
                 <h1 className="mt-4 text-center text-2xl font-black">
                     {team.completed ? 'This team is full!' : team.is_member ? 'Your team' : `Join ${team.captain}'s team`}

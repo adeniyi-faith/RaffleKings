@@ -1,6 +1,8 @@
 import { Head } from '@inertiajs/react';
 import { useSite } from '../lib/site';
 import { ArrowLeft, Check, Cog, Database, Mail, ShieldCheck } from 'lucide-react';
+import { goBack } from '../lib/nav';
+import BottomNav from '../Components/layout/BottomNav';
 
 // Faithful rebuild of the legacy privacy-policy.php +
 // components/pages/privacy-policy-content.php. That page is
@@ -12,12 +14,12 @@ export default function PrivacyPolicy() {
     return (
         <>
             <Head title="Privacy Policy" />
-            <div className="flex min-h-screen w-full flex-col bg-gray-50 text-gray-900 transition-colors duration-200 dark:bg-dark-bg dark:text-white">
+            <div className="flex min-h-screen w-full flex-col bg-gray-50 pb-24 text-gray-900 transition-colors duration-200 dark:bg-dark-bg dark:text-white">
                 <div className="sticky top-0 z-50 border-b border-gray-100 bg-white/90 px-5 pb-2 pt-4 backdrop-blur-md dark:border-dark-border dark:bg-dark-bg/95">
                     <div className="flex items-center justify-between">
                         <button
                             type="button"
-                            onClick={() => window.history.back()}
+                            onClick={() => goBack('/')}
                             className="-ml-2 rounded-full p-2 text-gray-600 transition-colors hover:bg-gray-100 dark:text-gray-300 dark:hover:bg-gray-800"
                         >
                             <ArrowLeft className="h-6 w-6" />
@@ -105,6 +107,7 @@ export default function PrivacyPolicy() {
                     </div>
                 </main>
             </div>
+            <BottomNav />
         </>
     );
 }

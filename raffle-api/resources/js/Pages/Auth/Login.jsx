@@ -5,6 +5,7 @@ import { apiPost } from '../../lib/api';
 import { useSite } from '../../lib/site';
 import Turnstile from '../../Components/Turnstile';
 import { safeRedirect } from '../../lib/safeRedirect';
+import SimpleTop from '../../Components/layout/SimpleTop';
 
 // Matches the legacy login.php page's design exactly (same layout, spacing,
 // colors and copy), just rebuilt as a React/Inertia page instead of a raw
@@ -42,14 +43,16 @@ export default function Login({ redirect }) {
     return (
         <>
             <Head title="Log in" />
-            <div className="flex min-h-[100dvh] items-center justify-center bg-gray-50 px-4 dark:bg-dark-bg">
+            <div className="flex min-h-[100dvh] flex-col bg-gray-50 dark:bg-dark-bg">
+                <SimpleTop back={'/'} />
+                <div className="flex flex-1 items-center justify-center px-4 pb-12 pt-4">
                 <div className="w-full max-w-sm">
                     <div className="mb-8 text-center">
                         <div className="mx-auto mb-6 flex h-16 w-16 rotate-3 items-center justify-center rounded-2xl bg-white shadow-lg dark:bg-dark-card">
                             <Zap className="h-8 w-8 fill-current text-app-primary" />
                         </div>
-                        <h1 className="text-2xl font-extrabold text-gray-900 dark:text-white">Resume Mission</h1>
-                        <p className="mt-2 text-sm text-gray-500 dark:text-gray-400">Welcome back, winner.</p>
+                        <h1 className="text-2xl font-extrabold text-gray-900 dark:text-white">Log in</h1>
+                        <p className="mt-2 text-sm text-gray-500 dark:text-gray-400">Welcome back. Log in to play and collect rewards.</p>
                     </div>
 
                     <div className="rounded-3xl border border-white bg-white p-8 shadow-xl shadow-gray-200/50 dark:border-gray-800 dark:bg-dark-card dark:shadow-none">
@@ -128,7 +131,7 @@ export default function Login({ redirect }) {
                                     'Logging in…'
                                 ) : (
                                     <>
-                                        Login Now <ArrowRight className="h-4 w-4" />
+                                        Log in <ArrowRight className="h-4 w-4" />
                                     </>
                                 )}
                             </button>
@@ -136,15 +139,16 @@ export default function Login({ redirect }) {
                     </div>
 
                     <p className="mt-8 text-center text-sm text-gray-500 dark:text-gray-400">
-                        Don&apos;t have an identity yet?{' '}
+                        New here?{' '}
                         <a
                             href={redirect ? `/register?redirect=${encodeURIComponent(redirect)}` : '/register'}
                             className="font-bold text-app-primary hover:underline"
                         >
-                            Create One
+                            Create an account
                         </a>
                     </p>
                 </div>
+            </div>
             </div>
         </>
     );

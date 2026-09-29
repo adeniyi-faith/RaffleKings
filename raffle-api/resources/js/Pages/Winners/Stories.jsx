@@ -7,6 +7,7 @@ import { apiPost } from '../../lib/api';
 import { useApi } from '../../lib/useApi';
 import { isOn, useSite } from '../../lib/site';
 import { resolveAvatar } from '../../lib/avatar';
+import BottomNav from '../../Components/layout/BottomNav';
 
 // Phase 11: the winner stories wall — real winners, real prizes. Winners
 // post a photo or video; staff check it first; everyone can react.
@@ -38,6 +39,7 @@ export default function Stories({ wall, page }) {
             <Head title="Winner Stories" />
             <div className="min-h-screen bg-gray-50 pb-28 dark:bg-dark-bg">
                 <PageTop
+                    back="/hall-of-fame"
                     title="Winner Stories 📸"
                     subtitle="Real winners, real prizes"
                     right={
@@ -119,6 +121,7 @@ export default function Stories({ wall, page }) {
             </div>
 
             {composing && <Composer wins={mine.wins} onClose={() => setComposing(false)} onSent={() => { setComposing(false); setSent(true); }} />}
+            <BottomNav />
         </>
     );
 }
