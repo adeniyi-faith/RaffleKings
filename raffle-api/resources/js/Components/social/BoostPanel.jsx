@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react';
 import { Check, Clock, Copy, Lock, Share2, Unlock, Users } from 'lucide-react';
 import { apiPost } from '../../lib/api';
 import { useApi } from '../../lib/useApi';
-import { forgetTeam, pendingTeam, shareLink, whatsappUrl } from '../../lib/share';
+import { forgetTeam, pendingTeam, shareLink, teamInviteText, unlockInviteText, whatsappUrl } from '../../lib/share';
 import { isOn, useSite } from '../../lib/site';
 
 // Phase 11: "Help me unlock" and Team Up for one raffle, shown on the raffle
@@ -63,19 +63,20 @@ function Dots({ done, total }) {
     );
 }
 
-function ShareRow({ text, url }) {
+// `text` is the whole invite message, link included.
+function ShareRow({ text }) {
     const [copied, setCopied] = useState(false);
 
     return (
         <div className="mt-3 grid grid-cols-3 gap-2">
-            <a href={whatsappUrl(text, url)} target="_blank" rel="noreferrer" className="col-span-1 rounded-xl bg-green-500 py-2.5 text-center text-xs font-bold text-white">
+            <a href={whatsappUrl(text)} target="_blank" rel="noreferrer" className="col-span-1 rounded-xl bg-green-500 py-2.5 text-center text-xs font-bold text-white">
                 WhatsApp
             </a>
-            <button onClick={() => shareLink(text, url)} className="flex items-center justify-center gap-1 rounded-xl bg-white/20 py-2.5 text-xs font-bold text-white">
+            <button onClick={() => shareLink(text)} className="flex items-center justify-center gap-1 rounded-xl bg-white/20 py-2.5 text-xs font-bold text-white">
                 <Share2 className="h-3.5 w-3.5" /> Share
             </button>
             <button
-                onClick={() => navigator.clipboard?.writeText(url).then(() => { setCopied(true); setTimeout(() => setCopied(false), 1500); })}
+                onClick={() => navigator.clipboard?.writeText(text).then(() => { setCopied(true); setTimeout(() => setCopied(false), 1500); })}
                 className="flex items-center justify-center gap-1 rounded-xl bg-white/20 py-2.5 text-xs font-bold text-white"
             >
                 {copied ? <Check className="h-3.5 w-3.5" /> : <Copy className="h-3.5 w-3.5" />} {copied ? 'Copied' : 'Copy'}
@@ -104,7 +105,7 @@ function UnlockCard({ data, raffleTitle, busy, onCreate }) {
                     <div className="mt-3">
                         <Dots done={link.taps} total={link.needed} />
                     </div>
-                    {! link.completed && <ShareRow text={`Tap my link to help me unlock a free entry in ${raffleTitle} (you get ${link.tapper_points} points too!):`} url={link.url} />}
+                    {! link.completed && <ShareRow text={unlockInviteText({ prize: link.raffle?.grand_prize, raffleTitle, url: link.url, points: link.tapper_points })} />}
                 </>
             ) : data.has_tickets ? (
                 <button onClick={onCreate} disabled={busy} className="mt-3 w-full rounded-xl bg-white py-2.5 text-sm font-black text-orange-600 shadow active:scale-95 disabled:opacity-60">
@@ -158,7 +159,7 @@ function TeamCard({ data, raffleTitle, busy, onCreate }) {
                         })}
                     </div>
                     {team.expired && <p className="mt-2 text-[11px] text-white/80">Time ran out before the team was full. Your tickets still count in the draw.</p>}
-                    {! team.completed && ! team.expired && <ShareRow text={`Join my team in ${raffleTitle}! If our team fills, we all get a free bonus entry:`} url={team.url} />}
+                    {! team.completed && ! team.expired && <ShareRow text={teamInviteText({ prize: team.raffle?.grand_prize, raffleTitle, url: team.url, bonusEntries: team.bonus_entries ?? data.team_bonus_entries })} />}
                 </>
             ) : data.has_tickets ? (
                 <button onClick={onCreate} disabled={busy} className="mt-3 w-full rounded-xl bg-white py-2.5 text-sm font-black text-indigo-700 shadow active:scale-95 disabled:opacity-60">

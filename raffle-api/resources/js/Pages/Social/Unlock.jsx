@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { Head, Link, usePage } from '@inertiajs/react';
 import { Check, Coins, Gift, Lock, Unlock as UnlockIcon } from 'lucide-react';
 import { apiPost } from '../../lib/api';
-import { shareLink } from '../../lib/share';
+import { shareLink, unlockInviteText } from '../../lib/share';
 import SimpleTop from '../../Components/layout/SimpleTop';
 
 // Phase 11: the page a friend opens from a "help me unlock" link.
@@ -85,7 +85,7 @@ export default function UnlockPage({ link: initial, referrer, alreadyTapped }) {
                     {isOwner ? (
                         ! link.completed && (
                             <button
-                                onClick={() => shareLink(`Tap my link to help me unlock a free entry (you get ${link.tapper_points} points too!):`, window.location.href)}
+                                onClick={() => shareLink(unlockInviteText({ prize: link.raffle?.grand_prize, raffleTitle: link.raffle?.title, url: `${window.location.origin}${here}`, points: link.tapper_points }))}
                                 className="w-full rounded-2xl bg-white py-4 text-base font-black text-orange-600 shadow-xl active:scale-95"
                             >
                                 Share with friends
