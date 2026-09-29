@@ -40,8 +40,8 @@ class ReferralsRelationManager extends RelationManager
                 ]),
                 ...MobileCard::desktop([
                     Tables\Columns\TextColumn::make('referee.display_name')->label('Friend'),
-                    Tables\Columns\TextColumn::make('deposit_amount')->label('Friend\'s first top-up')->money('NGN'),
-                    Tables\Columns\TextColumn::make('commission_amount')->label('Earned')->money('NGN')->weight('bold'),
+                    Tables\Columns\TextColumn::make('deposit_amount')->label('Friend\'s first top-up')->naira(),
+                    Tables\Columns\TextColumn::make('commission_amount')->label('Earned')->naira()->weight('bold'),
                     Tables\Columns\TextColumn::make('created_at')->label('Paid')->date('j M Y'),
                 ]),
             ])
