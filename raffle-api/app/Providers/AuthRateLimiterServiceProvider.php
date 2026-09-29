@@ -3,6 +3,7 @@
 namespace App\Providers;
 
 use Illuminate\Cache\RateLimiting\Limit;
+use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\RateLimiter;
 use Illuminate\Support\ServiceProvider;
 
@@ -45,5 +46,32 @@ class AuthRateLimiterServiceProvider extends ServiceProvider
         RateLimiter::for('auth-forgot-password', fn ($request) => Limit::perMinutes(5, 3)->by($request->input('email', $request->ip())));
 
         RateLimiter::for('auth-otp-guess', fn ($request) => Limit::perMinutes(15, 5)->by($request->input('email', $request->ip())));
+
+        // Phase 10 security pass. A cap on the whole API, far above what a
+        // person tapping around ever needs, so a script can't hammer it.
+        // Signed in: per account. Guests: per address, set high because
+        // many phones on one mobile network share an address. Payment
+        // webhooks are never capped (the gateways retry on failure).
+        RateLimiter::for('api', function ($request) {
+            if ($request->is('api/webhooks/*')) {
+                return Limit::none();
+            }
+
+            // This runs before the route's own auth check, so ask the
+            // site's login guard directly (the default guard isn't it).
+            $userId = Auth::guard('wordpress')->id();
+
+            return $userId
+                ? Limit::perMinute(240)->by('api-u:'.$userId)
+                : Limit::perMinute(600)->by('api-ip:'.$request->ip());
+        });
+
+        // Actions that move money or points (buy, redeem, top up, bank
+        // accounts, profile changes, claims): a person does these a few
+        // times a minute at most.
+        RateLimiter::for('money', fn ($request) => Limit::perMinute(20)->by('money:'.($request->user()?->getAuthIdentifier() ?? $request->ip())));
+
+        // Spin & Win: one spin takes a few seconds to play out.
+        RateLimiter::for('game', fn ($request) => Limit::perMinute(40)->by('game:'.($request->user()?->getAuthIdentifier() ?? $request->ip())));
     }
 }

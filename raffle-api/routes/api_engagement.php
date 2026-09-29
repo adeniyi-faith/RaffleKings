@@ -16,7 +16,7 @@ use Illuminate\Support\Facades\Route;
 
 Route::middleware('auth:wordpress')->group(function () {
     Route::get('/badges', [BadgeController::class, 'index']);
-    Route::post('/badges/showcase', [BadgeController::class, 'showcase']);
+    Route::post('/badges/showcase', [BadgeController::class, 'showcase'])->middleware('throttle:money');
 
     Route::get('/referrals/overview', ReferralLadderController::class);
 
@@ -37,5 +37,5 @@ Route::middleware('auth:wordpress')->group(function () {
     Route::post('/stories/{story}/react', [WinnerStoryController::class, 'react'])->whereNumber('story')->middleware('throttle:60,1');
 
     Route::get('/season', [SeasonPassController::class, 'show']);
-    Route::post('/season/claim', [SeasonPassController::class, 'claim'])->middleware('feature:season_pass');
+    Route::post('/season/claim', [SeasonPassController::class, 'claim'])->middleware(['feature:season_pass', 'throttle:money']);
 });

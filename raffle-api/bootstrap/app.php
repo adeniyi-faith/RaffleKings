@@ -4,6 +4,8 @@ use App\Http\Middleware\EnsureFeatureOn;
 use App\Http\Middleware\EnsureUserIsAdministrator;
 use App\Http\Middleware\HandleInertiaRequests;
 use App\Http\Middleware\MaintenanceMode;
+use App\Http\Middleware\SecurityHeaders;
+use App\Http\Middleware\VerifyApiOrigin;
 use App\Services\Monitoring\ErrorAlerter;
 use Illuminate\Foundation\Application;
 use Illuminate\Foundation\Configuration\Exceptions;
@@ -35,6 +37,14 @@ return Application::configure(basePath: dirname(__DIR__))
         $middleware->web(append: [HandleInertiaRequests::class, MaintenanceMode::class]);
         // Maintenance mode (Settings → On / off) covers the API too.
         $middleware->api(append: [MaintenanceMode::class]);
+
+        // Phase 10 security pass: browser security headers everywhere,
+        // cross-site request checks on the cookie-signed-in API, and a
+        // per-person request cap on the whole API (see the 'api' limiter
+        // in AuthRateLimiterServiceProvider).
+        $middleware->append(SecurityHeaders::class);
+        $middleware->api(prepend: [VerifyApiOrigin::class]);
+        $middleware->throttleApi('api');
 
         // The same "logged in" cookie WordPress itself sets (see
         // App\Auth\WordPressSessionGuard) is never Laravel-encrypted.
