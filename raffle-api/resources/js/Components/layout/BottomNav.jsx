@@ -16,8 +16,11 @@ const ITEMS = [
 ];
 
 export default function BottomNav() {
-    const { url } = usePage();
+    const { url, props } = usePage();
     const items = ITEMS;
+    // Item 47: a red dot on My Rewards while today's daily reward is
+    // waiting (the server works it out; see HandleInertiaRequests).
+    const rewardReady = Boolean(props.auth?.user?.reward_ready);
 
     return (
         <nav className="fixed bottom-0 left-0 z-50 flex h-[calc(4.5rem+env(safe-area-inset-bottom))] w-full items-start justify-around border-t border-gray-100 bg-white px-2 pb-2 pt-3 shadow-[0_-5px_20px_rgba(0,0,0,0.03)] backdrop-blur-md transition-colors duration-200 dark:border-dark-border dark:bg-dark-bg/95 dark:shadow-none">
@@ -35,7 +38,14 @@ export default function BottomNav() {
                                 : 'text-gray-400 hover:text-gray-600 dark:text-gray-500 dark:hover:text-gray-300',
                         ].join(' ')}
                     >
-                        <Icon className="h-6 w-6" />
+                        <span className="relative">
+                            <Icon className="h-6 w-6" />
+                            {href === '/rewards' && rewardReady && (
+                                <span className="absolute -right-0.5 -top-0.5 h-2.5 w-2.5 animate-pulse rounded-full border-2 border-white bg-red-500 shadow-sm dark:border-dark-bg">
+                                    <span className="sr-only">Reward ready</span>
+                                </span>
+                            )}
+                        </span>
                         <span className="text-center text-[10px] font-medium leading-tight">{label}</span>
                     </Link>
                 );
