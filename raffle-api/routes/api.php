@@ -119,7 +119,7 @@ Route::middleware('auth:wordpress')->group(function () {
     // as the legacy edit-profile.php.
     Route::get('/profile', [ProfileController::class, 'show']);
     Route::post('/profile', [ProfileController::class, 'update']);
-    Route::post('/profile/avatar', [ProfileController::class, 'uploadAvatar']);
+    Route::post('/profile/avatar', [ProfileController::class, 'uploadAvatar'])->middleware('throttle:avatar-upload');
 
     Route::get('/referrals/stats', [ReferralController::class, 'stats']);
 
@@ -161,9 +161,9 @@ Route::middleware('auth:wordpress')->group(function () {
     Route::post('/messages/{message}/read', [MessageController::class, 'read'])->whereNumber('message');
 
     Route::get('/support/tickets', [SupportTicketController::class, 'index']);
-    Route::post('/support/tickets', [SupportTicketController::class, 'store']);
+    Route::post('/support/tickets', [SupportTicketController::class, 'store'])->middleware('throttle:support-open');
     Route::get('/support/tickets/{ticket}', [SupportTicketController::class, 'show']);
-    Route::post('/support/tickets/{ticket}/reply', [SupportTicketController::class, 'reply']);
+    Route::post('/support/tickets/{ticket}/reply', [SupportTicketController::class, 'reply'])->middleware('throttle:support-reply');
 
     // Live comments/reactions (item 27) — any logged-in viewer, same
     // guard as everything else in this group. Rate-limited like the

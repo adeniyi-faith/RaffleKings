@@ -145,9 +145,9 @@ export default function SupportIndex() {
             <div className="relative min-h-screen bg-gray-50 pb-28 dark:bg-dark-bg">
                 <div className="sticky top-0 z-40 border-b border-gray-100 bg-white px-5 pb-4 pt-4 dark:border-dark-border dark:bg-dark-bg">
                     <div className="flex items-center gap-3">
-                        <button onClick={() => window.history.back()} className="-ml-1 p-1 text-gray-400 hover:text-gray-600 dark:hover:text-white">
+                        <Link href="/profile" className="-ml-1 p-1 text-gray-400 hover:text-gray-600 dark:hover:text-white" aria-label="Back to profile">
                             <ArrowLeft className="h-5 w-5" />
-                        </button>
+                        </Link>
                         <div>
                             <h2 className="text-xl font-bold text-gray-900 dark:text-white">Help & Support</h2>
                             <p className="text-xs text-gray-500 dark:text-gray-400">We are here to help you win.</p>
@@ -157,7 +157,7 @@ export default function SupportIndex() {
 
                 <section className="p-5 pb-2">
                     <Link
-                        href="/support/tutorials"
+                        href="/support/tutorials?from=support"
                         className="group relative block overflow-hidden rounded-2xl bg-gradient-to-r from-blue-600 to-indigo-700 p-5 text-white shadow-lg shadow-blue-500/20 transition-transform active:scale-[0.98]"
                     >
                         <div className="pointer-events-none absolute bottom-0 right-0 h-24 w-24 translate-x-1/4 translate-y-1/4 rounded-full bg-white/10 blur-2xl" />

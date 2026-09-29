@@ -28,7 +28,19 @@ class AuthRateLimiterServiceProvider extends ServiceProvider
     {
         RateLimiter::for('auth-register', fn ($request) => Limit::perMinutes(5, 3)->by($request->ip()));
 
-        RateLimiter::for('auth-login', fn ($request) => Limit::perMinute(5)->by($request->ip().'|'.$request->input('username')));
+        // Two limits: 5 tries a minute per person-at-an-address, and 30 a minute per
+        // address overall, so trying one password against many usernames doesn't
+        // get around the first limit.
+        RateLimiter::for('auth-login', fn ($request) => [
+            Limit::perMinute(5)->by($request->ip().'|'.$request->input('username')),
+            Limit::perMinute(30)->by('ip|'.$request->ip()),
+        ]);
+
+        // Support tickets and replies get sent to the admins, so cap how fast one
+        // customer can create them, and how many profile pictures they can upload.
+        RateLimiter::for('support-open', fn ($request) => Limit::perHour(5)->by('u:'.($request->user()?->getAuthIdentifier() ?? $request->ip())));
+        RateLimiter::for('support-reply', fn ($request) => Limit::perMinute(10)->by('u:'.($request->user()?->getAuthIdentifier() ?? $request->ip())));
+        RateLimiter::for('avatar-upload', fn ($request) => Limit::perHour(10)->by('u:'.($request->user()?->getAuthIdentifier() ?? $request->ip())));
 
         RateLimiter::for('auth-forgot-password', fn ($request) => Limit::perMinutes(5, 3)->by($request->input('email', $request->ip())));
 
