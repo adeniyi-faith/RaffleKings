@@ -48,7 +48,7 @@ class BadgeService
 
         WpUser::find($userId)?->notify(new EngagementAlert(
             "New badge: {$info['emoji']} {$info['name']}",
-            $info['description'].'. Pin it to your profile to show it off.',
+            'You earned a new badge. Open My Badges and tap it to pin it to your profile.',
             '/account/badges',
             'See my badges',
         ));

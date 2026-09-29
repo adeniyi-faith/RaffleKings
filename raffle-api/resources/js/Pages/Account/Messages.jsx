@@ -2,6 +2,8 @@ import { useEffect, useState } from 'react';
 import { Head, Link, router } from '@inertiajs/react';
 import { ArrowLeft, ArrowRight, ArrowUpRight, BellOff, CheckCheck, Gift, LifeBuoy, Star, Trophy, Users, Wallet } from 'lucide-react';
 import { apiPost } from '../../lib/api';
+import { goBack } from '../../lib/nav';
+import BottomNav from '../../Components/layout/BottomNav';
 
 // The customer's notifications (the bell): personal alerts (support
 // replies, wins, withdrawals, top-ups, referral earnings, written by
@@ -69,7 +71,7 @@ export default function Messages() {
             <Head title="Notifications" />
             <div className="relative min-h-screen bg-gray-50 pb-28 dark:bg-dark-bg">
                 <div className="sticky top-0 z-40 flex items-center gap-3 border-b border-gray-100 bg-white px-5 pb-4 pt-4 shadow-sm dark:border-dark-border dark:bg-dark-bg dark:shadow-none">
-                    <button onClick={() => window.history.back()} className="-ml-1 p-1 text-gray-400 transition-colors hover:text-gray-600 dark:hover:text-gray-200">
+                    <button onClick={() => goBack('/')} className="-ml-1 p-1 text-gray-400 transition-colors hover:text-gray-600 dark:hover:text-gray-200">
                         <ArrowLeft className="h-5 w-5" />
                     </button>
                     <div className="flex-1">
@@ -154,6 +156,7 @@ export default function Messages() {
                     })}
                 </section>
             </div>
+            <BottomNav />
         </>
     );
 }

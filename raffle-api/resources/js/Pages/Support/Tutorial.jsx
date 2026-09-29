@@ -1,6 +1,7 @@
 import { Head, Link } from '@inertiajs/react';
 import { ArrowLeft, BookOpen, Clock, LifeBuoy } from 'lucide-react';
 import HeartButton from '../../Components/support/HeartButton';
+import BottomNav from '../../Components/layout/BottomNav';
 
 // One Learning Hub guide on its own page (/support/tutorials/12-title),
 // so it can be shared, bookmarked and opened from a notification.
@@ -84,6 +85,7 @@ export default function Tutorial({ tutorial, more = [] }) {
                     </section>
                 )}
             </div>
+            <BottomNav />
         </>
     );
 }

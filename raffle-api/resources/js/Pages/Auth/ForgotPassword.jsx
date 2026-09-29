@@ -6,6 +6,7 @@ import { TextInput } from '../../Components/ui/TextInput';
 import { apiPost } from '../../lib/api';
 import { useSite } from '../../lib/site';
 import Turnstile from '../../Components/Turnstile';
+import SimpleTop from '../../Components/layout/SimpleTop';
 
 export default function ForgotPassword() {
     const [email, setEmail] = useState('');
@@ -34,7 +35,9 @@ export default function ForgotPassword() {
     return (
         <>
             <Head title="Forgot password" />
-            <div className="flex min-h-screen items-center justify-center bg-app-bg px-4 py-12 dark:bg-dark-bg">
+            <div className="flex min-h-[100dvh] flex-col bg-app-bg dark:bg-dark-bg">
+                <SimpleTop back={'/login'} />
+                <div className="flex flex-1 items-center justify-center px-4 pb-12 pt-4">
                 <Card className="w-full max-w-sm">
                     <h1 className="mb-1 text-xl font-bold">Reset your password</h1>
                     <p className="mb-6 text-sm text-gray-500 dark:text-gray-400">
@@ -71,6 +74,7 @@ export default function ForgotPassword() {
                         </Button>
                     </form>
                 </Card>
+            </div>
             </div>
         </>
     );

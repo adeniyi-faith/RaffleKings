@@ -360,7 +360,7 @@ function ResultOverlay({ result, cost, canSpinAgain, onAgain, onClose }) {
             ? `That's ${result.profit} more than the spin cost.`
             : result.profit === 0
               ? 'You got your points back. Go again?'
-              : `You won ${result.payout} points back. The next one could be big.`;
+              : `You got ${result.payout} points back. That's less than the ${cost} the spin cost.`;
 
     return (
         <>
@@ -448,6 +448,7 @@ function OddsSheet({ odds, cost, averageBack, onClose }) {
                     <li>Each spin costs {cost} points. The slices on the wheel are sized by these real chances.</li>
                     <li>The prize is picked by our server with a secure random draw before the wheel moves. The wheel only shows the result; tapping or flicking it doesn't change anything.</li>
                     <li>On average a spin pays back about {averageBack} points. Play for fun.</li>
+                    <li>Free spins cost nothing. You get them from the Season Pass, inviting friends, ticket milestones and your birthday.</li>
                 </ul>
                 <button type="button" onClick={onClose} className="mt-5 w-full rounded-xl bg-gray-900 py-3 text-sm font-bold text-white dark:bg-white dark:text-gray-900">
                     Got it

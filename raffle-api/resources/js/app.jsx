@@ -3,6 +3,8 @@ import { createRoot } from 'react-dom/client';
 import { createInertiaApp } from '@inertiajs/react';
 import SiteNotices from './Components/layout/SiteNotices';
 import MaintenanceBanner from './Components/layout/MaintenanceBanner';
+// Starts tracking pages visited, for the Back buttons (lib/nav.js).
+import './lib/nav';
 
 const appName = import.meta.env.VITE_APP_NAME || 'RaffleKings';
 

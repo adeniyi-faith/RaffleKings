@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { Head } from '@inertiajs/react';
 import { ArrowLeft, CreditCard, Lock, PlusCircle, Trash2 } from 'lucide-react';
 import LoadError from '../../Components/ui/LoadError';
+import { goBack } from '../../lib/nav';
 
 // Faithful rebuild of bank-details.php + components/user/bank-accounts-list.php
 // and add-bank-sheet.php against BankAccountController (item 12) — same
@@ -121,7 +122,7 @@ export default function AccountBankAccounts() {
             <div className="relative min-h-screen bg-gray-50 dark:bg-dark-bg">
                 <div className="sticky top-0 z-40 flex items-center gap-3 border-b border-gray-100 bg-white px-5 pb-4 pt-4 shadow-sm dark:border-dark-border dark:bg-dark-bg dark:shadow-none">
                     <button
-                        onClick={() => window.history.back()}
+                        onClick={() => goBack('/account/wallet')}
                         className="-ml-1 p-1 text-gray-400 transition-colors hover:text-gray-600 dark:hover:text-gray-200"
                     >
                         <ArrowLeft className="h-5 w-5" />

@@ -45,10 +45,20 @@ class RewardsController extends Controller
         /** @var WpUser $user */
         $user = $request->user();
 
+        return response()->json($this->stateFor($user));
+    }
+
+    /**
+     * The state above as an array, also sent with the /rewards page itself
+     * so the page draws complete on the first paint instead of jumping as
+     * the day boxes and loyalty card arrive a moment later.
+     */
+    public function stateFor(WpUser $user): array
+    {
         // Phase 11: birthday / anniversary free spins arrive when Rewards opens.
         app(FreeSpinGifts::class)->checkOccasions($user);
 
-        return response()->json([
+        return [
             'points' => $this->points->balance($user),
             ...$this->dailyClaim->state($user),
             'daily_schedule' => $this->dailyClaim->schedule(),
@@ -62,7 +72,7 @@ class RewardsController extends Controller
             // Phase 11: Season Pass level, free spins waiting.
             'season' => collect(app(SeasonPass::class)->state($user->ID))->only(['level', 'claimable', 'season'])->all(),
             'free_spins' => app(Perks::class)->freeSpins($user->ID),
-        ]);
+        ];
     }
 
     /** Public — the odds are meant to be shown to players, not hidden. */

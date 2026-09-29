@@ -2,6 +2,8 @@ import { useEffect, useState } from 'react';
 import { Head, Link, router } from '@inertiajs/react';
 import { ArrowLeft, ExternalLink, Hash, PlayCircle, Radio, ShieldCheck, Ticket, Trophy } from 'lucide-react';
 import { formatNaira } from '../../lib/format';
+import { goBack } from '../../lib/nav';
+import BottomNav from '../../Components/layout/BottomNav';
 
 // Faithful rebuild of my-tickets.php against the new ledger/wallet/
 // bank-account-era account APIs (item 26) — same skeleton loader, same
@@ -64,7 +66,7 @@ export default function AccountTickets() {
             <div className="min-h-screen bg-gray-50 pb-36 dark:bg-dark-bg">
                 <div className="sticky top-0 z-40 flex items-center gap-3 border-b border-gray-100 bg-white px-5 pb-4 pt-4 shadow-sm dark:border-dark-border dark:bg-dark-bg dark:shadow-none">
                     <button
-                        onClick={() => window.history.back()}
+                        onClick={() => goBack('/profile')}
                         className="-ml-1 p-1 text-gray-400 transition-colors hover:text-gray-600 dark:hover:text-gray-200"
                     >
                         <ArrowLeft className="h-5 w-5" />
@@ -240,6 +242,7 @@ export default function AccountTickets() {
                         })}
                 </div>
             </div>
+            <BottomNav />
         </>
     );
 }

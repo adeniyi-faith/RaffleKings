@@ -21,6 +21,8 @@ import { apiPost } from '../../lib/api';
 import { refreshBalances, setBalances, useBalanceHidden, useBalances } from '../../lib/balances';
 import PausedNotice from '../../Components/layout/PausedNotice';
 import TransferWinningsModal from '../../Components/wallet/TransferWinningsModal';
+import { goBack } from '../../lib/nav';
+import BottomNav from '../../Components/layout/BottomNav';
 
 // Top up (rebuilt from topup.php, items 26 and 48): enter an amount, pay
 // on Paystack's hosted checkout, come back here to see it land. Item 48
@@ -104,10 +106,10 @@ export default function AccountWallet({ minimumDeposit = 100, recentTopups = [] 
     return (
         <>
             <Head title="Top Up Wallet" />
-            <div className="min-h-screen bg-gray-50 pb-16 dark:bg-dark-bg">
+            <div className="min-h-screen bg-gray-50 pb-28 dark:bg-dark-bg">
                 <div className="sticky top-0 z-10 flex items-center gap-3 border-b border-gray-100 bg-white px-5 py-4 dark:border-dark-border dark:bg-dark-bg">
                     <button
-                        onClick={() => window.history.back()}
+                        onClick={() => goBack('/profile')}
                         className="-ml-1 p-1 text-gray-400 transition-colors hover:text-gray-900 dark:hover:text-white"
                         aria-label="Back"
                     >
@@ -312,6 +314,7 @@ export default function AccountWallet({ minimumDeposit = 100, recentTopups = [] 
                 earnings={balances?.earnings ?? 0}
                 onDone={(data) => setBalances(data)}
             />
+            <BottomNav />
         </>
     );
 }
