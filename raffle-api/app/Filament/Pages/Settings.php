@@ -123,7 +123,7 @@ class Settings extends Page implements HasForms
     private function component(Setting $setting): Component
     {
         $name = self::field($setting->key);
-        $wide = in_array($setting->type, ['textarea', 'bundles', 'spin_prizes', 'daily_rewards', 'tags'], true);
+        $wide = in_array($setting->type, ['textarea', 'bundles', 'spin_prizes', 'daily_rewards', 'tags', 'loyalty_tiers'], true);
 
         $field = match ($setting->type) {
             'text' => Forms\Components\TextInput::make($name)->maxLength(255),
@@ -169,6 +169,26 @@ class Settings extends Page implements HasForms
                     }
                 }])
                 ->live(onBlur: true),
+            'loyalty_tiers' => Forms\Components\Repeater::make($name)
+                ->schema([
+                    Forms\Components\Hidden::make('key'),
+                    Forms\Components\TextInput::make('name')->label('Name')->required()->maxLength(30),
+                    Forms\Components\TextInput::make('min_active_weeks')->label('Weeks played')->integer()->minValue(0)->maxValue(52)->required()
+                        ->disabled(fn (Get $get) => $get('key') === 'bronze')->dehydrated(),
+                    Forms\Components\TextInput::make('min_tickets')->label('Tickets bought')->integer()->minValue(0)->required()
+                        ->disabled(fn (Get $get) => $get('key') === 'bronze')->dehydrated(),
+                    Forms\Components\TextInput::make('bonus_entries')->label('Bonus entries')->integer()->minValue(0)->maxValue(20)->required(),
+                ])
+                ->columns(['default' => 2, 'md' => 4])->addable(false)->deletable(false)->reorderable(false)
+                ->itemLabel(fn (array $state) => ucfirst((string) ($state['key'] ?? '')))
+                ->rules([fn () => function (string $attribute, $value, \Closure $fail) {
+                    $tiers = array_values((array) $value);
+                    for ($i = 1; $i < count($tiers); $i++) {
+                        if ((int) $tiers[$i]['min_active_weeks'] < (int) $tiers[$i - 1]['min_active_weeks'] || (int) $tiers[$i]['min_tickets'] < (int) $tiers[$i - 1]['min_tickets']) {
+                            $fail('Each tier must need at least as many weeks and tickets as the tier below it.');
+                        }
+                    }
+                }]),
         };
 
         $field->label($setting->label);

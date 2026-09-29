@@ -185,6 +185,13 @@ final class SettingsRegistry
                             new Setting('rewards.boost.ends_at', 'Ends', 'datetime', 'Required for a boost to run.'),
                         ],
                     ],
+                    'Loyalty tiers' => [
+                        'description' => 'Tiers reward playing regularly: a customer reaches a tier by playing in enough of the recent weeks AND buying enough tickets in that time. Customers see their tier and what the next one needs. A tier\'s perk is free bonus entries in raffles whose draw rules turn them on.',
+                        'settings' => [
+                            new Setting('loyalty.window_weeks', 'Weeks counted', 'int', 'How many recent weeks (Monday to Sunday, Lagos time) count towards a tier.', rules: ['required', 'integer', 'min:1', 'max:52']),
+                            new Setting('loyalty.tiers', 'Tiers', 'loyalty_tiers', 'Each higher tier should need at least as much as the one below it.'),
+                        ],
+                    ],
                     'Cashing in points' => [
                         'settings' => [
                             new Setting('rewards.points_per_naira', 'Points per ₦1', 'int', rules: ['required', 'integer', 'min:1']),

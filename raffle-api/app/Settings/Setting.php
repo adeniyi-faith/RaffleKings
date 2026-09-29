@@ -10,7 +10,7 @@ namespace App\Settings;
 final class Setting
 {
     /**
-     * @param  string  $type  text|textarea|url|email|datetime|secret|int|money|percent|fraction_percent|bool|select|tags|timezone|daily_rewards|bundles|spin_prizes
+     * @param  string  $type  text|textarea|url|email|datetime|secret|int|money|percent|fraction_percent|bool|select|tags|timezone|daily_rewards|bundles|spin_prizes|loyalty_tiers
      * @param  array<string, string>  $options  For select.
      * @param  array<int, string>  $rules  Extra validation rules.
      */
@@ -40,6 +40,7 @@ final class Setting
             'tags' => array_values(array_filter((array) $value, fn ($v) => $v !== null && $v !== '')),
             'daily_rewards' => array_values(array_map('intval', (array) $value)),
             'bundles', 'spin_prizes' => array_values((array) $value),
+            'loyalty_tiers' => array_values((array) $value),
             default => $value,
         };
     }
@@ -61,6 +62,16 @@ final class Setting
                 ->sortBy('quantity')->values()->all(),
             'spin_prizes' => collect((array) $value)
                 ->map(fn ($p) => ['payout' => (int) $p['payout'], 'weight' => (int) $p['weight'], 'outcome' => (string) $p['outcome']])
+                ->values()->all(),
+            // The four tiers always exist, lowest first; Bronze needs nothing.
+            'loyalty_tiers' => collect((array) $value)
+                ->map(fn ($t) => [
+                    'key' => (string) $t['key'],
+                    'name' => trim((string) ($t['name'] ?? '')) ?: ucfirst((string) $t['key']),
+                    'min_active_weeks' => $t['key'] === 'bronze' ? 0 : max(0, (int) ($t['min_active_weeks'] ?? 0)),
+                    'min_tickets' => $t['key'] === 'bronze' ? 0 : max(0, (int) ($t['min_tickets'] ?? 0)),
+                    'bonus_entries' => max(0, min(20, (int) ($t['bonus_entries'] ?? 0))),
+                ])
                 ->values()->all(),
             default => $value === '' ? null : $value,
         };

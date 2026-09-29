@@ -108,7 +108,7 @@ class RaffleWinnerResource extends Resource
                     'amount' => (float) $record->prize_cash_value > 0 ? static::naira($record->prize_cash_value) : null,
                     'lines' => [
                         static::raffleTitles()[$record->raffle_id] ?? "Raffle #{$record->raffle_id}",
-                        "Ticket {$record->ticket_number} · ".($record->user?->display_name ?: $record->user?->user_login),
+                        ((int) $record->ticket_number === 0 ? 'Bonus entry · ' : "Ticket {$record->ticket_number} · ").($record->user?->display_name ?: $record->user?->user_login),
                     ],
                     'badges' => [
                         $record->is_credited ? ['Paid', 'success'] : ['Not paid yet', 'warning'],
@@ -125,7 +125,8 @@ class RaffleWinnerResource extends Resource
                         ->label('Winner')
                         ->description(fn (RaffleWinner $record) => $record->user?->user_email)
                         ->searchable(['display_name', 'user_login', 'user_email']),
-                    Tables\Columns\TextColumn::make('ticket_number')->label('Ticket')->alignCenter(),
+                    Tables\Columns\TextColumn::make('ticket_number')->label('Ticket')->alignCenter()
+                        ->formatStateUsing(fn ($state) => (int) $state === 0 ? 'Bonus entry' : $state),
                     Tables\Columns\TextColumn::make('prize_name')
                         ->label('Prize')
                         ->description(fn (RaffleWinner $record) => (float) $record->prize_cash_value > 0

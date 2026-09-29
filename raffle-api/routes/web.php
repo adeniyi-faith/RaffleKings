@@ -13,6 +13,7 @@ use App\Services\GoldenBoxService;
 use App\Services\LiveDrawService;
 use App\Services\PointsService;
 use App\Services\RaffleReadService;
+use App\Services\RaffleRulesService;
 use App\Services\SpinService;
 use App\Services\TaskClaimService;
 use App\Services\TutorialReadService;
@@ -108,7 +109,12 @@ Route::get('/raffles/{raffle}', function (int $raffle, RaffleReadService $raffle
             .($found['is_closed'] ? 'This raffle has closed.' : $found['remaining_tickets'].' tickets left. Pick your lucky numbers now.'),
     ]);
 
-    return Inertia::render('Raffles/Show', ['raffle' => $found]);
+    // Raffle Rules Engine: the published draw rules, and whether this
+    // customer can enter.
+    return Inertia::render('Raffles/Show', [
+        'raffle' => $found,
+        'drawInfo' => app(RaffleRulesService::class)->forRafflePage($raffle, Auth::guard('wordpress')->id()),
+    ]);
 });
 
 // Number selection — requires a real login (item 25 fix: this used to be
@@ -126,7 +132,7 @@ Route::get('/raffles/{raffle}/numbers', function (Request $request, int $raffle,
     abort_if(! $found, 404);
 
     // Closed, ended or sold out: the raffle page itself explains which.
-    if ($found['is_closed']) {
+    if ($found['is_closed'] || app(RaffleRulesService::class)->whyNotEligible(Auth::guard('wordpress')->id(), $raffle)) {
         return redirect("/raffles/{$raffle}");
     }
 
@@ -164,7 +170,7 @@ Route::get('/checkout', function (Request $request, RaffleReadService $raffles) 
 
     abort_if(! $found, 404);
 
-    if ($found['is_closed']) {
+    if ($found['is_closed'] || app(RaffleRulesService::class)->whyNotEligible(Auth::guard('wordpress')->id(), $raffleId)) {
         return redirect("/raffles/{$raffleId}");
     }
 

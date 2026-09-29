@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { Head, Link, router, usePage } from '@inertiajs/react';
-import { Clock, Trophy, Gift, Zap, Lock, ArrowRight, ArrowLeft, TrendingUp, Eye } from 'lucide-react';
+import { Clock, Trophy, Gift, Zap, Lock, ArrowRight, ArrowLeft, TrendingUp, Eye, ShieldCheck, Star, ChevronDown } from 'lucide-react';
 import { Card } from '../../Components/ui/Card';
 import ProgressBar from '../../Components/ui/ProgressBar';
 import TicketBundleSelector from '../../Components/raffles/TicketBundleSelector';
@@ -14,12 +14,14 @@ import PausedNotice from '../../Components/layout/PausedNotice';
 
 const DEFAULT_QUANTITIES = [1, 2, 3, 5, 10];
 
-export default function RaffleShow({ raffle }) {
+export default function RaffleShow({ raffle, drawInfo = null }) {
     const { auth } = usePage().props;
     const site = useSite();
     const FIXED_QUANTITIES = site.ticket_bundles?.length ? site.ticket_bundles : DEFAULT_QUANTITIES;
     const bulkMin = Math.max(Math.max(...FIXED_QUANTITIES), site.big_order_above || 10) + 1;
-    const salesPaused = ! isOn(site, 'ticket_sales');
+    // Raffle Rules Engine: members-only / new-players-only raffles say so up front.
+    const notEligible = drawInfo?.not_eligible ?? null;
+    const salesPaused = ! isOn(site, 'ticket_sales') || !! notEligible;
     const [selectedQty, setSelectedQty] = useState(FIXED_QUANTITIES.includes(3) ? 3 : FIXED_QUANTITIES[Math.min(1, FIXED_QUANTITIES.length - 1)]);
     const [bulkQty, setBulkQty] = useState(Math.max(15, bulkMin));
 
@@ -172,6 +174,12 @@ export default function RaffleShow({ raffle }) {
                         )}
 
 {! isClosed && <PausedNotice feature="ticket_sales" className="mt-3" />}
+{! isClosed && notEligible && (
+                        <div className="mt-2 flex items-start gap-3 rounded-xl border border-amber-200 bg-amber-50 p-3 dark:border-amber-900/40 dark:bg-amber-900/20">
+                            <Lock className="mt-0.5 h-4 w-4 flex-shrink-0 text-amber-600 dark:text-amber-400" />
+                            <p className="text-xs leading-relaxed text-amber-800 dark:text-amber-300">{notEligible}</p>
+                        </div>
+                        )}
 {! isClosed && (
                         <div className="mt-2 flex items-start gap-3 rounded-xl border border-blue-100 bg-blue-50 p-3 dark:border-blue-900/30 dark:bg-blue-900/20">
                             <Zap className="mt-0.5 h-4 w-4 flex-shrink-0 text-blue-600 dark:text-blue-400" />
@@ -182,6 +190,12 @@ export default function RaffleShow({ raffle }) {
                         )}
                     </Card>
                 </section>
+
+                {drawInfo?.rules?.length > 0 && (
+                    <section className="px-5 pb-2 text-left">
+                        <HowThisDrawWorks drawInfo={drawInfo} />
+                    </section>
+                )}
 
                 {isClosed ? (
                     <section className="px-5 py-10 text-center">
@@ -255,5 +269,48 @@ export default function RaffleShow({ raffle }) {
                 </div>
             )}
         </>
+    );
+}
+
+// "How this draw works": the raffle's published draw rules, plus the
+// customer's own loyalty bonus entries when the raffle gives them.
+function HowThisDrawWorks({ drawInfo }) {
+    const [open, setOpen] = useState(false);
+
+    return (
+        <Card className="!p-0">
+            <button
+                type="button"
+                onClick={() => setOpen((v) => ! v)}
+                className="flex w-full items-center gap-3 p-4 text-left"
+                aria-expanded={open}
+            >
+                <ShieldCheck className="h-5 w-5 flex-shrink-0 text-green-600 dark:text-green-400" />
+                <span className="flex-1 text-sm font-bold text-gray-900 dark:text-white">How this draw works</span>
+                <ChevronDown className={`h-4 w-4 text-gray-400 transition-transform ${open ? 'rotate-180' : ''}`} />
+            </button>
+
+            {(drawInfo.bonus_entries > 0 || drawInfo.tier_bonus > 0) && (
+                <div className="mx-4 mb-3 flex items-start gap-2 rounded-xl border border-yellow-200 bg-yellow-50 p-3 text-xs text-yellow-900 dark:border-yellow-800/50 dark:bg-yellow-900/20 dark:text-yellow-200">
+                    <Star className="mt-0.5 h-4 w-4 flex-shrink-0 fill-current text-yellow-500" />
+                    <p>
+                        {drawInfo.bonus_entries > 0
+                            ? `You have ${drawInfo.bonus_entries} free bonus ${drawInfo.bonus_entries === 1 ? 'entry' : 'entries'} in this draw as a ${drawInfo.tier?.name} member.`
+                            : `As a ${drawInfo.tier?.name} member you get ${drawInfo.tier_bonus} free bonus ${drawInfo.tier_bonus === 1 ? 'entry' : 'entries'} when you buy a ticket here.`}
+                    </p>
+                </div>
+            )}
+
+            {open && (
+                <div className="border-t border-gray-100 px-4 pb-4 pt-3 dark:border-gray-700">
+                    <ul className="list-disc space-y-1.5 pl-4 text-xs leading-relaxed text-gray-600 dark:text-gray-300">
+                        {drawInfo.rules.map((line, i) => (
+                            <li key={i}>{line}</li>
+                        ))}
+                    </ul>
+                    <p className="mt-3 text-[11px] text-gray-400">These rules are locked in before the draw and are part of what the Verify page checks.</p>
+                </div>
+            )}
+        </Card>
     );
 }
