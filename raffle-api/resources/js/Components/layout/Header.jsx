@@ -39,7 +39,7 @@ export default function Header() {
                     className="group flex items-center gap-1.5 rounded-full border border-gray-200 bg-gray-100 px-2.5 py-1.5 transition-transform active:scale-95 dark:border-gray-700 dark:bg-gray-800"
                 >
                     <Wallet className="h-3 w-3 text-gray-500 transition-colors group-hover:text-app-primary dark:text-gray-400" />
-                    <span className="whitespace-nowrap text-xs font-bold text-gray-700 dark:text-gray-200">
+                    <span data-rk-mask className="whitespace-nowrap text-xs font-bold text-gray-700 dark:text-gray-200">
                         {hidden ? '••••••' : formatNaira(balance)}
                     </span>
                     {hidden ? (

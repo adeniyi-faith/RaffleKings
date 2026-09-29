@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { Head, Link, router, usePage } from '@inertiajs/react';
 import { Clock, Trophy, Gift, Zap, Lock, ArrowRight, ArrowLeft, TrendingUp, Eye, ShieldCheck, Star, ChevronDown } from 'lucide-react';
 import { Card } from '../../Components/ui/Card';
@@ -9,6 +9,7 @@ import { useLiveRaffle } from '../../hooks/useLiveRaffle';
 import { useTicketPriceQuotes } from '../../hooks/useTicketPriceQuotes';
 import { useTicketPriceQuote } from '../../hooks/useTicketPriceQuote';
 import { formatNaira } from '../../lib/format';
+import { track } from '../../lib/analytics';
 import { isOn, useSite } from '../../lib/site';
 import PausedNotice from '../../Components/layout/PausedNotice';
 import BoostPanel from '../../Components/social/BoostPanel';
@@ -53,12 +54,18 @@ export default function RaffleShow({ raffle, drawInfo = null }) {
             : null;
     const progressPct = raffle.max_tickets > 0 ? Math.min(100, Math.round((soldTickets / raffle.max_tickets) * 100)) : 0;
 
+    // Someone opened this raffle.
+    useEffect(() => {
+        track('raffle_viewed', { raffle_id: raffle.id, title: raffle.title });
+    }, [raffle.id]);
+
     function handleProceed() {
         if (salesPaused) {
             return;
         }
 
         const qty = selectedQty;
+        track('buy_tickets_clicked', { raffle_id: raffle.id, quantity: qty, logged_in: Boolean(auth.user) });
         const params = new URLSearchParams({ raffle_id: raffle.id, qty: String(qty) });
 
         if (! auth.user) {

@@ -129,6 +129,14 @@ return [
     |
     */
 
+    // Product analytics (PostHog). Set in the admin under Settings → Analytics.
+    // Empty key = tracking is off everywhere (browser and server).
+    'posthog' => [
+        'project_key' => env('POSTHOG_PROJECT_KEY'),
+        'host' => env('POSTHOG_HOST', 'https://us.i.posthog.com'),
+        'recordings' => true,
+    ],
+
     'gemini' => [
         'api_key' => env('GEMINI_API_KEY'),
         'model' => env('GEMINI_MODEL', 'gemini-2.5-flash-preview-09-2025'),

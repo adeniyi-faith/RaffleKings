@@ -7,6 +7,10 @@ import MaintenanceBanner from './Components/layout/MaintenanceBanner';
 import './lib/nav';
 // Reports JavaScript errors to System → Health (lib/errorReporter.js).
 import './lib/errorReporter';
+// Page views and who's who for PostHog (lib/analytics.js); off until a key is saved in Settings → Analytics.
+import { startAnalytics } from './lib/analytics';
+
+startAnalytics();
 
 const appName = import.meta.env.VITE_APP_NAME || 'RaffleKings';
 

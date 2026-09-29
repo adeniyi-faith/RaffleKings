@@ -313,6 +313,23 @@ final class SettingsRegistry
                 ],
             ],
 
+            'Analytics' => [
+                'icon' => 'heroicon-o-chart-bar',
+                'sections' => [
+                    'PostHog' => [
+                        'description' => 'Shows what visitors do: pages, sign-ups, purchases, session recordings and heatmaps. In PostHog: Project settings → Project API key (starts with phc_). Leave the key empty to switch all tracking off. Money events (purchases, top-ups, withdrawals, wins) are sent from the server, so ad-blockers can\'t hide them.',
+                        'settings' => [
+                            new Setting('services.posthog.project_key', 'Project API key', 'text', 'Safe to store here: PostHog project keys are meant to be public.', placeholder: 'phc_...', rules: ['nullable', 'starts_with:phc_']),
+                            new Setting('services.posthog.host', 'PostHog region', 'select', 'Pick the region you chose when you created your PostHog project.', [
+                                'https://us.i.posthog.com' => 'US Cloud',
+                                'https://eu.i.posthog.com' => 'EU Cloud',
+                            ]),
+                            new Setting('services.posthog.recordings', 'Record visits (session replay)', 'bool', 'Video-like playback of visits. Anything typed into a field is always hidden.'),
+                        ],
+                    ],
+                ],
+            ],
+
             'AI' => [
                 'icon' => 'heroicon-o-sparkles',
                 'sections' => [
