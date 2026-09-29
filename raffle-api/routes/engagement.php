@@ -8,6 +8,7 @@ use App\Services\Engagement\Predictions;
 use App\Services\Engagement\ReferralLadder;
 use App\Services\Engagement\SeasonPass;
 use App\Services\Engagement\SocialBoosts;
+use App\Services\Engagement\WinnerStories;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Route;
@@ -64,3 +65,9 @@ Route::get('/team/{code}', function (string $code) {
         'hasTicket' => $viewer ? $boosts->holdsTicket($viewer->ID, $team->raffle_id) : false,
     ]);
 })->where('code', '[a-z0-9]{6,16}');
+
+// The winner stories wall. Public: real winners, real prizes.
+Route::get('/winners/stories', fn (Request $request) => Inertia::render('Winners/Stories', [
+    'wall' => app(WinnerStories::class)->wall(Auth::guard('wordpress')->id(), max(1, (int) $request->query('page', 1))),
+    'page' => max(1, (int) $request->query('page', 1)),
+]));

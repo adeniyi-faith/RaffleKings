@@ -218,6 +218,68 @@ final class SettingsRegistry
                 ],
             ],
 
+            'Community' => [
+                'icon' => 'heroicon-o-user-group',
+                'sections' => [
+                    'Season Pass' => [
+                        'description' => 'A free 4-week track with 30 levels. XP comes from playing, daily check-ins, tasks and predictions; each level pays points, and some levels a free spin, a free bonus entry or a badge.',
+                        'settings' => [
+                            new Setting('engagement.season.xp_per_level', 'XP per level', 'int', null, rules: ['required', 'integer', 'min:10', 'max:10000']),
+                            new Setting('engagement.season.xp.ticket', 'XP per ticket bought', 'int', null, rules: ['required', 'integer', 'min:0']),
+                            new Setting('engagement.season.xp.ticket_daily_cap', 'Most ticket XP in one day', 'int', 'So buying more never races ahead.', rules: ['required', 'integer', 'min:0']),
+                            new Setting('engagement.season.xp.daily_claim', 'XP per daily check-in', 'int', null, rules: ['required', 'integer', 'min:0']),
+                            new Setting('engagement.season.xp.task', 'XP per task', 'int', null, rules: ['required', 'integer', 'min:0']),
+                            new Setting('engagement.season.xp.prediction', 'XP per prediction answered', 'int', null, rules: ['required', 'integer', 'min:0']),
+                            new Setting('engagement.season.xp.prediction_correct', 'XP per right prediction', 'int', null, rules: ['required', 'integer', 'min:0']),
+                            new Setting('engagement.season.level_points', 'Points for level 1', 'int', null, rules: ['required', 'integer', 'min:0']),
+                            new Setting('engagement.season.level_points_step', 'Extra points per level after that', 'int', null, rules: ['required', 'integer', 'min:0']),
+                        ],
+                    ],
+                    'Daily predictions' => [
+                        'settings' => [
+                            new Setting('engagement.predictions.default_points', 'Points for a right answer (default)', 'int', 'Each question can set its own.', rules: ['required', 'integer', 'min:0']),
+                        ],
+                    ],
+                    'Free spins' => [
+                        'settings' => [
+                            new Setting('engagement.free_spins.birthday', 'Birthday free spins', 'int', null, rules: ['required', 'integer', 'min:0', 'max:10']),
+                            new Setting('engagement.free_spins.milestones.tickets_10', 'Free spins at the 10th ticket', 'int', null, rules: ['required', 'integer', 'min:0', 'max:10']),
+                            new Setting('engagement.free_spins.milestones.tickets_50', 'Free spins at the 50th ticket', 'int', null, rules: ['required', 'integer', 'min:0', 'max:10']),
+                            new Setting('engagement.free_spins.milestones.tickets_100', 'Free spins at the 100th ticket', 'int', null, rules: ['required', 'integer', 'min:0', 'max:10']),
+                            new Setting('engagement.free_spins.milestones.anniversary', 'Free spins on each account anniversary', 'int', null, rules: ['required', 'integer', 'min:0', 'max:10']),
+                        ],
+                    ],
+                    'Help me unlock' => [
+                        'settings' => [
+                            new Setting('engagement.unlock.taps_needed', 'Friends who must tap', 'int', null, rules: ['required', 'integer', 'min:1', 'max:20']),
+                            new Setting('engagement.unlock.bonus_entries', 'Free bonus entries unlocked', 'int', null, rules: ['required', 'integer', 'min:1', 'max:10']),
+                            new Setting('engagement.unlock.tapper_points', 'Points for each friend who taps', 'int', null, rules: ['required', 'integer', 'min:0']),
+                            new Setting('engagement.unlock.daily_taps_per_user', 'Most taps one person can give a day', 'int', null, rules: ['required', 'integer', 'min:1', 'max:50']),
+                        ],
+                    ],
+                    'Team Up' => [
+                        'settings' => [
+                            new Setting('engagement.teams.size', 'Team size (captain included)', 'int', null, rules: ['required', 'integer', 'min:2', 'max:10']),
+                            new Setting('engagement.teams.hours', 'Hours to fill a team', 'int', null, rules: ['required', 'integer', 'min:1', 'max:168']),
+                            new Setting('engagement.teams.bonus_entries', 'Free bonus entries each when full', 'int', null, rules: ['required', 'integer', 'min:1', 'max:10']),
+                        ],
+                    ],
+                    'Red envelopes' => [
+                        'settings' => [
+                            new Setting('engagement.red_envelopes.min_points', 'Smallest envelope (points)', 'int', null, rules: ['required', 'integer', 'min:1']),
+                            new Setting('engagement.red_envelopes.max_points', 'Biggest envelope a customer can send (points)', 'int', null, rules: ['required', 'integer', 'min:1']),
+                            new Setting('engagement.red_envelopes.max_slots', 'Most people per customer envelope', 'int', null, rules: ['required', 'integer', 'min:1', 'max:50']),
+                            new Setting('engagement.red_envelopes.minutes', 'Minutes before unopened points go back', 'int', null, rules: ['required', 'integer', 'min:1', 'max:120']),
+                        ],
+                    ],
+                    'Winner stories' => [
+                        'settings' => [
+                            new Setting('engagement.stories.points', 'Thank-you points when a story is approved', 'int', null, rules: ['required', 'integer', 'min:0']),
+                        ],
+                    ],
+                ],
+            ],
+
             'Email' => [
                 'icon' => 'heroicon-o-envelope',
                 'sections' => [
