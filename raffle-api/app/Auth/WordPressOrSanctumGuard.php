@@ -2,9 +2,13 @@
 
 namespace App\Auth;
 
+use App\Models\Legacy\WpUser;
+use App\Services\Auth\LoginService;
+use App\Services\Auth\WordPressCookieFactory;
 use Illuminate\Contracts\Auth\Authenticatable;
 use Illuminate\Contracts\Auth\Guard;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Cookie;
 use Laravel\Sanctum\PersonalAccessToken;
 
 /**
@@ -123,6 +127,39 @@ class WordPressOrSanctumGuard implements Guard
     public function hasUser(): bool
     {
         return $this->user !== null;
+    }
+
+    /**
+     * Sign out: ends this browser's WordPress session(s) for this user and
+     * clears the login cookie. The admin's "Sign out" (Filament's
+     * LogoutController) calls this; it used to fail because the guard had
+     * no logout at all.
+     */
+    public function logout(): void
+    {
+        $request = app(Request::class);
+        $cookieName = app('wordpress.auth_cookie_name');
+        $user = $this->user();
+
+        if ($user instanceof WpUser) {
+            foreach (WordPressSessionGuard::cookieValues($request, $cookieName) as $rawCookie) {
+                $parts = explode('|', $rawCookie);
+
+                if (($parts[0] ?? null) === $user->user_login && ! empty($parts[2])) {
+                    app(LoginService::class)->logout($user, $parts[2]);
+                }
+            }
+        }
+
+        $cookies = app(WordPressCookieFactory::class);
+        Cookie::queue($cookies->forget($cookieName));
+        foreach ($cookies->forgetLeftovers($cookieName, $request->getHost()) as $leftover) {
+            Cookie::queue($leftover);
+        }
+
+        $this->user = null;
+        $this->resolved = true;
+        $this->resolvedForRequestId = spl_object_id($request);
     }
 
     public function setUser(Authenticatable $user): static

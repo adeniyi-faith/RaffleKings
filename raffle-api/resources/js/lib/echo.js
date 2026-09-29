@@ -52,7 +52,7 @@ export function echoOrNull() {
 
         return echoInstance;
     } catch (e) {
-        console.warn('Reverb/Echo unavailable — live updates are disabled for this session.', e);
+        console.warn('Reverb/Echo unavailable: live updates are disabled for this session.', e);
         echoInstance = null;
         return null;
     }

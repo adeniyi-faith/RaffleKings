@@ -1,0 +1,31 @@
+# RaffleKings runs from this folder, but ONLY its public/ subfolder may
+# ever be served. Without this file, anything here (the .env settings
+# file with database and payment keys, logs, the code, the old WordPress
+# backup) could be downloaded by typing its address.
+#
+# If the server's document root is already set to public/ in cPanel, this
+# file is simply never used.
+
+Options -Indexes
+
+<IfModule mod_rewrite.c>
+    RewriteEngine On
+
+    # SSL certificate checks (cPanel AutoSSL / Let's Encrypt) still work.
+    RewriteRule ^\.well-known/acme-challenge/ - [L]
+
+    # Old links with /public/ in them go to the same page without it
+    # (/public/admin/winners -> /admin/winners).
+    RewriteCond %{THE_REQUEST} \s/+public/+([^\s?]*) [NC]
+    RewriteRule ^ /%1 [R=301,L,NE]
+
+    # Everything else is answered from public/, so nothing outside it is
+    # reachable.
+    RewriteCond %{REQUEST_URI} !^/public/
+    RewriteRule ^(.*)$ public/$1 [L]
+</IfModule>
+
+# Without mod_rewrite, refuse everything rather than expose files.
+<IfModule !mod_rewrite.c>
+    Require all denied
+</IfModule>

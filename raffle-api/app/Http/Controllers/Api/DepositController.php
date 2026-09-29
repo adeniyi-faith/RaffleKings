@@ -38,7 +38,7 @@ class DepositController extends Controller
             $alerts->problem('Top-up could not start', [Str::limit($e->getMessage(), 400)]);
 
             return response()->json([
-                'message' => "We couldn't start your payment right now. Please try again in a few minutes. If it keeps happening, contact support — no money has been taken.",
+                'message' => "We couldn't start your payment right now. Please try again in a few minutes. If it keeps happening, contact support. No money has been taken.",
             ], 503);
         }
 

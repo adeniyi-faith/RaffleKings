@@ -15,6 +15,6 @@ class VerificationFeeRequiredException extends RuntimeException
 {
     public function __construct(public readonly float $feeAmount)
     {
-        parent::__construct("Account verification required — authorize a ₦{$feeAmount} verification fee to continue.");
+        parent::__construct("Account verification required. Authorise a one-time ₦{$feeAmount} verification fee to continue.");
     }
 }

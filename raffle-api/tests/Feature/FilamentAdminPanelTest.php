@@ -11,7 +11,7 @@ use App\Models\Raffle;
 use App\Models\Wallet;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Livewire\Livewire;
-use Tests\Support\AuthenticatesWithWordPressCookie;
+use Tests\Support\ActsAsAdministrator;
 use Tests\TestCase;
 
 /**
@@ -24,20 +24,7 @@ use Tests\TestCase;
  */
 class FilamentAdminPanelTest extends TestCase
 {
-    use AuthenticatesWithWordPressCookie, RefreshDatabase;
-
-    private function actingAsAdministrator(): WpUser
-    {
-        $user = $this->actingAsWordPressUser();
-
-        WpUserMeta::create([
-            'user_id' => $user->ID,
-            'meta_key' => config('legacy.wp_prefix').'capabilities',
-            'meta_value' => serialize(['administrator' => true]),
-        ]);
-
-        return $user;
-    }
+    use ActsAsAdministrator, RefreshDatabase;
 
     public function test_a_non_administrator_cannot_reach_the_admin_panel(): void
     {

@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from 'react';
 import { Head, Link, usePage } from '@inertiajs/react';
 import { MessageCircle, Send, ShieldCheck, Trophy, Zap } from 'lucide-react';
 import { echoOrNull } from '../../lib/echo';
+import { isOn, useSite } from '../../lib/site';
 
 const REACTIONS = [
     { type: 'fire', emoji: '🔥' },
@@ -38,6 +39,7 @@ const REACTIONS = [
 // both new, real capabilities the legacy page never had at all.
 export default function LiveDrawShow({ raffle }) {
     const { auth } = usePage().props;
+    const site = useSite();
     const [state, setState] = useState(null);
     const [revealed, setRevealed] = useState([]);
     const [comments, setComments] = useState([]);
@@ -157,11 +159,11 @@ export default function LiveDrawShow({ raffle }) {
             // it used to vanish silently.
             if (! res.ok) {
                 const data = await res.json().catch(() => ({}));
-                setChatError(res.status === 429 ? 'Slow down a little — try again in a moment.' : data.message || 'Your message wasn\'t sent. Please try again.');
+                setChatError(res.status === 429 ? 'Slow down a little and try again in a moment.' : data.message || 'Your message wasn\'t sent. Please try again.');
                 setCommentDraft(body);
             }
         } catch {
-            setChatError('Your message wasn\'t sent — check your connection and try again.');
+            setChatError('Your message wasn\'t sent. Check your connection and try again.');
             setCommentDraft(body);
         }
     }
@@ -220,13 +222,13 @@ export default function LiveDrawShow({ raffle }) {
                         <div className="relative z-10 flex flex-1 flex-col items-center justify-center px-6 text-center">
                             <div className="mb-4 inline-block rounded-full border border-red-500/20 bg-red-600/10 px-3 py-1">
                                 <span className="text-[9px] font-black uppercase tracking-[0.3em] text-red-500">
-                                    {state.draw_has_run ? 'Ready — Waiting to go live' : 'Awaiting draw'}
+                                    {state.draw_has_run ? 'Ready: waiting to go live' : 'Awaiting draw'}
                                 </span>
                             </div>
                             <h2 className="mb-2 text-4xl font-black tracking-tighter md:text-5xl">{raffle.title}</h2>
                             <p className="mb-12 text-[10px] font-medium uppercase tracking-[0.4em] text-white/40">
                                 {state.draw_has_run
-                                    ? "The admin hasn't started the reveal yet — this page updates the instant they do."
+                                    ? "The reveal hasn't started yet. This page updates the instant it does."
                                     : 'The draw for this raffle has not run yet.'}
                             </p>
                         </div>
@@ -305,7 +307,7 @@ export default function LiveDrawShow({ raffle }) {
 
                     {! liveConnected && (
                         <div className="absolute bottom-2 left-1/2 z-30 -translate-x-1/2 rounded-full bg-yellow-500/10 px-3 py-1 text-[9px] font-bold uppercase tracking-widest text-yellow-500">
-                            Live updates degraded — refreshing periodically
+                            Live updates are slow right now, refreshing every few seconds
                         </div>
                     )}
                 </div>
@@ -333,7 +335,7 @@ export default function LiveDrawShow({ raffle }) {
 
                     <div className="flex-1 space-y-1.5 overflow-y-auto px-4 py-2">
                         {comments.length === 0 && (
-                            <p className="pt-4 text-center text-[10px] uppercase tracking-widest text-white/20">No comments yet — say hi!</p>
+                            <p className="pt-4 text-center text-[10px] uppercase tracking-widest text-white/20">No comments yet. Say hi!</p>
                         )}
                         {comments.map((c) => (
                             <p key={c.id} className="text-xs text-white/80">
@@ -349,7 +351,9 @@ export default function LiveDrawShow({ raffle }) {
                         </p>
                     )}
                     <form onSubmit={postComment} className="flex items-center gap-2 border-t border-white/5 p-3">
-                        {auth?.user ? (
+                        {! isOn(site, 'live_chat') ? (
+                            <p className="w-full py-1 text-center text-[11px] font-medium text-white/50">Chat is paused for now. You can still watch and react.</p>
+                        ) : auth?.user ? (
                             <>
                                 <input
                                     value={commentDraft}

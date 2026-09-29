@@ -1,4 +1,5 @@
 import { Head } from '@inertiajs/react';
+import { useSite } from '../lib/site';
 import { ArrowLeft, Check, Cog, Database, Mail, ShieldCheck } from 'lucide-react';
 
 // Faithful rebuild of the legacy privacy-policy.php +
@@ -7,6 +8,7 @@ import { ArrowLeft, Check, Cog, Database, Mail, ShieldCheck } from 'lucide-react
 // top bar, no bottom nav) -- just a back button and the content, kept
 // the same way here.
 export default function PrivacyPolicy() {
+    const site = useSite();
     return (
         <>
             <Head title="Privacy Policy" />
@@ -95,7 +97,7 @@ export default function PrivacyPolicy() {
 
                     <div className="mt-12 border-t border-gray-100 pt-6 text-center dark:border-gray-800">
                         <a
-                            href="mailto:help@rafflekings.com.ng"
+                            href={`mailto:${site.support_email || 'help@rafflekings.com.ng'}`}
                             className="inline-flex items-center gap-2 rounded-full bg-blue-50 px-4 py-2 text-sm font-bold text-app-primary dark:bg-blue-900/30"
                         >
                             <Mail className="h-4 w-4" /> Contact Privacy Officer

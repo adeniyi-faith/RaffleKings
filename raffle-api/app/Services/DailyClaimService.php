@@ -21,14 +21,26 @@ use Illuminate\Support\Facades\DB;
  */
 class DailyClaimService
 {
-    private const REWARDS = [50, 70, 100, 150, 200, 300, 1000];
-
     public function __construct(private readonly PointsService $points) {}
+
+    /**
+     * Points for day 1..7 (config/rewards.php, editable in Settings →
+     * Rewards). Always exactly seven days.
+     *
+     * @return list<int>
+     */
+    private static function rewards(): array
+    {
+        $boost = app(PointsBoost::class);
+
+        // A running points boost (Settings → Rewards) multiplies every day.
+        return array_map(fn ($p) => $boost->apply((int) $p), array_values(config('rewards.daily_claim')));
+    }
 
     /** The 7-day reward schedule, safe to show to players. */
     public function schedule(): array
     {
-        return self::REWARDS;
+        return self::rewards();
     }
 
     /**
@@ -72,7 +84,7 @@ class DailyClaimService
             }
 
             $streak = $this->nextStreak($record->last_claim_date, $record->streak_count, $now);
-            $reward = self::REWARDS[$streak - 1];
+            $reward = self::rewards()[$streak - 1];
 
             $record->streak_count = $streak;
             $record->last_claim_date = $now->toDateString();

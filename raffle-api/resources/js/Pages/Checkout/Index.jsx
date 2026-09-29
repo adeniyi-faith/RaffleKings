@@ -4,6 +4,7 @@ import { ArrowLeft, Wallet, Award, Check, Eye, ShieldCheck } from 'lucide-react'
 import { useLiveRaffle } from '../../hooks/useLiveRaffle';
 import { useTicketPriceQuote } from '../../hooks/useTicketPriceQuote';
 import { formatNaira } from '../../lib/format';
+import PausedNotice from '../../Components/layout/PausedNotice';
 
 function generateIdempotencyKey() {
     return typeof crypto !== 'undefined' && crypto.randomUUID
@@ -73,6 +74,7 @@ export default function CheckoutIndex({ raffle, ticketNumbers, qty }) {
     return (
         <>
             <Head title="Secure Checkout" />
+            <PausedNotice feature="ticket_sales" className="mx-4 mt-3" />
             <div className="min-h-screen bg-app-bg pb-32 dark:bg-dark-bg">
                 <header className="sticky top-0 z-30 flex items-center gap-3 border-b border-gray-100 bg-white/95 px-5 py-4 backdrop-blur-md dark:border-gray-800 dark:bg-dark-bg/95">
                     <button

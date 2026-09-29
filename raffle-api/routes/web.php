@@ -3,6 +3,7 @@
 use App\Http\Controllers\LegacyRedirectController;
 use App\Models\Legacy\RaffleEntry;
 use App\Models\Raffle;
+use App\Services\Auth\TurnstileVerifier;
 use App\Services\RaffleReadService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
@@ -32,7 +33,7 @@ Route::get('/', function (Request $request, RaffleReadService $raffles) {
 // /api/auth/* endpoints — see App\Services\Auth's docblocks.
 Route::get('/register', function (Request $request) {
     return Inertia::render('Auth/Register', [
-        'turnstileSiteKey' => config('services.turnstile.site_key'),
+        'turnstileSiteKey' => app(TurnstileVerifier::class)->enabled('register') ? config('services.turnstile.site_key') : null,
         'referralCode' => $request->query('ref'),
     ]);
 });
@@ -160,6 +161,10 @@ Route::get('/account/transactions', function (Request $request) use ($accountGua
 // as the checkout payment-method cards (item 25) — nothing to SSR here.
 Route::get('/account/wallet', function (Request $request) use ($accountGuard) {
     return $accountGuard($request) ?? Inertia::render('Account/Wallet');
+});
+
+Route::get('/messages', function (Request $request) use ($accountGuard) {
+    return $accountGuard($request) ?? Inertia::render('Account/Messages');
 });
 
 Route::get('/account/withdraw', function (Request $request) use ($accountGuard) {

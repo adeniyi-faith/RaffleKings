@@ -2,8 +2,10 @@
 
 namespace App\Filament\Resources;
 
+use App\Filament\Concerns\GuardedByStaffRole;
 use App\Filament\Resources\RaffleResource\Pages;
 use App\Filament\Resources\RaffleResource\RelationManagers\PrizeTiersRelationManager;
+use App\Filament\Support\MobileCard;
 use App\Models\Raffle;
 use App\Services\LiveDrawService;
 use Filament\Forms;
@@ -11,12 +13,20 @@ use Filament\Forms\Form;
 use Filament\Notifications\Notification;
 use Filament\Resources\Resource;
 use Filament\Tables;
+use Filament\Tables\Enums\ActionsPosition;
 use Filament\Tables\Table;
 use Illuminate\Database\Eloquent\Collection;
 use RuntimeException;
 
 class RaffleResource extends Resource
 {
+    use GuardedByStaffRole;
+
+    public static function canViewAny(): bool
+    {
+        return static::staffCanOpen();
+    }
+
     protected static ?string $model = Raffle::class;
 
     protected static ?string $navigationIcon = 'heroicon-o-ticket';
@@ -65,7 +75,7 @@ class RaffleResource extends Resource
                     ->helperText('Publish to put it on the site. A published raffle still stops selling on its own once it sells out or its last day passes.'),
 
                 Forms\Components\Section::make('Live Draw event')
-                    ->description('Item 27 — a raffle can just show static results, or have a live, synchronized reveal event. Draw results (Hall of Fame) are unaffected either way; this only controls the live-draw page/experience.')
+                    ->description('A raffle can simply show its results, or have a live reveal that viewers watch together. The Hall of Fame is the same either way; this only controls the live-draw page.')
                     ->schema([
                         Forms\Components\Toggle::make('is_live_draw_enabled')
                             ->label('Enable a live-draw event for this raffle')
@@ -87,7 +97,7 @@ class RaffleResource extends Resource
                         Forms\Components\ColorPicker::make('live_draw_theme_color')
                             ->label('Accent color')
                             ->default('#dc2626')
-                            ->helperText('Legacy livedraw.php\'s red/black high-energy look is the default — change only for a themed event.')
+                            ->helperText('Legacy livedraw.php\'s red/black high-energy look is the default. Change it only for a themed event.')
                             ->visible(fn (Forms\Get $get) => $get('is_live_draw_enabled')),
                         Forms\Components\Placeholder::make('live_draw_status')
                             ->label('Current reveal status')
@@ -97,82 +107,101 @@ class RaffleResource extends Resource
             ]);
     }
 
+    private static function salesState(Raffle $record): string
+    {
+        if ($record->status === 'draft') {
+            return 'Draft';
+        }
+
+        return match ($record->closedReason((int) ($record->sold_count ?? $record->soldTickets()))) {
+            null => 'On sale',
+            'ended' => 'Ended',
+            'sold_out' => 'Sold out',
+            default => 'Closed',
+        };
+    }
+
+    private static function salesColor(string $state): string
+    {
+        return $state === 'On sale' ? 'success' : ($state === 'Draft' ? 'gray' : 'warning');
+    }
+
     public static function table(Table $table): Table
     {
         return $table
             ->modifyQueryUsing(fn ($query) => $query->withCount('entries as sold_count'))
             ->columns([
-                Tables\Columns\TextColumn::make('public_id')
-                    ->label('No.')
-                    ->sortable()
-                    ->tooltip('The raffle\'s permanent public number — its page is /raffles/{number}.'),
-                Tables\Columns\TextColumn::make('title')->searchable()->limit(40),
-                Tables\Columns\TextColumn::make('price')->money('NGN'),
-                Tables\Columns\TextColumn::make('max_tickets')->label('Max tickets'),
-                Tables\Columns\TextColumn::make('sold')
-                    ->label('Sold')
-                    ->state(fn (Raffle $record): int => (int) ($record->sold_count ?? $record->soldTickets())),
-                Tables\Columns\TextColumn::make('sales')
-                    ->label('Sales')
-                    ->badge()
-                    ->state(function (Raffle $record): string {
-                        if ($record->status === 'draft') {
-                            return 'Draft';
-                        }
-
-                        return match ($record->closedReason((int) ($record->sold_count ?? $record->soldTickets()))) {
-                            null => 'On sale',
-                            'ended' => 'Ended',
-                            'sold_out' => 'Sold out',
-                            default => 'Closed',
-                        };
-                    })
-                    ->color(fn (string $state): string => $state === 'On sale' ? 'success' : ($state === 'Draft' ? 'gray' : 'warning')),
-                Tables\Columns\BadgeColumn::make('status')
-                    ->colors([
-                        'gray' => 'draft',
-                        'success' => 'published',
-                        'danger' => 'closed',
-                    ]),
-                Tables\Columns\TextColumn::make('expiry')->date(),
-                Tables\Columns\IconColumn::make('is_live_draw_enabled')
-                    ->label('Live draw')
-                    ->boolean(),
-                Tables\Columns\BadgeColumn::make('live_draw_status')
-                    ->label('Reveal')
-                    ->colors([
-                        'gray' => 'idle',
-                        'warning' => 'revealing',
-                        'success' => 'completed',
-                    ]),
+                // Phone: each row is one card (App\Filament\Support\MobileCard).
+                MobileCard::make(fn (Raffle $record) => [
+                    'title' => "#{$record->public_id} · {$record->title}",
+                    'amount' => '₦'.number_format((float) $record->price),
+                    'lines' => [
+                        ((int) ($record->sold_count ?? $record->soldTickets())).' / '.$record->max_tickets.' sold · '.($record->expiry ? 'last day '.$record->expiry->format('j M') : 'no end date'),
+                    ],
+                    'badges' => [
+                        [static::salesState($record), static::salesColor(static::salesState($record))],
+                        $record->is_live_draw_enabled ? ['Live draw · '.$record->live_draw_status, 'info'] : null,
+                    ],
+                ]),
+                ...MobileCard::desktop([
+                    Tables\Columns\TextColumn::make('public_id')
+                        ->label('No.')
+                        ->sortable()
+                        ->tooltip('The raffle\'s permanent public number. Its page is /raffles/{number}.'),
+                    Tables\Columns\TextColumn::make('title')->searchable()->limit(40)->weight('bold'),
+                    Tables\Columns\TextColumn::make('price')->formatStateUsing(fn ($state) => '₦'.number_format((float) $state)),
+                    Tables\Columns\TextColumn::make('sold')
+                        ->label('Sold')
+                        ->state(fn (Raffle $record): string => ((int) ($record->sold_count ?? $record->soldTickets())).' / '.$record->max_tickets),
+                    Tables\Columns\TextColumn::make('sales')
+                        ->label('Sales')
+                        ->badge()
+                        ->state(fn (Raffle $record): string => static::salesState($record))
+                        ->color(fn ($state): string => static::salesColor((string) $state)),
+                    Tables\Columns\TextColumn::make('expiry')->label('Last day')->date('j M Y')->placeholder('No end date')->sortable(),
+                    Tables\Columns\TextColumn::make('live_draw')
+                        ->label('Live draw')
+                        ->visibleFrom('2xl')
+                        ->badge()
+                        ->state(fn (Raffle $record): string => $record->is_live_draw_enabled ? ucfirst((string) $record->live_draw_status ?: 'idle') : 'Off')
+                        ->color(fn ($state): string => match ($state) {
+                            'Revealing' => 'warning',
+                            'Completed' => 'success',
+                            'Off' => 'gray',
+                            default => 'info',
+                        }),
+                ]),
             ])
             ->filters([
                 Tables\Filters\SelectFilter::make('status')
                     ->options(['draft' => 'Draft', 'published' => 'Published', 'closed' => 'Closed']),
             ])
+            ->actionsPosition(ActionsPosition::BeforeColumns)
             ->actions([
                 Tables\Actions\EditAction::make(),
-                Tables\Actions\Action::make('viewOnSite')
-                    ->label('View on site')
-                    ->icon('heroicon-o-arrow-top-right-on-square')
-                    ->url(fn (Raffle $record) => url("/raffles/{$record->public_id}"))
-                    ->openUrlInNewTab()
-                    ->visible(fn (Raffle $record) => in_array($record->status, Raffle::PUBLIC_STATUSES, true)),
-                Tables\Actions\Action::make('startLiveReveal')
-                    ->label('Start live reveal')
-                    ->icon('heroicon-o-play')
-                    ->color('danger')
-                    ->requiresConfirmation()
-                    ->modalDescription('Every viewer currently on this raffle\'s live-draw page will see winners revealed in real time, one at a time. This cannot be undone once started.')
-                    ->visible(fn (Raffle $record) => $record->is_live_draw_enabled && $record->live_draw_status !== 'revealing')
-                    ->action(function (Raffle $record) {
-                        try {
-                            app(LiveDrawService::class)->startReveal($record);
-                            Notification::make()->title('Live reveal started')->success()->send();
-                        } catch (RuntimeException $e) {
-                            Notification::make()->title('Could not start reveal')->body($e->getMessage())->danger()->send();
-                        }
-                    }),
+                Tables\Actions\ActionGroup::make([
+                    Tables\Actions\Action::make('viewOnSite')
+                        ->label('View on site')
+                        ->icon('heroicon-o-arrow-top-right-on-square')
+                        ->url(fn (Raffle $record) => url("/raffles/{$record->public_id}"))
+                        ->openUrlInNewTab()
+                        ->visible(fn (Raffle $record) => in_array($record->status, Raffle::PUBLIC_STATUSES, true)),
+                    Tables\Actions\Action::make('startLiveReveal')
+                        ->label('Start live reveal')
+                        ->icon('heroicon-o-play')
+                        ->color('danger')
+                        ->requiresConfirmation()
+                        ->modalDescription('Every viewer currently on this raffle\'s live-draw page will see winners revealed in real time, one at a time. This cannot be undone once started.')
+                        ->visible(fn (Raffle $record) => $record->is_live_draw_enabled && $record->live_draw_status !== 'revealing')
+                        ->action(function (Raffle $record) {
+                            try {
+                                app(LiveDrawService::class)->startReveal($record);
+                                Notification::make()->title('Live reveal started')->success()->send();
+                            } catch (RuntimeException $e) {
+                                Notification::make()->title('Could not start reveal')->body($e->getMessage())->danger()->send();
+                            }
+                        }),
+                ])->label('More')->icon('heroicon-m-ellipsis-vertical')->button()->color('gray'),
             ])
             ->bulkActions([
                 Tables\Actions\BulkActionGroup::make([

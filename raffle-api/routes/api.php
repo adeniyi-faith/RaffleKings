@@ -20,6 +20,7 @@ use App\Http\Controllers\Api\DepositController;
 use App\Http\Controllers\Api\DrawController;
 use App\Http\Controllers\Api\HallOfFameController;
 use App\Http\Controllers\Api\LiveDrawController;
+use App\Http\Controllers\Api\MessageController;
 use App\Http\Controllers\Api\PaymentWebhookController;
 use App\Http\Controllers\Api\ProfileController;
 use App\Http\Controllers\Api\PushDeviceController;
@@ -87,7 +88,7 @@ Route::post('/webhooks/flutterwave', [PaymentWebhookController::class, 'flutterw
 // Public — registration/login/password-reset (item 23), rebuilt on
 // Laravel but still authenticating against wp_users; see
 // RegistrationService/LoginService/PasswordResetService docblocks.
-Route::post('/auth/register', [RegisterController::class, 'store'])->middleware('throttle:auth-register');
+Route::post('/auth/register', [RegisterController::class, 'store'])->middleware(['feature:registrations', 'throttle:auth-register']);
 Route::post('/auth/login', [LoginController::class, 'store'])->middleware('throttle:auth-login');
 Route::post('/auth/logout', [LoginController::class, 'destroy']);
 Route::post('/auth/forgot-password', [PasswordResetController::class, 'requestCode'])->middleware('throttle:auth-forgot-password');
@@ -99,7 +100,7 @@ Route::middleware('auth:wordpress')->group(function () {
 
     // The new checkout flow's settlement call (item 25) — see
     // TicketPurchaseController's docblock for the wallets-table caveat.
-    Route::post('/tickets/purchase', [TicketPurchaseController::class, 'store']);
+    Route::post('/tickets/purchase', [TicketPurchaseController::class, 'store'])->middleware('feature:ticket_sales');
 
     // The authenticated user's balance on that same NEW wallets table —
     // what the checkout payment-method cards show (item 25).
@@ -124,14 +125,14 @@ Route::middleware('auth:wordpress')->group(function () {
     Route::post('/push/device', [PushDeviceController::class, 'store']);
 
     Route::get('/rewards/state', [RewardsController::class, 'state']);
-    Route::post('/rewards/daily-claim', [RewardsController::class, 'claimDaily']);
-    Route::post('/rewards/tasks/{task}/claim', [RewardsController::class, 'claimTask']);
-    Route::post('/rewards/spin', [RewardsController::class, 'spin']);
-    Route::post('/rewards/redeem', [RewardsController::class, 'redeem']);
+    Route::post('/rewards/daily-claim', [RewardsController::class, 'claimDaily'])->middleware('feature:daily_claim');
+    Route::post('/rewards/tasks/{task}/claim', [RewardsController::class, 'claimTask'])->middleware('feature:tasks');
+    Route::post('/rewards/spin', [RewardsController::class, 'spin'])->middleware('feature:spin');
+    Route::post('/rewards/redeem', [RewardsController::class, 'redeem'])->middleware('feature:point_redemption');
 
     // Settles against the same NEW `wallets` table as everything else in
     // this app — see DepositService's docblock and LEGACY_MIGRATION.md.
-    Route::post('/deposits', [DepositController::class, 'store']);
+    Route::post('/deposits', [DepositController::class, 'store'])->middleware('feature:deposits');
     Route::get('/deposits/{deposit}', [DepositController::class, 'show']);
 
     Route::get('/bank-accounts', [BankAccountController::class, 'index']);
@@ -142,7 +143,12 @@ Route::middleware('auth:wordpress')->group(function () {
     Route::get('/withdrawals/requirements', [WithdrawalController::class, 'requirements']);
     // Same 3-per-5-minutes rate limit as the legacy rk_check_rate_limit('withdraw', 3, 300),
     // via Laravel's own throttle middleware instead of a bespoke transient-based limiter.
-    Route::post('/withdrawals', [WithdrawalController::class, 'store'])->middleware('throttle:3,5');
+    Route::post('/withdrawals', [WithdrawalController::class, 'store'])->middleware(['feature:withdrawals', 'throttle:3,5']);
+
+    // The on-site inbox (the bell) — messages from Site → Message customers.
+    Route::get('/messages', [MessageController::class, 'index']);
+    Route::post('/messages/read-all', [MessageController::class, 'readAll']);
+    Route::post('/messages/{message}/read', [MessageController::class, 'read'])->whereNumber('message');
 
     Route::get('/support/tickets', [SupportTicketController::class, 'index']);
     Route::post('/support/tickets', [SupportTicketController::class, 'store']);
@@ -154,7 +160,7 @@ Route::middleware('auth:wordpress')->group(function () {
     // legacy site's own chat/comment actions to keep one viewer from
     // flooding everyone else's feed.
     Route::post('/raffles/{raffle}/live-draw/comments', [LiveDrawController::class, 'storeComment'])
-        ->middleware('throttle:20,1');
+        ->middleware(['feature:live_chat', 'throttle:20,1']);
     Route::post('/raffles/{raffle}/live-draw/reactions', [LiveDrawController::class, 'storeReaction'])
         ->middleware('throttle:60,1');
 

@@ -68,18 +68,18 @@ export default function LiveDrawVerify({ raffle }) {
                                 <ol className="list-decimal space-y-2 pl-5 text-sm leading-relaxed text-blue-900/90 dark:text-blue-200/80">
                                     <li>
                                         <strong>Before</strong> ticket sales for this raffle closed, we generated a secret random
-                                        code (a "seed") and published only its fingerprint — a "hash" that's impossible to
+                                        code (a "seed") and published only its fingerprint: a "hash" that's impossible to
                                         reverse. That's the <em>commitment</em> below. It proves the code was already fixed
-                                        before the draw ran, so nobody — including us — could pick winners after the fact.
+                                        before the draw ran, so nobody, including us, could pick winners after the fact.
                                     </li>
                                     <li>
                                         When the draw ran, that secret code was combined with a second code built entirely
-                                        from the real list of ticket holders — so neither we nor any buyer could have
+                                        from the real list of ticket holders, so neither we nor any buyer could have
                                         predicted or influenced the result in advance.
                                     </li>
                                     <li>
-                                        Now that the draw is done, we <strong>reveal</strong> the secret code. Anyone — you,
-                                        a developer, anyone — can run the exact same math with the revealed code and the
+                                        Now that the draw is done, we <strong>reveal</strong> the secret code. Anyone (you,
+                                        a developer, anyone) can run the exact same math with the revealed code and the
                                         same ticket list, and check it produces the exact same winners published on the{' '}
                                         <Link href="/hall-of-fame" className="underline">
                                             Hall of Fame
@@ -105,7 +105,7 @@ export default function LiveDrawVerify({ raffle }) {
 
                             {! data.has_run && (
                                 <div className="rounded-xl border border-yellow-200 bg-yellow-50 p-4 text-sm text-yellow-800 dark:border-yellow-900/30 dark:bg-yellow-900/20 dark:text-yellow-300">
-                                    This draw hasn't run yet — the secret seed stays hidden until it does, which is the
+                                    This draw hasn't run yet. The secret seed stays hidden until it does, which is the
                                     whole point: revealing it early would let someone work out the result in advance.
                                 </div>
                             )}
@@ -114,7 +114,7 @@ export default function LiveDrawVerify({ raffle }) {
                                 <>
                                     <ProofRow
                                         icon={<Unlock className="h-4 w-4" />}
-                                        label="Revealed seed (secret code — now public)"
+                                        label="Revealed seed (the secret code, now public)"
                                         value={data.verification.server_seed}
                                         onCopy={() => copy('seed', data.verification.server_seed)}
                                         copied={copied === 'seed'}

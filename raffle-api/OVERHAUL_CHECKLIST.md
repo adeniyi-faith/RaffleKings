@@ -171,6 +171,107 @@ The new site replaced the WordPress site at rafflekings.com.ng (see `.github/wor
   - **Dashboard** — replaces Filament's default boxes. **Needs attention**: withdrawals to pay, bank transfers to review, payment mismatches, winners to pay, support tickets waiting (each opens its queue, turns orange when something's waiting, and says how long the oldest has waited) and failed background jobs; refreshes every minute. **Today** (Lagos day): ticket sales vs yesterday with a 7-day trend, money in, paid out, new sign-ups, and points owed (with their ₦ value). **Last 14 days** chart of sales and money in.
   - **Users → Referrals** (commissions paid: who referred whom, the friend's first top-up, commission and rate, with totals, friends referred but not yet topped up, and the top referrer) and **Users → Reward points** (balances with ₦ value, streaks, last claim; filter "can redeem now"). Both read-only.
   - **Raffle safety locks.** Deleting a raffle that has tickets or a draw is refused (bulk delete skips and names them; single delete isn't offered) — it would orphan real customers' tickets and winners. A drawn raffle's **prize tiers are locked**: the public verify page recomputes the winners from them, so editing them afterwards would make an honest draw look tampered with.
+  - **Admin on a phone.** Every admin list becomes a stack of cards on a phone. Each card shows the key facts: who, how much, a tap-to-copy account number or reference, and its status. The row's buttons sit underneath as large, easy-to-tap buttons, so nothing needs sideways scrolling (`App\Filament\Support\MobileCard`). A bottom tab bar gives Home, Payouts, Transfers, Support and Menu, each showing how many items are waiting. The side menu no longer opens by itself and covers the page. Pop-ups (confirm, reason) rise from the bottom of the screen. Dashboard boxes sit two per row. Pages switch without a full reload. On a computer the admin looks the same as before; the only addition is that the side menu can now be collapsed. Styles live in `resources/views/filament/hooks/head.blade.php` and need no build step.
+  - **System → Settings — run the site without a developer.** One page with tabs, and every change applies site-wide the moment it's saved:
+    - **General:** name, support email and phone, time zone, and links (Telegram support, community group, WhatsApp channel, socials).
+    - **On / off:** pause ticket sales, top-ups, withdrawals, sign-ups, live chat, daily claim, tasks, Spin & Win or cashing in points, with your own message. The server refuses paused actions (`EnsureFeatureOn`, 503), and customer pages show the message up front (`PausedNotice`).
+    - **Payments:** main and backup provider, Paystack and Flutterwave keys (with the webhook address to paste into each provider), smallest top-up, and the bank-transfer bonus.
+    - **Withdrawals:** minimum amount and the verification fee rules.
+    - **Raffles & pricing:** bulk-discount rules and bundle sizes, with a live "what customers will pay" table. The raffle page's bundle buttons follow these sizes.
+    - **Rewards:** daily-streak points, task points, spin cost, and spin prizes and chances. A live check shows how much of each spin the site keeps, and warns if a spin pays back more than it costs.
+    - **Cashing in points and referrals:** points-to-naira rate, minimum points to cash in, and the referral commission.
+    - **Email:** Brevo via API key (new `BrevoTransport`), or any SMTP server with quick-fill buttons for Brevo, Zoho, Gmail and Outlook, plus a "Send test email" button.
+    - **AI:** Gemini key and model.
+    - **Alerts & push:** Telegram bot and chat IDs (with a "Send test alert" button), error-alert limits, and OneSignal.
+    - **Security:** Turnstile keys and chat filtering.
+    - **Check buttons** prove each Paystack, Flutterwave, Gemini and Brevo key works before customers rely on it.
+    - **Secret keys** are encrypted with APP_KEY. They are never shown again, only the last 4 characters. Leaving the box empty keeps the saved key. They never appear in the audit log.
+    - **Server file values stay underneath.** Only values changed on this page are stored (`app_settings` table). "Undo" goes back to the server's `.env` value, and every change is written to the audit log.
+    - **Loading:** settings are applied as each request starts (`SettingsStore::apply()`), except during `config:cache` / `optimize`, so the cached config file never holds database values or decrypted secrets.
+    - **Numbers moved out of code:** the fixed values in `TicketPricingService`, `DailyClaimService`, `SpinService`, `TaskClaimService` and `PointRedemptionService` now live in `config/pricing.php` and `config/rewards.php`, with the same defaults.
+    - **Customer site fixes:** the "Join our Community" and "Follow on WhatsApp" reward tasks now open the real links. "Share on WhatsApp" opens WhatsApp with the customer's referral link. The support links and the points rate come from Settings.
+    - **Not on the page:** the database login, APP_KEY and the WordPress cookie keys stay in `.env`. A wrong value there would lock everyone out, including the admin trying to fix it.
+- [x] **45b. Phase 5b — The admin pages the site still needed.** *(Done.)*
+  - **Users → Customers → a customer's profile.** Tap any customer to see everything about them on one page:
+    - Wallet, winnings, points and account status.
+    - Lifetime totals: topped up, tickets bought, won, withdrawn and referral earnings.
+    - Who referred them, when they joined, and their last activity.
+    - Their contact details and bank accounts (tap to copy).
+    - Tabs for every money movement, ticket, online top-up, withdrawal, referral, support ticket, and every admin action on them or their records.
+
+    The Adjust balance, Ban and Restrictions buttons work here too. Press Ctrl/⌘+K anywhere to find a customer.
+  - **Raffles → Ticket lookup.** Pick a raffle and type a ticket number (an exact match) to see who owns it, or search a customer to see all their tickets. Winning tickets are marked.
+  - **Finance → Online payments.** Every Paystack and Flutterwave top-up is listed: paid, failed, not finished or amount mismatch. Before, only the mismatches were visible. **Check again** asks the payment provider directly and credits the customer if the money really arrived. It can never credit twice (`DepositService::confirm`).
+  - **Site → Tutorials.** Write, edit, schedule, feature and hide Learning Hub guides. The WordPress admin that used to be the only editor is gone.
+    - Tutorials now live in a native `tutorials` table. The old WordPress tutorials were copied in with their ids and "helpful" counts (`TutorialImporter`, run by the migration).
+    - Unsafe HTML (scripts, event handlers, `javascript:` links) is removed when saved and again when shown. Only YouTube or Vimeo video links are allowed.
+  - **Points boost ("double points weekend").** Set a ×1.5, ×2 or ×3 multiplier with a start and end time in Settings → Rewards (`PointsBoost`). While it runs, daily-claim and task points are multiplied (not Spin & Win), and customers see a banner on the Rewards page.
+  - **Site → Message customers.** Send one message to a group:
+    - **Who:** everyone, a raffle's buyers, lapsed players, people who never bought, customers with money or winnings sitting unused, or one customer. Banned customers and staff are always left out.
+    - **How:** on the site, by email, and/or as a phone notification.
+    - **Writing it:** `{name}` becomes each customer's first name, and you can add an optional button. You get a live preview and see how many customers it will reach.
+    - **Before sending:** "Send me a test", then a confirmation showing the number of customers.
+    - **Saved messages:** reuse the old site's message templates, or save new ones.
+    - **Sending** runs in the background (`SendBroadcast`), 500 customers at a time.
+    - **On the customer site:** a new bell in the header shows the unread count and opens a Messages page. The API (`/api/messages`) only ever shows a customer their own messages.
+  - **Users → Staff & roles.** Five roles (`App\Auth\StaffRoles`):
+    - **Owner:** everything.
+    - **Manager:** everything except Settings and staff roles.
+    - **Finance:** payouts, transfers, payments, winners, customers and downloads.
+    - **Support:** tickets, customers (look only), ticket lookup, re-checking payments and chat.
+    - **Content:** raffles, draws, announcements, tutorials, chat and messages.
+
+    Each screen is opened by a role (one list, `StaffRoles::AREAS`). Money buttons also check `money.pay`, and balance and ban buttons check `customers.manage`: they're hidden and refused, not just greyed out. WordPress administrators are Owners until given a role. You can't change your own role, and the last Owner can't be removed. "Remove access" makes someone an ordinary customer again. Every change is audit-logged.
+  - **Finance → Downloads.** CSV spreadsheets for any range of days (business time zone): ticket sales, top-ups, withdrawals paid, winners, every money movement, referral commission and new customers. Totals are shown before you download. Cells that Excel would run as formulas are neutralised.
+  - **System → Health.**
+    - The same checks as `app:health-check` (logic moved into `HealthReport`).
+    - When the background tasks last ran, and how many emails and alerts are waiting.
+    - **Failed emails & alerts**, with Retry, Retry all and Remove.
+    - **Recent site errors**, grouped and counted: the new `site_errors` table, filled in by `ErrorAlerter`.
+    - It refreshes every 30 seconds, and the menu shows a badge when something failed.
+  - **Users → Fraud watch.** Plain-words warning signs, never automatic blocks (`FraudWatchService`):
+    - the same bank account saved on several customers;
+    - 3 or more top-ups within 30 minutes;
+    - a withdrawal soon after a top-up with little played, or from an account under 3 days old.
+
+    These also appear on the customer's profile and as a red **Check before paying** on the withdrawals queue and its "Mark paid" confirmation.
+  - **Fixed along the way:**
+    - The Reward points "can redeem" filter used a fixed 100 points. It now uses the Settings value.
+    - Two older admin tests signed in without passing the login to the page. They now use the shared helper, because pages check the role.
+
+- [x] **45c. Maintenance mode and Turnstile controls.** *(Done.)*
+  - **Settings → On / off → Maintenance mode.** Switch it on now, or schedule a start time. A "back at" time switches it off by itself.
+    - **Customers** see a branded "We'll be right back" page (HTTP 503 with `Retry-After`) with a live countdown, a "your tickets, wallet and winnings are safe" note and support links. The page re-checks every minute, so it comes back without anyone refreshing. API calls get a 503 JSON reply.
+    - **Always let through:** staff (with a red "Maintenance mode is ON" strip on the site), the whole admin, payment-provider webhooks and the payment callback (money already paid is still credited), log-in and log-out, and `/up`.
+    - **Customer warning:** a heads-up banner appears a set number of hours before planned maintenance.
+    - **Reminders:** the admin shows a red reminder on every page, and System → Health lists it as a warning.
+    - Built in `App\Services\Maintenance` and `App\Http\Middleware\MaintenanceMode` (added to both the web and API middleware groups).
+  - **Settings → Security → Bot protection (Cloudflare Turnstile).**
+    - The two keys are clearly labelled "Site key (public)" and "Secret key (private)", with where to get them.
+    - A **Check** button asks Cloudflare whether the secret key is valid.
+    - Switches choose which forms show the check: **sign-up** (on by default), **log-in** and **forgot password**. Log-in and forgot password now verify the check on the server too.
+    - **Fix:** the check only switches on when BOTH keys are set. Before, a secret key without a site key made every sign-up fail, because the page couldn't show the check it was demanding.
+
+- [x] **45d. Live-site fixes, admin sign-in, public em dashes.** *(Done.)*
+  - **Why the live admin looked broken.** The app is uploaded into the domain's web folder (`public_html/rafflekings.com.ng`), and nothing told the server to serve only `public/`, so everything was reached through `/public/...`.
+    - The admin's styles loaded from `/public/css/...`, but its interactive engine (`/livewire/livewire.js`, `/livewire/update`) is linked from the site root, which was blocked. Menus couldn't close, dropdowns and pop-ups spilled onto the page, and buttons failed.
+    - Worse, the private `.env` file, logs, code and the old WordPress backup sat inside the web folder.
+    - **Fix:** a new root `.htaccess` serves ONLY `public/` and blocks everything else. Old `/public/...` links 301 to the clean address (rule in both `.htaccess` files, so it works whether cPanel's document root is the folder or `public/`). SSL checks (`.well-known/acme-challenge`) still work.
+    - Tested on Apache + MariaDB with the live `wpxn_` table prefix: every admin page, the redirects, blocked files, and interactive menus and pop-ups.
+  - **The phone layout, Settings, Phase 5b and maintenance mode weren't live** because PRs #80 to #84 were merged into their stacked branches, not `main`. This change brings them all to `main`.
+  - **Admin sign-in page** (`/admin/login`, `App\Filament\Pages\Auth\AdminLogin`):
+    - Branded: brand panel plus card on a computer, header plus card on a phone.
+    - Same account and password as the site (`LoginService` plus the WordPress cookie). Only staff roles get in; a customer with the right password is refused and not left signed in.
+    - 5 tries a minute, Turnstile when switched on for log-in, and every staff sign-in audit-logged.
+    - **Sign out now works:** `WordPressOrSanctumGuard::logout()` ends the session and clears the cookie. It used to crash.
+  - **Admin on laptops and tablets.** Nine lists were wider than a 1280px screen, hiding their buttons.
+    - Table text now wraps on wide screens.
+    - Rows are cards below 1280px (`MobileCard::TABLE_FROM = 'xl'`).
+    - The raffles, customers, winners and mismatches lists were slimmed; buttons come first; the side menu is slightly narrower.
+    - Checked at 390, 768, 1024, 1280, 1366, 1440 and 1920px: every list fits.
+  - **No em dashes on customer pages either:** error pages, live draw, draw proof, reset password, raffle bundles, the home page and customer error messages.
+  - **Tests** run on MySQL as well as SQLite (559 each). One test had the `wp_` prefix hard-coded.
+
 - [ ] **46. Phase 6 — Checkout and wallet flows.** Insufficient balance at checkout is a dead end (greyed-out button): add "Top up ₦X" and "Use winnings to cover it", and return to the same checkout after a Paystack payment. Build the real winnings → spending-wallet transfer (no code exists; the Profile "Transfer" button only opens top-up). Live-updating number grid (taken numbers are a page-load snapshot) and a message when picking too many. Success modal shows the ticket numbers, "View my tickets" and "Share", with a celebration. Decide on the Golden Box 10% discount (supported by `TicketPricingService`, offered by no page).
 - [ ] **47. Phase 7 — Rewards that feel alive.** Restore the animated canvas wheel (glow, easing spin, confetti, "YOU WON!" modal) driven by the real server result and disclosed odds — today it's a button and a text modal. Tasks must open the WhatsApp channel / share sheet before awarding points (today "Claim" awards them for nothing). Daily-reset countdown, bouncing "claim today" circle, red "reward ready" dot on the bottom nav. A real guest preview (the streak row and task list are blank for guests). Error results get an error icon, not the green success tick.
 - [ ] **48. Phase 8 — Missing pages, sign-up and sharing.** Terms of Service (404 today) and About pages; Install App and WhatsApp channel entries in Profile; make the support-ticket page reachable (only linked from inside Tutorials today — Profile's "Get Help" goes to Telegram). Sign-up: terms/age acceptance, "Invited by X" banner, and actually pass `redirect` through the `/register` route (a guest sent to sign up mid-purchase lands on the homepage). Link previews (Open Graph title/description/image) and a real favicon (`public/favicon.ico` is 0 bytes). My Tickets shows "You won!" and links to results / live draw / verify.

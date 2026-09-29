@@ -13,6 +13,13 @@
     RewriteCond %{HTTP:x-xsrf-token} .
     RewriteRule .* - [E=HTTP_X_XSRF_TOKEN:%{HTTP:X-XSRF-Token}]
 
+    # Links with /public/ in them (from before the web folder was set up
+    # properly) go to the same page without it: /public/admin -> /admin.
+    # Works whether the server's web folder is this public/ folder or the
+    # one above it (THE_REQUEST is exactly what the browser asked for).
+    RewriteCond %{THE_REQUEST} \s/+public/+([^\s?]*) [NC]
+    RewriteRule ^ /%1 [R=301,L,NE]
+
     # Redirect Trailing Slashes If Not A Folder...
     RewriteCond %{REQUEST_FILENAME} !-d
     RewriteCond %{REQUEST_URI} (.+)/$

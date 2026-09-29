@@ -14,6 +14,6 @@ class DrawNotCommittedException extends RuntimeException
 {
     public function __construct(int $raffleId)
     {
-        parent::__construct("Raffle #{$raffleId} has no committed draw seed yet — call commitSeed() first.");
+        parent::__construct("Raffle #{$raffleId} doesn't have a locked seed yet. Lock the seed first, then draw.");
     }
 }

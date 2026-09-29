@@ -2,6 +2,11 @@
 
 namespace App\Http\Middleware;
 
+use App\Models\CustomerMessage;
+use App\Services\Auth\TurnstileVerifier;
+use App\Services\Maintenance;
+use App\Services\PointsBoost;
+use App\Services\TicketPricingService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Inertia\Middleware;
@@ -52,7 +57,36 @@ class HandleInertiaRequests extends Middleware
                     // that reads this falls back to the same
                     // Dicebear-generated avatar they've always shown.
                     'avatar' => $user->metaValue('profile_pic_url') ?: null,
+                    // Unread messages in their inbox — the number on the bell.
+                    'unread_messages' => CustomerMessage::query()->where('user_id', $user->ID)->whereNull('read_at')->count(),
                 ] : null,
+            ],
+            // Admin-editable (Settings page): contact details, links, the
+            // on/off switches and the numbers pages show customers.
+            'site' => fn () => [
+                'name' => config('app.name'),
+                'support_email' => config('site.support_email'),
+                'support_phone' => config('site.support_phone'),
+                'links' => array_filter(config('site.links', [])),
+                'switches' => config('site.switches'),
+                'paused_message' => config('site.paused_message'),
+                'points_per_naira' => (int) config('rewards.points_per_naira'),
+                'minimum_redeem_points' => (int) config('rewards.minimum_redeem_points'),
+                'ticket_bundles' => app(TicketPricingService::class)->bundleQuantities(),
+                'big_order_above' => (int) config('pricing.above_quantity'),
+                'points_boost' => app(PointsBoost::class)->banner(),
+                // Maintenance: "on" is only ever seen by staff (customers get
+                // the maintenance page); "upcoming" warns everyone ahead.
+                'maintenance' => [
+                    'active' => app(Maintenance::class)->active(),
+                    'upcoming' => app(Maintenance::class)->upcoming(),
+                    'is_staff' => $user?->staffRole() !== null,
+                ],
+                // Cloudflare Turnstile on log-in / forgot password (sign-up gets its own prop).
+                'turnstile' => [
+                    'site_key' => config('services.turnstile.site_key'),
+                    'forms' => app(TurnstileVerifier::class)->enabledForms(),
+                ],
             ],
         ];
     }

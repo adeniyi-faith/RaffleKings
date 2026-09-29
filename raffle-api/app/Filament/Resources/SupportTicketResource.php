@@ -2,8 +2,10 @@
 
 namespace App\Filament\Resources;
 
+use App\Filament\Concerns\GuardedByStaffRole;
 use App\Filament\Concerns\RunsAdminActions;
 use App\Filament\Resources\SupportTicketResource\Pages;
+use App\Filament\Support\MobileCard;
 use App\Models\SupportTicket;
 use App\Models\SupportTicketMessage;
 use App\Services\AdminAuditLogService;
@@ -26,7 +28,12 @@ use Illuminate\Database\Eloquent\Builder;
  */
 class SupportTicketResource extends Resource
 {
-    use RunsAdminActions;
+    use GuardedByStaffRole, RunsAdminActions;
+
+    public static function canViewAny(): bool
+    {
+        return static::staffCanOpen();
+    }
 
     /** Plain labels for the ticket statuses (see SupportTicketService::reply()). */
     public const STATUS_LABELS = [
@@ -91,18 +98,27 @@ class SupportTicketResource extends Resource
             ->defaultSort('updated_at', 'asc')
             ->recordUrl(fn (SupportTicket $record) => static::getUrl('view', ['record' => $record]))
             ->columns([
-                Tables\Columns\TextColumn::make('id')->label('#'),
-                Tables\Columns\TextColumn::make('subject')->searchable()->limit(50)->weight('bold'),
-                Tables\Columns\TextColumn::make('user.display_name')
-                    ->label('Customer')
-                    ->description(fn (SupportTicket $record) => $record->user?->user_email)
-                    ->searchable(['display_name', 'user_login', 'user_email']),
-                Tables\Columns\TextColumn::make('status')
-                    ->badge()
-                    ->formatStateUsing(fn (string $state) => static::STATUS_LABELS[$state] ?? $state)
-                    ->color(fn (string $state) => static::statusColor($state)),
-                Tables\Columns\TextColumn::make('messages_count')->label('Messages')->alignCenter(),
-                Tables\Columns\TextColumn::make('updated_at')->label('Last activity')->since()->sortable(),
+                // Phone: each row is one card (App\Filament\Support\MobileCard).
+                MobileCard::make(fn (SupportTicket $record) => [
+                    'title' => $record->subject,
+                    'lines' => [($record->user?->display_name ?: $record->user?->user_login)." · #{$record->id}"],
+                    'badges' => [[static::STATUS_LABELS[$record->status] ?? $record->status, static::statusColor($record->status)]],
+                    'meta' => $record->messages_count.' '.str('message')->plural($record->messages_count).' · '.$record->updated_at?->diffForHumans(),
+                ]),
+                ...MobileCard::desktop([
+                    Tables\Columns\TextColumn::make('id')->label('#'),
+                    Tables\Columns\TextColumn::make('subject')->searchable()->limit(50)->weight('bold'),
+                    Tables\Columns\TextColumn::make('user.display_name')
+                        ->label('Customer')
+                        ->description(fn (SupportTicket $record) => $record->user?->user_email)
+                        ->searchable(['display_name', 'user_login', 'user_email']),
+                    Tables\Columns\TextColumn::make('status')
+                        ->badge()
+                        ->formatStateUsing(fn (string $state) => static::STATUS_LABELS[$state] ?? $state)
+                        ->color(fn (string $state) => static::statusColor($state)),
+                    Tables\Columns\TextColumn::make('messages_count')->label('Messages')->alignCenter(),
+                    Tables\Columns\TextColumn::make('updated_at')->label('Last activity')->since()->sortable(),
+                ]),
             ])
             ->filters([
                 Tables\Filters\SelectFilter::make('status')

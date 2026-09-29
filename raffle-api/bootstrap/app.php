@@ -1,7 +1,9 @@
 <?php
 
+use App\Http\Middleware\EnsureFeatureOn;
 use App\Http\Middleware\EnsureUserIsAdministrator;
 use App\Http\Middleware\HandleInertiaRequests;
+use App\Http\Middleware\MaintenanceMode;
 use App\Services\Monitoring\ErrorAlerter;
 use Illuminate\Foundation\Application;
 use Illuminate\Foundation\Configuration\Exceptions;
@@ -29,8 +31,10 @@ return Application::configure(basePath: dirname(__DIR__))
         ['middleware' => ['web', 'auth:wordpress']],
     )
     ->withMiddleware(function (Middleware $middleware): void {
-        $middleware->alias(['admin' => EnsureUserIsAdministrator::class]);
-        $middleware->web(append: [HandleInertiaRequests::class]);
+        $middleware->alias(['admin' => EnsureUserIsAdministrator::class, 'feature' => EnsureFeatureOn::class]);
+        $middleware->web(append: [HandleInertiaRequests::class, MaintenanceMode::class]);
+        // Maintenance mode (Settings → On / off) covers the API too.
+        $middleware->api(append: [MaintenanceMode::class]);
 
         // The same "logged in" cookie WordPress itself sets (see
         // App\Auth\WordPressSessionGuard) is never Laravel-encrypted.

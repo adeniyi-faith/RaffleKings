@@ -20,14 +20,29 @@ class TurnstileVerifier
 {
     private const VERIFY_URL = 'https://challenges.cloudflare.com/turnstile/v0/siteverify';
 
-    public function enabled(): bool
+    public const FORMS = ['register' => 'Sign-up', 'login' => 'Log-in', 'forgot_password' => 'Forgot password'];
+
+    /**
+     * On for a form only when BOTH keys are set (a secret key alone would
+     * demand a check the page can't show, blocking everyone) and the form
+     * is switched on in Settings → Security.
+     */
+    public function enabled(string $form = 'register'): bool
     {
-        return filled(config('services.turnstile.secret_key'));
+        return filled(config('services.turnstile.secret_key'))
+            && filled(config('services.turnstile.site_key'))
+            && (bool) config("services.turnstile.forms.{$form}", $form === 'register');
     }
 
-    public function verify(?string $token, ?string $ip = null): bool
+    /** @return list<string> the forms currently protected */
+    public function enabledForms(): array
     {
-        if (! $this->enabled()) {
+        return array_values(array_filter(array_keys(self::FORMS), fn ($form) => $this->enabled($form)));
+    }
+
+    public function verify(?string $token, ?string $ip = null, string $form = 'register'): bool
+    {
+        if (! $this->enabled($form)) {
             return true;
         }
 
