@@ -47,7 +47,7 @@ class LegacyRedirectTest extends TestCase
         $raffle = Raffle::create(['title' => 'Jackpot', 'price' => 100, 'max_tickets' => 10, 'legacy_post_id' => 555]);
 
         $this->get('/livedraw.php?id=555')->assertRedirect("/raffles/{$raffle->id}/live-draw");
-        $this->get('/livedraw.php?id=999')->assertRedirect('/hall-of-fame');
+        $this->get('/livedraw.php?id=999')->assertRedirect('/live-draws');
     }
 
     public function test_both_old_address_forms_redirect(): void

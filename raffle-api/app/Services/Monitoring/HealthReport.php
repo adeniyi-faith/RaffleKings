@@ -3,9 +3,11 @@
 namespace App\Services\Monitoring;
 
 use App\Console\Commands\HealthCheck;
+use App\Notifications\Channels\OneSignalChannel;
 use App\Services\Maintenance;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Schema;
 use Throwable;
 
 /**
@@ -87,7 +89,11 @@ final class HealthReport
         );
 
         $this->optionalSetting('TELEGRAM_BOT_TOKEN / TELEGRAM_ADMIN_CHAT_IDS', filled(config('services.telegram.bot_token')) && ! empty(config('services.telegram.admin_chat_ids')), 'Admins get no Telegram alerts for server errors, new tickets, withdrawals or draws.');
-        $this->optionalSetting('ONESIGNAL_APP_ID / ONESIGNAL_API_KEY', filled(config('services.onesignal.app_id')) && filled(config('services.onesignal.api_key')), 'No push notifications are sent.');
+        if (filled(config('services.onesignal.app_id')) && ! OneSignalChannel::appId()) {
+            $this->addWarning('ONESIGNAL_APP_ID', 'Not a valid OneSignal App ID (it should look like 1a2b3c4d-1111-2222-3333-444455556666), so push notifications are skipped. Copy it from OneSignal → Settings → Keys & IDs.');
+        } else {
+            $this->optionalSetting('ONESIGNAL_APP_ID / ONESIGNAL_API_KEY', filled(config('services.onesignal.app_id')) && filled(config('services.onesignal.api_key')), 'No push notifications are sent.');
+        }
         $this->optionalSetting('TURNSTILE_SITE_KEY / TURNSTILE_SECRET_KEY', filled(config('services.turnstile.site_key')) && filled(config('services.turnstile.secret_key')), 'Sign-up has no bot protection.');
         $this->optionalSetting('GEMINI_API_KEY', filled(config('services.gemini.api_key')), 'The admin Daily Audit statement reader is unavailable.');
 
@@ -143,9 +149,42 @@ final class HealthReport
         try {
             DB::connection()->getPdo();
             $this->addOk('Database connection', 'Connected.');
+            $this->checkLegacyColumns();
         } catch (Throwable $e) {
             $this->addCritical('Database connection', 'Cannot connect. Check the DB_* settings.');
         }
+    }
+
+    /**
+     * Columns the new site added to the OLD site's tables. One missing on
+     * the live site (idempotency_key) broke every wallet purchase; the
+     * deploy's `migrate` restores them, and this says so if it didn't.
+     */
+    private function checkLegacyColumns(): void
+    {
+        $prefix = (string) config('legacy.wp_prefix');
+        $required = [
+            'raffle_transactions' => ['idempotency_key', 'pending_raffle_id', 'pending_numbers'],
+        ];
+        $missing = [];
+
+        foreach ($required as $table => $columns) {
+            if (! Schema::hasTable($prefix.$table)) {
+                $missing[] = $prefix.$table.' (whole table)';
+
+                continue;
+            }
+
+            foreach ($columns as $column) {
+                if (! Schema::hasColumn($prefix.$table, $column)) {
+                    $missing[] = $prefix.$table.'.'.$column;
+                }
+            }
+        }
+
+        $missing === []
+            ? $this->addOk('Old-site table columns', 'All present.')
+            : $this->addCritical('Old-site table columns', 'Missing: '.implode(', ', $missing).'. Ticket purchases fail until `php artisan migrate --force` adds them.');
     }
 
     private function checkBackgroundJobs(): void

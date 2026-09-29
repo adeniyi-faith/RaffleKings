@@ -6,6 +6,7 @@ use App\Mail\Transport\BrevoTransport;
 use App\Services\Payments\FlutterwaveGateway;
 use App\Services\Payments\PaystackGateway;
 use App\Settings\SettingsStore;
+use App\Support\PageMeta;
 use Illuminate\Support\Facades\Mail;
 use Illuminate\Support\ServiceProvider;
 
@@ -24,6 +25,9 @@ class AppServiceProvider extends ServiceProvider
             config('services.flutterwave.secret_key'),
             config('services.flutterwave.secret_hash'),
         ));
+
+        // One set of link-preview tags per request (item 48).
+        $this->app->scoped(PageMeta::class);
     }
 
     /**

@@ -171,7 +171,7 @@ class SettingsTest extends TestCase
     {
         config(['site.switches.registrations' => false]);
 
-        $this->postJson('/api/auth/register', ['username' => 'newplayer', 'email' => 'n@example.com', 'password' => 'letmein1'])
+        $this->postJson('/api/auth/register', ['accept_terms' => true, 'username' => 'newplayer', 'email' => 'n@example.com', 'password' => 'letmein1'])
             ->assertStatus(503);
     }
 

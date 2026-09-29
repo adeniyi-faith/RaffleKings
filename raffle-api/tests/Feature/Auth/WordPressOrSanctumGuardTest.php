@@ -57,6 +57,7 @@ class WordPressOrSanctumGuardTest extends TestCase
     public function test_register_response_also_includes_a_working_token(): void
     {
         $response = $this->postJson('/api/auth/register', [
+            'accept_terms' => true,
             'username' => 'newbie',
             'email' => 'newbie@example.com',
             'password' => 'correcthorse1',

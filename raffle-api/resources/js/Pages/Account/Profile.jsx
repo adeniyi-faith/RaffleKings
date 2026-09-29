@@ -1,11 +1,16 @@
-import { useEffect, useState } from 'react';
+import { useState } from 'react';
 import { Head, Link, usePage } from '@inertiajs/react';
 import {
     Award,
     Bell,
+    Camera,
     BookOpen,
     ChevronRight,
     CreditCard,
+    Download,
+    FileText,
+    Info,
+    Radio,
     History,
     Landmark,
     LifeBuoy,
@@ -28,6 +33,8 @@ import { apiPost } from '../../lib/api';
 import { resolveAvatar } from '../../lib/avatar';
 import { useSite } from '../../lib/site';
 import TransferWinningsModal from '../../Components/wallet/TransferWinningsModal';
+import { setBalances, useBalanceHidden, useBalances } from '../../lib/balances';
+import { useInstallApp } from '../../hooks/useInstallApp';
 
 // Faithful rebuild of the legacy profile.php: the blue avatar header,
 // the guest "join now" card (or the two wallet cards when logged in),
@@ -36,26 +43,20 @@ export default function Profile() {
     const { auth } = usePage().props;
     const site = useSite();
     const user = auth?.user;
-    const [wallet, setWallet] = useState(0);
-    const [earnings, setEarnings] = useState(0);
+    // Sent with the page (no ₦0 flash), shared with the top bar.
+    const balances = useBalances();
+    const wallet = balances?.wallet ?? 0;
+    const earnings = balances?.earnings ?? 0;
+    const [hidden] = useBalanceHidden();
     const [transferOpen, setTransferOpen] = useState(false);
+    const [installHelp, setInstallHelp] = useState(false);
+    const app = useInstallApp();
+
+    async function installApp() {
+        const outcome = await app.install();
+        if (outcome === 'manual') setInstallHelp(true);
+    }
     const [isDark, setIsDark] = useState(() => document.documentElement.classList.contains('dark'));
-
-    useEffect(() => {
-        if (!user) {
-            return;
-        }
-
-        fetch('/api/wallet', { credentials: 'same-origin', headers: { Accept: 'application/json' } })
-            .then((response) => (response.ok ? response.json() : null))
-            .then((data) => {
-                if (data) {
-                    setWallet(data.wallet_balance);
-                    setEarnings(data.earnings_balance);
-                }
-            })
-            .catch(() => {});
-    }, [user]);
 
     function toggleTheme() {
         const next = !isDark;
@@ -82,9 +83,29 @@ export default function Profile() {
 
                 <div className="no-scrollbar flex-1 overflow-y-auto pb-28">
                     <div className="relative overflow-hidden bg-blue-600 px-5 pb-20 pt-8 dark:bg-blue-900">
+                        {/* The old profile page's faint grid over the blue. */}
+                        <div aria-hidden="true" className="pointer-events-none absolute inset-0 opacity-10">
+                            <svg width="100%" height="100%" xmlns="http://www.w3.org/2000/svg">
+                                <defs>
+                                    <pattern id="profile-grid" width="40" height="40" patternUnits="userSpaceOnUse">
+                                        <path d="M 40 0 L 0 0 0 40" fill="none" stroke="white" strokeWidth="1" />
+                                    </pattern>
+                                </defs>
+                                <rect width="100%" height="100%" fill="url(#profile-grid)" />
+                            </svg>
+                        </div>
                         <div className="relative z-10 flex flex-col items-center text-center">
-                            <div className="mb-3 h-24 w-24 overflow-hidden rounded-full border-4 border-white/20 bg-blue-700 shadow-xl dark:bg-blue-800">
-                                <img src={avatar} alt="Profile" className="h-full w-full object-cover" />
+                            <div className="relative mb-3 h-24 w-24 overflow-hidden rounded-full border-4 border-white/20 bg-blue-700 shadow-xl dark:bg-blue-800">
+                                <img src={avatar} alt="Profile" width="96" height="96" className="h-full w-full object-cover" />
+                                {user && (
+                                    <Link
+                                        href="/account/edit-profile"
+                                        aria-label="Change profile picture"
+                                        className="absolute bottom-0 left-0 right-0 flex h-1/3 items-center justify-center bg-black/50 text-white backdrop-blur-sm transition-colors hover:bg-black/70"
+                                    >
+                                        <Camera className="h-4 w-4" />
+                                    </Link>
+                                )}
                             </div>
                             <h2 className="text-xl font-black tracking-tight text-white">{user ? user.name : 'Guest'}</h2>
                             {user ? (
@@ -125,7 +146,7 @@ export default function Profile() {
                                             <p className="flex items-center gap-1 text-[10px] font-bold uppercase tracking-wider text-gray-400 dark:text-gray-500">
                                                 <Wallet className="h-3 w-3" /> Spending Wallet
                                             </p>
-                                            <p className="mt-1 text-2xl font-black text-gray-900 dark:text-white">{formatNaira(wallet)}</p>
+                                            <p className="mt-1 text-2xl font-black text-gray-900 dark:text-white">{hidden ? '₦ ••••' : formatNaira(wallet)}</p>
                                         </div>
                                         <div className="flex h-10 w-10 items-center justify-center rounded-full bg-blue-50 text-blue-600 dark:bg-blue-900/30 dark:text-blue-400">
                                             <CreditCard className="h-4 w-4" />
@@ -145,7 +166,7 @@ export default function Profile() {
                                             <p className="flex items-center gap-1 text-[10px] font-bold uppercase tracking-wider text-yellow-100">
                                                 <Award className="h-3 w-3" /> Winnings &amp; Bonus
                                             </p>
-                                            <p className="mt-1 text-2xl font-black text-white">{formatNaira(earnings)}</p>
+                                            <p className="mt-1 text-2xl font-black text-white">{hidden ? '₦ ••••' : formatNaira(earnings)}</p>
                                         </div>
                                     </div>
                                     <div className="relative z-10 mt-4 flex gap-3">
@@ -206,7 +227,10 @@ export default function Profile() {
                                 </div>
                             </button>
 
-                            <MenuLink href="/support/tutorials" icon={BookOpen} iconClass="bg-orange-100 text-orange-600 dark:bg-orange-900/30 dark:text-orange-400" title="How it Works" subtitle="Guide & tutorials" last={!user} />
+                            {! app.installed && (
+                                <MenuButton onClick={installApp} icon={Download} iconClass="bg-indigo-50 text-indigo-600 dark:bg-indigo-900/30 dark:text-indigo-400" title="Install App" subtitle="Add RaffleKings to your home screen" />
+                            )}
+                            <MenuLink href="/support/tutorials" icon={BookOpen} iconClass="bg-orange-100 text-orange-600 dark:bg-orange-900/30 dark:text-orange-400" title="Guides & Tutorials" subtitle="Learn how to play and win" last={!user} />
 
                             {user && (
                                 <button
@@ -229,7 +253,32 @@ export default function Profile() {
                             </MenuGroup>
                         )}
 
+                        <MenuGroup title="Community">
+                            <MenuLink href="/live-draws" icon={Radio} iconClass="bg-red-50 text-red-500 dark:bg-red-900/30 dark:text-red-400" title="Live Draws" subtitle="Watch live, or replay past draws" last={! site.links?.whatsapp_channel} />
+                            {site.links?.whatsapp_channel && (
+                                <a
+                                    href={site.links.whatsapp_channel}
+                                    target="_blank"
+                                    rel="noreferrer"
+                                    className="flex items-center justify-between p-4 transition-colors hover:bg-gray-50 dark:hover:bg-gray-800"
+                                >
+                                    <div className="flex items-center gap-3">
+                                        <div className="flex h-8 w-8 items-center justify-center rounded-full bg-green-100 text-green-600 dark:bg-green-900/30 dark:text-green-400">
+                                            <MessageCircle className="h-4 w-4" />
+                                        </div>
+                                        <div className="flex flex-col">
+                                            <span className="text-sm font-medium text-gray-700 dark:text-gray-200">WhatsApp Channel</span>
+                                            <span className="text-[10px] text-gray-400 dark:text-gray-500">New raffles, winners and offers</span>
+                                        </div>
+                                    </div>
+                                    <ChevronRight className="h-4 w-4 text-gray-300 dark:text-gray-600" />
+                                </a>
+                            )}
+                        </MenuGroup>
+
                         <MenuGroup title="Legal & Support">
+                            <MenuLink href="/about" icon={Info} iconClass="bg-blue-50 text-blue-600 dark:bg-blue-900/30 dark:text-blue-400" title="About RaffleKings" subtitle="How it works and how draws stay fair" />
+                            <MenuLink href="/terms" icon={FileText} iconClass="bg-gray-50 text-gray-500 dark:bg-gray-700/50 dark:text-gray-400" title="Terms of Service" />
                             <MenuLink href="/privacy-policy" icon={ShieldCheck} iconClass="bg-gray-50 text-gray-500 dark:bg-gray-700/50 dark:text-gray-400" title="Privacy Policy" />
                             {site.links?.telegram_support && (
                             <a
@@ -273,14 +322,26 @@ export default function Profile() {
                 <BottomNav />
             </div>
 
+            {installHelp && (
+                <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/60 p-4 sm:items-center" onClick={() => setInstallHelp(false)}>
+                    <div role="dialog" aria-modal="true" onClick={(e) => e.stopPropagation()} className="w-full max-w-sm rounded-3xl bg-white p-6 dark:bg-dark-card">
+                        <h3 className="mb-2 text-lg font-bold text-gray-900 dark:text-white">Install RaffleKings</h3>
+                        <p className="mb-4 text-sm text-gray-500 dark:text-gray-400">
+                            Open your browser's menu (⋮ or the share button) and choose <strong>Install app</strong> or <strong>Add to Home screen</strong>.
+                            RaffleKings then opens full screen, like any other app.
+                        </p>
+                        <button onClick={() => setInstallHelp(false)} className="w-full rounded-xl bg-gray-900 py-3 text-sm font-bold text-white dark:bg-white dark:text-gray-900">
+                            Got it
+                        </button>
+                    </div>
+                </div>
+            )}
+
             <TransferWinningsModal
                 open={transferOpen}
                 onClose={() => setTransferOpen(false)}
                 earnings={earnings}
-                onDone={(data) => {
-                    setWallet(data.wallet_balance);
-                    setEarnings(data.earnings_balance);
-                }}
+                onDone={(data) => setBalances(data)}
             />
         </>
     );
@@ -312,5 +373,26 @@ function MenuLink({ href, icon: Icon, iconClass, title, subtitle, last }) {
             </div>
             <ChevronRight className="h-4 w-4 text-gray-300 dark:text-gray-600" />
         </Link>
+    );
+}
+
+function MenuButton({ onClick, icon: Icon, iconClass, title, subtitle }) {
+    return (
+        <button
+            type="button"
+            onClick={onClick}
+            className="flex w-full items-center justify-between border-b border-gray-50 p-4 text-left transition-colors hover:bg-gray-50 dark:border-gray-800 dark:hover:bg-gray-800"
+        >
+            <div className="flex items-center gap-3">
+                <div className={`flex h-8 w-8 items-center justify-center rounded-full ${iconClass}`}>
+                    <Icon className="h-4 w-4" />
+                </div>
+                <div className="flex flex-col">
+                    <span className="text-sm font-medium text-gray-700 dark:text-gray-200">{title}</span>
+                    {subtitle && <span className="text-[10px] text-gray-400 dark:text-gray-500">{subtitle}</span>}
+                </div>
+            </div>
+            <ChevronRight className="h-4 w-4 text-gray-300 dark:text-gray-600" />
+        </button>
     );
 }

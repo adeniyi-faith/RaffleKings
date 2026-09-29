@@ -25,9 +25,12 @@ class RegisterController extends Controller
             'email' => ['required', 'email'],
             'password' => ['required', 'string', 'min:6', 'regex:/^(?=.*[A-Za-z])(?=.*\d).+$/'],
             'referral_code' => ['nullable', 'string'],
+            // Item 48: customers must be 18+ and accept the Terms of Service.
+            'accept_terms' => ['accepted'],
             'turnstile_token' => [$this->turnstile->enabled() ? 'required' : 'nullable', 'string'],
         ], [
             'password.regex' => 'Password must contain at least one letter and one number.',
+            'accept_terms.accepted' => 'Please confirm you are 18 or older and accept the Terms of Service.',
         ]);
 
         if (! $this->turnstile->verify($data['turnstile_token'] ?? null, $request->ip())) {
