@@ -45,10 +45,10 @@ export default function ReferralsIndex({ ladder = [], commissionPercent = 0 }) {
 
                 <div className="relative overflow-hidden bg-gradient-to-br from-orange-500 via-red-500 to-pink-600 px-5 pb-16 pt-6 text-white">
                     <div className="pointer-events-none absolute -right-10 -top-10 h-48 w-48 rounded-full bg-white/10 blur-2xl" />
-                    <p className="text-xs font-bold uppercase tracking-widest text-yellow-200">Referral ladder</p>
-                    <h1 className="mt-1 text-2xl font-black leading-tight">Bring friends. Climb the ladder. Win more.</h1>
+                    <p className="text-xs font-bold uppercase tracking-widest text-yellow-200">Refer and earn</p>
+                    <h1 className="mt-1 text-2xl font-black leading-tight">Invite friends. Get rewards when they play.</h1>
                     <p className="mt-2 max-w-sm text-sm text-white/90">
-                        Every friend who joins with your link and plays moves you up. Plus {commissionPercent}% of each friend's first top-up, paid to your winnings.
+                        A friend counts when they sign up with your link and buy at least one ticket. The more friends count, the bigger your reward. You also get {commissionPercent}% of each friend's first top-up, added to your winnings balance.
                     </p>
 
                     {user ? (
@@ -96,13 +96,13 @@ export default function ReferralsIndex({ ladder = [], commissionPercent = 0 }) {
 
                     {/* The ladder */}
                     <div className="rounded-2xl bg-white p-5 shadow-sm dark:bg-dark-card">
-                        <h3 className="mb-1 text-sm font-bold text-gray-900 dark:text-white">Your ladder</h3>
+                        <h3 className="mb-1 text-sm font-bold text-gray-900 dark:text-white">Your rewards</h3>
                         <p className="mb-4 text-xs text-gray-500 dark:text-gray-400">
                             {next
                                 ? `${next.friends - playing} more ${next.friends - playing === 1 ? 'friend' : 'friends'} playing to reach the next reward.`
                                 : user && data
-                                  ? 'You reached the top of the ladder. Legend!'
-                                  : 'Rewards for friends who join with your link and buy at least one ticket.'}
+                                  ? 'You have earned every reward. Well done!'
+                                  : 'You get these rewards when friends sign up with your link and buy at least one ticket.'}
                         </p>
                         <div className="mb-5 h-2 overflow-hidden rounded-full bg-gray-100 dark:bg-gray-700">
                             <div className="h-full rounded-full bg-gradient-to-r from-orange-500 to-pink-500 transition-all" style={{ width: `${Math.min(100, (playing / top) * 100)}%` }} />
@@ -134,8 +134,8 @@ export default function ReferralsIndex({ ladder = [], commissionPercent = 0 }) {
                         <h3 className="mb-3 text-sm font-bold text-gray-900 dark:text-white">How it works</h3>
                         <ol className="space-y-3 text-xs text-gray-600 dark:text-gray-300">
                             <Step n="1" text="Share your link with friends (WhatsApp, Telegram, anywhere)." />
-                            <Step n="2" text="They sign up with it. You get commission on their first wallet top-up." />
-                            <Step n="3" text="When they buy their first ticket, they count towards your ladder, and rewards arrive automatically." />
+                            <Step n="2" text="They sign up with it. When they add money for the first time, you get a share of it." />
+                            <Step n="3" text="When they buy their first ticket, they count as playing. Rewards are added to your account automatically." />
                         </ol>
                         <p className="mt-3 text-[11px] text-gray-400">Friends must be 18 or older and use their own account. Rewards for fake or duplicate accounts are removed.</p>
                     </div>

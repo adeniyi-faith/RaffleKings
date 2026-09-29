@@ -67,7 +67,7 @@ export default function TeamPage({ team: initial, referrer, hasTicket }) {
                 </div>
 
                 <p className="mt-4 max-w-sm text-center text-xs text-white/80">
-                    When all {team.size} places fill, everyone gets {team.bonus_entries} free bonus {team.bonus_entries === 1 ? 'entry' : 'entries'} in the draw. Each person needs their own ticket
+                    If all {team.size} places fill before time runs out, everyone gets {team.bonus_entries} free extra {team.bonus_entries === 1 ? 'entry' : 'entries'} in the draw. To join, you need your own ticket in this raffle
                     {team.raffle ? ` (from ${formatNaira(team.raffle.price)})` : ''}.
                 </p>
 

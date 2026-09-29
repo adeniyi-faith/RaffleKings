@@ -96,7 +96,7 @@ function UnlockCard({ data, raffleTitle, busy, onCreate }) {
             </div>
             {! link?.completed && (
                 <p className="mt-1 text-xs text-white/90">
-                    Get {needed} friends to tap your link and you get {data.bonus_entries} free bonus {data.bonus_entries === 1 ? 'entry' : 'entries'} in this draw. Each friend who taps gets points too.
+                    Share your link. When {needed} friends open it and tap Help, you get {data.bonus_entries} free extra {data.bonus_entries === 1 ? 'entry' : 'entries'} in this draw. Each friend who taps gets points too.
                 </p>
             )}
             {link ? (
@@ -142,7 +142,7 @@ function TeamCard({ data, raffleTitle, busy, onCreate }) {
             </div>
             {! team?.completed && (
                 <p className="mt-1 text-xs text-white/90">
-                    Start a team of {data.team_size} in this raffle. If it fills within {data.team_hours} hours, everyone gets {data.team_bonus_entries} free bonus {data.team_bonus_entries === 1 ? 'entry' : 'entries'}.
+                    Start a team and invite friends. Each person needs their own ticket in this raffle. If {data.team_size} people (you included) join within {data.team_hours} hours, everyone gets {data.team_bonus_entries} free extra {data.team_bonus_entries === 1 ? 'entry' : 'entries'}.
                 </p>
             )}
             {team ? (
@@ -157,7 +157,7 @@ function TeamCard({ data, raffleTitle, busy, onCreate }) {
                             );
                         })}
                     </div>
-                    {team.expired && <p className="mt-2 text-[11px] text-white/80">This team ran out of time. No problem: nothing was lost.</p>}
+                    {team.expired && <p className="mt-2 text-[11px] text-white/80">Time ran out before the team was full. Your tickets still count in the draw.</p>}
                     {! team.completed && ! team.expired && <ShareRow text={`Join my team in ${raffleTitle}! If our team fills, we all get a free bonus entry:`} url={team.url} />}
                 </>
             ) : data.has_tickets ? (

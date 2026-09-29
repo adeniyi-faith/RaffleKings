@@ -42,10 +42,10 @@ import LoadError from '../../Components/ui/LoadError';
 // wait (the server checks it), today's reward bounces with a countdown to
 // the next one, guests see a real preview, and errors look like errors.
 const TASK_LABELS = {
-    push_notification: { title: 'Enable Notifications', desc: 'Turn on push alerts', icon: Bell },
-    join_community: { title: 'Join our Community', desc: 'Join our official group', icon: Users },
+    push_notification: { title: 'Enable Notifications', desc: 'Allow alerts so we can tell you about draws and wins', icon: Bell },
+    join_community: { title: 'Join our Community', desc: 'Join our official group chat', icon: Users },
     whatsapp_follow: { title: 'Follow on WhatsApp', desc: 'Follow our WhatsApp channel', icon: ExternalLink },
-    whatsapp_share: { title: 'Share on WhatsApp', desc: 'Share with your friends (daily)', icon: Share2 },
+    whatsapp_share: { title: 'Share on WhatsApp', desc: 'Share the app with friends. You can do this once a day', icon: Share2 },
 };
 
 // Re-renders every second while something on the page counts down.
@@ -359,6 +359,9 @@ export default function RewardsIndex({ referralCode, preview = null }) {
                             );
                         })}
                     </div>
+                    <p className="relative z-10 mt-3 text-[11px] text-blue-200">
+                        Tap today's box once a day to collect points. Each day in a row pays more. Miss a day and you start again from Day 1.
+                    </p>
                 </div>
 
                 <div className="relative z-20 -mt-6 space-y-5 px-5">
@@ -381,9 +384,9 @@ export default function RewardsIndex({ referralCode, preview = null }) {
                     {/* Redeem card */}
                     <div className="flex items-center justify-between rounded-2xl border border-gray-100 bg-white p-5 shadow-sm dark:border-gray-800 dark:bg-dark-card">
                         <div>
-                            <p className="text-[10px] font-bold uppercase text-gray-400 dark:text-gray-500">Wallet Value</p>
+                            <p className="text-[10px] font-bold uppercase text-gray-400 dark:text-gray-500">Your points are worth</p>
                             <h3 className="text-xl font-bold text-gray-900 dark:text-white">{formatNaira(Math.floor(points / pointsPerNaira))}</h3>
-                            <p className="text-[10px] text-green-600 dark:text-green-400">Rate: {pointsPerNaira} Pts = ₦1</p>
+                            <p className="text-[10px] text-green-600 dark:text-green-400">{pointsPerNaira} points = ₦1</p>
                         </div>
                         <button
                             onClick={redeem}
@@ -393,8 +396,11 @@ export default function RewardsIndex({ referralCode, preview = null }) {
                             {busy === 'redeem' ? 'Redeeming…' : 'Redeem Now'} <ArrowRight className="h-3 w-3" />
                         </button>
                     </div>
+                    <p className="-mt-3 text-[10px] text-gray-400 dark:text-gray-500">
+                        Redeem Now turns all your points into money in your wallet. You can use it to buy tickets.
+                    </p>
                     {points < minRedeem && (
-                        <p className="-mt-3 text-[10px] text-gray-400 dark:text-gray-500">Minimum redemption is {minRedeem} points.</p>
+                        <p className="-mt-3 text-[10px] text-gray-400 dark:text-gray-500">You need at least {minRedeem} points to cash in.</p>
                     )}
                     <PausedNotice feature="point_redemption" />
                     <PausedNotice feature="daily_claim" />
@@ -404,12 +410,12 @@ export default function RewardsIndex({ referralCode, preview = null }) {
                         <Link href="/rewards/predict" className="rounded-2xl bg-gradient-to-br from-emerald-500 to-teal-700 p-4 text-white shadow-lg shadow-emerald-500/20 active:scale-[0.98]">
                             <p className="text-2xl">🔮</p>
                             <p className="mt-1 text-sm font-black">Daily Predictions</p>
-                            <p className="text-[11px] text-emerald-100">Call it right, earn points</p>
+                            <p className="text-[11px] text-emerald-100">Answer free questions, win points</p>
                         </Link>
                         <Link href="/referrals" className="rounded-2xl bg-gradient-to-br from-orange-500 to-red-600 p-4 text-white shadow-lg shadow-orange-500/20 active:scale-[0.98]">
                             <p className="text-2xl">🤝</p>
                             <p className="mt-1 text-sm font-black">Invite Friends</p>
-                            <p className="text-[11px] text-orange-100">Climb the referral ladder</p>
+                            <p className="text-[11px] text-orange-100">Get rewards when friends play</p>
                         </Link>
                     </div>
 
@@ -427,7 +433,7 @@ export default function RewardsIndex({ referralCode, preview = null }) {
                                 <p className="text-[10px] font-black uppercase tracking-[0.2em] text-yellow-300">Free · 30 levels</p>
                                 <h3 className="text-xl font-black italic">Season Pass</h3>
                                 <p className="text-xs text-purple-100">
-                                    {state?.season?.claimable ? `${state.season.claimable} ${state.season.claimable === 1 ? 'reward' : 'rewards'} ready to collect!` : 'Play every day to level up and collect rewards'}
+                                    {state?.season?.claimable ? `${state.season.claimable} ${state.season.claimable === 1 ? 'reward' : 'rewards'} ready to collect!` : 'Free. Play to earn XP, go up levels and collect a reward at each level'}
                                 </p>
                             </div>
                             <ArrowRight className="h-5 w-5 transition-transform group-hover:translate-x-0.5" />
@@ -468,7 +474,7 @@ export default function RewardsIndex({ referralCode, preview = null }) {
                         </div>
 
                         <p className="relative z-10 mb-3 max-w-[240px] text-xs text-orange-100">
-                            Earn commission on your friend's first deposit, and climb the referral ladder for points, free spins and badges.
+                            Share your link. When a friend signs up and adds money, you get a share of their first top-up. When they buy a ticket, you also earn points, free spins and badges.
                         </p>
 
                         {referralLink ? (
@@ -495,11 +501,11 @@ export default function RewardsIndex({ referralCode, preview = null }) {
                             <div className="relative z-10 grid grid-cols-3 gap-2 border-t border-white/10 pt-3 text-center">
                                 <div>
                                     <p className="text-sm font-bold">{referral.referral_count}</p>
-                                    <p className="text-[9px] text-orange-100">Referred</p>
+                                    <p className="text-[9px] text-orange-100">Signed up</p>
                                 </div>
                                 <div>
                                     <p className="text-sm font-bold">{referral.pending_count}</p>
-                                    <p className="text-[9px] text-orange-100">Pending</p>
+                                    <p className="text-[9px] text-orange-100">No top-up yet</p>
                                 </div>
                                 <div>
                                     <p className="text-sm font-bold">{formatNaira(referral.total_earned)}</p>
@@ -520,7 +526,7 @@ export default function RewardsIndex({ referralCode, preview = null }) {
                             <Zap className="h-4 w-4 text-app-primary" /> Quick Tasks
                         </h3>
                         <p className="mb-3 text-[11px] text-gray-400 dark:text-gray-500">
-                            Tap <span className="font-bold">Go</span>, do the task, then come back and tap <span className="font-bold">Claim</span>.
+                            Tap <span className="font-bold">Go</span>, do the task, then come back here and tap <span className="font-bold">Claim</span> to get your points.
                         </p>
                         <div className="space-y-3">
                             {tasks.map((task) => {
@@ -695,7 +701,7 @@ function LoyaltyCard({ loyalty }) {
                     <p className="font-bold text-gray-900 dark:text-white">You're at the top tier. Keep playing each week to stay here.</p>
                 )}
                 <p className="text-[11px] text-gray-400">
-                    Play a little each week to move up. Bonus entries are free extra chances in raffles marked for them, shown on each raffle's "How this draw works".
+                    Buy tickets in more weeks to move up. Higher tiers get free bonus entries: extra chances to win, at no cost, in raffles that allow them. Check "How this draw works" on a raffle to see if it does.
                 </p>
             </div>
         </div>
