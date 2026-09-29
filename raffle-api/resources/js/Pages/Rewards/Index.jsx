@@ -399,6 +399,41 @@ export default function RewardsIndex({ referralCode, preview = null }) {
                     <PausedNotice feature="point_redemption" />
                     <PausedNotice feature="daily_claim" />
 
+                    {/* Phase 11: daily predictions and invite friends. */}
+                    <div className="grid grid-cols-2 gap-3">
+                        <Link href="/rewards/predict" className="rounded-2xl bg-gradient-to-br from-emerald-500 to-teal-700 p-4 text-white shadow-lg shadow-emerald-500/20 active:scale-[0.98]">
+                            <p className="text-2xl">🔮</p>
+                            <p className="mt-1 text-sm font-black">Daily Predictions</p>
+                            <p className="text-[11px] text-emerald-100">Call it right, earn points</p>
+                        </Link>
+                        <Link href="/referrals" className="rounded-2xl bg-gradient-to-br from-orange-500 to-red-600 p-4 text-white shadow-lg shadow-orange-500/20 active:scale-[0.98]">
+                            <p className="text-2xl">🤝</p>
+                            <p className="mt-1 text-sm font-black">Invite Friends</p>
+                            <p className="text-[11px] text-orange-100">Climb the referral ladder</p>
+                        </Link>
+                    </div>
+
+                    {/* Phase 11: the free Season Pass track. */}
+                    <Link
+                        href="/rewards/season"
+                        className="group relative block overflow-hidden rounded-2xl bg-gradient-to-r from-indigo-700 via-purple-700 to-fuchsia-700 p-5 text-white shadow-lg shadow-fuchsia-500/20 transition-transform active:scale-[0.98]"
+                    >
+                        <div className="relative z-10 flex items-center gap-4">
+                            <div className="flex h-14 w-14 flex-shrink-0 flex-col items-center justify-center rounded-full border-2 border-yellow-300 bg-black/25">
+                                <span className="text-[8px] font-bold uppercase text-yellow-200">Level</span>
+                                <span className="text-xl font-black leading-none">{state?.season?.level ?? 0}</span>
+                            </div>
+                            <div className="min-w-0 flex-1">
+                                <p className="text-[10px] font-black uppercase tracking-[0.2em] text-yellow-300">Free · 30 levels</p>
+                                <h3 className="text-xl font-black italic">Season Pass</h3>
+                                <p className="text-xs text-purple-100">
+                                    {state?.season?.claimable ? `${state.season.claimable} ${state.season.claimable === 1 ? 'reward' : 'rewards'} ready to collect!` : 'Play every day to level up and collect rewards'}
+                                </p>
+                            </div>
+                            <ArrowRight className="h-5 w-5 transition-transform group-hover:translate-x-0.5" />
+                        </div>
+                    </Link>
+
                     <PausedNotice feature="spin" />
                     {/* Spin & Win lives on its own full-screen game page. */}
                     <Link
@@ -412,6 +447,7 @@ export default function RewardsIndex({ referralCode, preview = null }) {
                                 <p className="text-[10px] font-black uppercase tracking-[0.2em] text-yellow-300">Game</p>
                                 <h3 className="text-xl font-black italic">Spin &amp; Win</h3>
                                 <p className="text-xs text-purple-100">
+                                    {state?.free_spins > 0 ? `🎁 ${state.free_spins} free ${state.free_spins === 1 ? 'spin' : 'spins'} waiting · ` : ''}
                                     {spinCost} points a spin
                                     {spinOdds.length > 0 && ` · top prize ${Math.max(...spinOdds.map((o) => o.payout))} pts`}
                                 </p>
@@ -431,8 +467,8 @@ export default function RewardsIndex({ referralCode, preview = null }) {
                             <h3 className="text-lg font-bold">Refer & Earn</h3>
                         </div>
 
-                        <p className="relative z-10 mb-3 max-w-[220px] text-xs text-orange-100">
-                            Earn commission on your friend's first deposit when they sign up with your link.
+                        <p className="relative z-10 mb-3 max-w-[240px] text-xs text-orange-100">
+                            Earn commission on your friend's first deposit, and climb the referral ladder for points, free spins and badges.
                         </p>
 
                         {referralLink ? (
@@ -471,6 +507,10 @@ export default function RewardsIndex({ referralCode, preview = null }) {
                                 </div>
                             </div>
                         )}
+
+                        <Link href="/referrals" className="relative z-10 mt-3 flex items-center justify-center gap-1 rounded-xl bg-white py-2.5 text-xs font-bold text-red-600 shadow active:scale-95">
+                            See your referral ladder <ArrowRight className="h-3 w-3" />
+                        </Link>
                     </div>
 
                     <PausedNotice feature="tasks" />

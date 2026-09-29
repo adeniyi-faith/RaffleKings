@@ -1,6 +1,7 @@
 <?php
 
 use App\Console\Commands\HealthCheck;
+use App\Services\Engagement\RedEnvelopes;
 use Illuminate\Foundation\Inspiring;
 use Illuminate\Support\Facades\Artisan;
 use Illuminate\Support\Facades\Cache;
@@ -40,3 +41,9 @@ Schedule::command('queue:prune-failed --hours=720')->daily();
 Schedule::call(fn () => Cache::put(HealthCheck::SCHEDULER_HEARTBEAT_KEY, now()->timestamp, now()->addDay()))
     ->everyMinute()
     ->name('health-heartbeat');
+
+// Phase 11: unclaimed red-envelope points go back to their senders.
+Schedule::call(fn () => app(RedEnvelopes::class)->refundExpired())
+    ->everyMinute()
+    ->name('red-envelope-refunds')
+    ->withoutOverlapping(5);

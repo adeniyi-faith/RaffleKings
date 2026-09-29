@@ -71,7 +71,8 @@ class AccountReadService
             ->get()
             ->groupBy('raffle_id');
 
-        $bonus = RaffleBonusEntry::query()->where('user_id', $user->getKey())->whereIn('raffle_id', $raffleIds)->pluck('entries', 'raffle_id');
+        $bonus = RaffleBonusEntry::query()->where('user_id', $user->getKey())->whereIn('raffle_id', $raffleIds)
+            ->selectRaw('raffle_id, sum(entries) as total')->groupBy('raffle_id')->pluck('total', 'raffle_id');
 
         $grouped = $entries->groupBy('raffle_id')->map(function (Collection $group, $raffleId) use ($raffles, $natives, $draws, $wins, $bonus) {
             $raffle = $raffles->get((int) $raffleId);

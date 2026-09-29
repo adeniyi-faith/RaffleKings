@@ -11,6 +11,7 @@ import { useTicketPriceQuote } from '../../hooks/useTicketPriceQuote';
 import { formatNaira } from '../../lib/format';
 import { isOn, useSite } from '../../lib/site';
 import PausedNotice from '../../Components/layout/PausedNotice';
+import BoostPanel from '../../Components/social/BoostPanel';
 
 const DEFAULT_QUANTITIES = [1, 2, 3, 5, 10];
 
@@ -94,6 +95,11 @@ export default function RaffleShow({ raffle, drawInfo = null }) {
                         <div className="absolute right-0 top-0 h-40 w-40 -translate-y-1/2 translate-x-1/2 rounded-full bg-white/10 blur-3xl" />
 
                         <div className="mb-3 flex flex-wrap items-center justify-center gap-2">
+                            {raffle.is_flash && ! isClosed && (
+                                <span className="flex items-center gap-1 rounded-full bg-fuchsia-600 px-3 py-1 text-[10px] font-black uppercase tracking-widest text-yellow-200 shadow-sm">
+                                    <Zap className="h-3 w-3 fill-current" /> Flash raffle
+                                </span>
+                            )}
                             <span
                                 className={[
                                     'rounded-full px-3 py-1 text-[10px] font-bold shadow-sm',
@@ -190,6 +196,12 @@ export default function RaffleShow({ raffle, drawInfo = null }) {
                         )}
                     </Card>
                 </section>
+
+                {auth.user && ! isClosed && (
+                    <section className="px-5 pb-2">
+                        <BoostPanel raffleId={raffle.id} raffleTitle={raffle.title} />
+                    </section>
+                )}
 
                 {drawInfo?.rules?.length > 0 && (
                     <section className="px-5 pb-2 text-left">

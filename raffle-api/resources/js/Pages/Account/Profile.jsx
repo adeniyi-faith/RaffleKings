@@ -35,6 +35,7 @@ import { useSite } from '../../lib/site';
 import TransferWinningsModal from '../../Components/wallet/TransferWinningsModal';
 import { setBalances, useBalanceHidden, useBalances } from '../../lib/balances';
 import { useInstallApp } from '../../hooks/useInstallApp';
+import { useApi } from '../../lib/useApi';
 
 // Faithful rebuild of the legacy profile.php: the blue avatar header,
 // the guest "join now" card (or the two wallet cards when logged in),
@@ -51,6 +52,9 @@ export default function Profile() {
     const [transferOpen, setTransferOpen] = useState(false);
     const [installHelp, setInstallHelp] = useState(false);
     const app = useInstallApp();
+    // Phase 11: the badges this customer pinned to their profile.
+    const { data: badgeData } = useApi('/api/badges', { enabled: !! user });
+    const showcase = badgeData?.showcase ?? [];
 
     async function installApp() {
         const outcome = await app.install();
@@ -114,6 +118,15 @@ export default function Profile() {
                                 </span>
                             ) : (
                                 <span className="mt-1 text-xs text-blue-200">Guest User</span>
+                            )}
+                            {user && showcase.length > 0 && (
+                                <Link href="/account/badges" className="mt-2 flex items-center gap-1.5" aria-label="My badges">
+                                    {showcase.map((b) => (
+                                        <span key={b.key} title={b.name} className="flex h-8 w-8 items-center justify-center rounded-full border border-white/30 bg-white/15 text-base shadow">
+                                            {b.emoji}
+                                        </span>
+                                    ))}
+                                </Link>
                             )}
                         </div>
                     </div>
@@ -191,6 +204,7 @@ export default function Profile() {
 
                     <div className="mt-8 space-y-6 px-5 pb-6">
                         <MenuGroup title="Activity">
+                            {user && <MenuLink href="/account/badges" icon={Award} iconClass="bg-fuchsia-50 text-fuchsia-600 dark:bg-fuchsia-900/30 dark:text-fuchsia-400" title="My Badges" subtitle="Collect them all and pin your favourites" />}
                             <MenuLink href="/account/tickets" icon={Ticket} iconClass="bg-green-50 text-green-600 dark:bg-green-900/30 dark:text-green-400" title="My Tickets" subtitle="View active & past tickets" />
                             <MenuLink href="/account/transactions" icon={History} iconClass="bg-purple-50 text-purple-600 dark:bg-purple-900/30 dark:text-purple-400" title="Transaction History" last={!user} />
                             {user && (

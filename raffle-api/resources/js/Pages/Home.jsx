@@ -5,6 +5,7 @@ import HeroCarousel from '../Components/home/HeroCarousel';
 import GoldenBoxBanner from '../Components/raffles/GoldenBoxBanner';
 import TrendingCard from '../Components/home/TrendingCard';
 import HomeCards from '../Components/home/HomeCards';
+import RaffleCard from '../Components/raffles/RaffleCard';
 
 // The customer homepage. The blocks (slides, cards, trending raffles...) and
 // their order come from `layout`, which staff arrange in the admin under
@@ -12,6 +13,8 @@ import HomeCards from '../Components/home/HomeCards';
 // closing-soon raffle set shown by the trending block.
 export default function Home({ trending, layout = [] }) {
     const activeTrending = trending.filter((r) => !r.is_closed).slice(0, 10);
+    // Phase 11: flash raffles get their own strip just above the trending list.
+    const flash = activeTrending.filter((r) => r.is_flash);
 
     return (
         <>
@@ -34,7 +37,16 @@ export default function Home({ trending, layout = [] }) {
                                 return <HomeCards key={i} section={section} />;
                             case 'trending':
                                 return (
-                                    <section key={i} className="mb-6 mt-2">
+                                    <div key={i}>
+                                    {flash.length > 0 && (
+                                        <section className="mt-2 space-y-3 px-5">
+                                            <h2 className="text-lg font-bold tracking-tight text-gray-900 dark:text-white">Flash Raffles ⚡</h2>
+                                            {flash.slice(0, 3).map((raffle) => (
+                                                <RaffleCard key={raffle.id} raffle={raffle} />
+                                            ))}
+                                        </section>
+                                    )}
+                                    <section className="mb-6 mt-2">
                                         <div className="mb-4 flex items-end justify-between px-5">
                                             <div>
                                                 <h2 className="text-lg font-bold tracking-tight text-gray-900 dark:text-white">{section.title || 'Trending Now'}</h2>
@@ -60,6 +72,7 @@ export default function Home({ trending, layout = [] }) {
                                             )}
                                         </div>
                                     </section>
+                                    </div>
                                 );
                             default:
                                 return null;
