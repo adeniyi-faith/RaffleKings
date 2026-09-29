@@ -137,7 +137,7 @@ export default function AccountTickets() {
                                         <div>
                                             <h3 className="text-base font-bold text-gray-900 dark:text-white">{group.raffle_title}</h3>
                                             <p className="mt-0.5 text-[10px] text-gray-400 dark:text-gray-500">
-                                                Purchased: {group.date ? new Date(group.date).toLocaleDateString() : '—'}
+                                                Purchased: {group.date ? new Date(group.date).toLocaleDateString() : 'Unknown'}
                                             </p>
                                         </div>
                                         <div className="text-right">

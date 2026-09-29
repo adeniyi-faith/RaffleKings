@@ -110,7 +110,7 @@ export default function Home({ trending }) {
                         <div className="mb-4 flex items-end justify-between px-5">
                             <div>
                                 <h2 className="text-lg font-bold tracking-tight text-gray-900 dark:text-white">Trending Now 🔥</h2>
-                                <p className="text-[11px] font-medium text-gray-500 dark:text-gray-400">Closing soon — don&apos;t miss out</p>
+                                <p className="text-[11px] font-medium text-gray-500 dark:text-gray-400">Closing soon, don&apos;t miss out</p>
                             </div>
                             <Link
                                 href="/raffles"

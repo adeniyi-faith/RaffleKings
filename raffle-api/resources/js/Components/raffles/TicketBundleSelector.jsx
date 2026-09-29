@@ -139,7 +139,7 @@ export default function TicketBundleSelector({ quotes, selected, onSelect, bulkQ
                 <div className="relative flex items-center justify-between">
                     <div>
                         <p className="font-bold text-white">Bulk / Custom 🐋</p>
-                        <p className="text-xs text-indigo-300">Go bigger — pick your own quantity</p>
+                        <p className="text-xs text-indigo-300">Go bigger: pick your own quantity</p>
                     </div>
                     <div
                         className={[

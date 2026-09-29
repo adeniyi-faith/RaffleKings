@@ -70,6 +70,14 @@
     .rk-stats { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }
     @media (min-width: 768px) { .rk-stats { grid-template-columns: repeat(4, minmax(0, 1fr)); } }
 
+    /* Tablets and laptops: let long table text (emails, descriptions) wrap
+       onto a second line instead of pushing the buttons off the right edge. */
+    @media (min-width: 768px) {
+        .fi-ta-table > tbody > tr > td:not(.fi-ta-actions-cell):not(.fi-ta-selection-cell) { white-space: normal; overflow-wrap: break-word; }
+        .fi-ta-table > tbody > tr > td .fi-ta-text { min-width: 5.5rem; }
+        .fi-ta-table td.fi-ta-actions-cell > div { white-space: nowrap; }
+    }
+
     /* ---------- Phone table cards (App\Filament\Support\MobileCard) ---------- */
     .rk-card { flex: 1 1 auto; width: 100%; display: grid; grid-template-columns: minmax(0, 1fr); gap: 3px; white-space: normal; padding: 14px 12px 10px; min-width: 0; }
     .rk-card-top { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; min-width: 0; }
@@ -116,7 +124,8 @@
     .rk-copy:active { background: rgb(var(--primary-100)); }
     .dark .rk-copy { color: rgb(var(--gray-100)); background: rgb(255 255 255 / .08); }
 
-    @media (max-width: 767px) {
+    /* Cards up to 1279px (App\Filament\Support\MobileCard::TABLE_FROM = xl). */
+    @media (max-width: 1279px) {
         /* A table with a card column: rows become cards, buttons underneath. */
         .fi-ta-table:has(.fi-table-cell-mobile-card) > thead { display: none; }
         .fi-ta-table:has(.fi-table-cell-mobile-card) > tbody > tr.fi-ta-row { display: flex; flex-wrap: wrap; align-items: flex-start; }
@@ -145,6 +154,10 @@
         }
         .dark .fi-ta-actions-cell .fi-icon-btn { background: rgb(255 255 255 / .08); }
 
+    }
+
+    /* Phones only. */
+    @media (max-width: 767px) {
         /* Dashboard boxes two-up, so the day fits on one screen. */
         .fi-wi-stats-overview-stats-ctn { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }
         .fi-wi-stats-overview-stat { padding: 14px; border-radius: 14px; }

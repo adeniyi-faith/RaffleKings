@@ -41,6 +41,7 @@ class AdminAuditLogResource extends Resource
         'system.errors_cleared' => 'Site error list cleared',
         'report.downloaded' => 'Spreadsheet downloaded',
         'staff.role_changed' => 'Staff role changed',
+        'staff.signed_in' => 'Signed in to the admin',
         'broadcast.sent' => 'Message sent to customers',
         'tutorial.created' => 'Tutorial written',
         'tutorial.updated' => 'Tutorial edited',

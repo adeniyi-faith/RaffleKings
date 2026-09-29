@@ -119,7 +119,7 @@ class RaffleWinnerResource extends Resource
                 ...MobileCard::desktop([
                     Tables\Columns\TextColumn::make('raffle_id')
                         ->label('Raffle')
-                        ->formatStateUsing(fn (int $state) => static::raffleTitles()[$state] ?? "Raffle #{$state}")
+                        ->formatStateUsing(fn ($state) => static::raffleTitles()[(int) $state] ?? "Raffle #{$state}")
                         ->description(fn (RaffleWinner $record) => "#{$record->raffle_id}"),
                     Tables\Columns\TextColumn::make('user.display_name')
                         ->label('Winner')
@@ -132,7 +132,7 @@ class RaffleWinnerResource extends Resource
                             ? static::naira($record->prize_cash_value)
                             : 'Non-cash prize'),
                     Tables\Columns\IconColumn::make('is_credited')->label('Paid')->boolean(),
-                    Tables\Columns\IconColumn::make('is_visible')->label('Public')->boolean()->tooltip('Shown on the Hall of Fame'),
+                    Tables\Columns\IconColumn::make('is_visible')->label('Public')->boolean()->tooltip('Shown on the Hall of Fame')->visibleFrom('2xl'),
                     Tables\Columns\TextColumn::make('won_at')->label('Won')->since()->sortable()->toggleable(isToggledHiddenByDefault: true),
                 ]),
             ])
