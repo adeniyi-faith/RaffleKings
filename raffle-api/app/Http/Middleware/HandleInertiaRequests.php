@@ -4,6 +4,7 @@ namespace App\Http\Middleware;
 
 use App\Models\CustomerMessage;
 use App\Services\Auth\TurnstileVerifier;
+use App\Services\DailyClaimService;
 use App\Services\Maintenance;
 use App\Services\PointsBoost;
 use App\Services\TicketPricingService;
@@ -59,6 +60,10 @@ class HandleInertiaRequests extends Middleware
                     'avatar' => $user->metaValue('profile_pic_url') ?: null,
                     // Unread messages in their inbox — the number on the bell.
                     'unread_messages' => CustomerMessage::query()->where('user_id', $user->ID)->whereNull('read_at')->count(),
+                    // Today's daily reward is waiting: the red dot on the
+                    // bottom nav's "My Rewards" (item 47).
+                    'reward_ready' => config('site.switches.daily_claim', true) !== false
+                        && ! app(DailyClaimService::class)->state($user)['is_claimed_today'],
                 ] : null,
             ],
             // Admin-editable (Settings page): contact details, links, the
