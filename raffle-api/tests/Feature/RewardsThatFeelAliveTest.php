@@ -138,12 +138,42 @@ class RewardsThatFeelAliveTest extends TestCase
 
     // --- Countdown, spin cost -------------------------------------------------
 
-    public function test_the_state_says_when_the_next_daily_reward_unlocks(): void
+    public function test_the_state_says_when_the_next_daily_reward_unlocks_at_midnight_lagos_time(): void
     {
-        Carbon::setTestNow('2026-10-05 21:30:00');
+        Carbon::setTestNow('2026-10-05 21:30:00'); // 10:30pm in Lagos
         $this->actingAsWordPressUser();
 
-        $this->getJson('/api/rewards/state')->assertJson(['next_reset_at' => '2026-10-06T00:00:00+00:00']);
+        $this->getJson('/api/rewards/state')->assertJson(['next_reset_at' => '2026-10-06T00:00:00+01:00']);
+    }
+
+    public function test_the_daily_reward_resets_at_midnight_lagos_time_not_utc(): void
+    {
+        Carbon::setTestNow('2026-10-05 22:30:00'); // 11:30pm in Lagos
+        $this->actingAsWordPressUser();
+        $this->postJson('/api/rewards/daily-claim')->assertOk()->assertJson(['new_streak' => 1]);
+
+        // 00:10 in Lagos is still 23:10 on the 5th in UTC: a new day for the customer.
+        Carbon::setTestNow('2026-10-05 23:10:00');
+        $this->getJson('/api/rewards/state')->assertJson(['is_claimed_today' => false, 'streak' => 2]);
+        $this->postJson('/api/rewards/daily-claim')->assertOk()->assertJson(['new_streak' => 2]);
+
+        // ...and 23:30 UTC is still that same Lagos day.
+        Carbon::setTestNow('2026-10-05 23:30:00');
+        $this->postJson('/api/rewards/daily-claim')->assertStatus(409);
+    }
+
+    public function test_the_daily_share_also_resets_at_midnight_lagos_time(): void
+    {
+        Carbon::setTestNow('2026-10-05 22:30:00'); // 11:30pm in Lagos
+        $this->actingAsWordPressUser();
+        $this->postJson('/api/rewards/tasks/whatsapp_share/start')->assertOk();
+        $this->travel(11)->seconds();
+        $this->postJson('/api/rewards/tasks/whatsapp_share/claim')->assertOk();
+
+        Carbon::setTestNow('2026-10-05 23:10:00'); // 00:10 the next day in Lagos
+        $this->postJson('/api/rewards/tasks/whatsapp_share/start')->assertOk();
+        $this->travel(11)->seconds();
+        $this->postJson('/api/rewards/tasks/whatsapp_share/claim')->assertOk();
     }
 
     public function test_the_spin_cost_shown_is_the_real_one(): void

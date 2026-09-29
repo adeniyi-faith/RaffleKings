@@ -129,7 +129,7 @@ class TaskClaimService
 
         $doneToday = CompletedTask::query()->where('user_id', $user->ID)
             ->whereIn('task_id', self::REPEATABLE_DAILY_TASKS)
-            ->whereDate('completed_at', now())
+            ->whereBetween('completed_at', self::today())
             ->pluck('task_id');
 
         return collect(self::availableRewards())->map(function ($points, $taskId) use ($doneIds, $doneToday, $user) {
@@ -194,7 +194,7 @@ class TaskClaimService
     private function alreadyDone(WpUser $user, string $taskId): bool
     {
         return in_array($taskId, self::REPEATABLE_DAILY_TASKS, true)
-            ? CompletedTask::query()->where('user_id', $user->ID)->where('task_id', $taskId)->whereDate('completed_at', now())->exists()
+            ? CompletedTask::query()->where('user_id', $user->ID)->where('task_id', $taskId)->whereBetween('completed_at', self::today())->exists()
             : CompletedTask::query()->where('user_id', $user->ID)->where('task_id', $taskId)->exists();
     }
 
@@ -213,5 +213,19 @@ class TaskClaimService
     private static function waitSeconds(): int
     {
         return max(0, (int) config('rewards.task_wait_seconds', 10));
+    }
+
+    /**
+     * Today in the business time zone (Lagos by default), as the UTC
+     * start and end the database compares with, so the daily share
+     * resets at the same midnight as the daily reward.
+     *
+     * @return array{0: Carbon, 1: Carbon}
+     */
+    private static function today(): array
+    {
+        $now = DailyClaimService::now();
+
+        return [$now->copy()->startOfDay()->utc(), $now->copy()->endOfDay()->utc()];
     }
 }
