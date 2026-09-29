@@ -86,7 +86,7 @@ class UserPointsResource extends Resource
                         ->searchable(['display_name', 'user_login', 'user_email']),
                     Tables\Columns\TextColumn::make('balance')
                         ->label('Points')
-                        ->numeric()
+                        ->wholeNumber()
                         ->sortable()
                         ->description(fn (UserPoints $r) => 'worth ₦'.number_format($r->balance / max(1, (int) config('rewards.points_per_naira'))))
                         ->summarize(Tables\Columns\Summarizers\Sum::make()->label('Total owed')),

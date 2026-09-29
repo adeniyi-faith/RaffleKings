@@ -200,6 +200,12 @@ jobs:
             cd ${{ env.DEPLOY_PATH }}
             tar xzf deploy.tar.gz
             rm deploy.tar.gz
+            # The old saved route list doesn't know this build's new admin
+            # pages, and every admin page links to all of them, so until
+            # it's rebuilt (post-deploy step) admin pages crashed with
+            # "Route [...] not defined". Drop it now; Laravel reads the
+            # routes files directly until then.
+            php artisan route:clear
 
       - name: Write the .env file from secrets
         # Writes the app's private settings file fresh on every deploy,
@@ -245,6 +251,8 @@ jobs:
             APP_KEY=${{ secrets.APP_KEY }}
             APP_DEBUG=false
             APP_URL=https://rafflekings.com.ng
+            # Changes every deploy so browsers/Cloudflare fetch fresh admin CSS/JS.
+            ASSET_VERSION=${{ github.sha }}
 
             APP_LOCALE=en
             APP_FALLBACK_LOCALE=en

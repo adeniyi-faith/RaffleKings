@@ -64,6 +64,25 @@
     @media (min-width: 1024px) { .rk-tabbar { display: none; } }
     @media (max-width: 1023px) {
         .fi-main-ctn { padding-bottom: calc(64px + env(safe-area-inset-bottom, 0px)); }
+
+        /* The Menu tab at the bottom opens the side menu, so the ☰ button in
+           the top bar was a second copy of it. */
+        .fi-topbar-open-sidebar-btn { display: none !important; }
+
+        /* Side menu on a phone. Filament makes it 100vh tall, which on a
+           phone is taller than the visible screen (the browser's address
+           bar takes some of it), so the last items sat out of reach. Fit it
+           to the real visible height, scroll it on its own (without the
+           page behind moving), and leave room at the bottom. */
+        .fi-sidebar { height: 100vh; height: 100dvh; max-height: 100dvh; }
+        .fi-sidebar-nav {
+            min-height: 0;
+            overscroll-behavior: contain;
+            -webkit-overflow-scrolling: touch;
+            touch-action: pan-y;
+            padding-bottom: calc(32px + env(safe-area-inset-bottom, 0px));
+        }
+        body:has(.fi-sidebar.fi-sidebar-open) { overflow: hidden; }
     }
 
     /* Small stat boxes on custom pages (health, reports): 2 per row on phones, 4 on wider screens. */

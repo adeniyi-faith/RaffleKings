@@ -48,16 +48,16 @@ class FinancialReconciliation extends Page implements HasTable
             ->query(Wallet::query())
             ->columns([
                 Tables\Columns\TextColumn::make('user_id')->label('User ID')->sortable(),
-                Tables\Columns\TextColumn::make('wallet_balance')->label('Wallet (stored)')->money('NGN'),
+                Tables\Columns\TextColumn::make('wallet_balance')->label('Wallet (stored)')->naira(),
                 Tables\Columns\TextColumn::make('wallet_reconciled')
                     ->label('Wallet (ledger)')
                     ->state(fn (Wallet $record) => $ledger->reconstructBalance($record->user_id, 'wallet'))
-                    ->money('NGN'),
-                Tables\Columns\TextColumn::make('earnings_balance')->label('Earnings (stored)')->money('NGN'),
+                    ->naira(),
+                Tables\Columns\TextColumn::make('earnings_balance')->label('Earnings (stored)')->naira(),
                 Tables\Columns\TextColumn::make('earnings_reconciled')
                     ->label('Earnings (ledger)')
                     ->state(fn (Wallet $record) => $ledger->reconstructBalance($record->user_id, 'earnings'))
-                    ->money('NGN'),
+                    ->naira(),
                 Tables\Columns\IconColumn::make('drift')
                     ->label('Matches?')
                     ->boolean()
