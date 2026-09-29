@@ -5,6 +5,8 @@ import LoadError from '../../Components/ui/LoadError';
 import PausedNotice from '../../Components/layout/PausedNotice';
 import { apiPost } from '../../lib/api';
 import { useApi } from '../../lib/useApi';
+import { goBack } from '../../lib/nav';
+import BottomNav from '../../Components/layout/BottomNav';
 
 // Phase 11: daily predictions — free to answer; a right answer earns points
 // and Season Pass XP once the question is settled.
@@ -45,12 +47,12 @@ export default function Predict({ preview }) {
             <div className="min-h-screen bg-gray-50 pb-28 dark:bg-dark-bg">
                 <div className="relative overflow-hidden bg-gradient-to-br from-emerald-600 via-teal-600 to-cyan-700 px-5 pb-14 pt-4 text-white">
                     <div className="pointer-events-none absolute -right-12 -top-12 h-48 w-48 rounded-full bg-white/10 blur-2xl" />
-                    <button onClick={() => window.history.back()} className="relative z-10 -ml-1 p-1 text-white/70 hover:text-white" aria-label="Back">
+                    <button onClick={() => goBack('/rewards')} className="relative z-10 -ml-1 p-1 text-white/70 hover:text-white" aria-label="Back">
                         <ArrowLeft className="h-6 w-6" />
                     </button>
                     <p className="relative z-10 mt-2 text-xs font-bold uppercase tracking-[0.2em] text-emerald-100">Free to play</p>
                     <h1 className="relative z-10 text-2xl font-black">🔮 Daily Predictions</h1>
-                    <p className="relative z-10 mt-1 max-w-xs text-sm text-white/90">Call it right, earn points. New questions every day.</p>
+                    <p className="relative z-10 mt-1 max-w-xs text-sm text-white/90">Pick the answer you think is right. If you're right, you win points. New questions every day.</p>
                     {user && board && (
                         <p className="relative z-10 mt-3 inline-flex items-center gap-1 rounded-full bg-black/20 px-3 py-1 text-xs font-bold">
                             <CheckCircle2 className="h-3.5 w-3.5" /> {board.correct_total} right so far
@@ -67,7 +69,7 @@ export default function Predict({ preview }) {
                         <div className="rounded-2xl bg-white p-6 text-center shadow-sm dark:bg-dark-card">
                             <p className="text-3xl">⏳</p>
                             <p className="mt-2 text-sm font-bold text-gray-900 dark:text-white">No questions open right now</p>
-                            <p className="text-xs text-gray-500 dark:text-gray-400">Check back soon: new ones arrive every day.</p>
+                            <p className="text-xs text-gray-500 dark:text-gray-400">New questions are added every day. Check back later.</p>
                         </div>
                     )}
 
@@ -110,9 +112,10 @@ export default function Predict({ preview }) {
                                         );
                                     })}
                                 </div>
+                                {q.crowd && <p className="mt-2 text-[11px] text-gray-400">The % shows how many players picked each answer.</p>}
                                 <p className="mt-3 flex items-center gap-1 text-[11px] text-gray-500 dark:text-gray-400">
-                                    <Coins className="h-3 w-3 text-yellow-500" /> Right answer: +{q.points} points.{' '}
-                                    {answered ? 'Locked in. Results after it closes.' : user ? 'One answer, no changes.' : ''}
+                                    <Coins className="h-3 w-3 text-yellow-500" /> Right answer wins +{q.points} points.{' '}
+                                    {answered ? 'Your answer is saved. You will see the result after the question closes.' : user ? "You get one answer and can't change it." : ''}
                                 </p>
                             </div>
                         );
@@ -144,6 +147,7 @@ export default function Predict({ preview }) {
                     )}
                 </div>
             </div>
+            <BottomNav />
         </>
     );
 }

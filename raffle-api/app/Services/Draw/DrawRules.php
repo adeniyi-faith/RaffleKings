@@ -105,7 +105,7 @@ final class DrawRules
             : "Each person can win up to {$this->maxWinsPerPerson} prizes.";
 
         if ($this->recentWinnerCooldownDays > 0) {
-            $lines[] = "Anyone who won a raffle in the {$this->recentWinnerCooldownDays} ".($this->recentWinnerCooldownDays === 1 ? 'day' : 'days').' before the draw sits this one out, so wins spread around.';
+            $lines[] = "Anyone who won a raffle in the {$this->recentWinnerCooldownDays} ".($this->recentWinnerCooldownDays === 1 ? 'day' : 'days').' before the draw can\'t win this one. This gives more people a chance to win.';
         }
 
         if ($this->topPrizeCooldownDays > 0) {
@@ -127,7 +127,7 @@ final class DrawRules
             $lines[] = 'Loyal players get free extra entries: '.($perks ?: 'set by tier').'. They take part in the draw just like tickets.';
         }
 
-        $lines[] = 'Free bonus entries players earn on the site (Season Pass rewards, Team Up, share unlocks) take part like tickets. A win from one shows as "Bonus entry".';
+        $lines[] = 'Free bonus entries players earn on the site (from the Season Pass, Team Up and unlock links) count like tickets. A win from one shows as "Bonus entry".';
 
         if ($this->consolationOn()) {
             $lines[] = "Buy {$this->consolationMinTickets}+ tickets and don't win? You get {$this->consolationPoints} reward points.";

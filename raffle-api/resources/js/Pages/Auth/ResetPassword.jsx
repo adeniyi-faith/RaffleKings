@@ -4,6 +4,7 @@ import Button from '../../Components/ui/Button';
 import { Card } from '../../Components/ui/Card';
 import { TextInput, PasswordInput } from '../../Components/ui/TextInput';
 import { apiPost } from '../../lib/api';
+import SimpleTop from '../../Components/layout/SimpleTop';
 
 export default function ResetPassword({ email }) {
     const [otp, setOtp] = useState('');
@@ -69,7 +70,9 @@ export default function ResetPassword({ email }) {
     return (
         <>
             <Head title="Reset password" />
-            <div className="flex min-h-screen items-center justify-center bg-app-bg px-4 py-12 dark:bg-dark-bg">
+            <div className="flex min-h-[100dvh] flex-col bg-app-bg dark:bg-dark-bg">
+                <SimpleTop back={'/login'} />
+                <div className="flex flex-1 items-center justify-center px-4 pb-12 pt-4">
                 <Card className="w-full max-w-sm">
                     <h1 className="mb-1 text-xl font-bold">Enter your code</h1>
                     <p className="mb-6 text-sm text-gray-500 dark:text-gray-400">Sent to {email}</p>
@@ -108,6 +111,7 @@ export default function ResetPassword({ email }) {
                         </Button>
                     </form>
                 </Card>
+            </div>
             </div>
         </>
     );

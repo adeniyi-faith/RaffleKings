@@ -96,7 +96,7 @@ export function SendEnvelope({ raffleId, onClose }) {
                         <X className="h-5 w-5" />
                     </button>
                 </div>
-                <p className="mb-4 text-xs text-white/80">Share your points with the room. The first people to tap split them at random. Anything not opened in 10 minutes comes back to you.</p>
+                <p className="mb-4 text-xs text-white/80">Give some of your points to people in this chat. Choose how many points and how many people. The first people to tap the envelope share the points at random. Points no one takes within 10 minutes come back to you.</p>
                 <p className="mb-1 text-[11px] font-bold uppercase text-yellow-200">Points</p>
                 <div className="mb-3 flex flex-wrap gap-2">
                     {[50, 100, 200, 500, 1000].map((p) => (

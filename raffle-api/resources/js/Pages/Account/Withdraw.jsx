@@ -5,6 +5,8 @@ import { formatNaira } from '../../lib/format';
 import PausedNotice from '../../Components/layout/PausedNotice';
 import { refreshBalances, useBalances } from '../../lib/balances';
 import LoadError from '../../Components/ui/LoadError';
+import { goBack } from '../../lib/nav';
+import BottomNav from '../../Components/layout/BottomNav';
 
 // Faithful rebuild of withdraw.php + components/financials/withdraw-modals.php
 // against the real WithdrawalController/WithdrawalService (items 12/18) —
@@ -115,7 +117,7 @@ export default function AccountWithdraw() {
                 <div className="sticky top-0 z-40 border-b border-gray-100 bg-white px-5 pb-4 pt-4 shadow-sm dark:border-dark-border dark:bg-dark-bg dark:shadow-none">
                     <div className="flex items-center gap-3">
                         <button
-                            onClick={() => window.history.back()}
+                            onClick={() => goBack('/account/wallet')}
                             className="-ml-1 rounded-full p-1 text-gray-600 transition-colors hover:bg-gray-100 dark:text-gray-300 dark:hover:bg-gray-800"
                         >
                             <ArrowLeft className="h-6 w-6" />
@@ -346,6 +348,7 @@ export default function AccountWithdraw() {
                     </div>
                 </div>
             )}
+            <BottomNav />
         </>
     );
 }

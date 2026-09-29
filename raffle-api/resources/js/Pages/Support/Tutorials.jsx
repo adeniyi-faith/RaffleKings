@@ -3,6 +3,7 @@ import { Head, Link, usePage } from '@inertiajs/react';
 import { ArrowLeft, BookOpen, Play, RotateCw, WifiOff } from 'lucide-react';
 import HeartButton from '../../Components/support/HeartButton';
 import { deviceId } from '../../lib/tutorialLikes';
+import BottomNav from '../../Components/layout/BottomNav';
 
 // Rebuild of tutorials.php (item 29) against the new GET /api/tutorials
 // (TutorialController/TutorialReadService), which reads the same real
@@ -145,6 +146,7 @@ export default function Tutorials() {
                     </>
                 )}
             </div>
+            <BottomNav />
         </>
     );
 }

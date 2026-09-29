@@ -21,7 +21,7 @@ class RewardsRoutesTest extends TestCase
         $response = $this->get('/rewards');
 
         $response->assertOk();
-        $response->assertInertia(fn ($page) => $page->component('Rewards/Index')->where('referralCode', null));
+        $response->assertInertia(fn ($page) => $page->component('Rewards/Index')->where('referralCode', null)->where('initialState', null));
     }
 
     public function test_a_logged_in_user_sees_the_real_page_with_their_referral_code(): void
@@ -32,5 +32,17 @@ class RewardsRoutesTest extends TestCase
 
         $response->assertOk();
         $response->assertInertia(fn ($page) => $page->component('Rewards/Index')->where('referralCode', $user->user_login));
+    }
+
+    public function test_a_logged_in_user_gets_their_rewards_with_the_page_so_it_does_not_jump(): void
+    {
+        $this->actingAsWordPressUser();
+
+        $this->get('/rewards')->assertInertia(fn ($page) => $page
+            ->component('Rewards/Index')
+            ->has('initialState.daily_schedule', 7)
+            ->has('initialState.loyalty')
+            ->has('initialState.tasks')
+            ->has('referralStats'));
     }
 }

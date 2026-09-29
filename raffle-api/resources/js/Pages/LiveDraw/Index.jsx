@@ -1,6 +1,7 @@
 import { Head, Link } from '@inertiajs/react';
 import { ArrowLeft, CalendarClock, ChevronRight, Crown, PlayCircle, Radio, Trophy } from 'lucide-react';
 import BottomNav from '../../Components/layout/BottomNav';
+import { goBack } from '../../lib/nav';
 
 // Every live draw in one place (item 48): happening now, coming up, and
 // past events. A past event opens the same live-draw page, where it can
@@ -15,7 +16,7 @@ export default function LiveDrawIndex({ live = [], upcoming = [], past = [] }) {
                 <div className="relative overflow-hidden px-5 pb-8 pt-4">
                     <div aria-hidden="true" className="pointer-events-none absolute inset-0 bg-gradient-to-b from-red-900/30 to-transparent" />
                     <div className="relative flex items-center gap-3">
-                        <button onClick={() => window.history.back()} className="-ml-1 p-1 text-white/60 hover:text-white" aria-label="Back">
+                        <button onClick={() => goBack('/')} className="-ml-1 p-1 text-white/60 hover:text-white" aria-label="Back">
                             <ArrowLeft className="h-6 w-6" />
                         </button>
                         <h1 className="text-xl font-black tracking-tight">Live Draws</h1>

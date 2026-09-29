@@ -5,6 +5,7 @@ import PageTop from '../../Components/ui/PageTop';
 import LoadError from '../../Components/ui/LoadError';
 import { apiPost } from '../../lib/api';
 import { useApi } from '../../lib/useApi';
+import BottomNav from '../../Components/layout/BottomNav';
 
 // Phase 11: every badge, earned or still to earn, and up to three pinned
 // to the customer's profile.
@@ -41,7 +42,7 @@ export default function Badges() {
         <>
             <Head title="My Badges" />
             <div className="min-h-screen bg-gray-50 pb-28 dark:bg-dark-bg">
-                <PageTop title="My Badges" subtitle={data ? `${earned.length} of ${badges.length} collected` : null} />
+                <PageTop title="My Badges" back="/profile" subtitle={data ? `${earned.length} of ${badges.length} collected` : null} />
 
                 <div className="space-y-4 p-5">
                     {failed && <LoadError onRetry={reload} />}
@@ -58,19 +59,29 @@ export default function Badges() {
                         <>
                             <div className="rounded-2xl bg-gradient-to-r from-fuchsia-600 to-indigo-600 p-4 text-white shadow-lg">
                                 <p className="text-xs font-bold uppercase tracking-wider text-white/80">Profile showcase</p>
-                                <p className="mt-1 text-sm">Tap up to {max} badges you've earned to pin them to your profile.</p>
+                                <p className="mt-1 text-sm">
+                                    {earned.length === 0
+                                        ? `You haven't earned a badge yet. Each badge below says how to earn it. Once you have one, tap it to put it in a slot here.`
+                                        : `Tap up to ${max} of your badges below to show them on your profile, then tap Save.`}
+                                </p>
                                 <div className="mt-3 flex items-center gap-2">
                                     {Array.from({ length: max }).map((_, i) => {
                                         const b = badges.find((x) => x.key === pinned[i]);
                                         return (
-                                            <span key={i} className="flex h-12 w-12 items-center justify-center rounded-full bg-white/20 text-2xl">
-                                                {b ? b.emoji : ''}
+                                            <span
+                                                key={i}
+                                                aria-label={b ? `Slot ${i + 1}: ${b.name}` : `Slot ${i + 1}: empty`}
+                                                className={`flex h-12 w-12 items-center justify-center rounded-full text-2xl ${
+                                                    b ? 'bg-white/25' : 'border-2 border-dashed border-white/50 text-sm font-bold text-white/70'
+                                                }`}
+                                            >
+                                                {b ? b.emoji : i + 1}
                                             </span>
                                         );
                                     })}
                                     <button
                                         onClick={save}
-                                        disabled={saving}
+                                        disabled={saving || earned.length === 0}
                                         className="ml-auto flex items-center gap-1 rounded-full bg-white px-4 py-2 text-xs font-bold text-indigo-700 shadow active:scale-95 disabled:opacity-60"
                                     >
                                         {saved ? <Check className="h-4 w-4" /> : <Pin className="h-4 w-4" />}
@@ -78,6 +89,10 @@ export default function Badges() {
                                     </button>
                                 </div>
                             </div>
+
+                            <p className="text-xs text-gray-500 dark:text-gray-400">
+                                Grey badges are locked. The line under each one tells you what to do to earn it.
+                            </p>
 
                             <div className="grid grid-cols-3 gap-3">
                                 {badges.map((b) => {
@@ -110,6 +125,7 @@ export default function Badges() {
                     )}
                 </div>
             </div>
+            <BottomNav />
         </>
     );
 }
