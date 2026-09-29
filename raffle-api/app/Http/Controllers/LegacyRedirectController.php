@@ -51,12 +51,14 @@ class LegacyRedirectController extends Controller
         'withdraw' => '/account/withdraw',
         'rewards' => '/rewards',
         'referrals' => '/rewards',
-        'games' => '/rewards',
+        'games' => '/rewards/spin',
         'winners' => '/hall-of-fame',
-        'livedraw' => '/hall-of-fame',
+        'livedraw' => '/live-draws',
         'support' => '/support',
         'tutorials' => '/support/tutorials',
-        'about' => '/support/tutorials',
+        'about' => '/about',
+        'toc' => '/terms',
+        'terms' => '/terms',
         'privacy-policy' => '/privacy-policy',
     ];
 
@@ -67,6 +69,7 @@ class LegacyRedirectController extends Controller
     public const ALREADY_NEW_PAGES = [
         'raffles', 'checkout', 'login', 'register', 'forgot-password',
         'reset-password', 'profile', 'rewards', 'support', 'privacy-policy',
+        'about', 'terms',
     ];
 
     /** Which query values each new page understands. */

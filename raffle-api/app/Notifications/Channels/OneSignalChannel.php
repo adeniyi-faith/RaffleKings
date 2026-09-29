@@ -27,11 +27,24 @@ use RuntimeException;
  */
 class OneSignalChannel
 {
+    /**
+     * The OneSignal App ID, only if it looks like one (a UUID such as
+     * 1a2b3c4d-1111-2222-3333-444455556666). A wrong value made every push
+     * fail with "Failed to parse app_id"; now pushes are simply skipped and
+     * System → Health says the App ID needs fixing.
+     */
+    public static function appId(): ?string
+    {
+        $id = trim((string) config('services.onesignal.app_id'));
+
+        return preg_match('/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i', $id) ? $id : null;
+    }
+
     public function send(mixed $notifiable, Notification $notification): void
     {
         $playerId = $notifiable->routeNotificationFor('OneSignal', $notification);
 
-        if (! $playerId) {
+        if (! $playerId || ! self::appId() || blank(config('services.onesignal.api_key'))) {
             return; // no device registered for this user — nothing to send, not a failure
         }
 
@@ -39,7 +52,7 @@ class OneSignalChannel
             ->timeout(10)
             ->post('https://onesignal.com/api/v1/notifications', array_merge(
                 [
-                    'app_id' => config('services.onesignal.app_id'),
+                    'app_id' => self::appId(),
                     'include_player_ids' => [$playerId],
                 ],
                 $notification->toOneSignal($notifiable),

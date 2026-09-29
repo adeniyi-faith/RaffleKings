@@ -272,7 +272,7 @@ final class SettingsRegistry
                     'OneSignal (customer push notifications)' => [
                         'description' => 'OneSignal dashboard → Settings → Keys & IDs.',
                         'settings' => [
-                            new Setting('services.onesignal.app_id', 'App ID', 'text'),
+                            new Setting('services.onesignal.app_id', 'App ID', 'text', 'In OneSignal: Settings → Keys & IDs → "OneSignal App ID". It looks like 1a2b3c4d-1111-2222-3333-444455556666 (not the API key).', rules: ['nullable', 'regex:/^\s*[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}\s*$/']),
                             new Setting('services.onesignal.api_key', 'REST API key', 'secret'),
                         ],
                     ],

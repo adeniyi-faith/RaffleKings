@@ -115,7 +115,8 @@ export default function HallOfFame() {
                                         <div className="mt-2 flex flex-col items-center text-center">
                                             <div className="relative mb-3 h-16 w-16 rounded-full border-2 border-yellow-400 p-1">
                                                 <img
-                                                    src={winner.avatar ?? `https://api.dicebear.com/7.x/initials/svg?seed=${winner.name}`}
+                                                    src={winner.avatar}
+                                                    loading="lazy"
                                                     className="h-full w-full rounded-full bg-gray-100 object-cover dark:bg-gray-700"
                                                     alt={winner.name}
                                                 />
@@ -156,7 +157,8 @@ export default function HallOfFame() {
                                     className="flex items-center gap-3 rounded-xl border border-gray-100 bg-white p-3 shadow-sm dark:border-gray-800 dark:bg-dark-card"
                                 >
                                     <img
-                                        src={winner.avatar ?? `https://api.dicebear.com/7.x/initials/svg?seed=${winner.name}`}
+                                        src={winner.avatar}
+                                        loading="lazy"
                                         className="h-10 w-10 shrink-0 rounded-full bg-gray-50 object-cover dark:bg-gray-700"
                                         alt={winner.name}
                                     />

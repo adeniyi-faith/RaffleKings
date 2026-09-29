@@ -21,6 +21,32 @@
         <title inertia>{{ config('app.name', 'RaffleKings') }}</title>
 
         {{--
+            Item 48: the site icon (public/favicon.ico was an empty file) and
+            link previews. WhatsApp, Facebook and X read these tags without
+            running any JavaScript; see App\Support\PageMeta.
+        --}}
+        <link rel="icon" href="/favicon.ico" sizes="32x32">
+        <link rel="icon" href="/images/icon-192.png" type="image/png" sizes="192x192">
+        <link rel="apple-touch-icon" href="/images/apple-touch-icon.png">
+        @php($meta = app(\App\Support\PageMeta::class)->all())
+        <meta name="description" content="{{ $meta['description'] }}">
+        <link rel="canonical" href="{{ $meta['url'] }}">
+        <meta property="og:site_name" content="{{ $meta['site_name'] }}">
+        <meta property="og:type" content="{{ $meta['type'] }}">
+        <meta property="og:title" content="{{ $meta['title'] }}">
+        <meta property="og:description" content="{{ $meta['description'] }}">
+        <meta property="og:url" content="{{ $meta['url'] }}">
+        <meta property="og:image" content="{{ $meta['image'] }}">
+        <meta property="og:image:width" content="1200">
+        <meta property="og:image:height" content="630">
+        <meta property="og:image:alt" content="{{ $meta['site_name'] }}">
+        <meta property="og:locale" content="en_NG">
+        <meta name="twitter:card" content="summary_large_image">
+        <meta name="twitter:title" content="{{ $meta['title'] }}">
+        <meta name="twitter:description" content="{{ $meta['description'] }}">
+        <meta name="twitter:image" content="{{ $meta['image'] }}">
+
+        {{--
             Dark mode init — a real gap found while verifying item 26: this
             app's CSS (resources/css/app.css) has used class-based dark
             mode (`.dark` on <html>) since item 21, matching the legacy
@@ -65,13 +91,13 @@
             configured for this environment (local dev, tests) — never
             blocks the page.
         --}}
-        @if(config('services.onesignal.app_id'))
+        @if(\App\Notifications\Channels\OneSignalChannel::appId())
             <script src="https://cdn.onesignal.com/sdks/web/v16/OneSignalSDK.page.js" defer></script>
             <script>
                 window.OneSignalDeferred = window.OneSignalDeferred || [];
                 window.OneSignalDeferred.push(async function (OneSignal) {
                     await OneSignal.init({
-                        appId: @json(config('services.onesignal.app_id')),
+                        appId: @json(\App\Notifications\Channels\OneSignalChannel::appId()),
                         notifyButton: { enable: false },
                         allowLocalhostAsSecureOrigin: true,
                     });
@@ -90,6 +116,21 @@
             capable app shell for this stack; see public/sw.js's own
             docblock for why it isn't a port of the legacy sw.js's code.
         --}}
+        {{--
+            Item 48: Profile's "Install App". Browsers offer installing only
+            once, early, so the offer is kept here for the page to use later.
+        --}}
+        <script>
+            window.addEventListener('beforeinstallprompt', function (e) {
+                e.preventDefault();
+                window.__rkInstallPrompt = e;
+                window.dispatchEvent(new Event('rk-install-available'));
+            });
+            window.addEventListener('appinstalled', function () {
+                window.__rkInstallPrompt = null;
+                window.dispatchEvent(new Event('rk-install-available'));
+            });
+        </script>
         <script>
             if ('serviceWorker' in navigator) {
                 window.addEventListener('load', function () {
@@ -182,6 +223,18 @@
                     }, 3000);
                 }
             });
+
+            // Opened from Profile's "Install App" on an iPhone (item 48).
+            function showIosInstallPrompt() {
+                var modal = document.getElementById('ios-install-modal');
+                var panel = document.getElementById('ios-modal-panel');
+                var backdrop = document.getElementById('ios-backdrop');
+                modal.classList.remove('hidden');
+                setTimeout(function () {
+                    backdrop.classList.remove('opacity-0');
+                    panel.classList.remove('translate-y-full');
+                }, 50);
+            }
 
             function dismissIosPrompt() {
                 var modal = document.getElementById('ios-install-modal');

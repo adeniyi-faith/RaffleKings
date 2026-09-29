@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import { Head, Link, usePage } from '@inertiajs/react';
-import { MessageCircle, Send, ShieldCheck, Trophy, Zap } from 'lucide-react';
+import { ArrowLeft, MessageCircle, PlayCircle, Radio, RotateCcw, Send, ShieldCheck, Trophy, Zap } from 'lucide-react';
 import { echoOrNull } from '../../lib/echo';
 import { isOn, useSite } from '../../lib/site';
 
@@ -50,6 +50,25 @@ export default function LiveDrawShow({ raffle }) {
     const [viewerCount, setViewerCount] = useState(null);
     const [flashType, setFlashType] = useState(null);
     const commentsEndRef = useRef(null);
+    // Item 48: a finished draw can be replayed, winners appearing one by
+    // one at the pace they were revealed live (null = not replaying).
+    const [replayShown, setReplayShown] = useState(null);
+    const replayTimer = useRef(null);
+
+    function startReplay() {
+        clearInterval(replayTimer.current);
+        setReplayShown(0);
+        const pace = Math.max(800, Math.min(4000, state?.live_draw_pace_ms || 1500));
+        replayTimer.current = setInterval(() => {
+            setReplayShown((n) => {
+                const next = (n ?? 0) + 1;
+                if (next >= revealed.length) clearInterval(replayTimer.current);
+                return next;
+            });
+        }, pace);
+    }
+
+    useEffect(() => () => clearInterval(replayTimer.current), []);
 
     useEffect(() => {
         let poll;
@@ -191,28 +210,51 @@ export default function LiveDrawShow({ raffle }) {
     }
 
     if (! state.is_live_draw_enabled) {
+        // Not a dead end any more (item 48): where to go instead.
         return (
-            <div className="flex h-screen w-full flex-col items-center justify-center gap-4 bg-slate-950 px-6 text-center text-white">
+            <div className="flex min-h-screen w-full flex-col items-center justify-center gap-4 bg-slate-950 px-6 text-center text-white">
+                <Head title={raffle.title} />
                 <Trophy className="h-10 w-10 text-white/30" />
-                <h2 className="text-xl font-black uppercase tracking-tight">No live event for this raffle</h2>
-                <p className="max-w-xs text-sm text-white/40">
-                    This raffle's results are published directly to the Hall of Fame once its draw runs.
+                <h2 className="text-xl font-black tracking-tight">{raffle.title}</h2>
+                <p className="max-w-xs text-sm text-white/50">
+                    This raffle is drawn without a live show. Its winners go straight to the Hall of Fame once the draw runs, and anyone can check the draw.
                 </p>
-                <Link href="/hall-of-fame" className="text-xs font-black uppercase tracking-widest text-red-500 hover:underline">
-                    View Hall of Fame
-                </Link>
+                <div className="mt-2 flex w-full max-w-xs flex-col gap-2">
+                    {state.draw_committed && (
+                        <Link href={`/raffles/${raffle.id}/verify`} className="flex items-center justify-center gap-2 rounded-2xl bg-white/10 py-3 text-sm font-bold hover:bg-white/15">
+                            <ShieldCheck className="h-4 w-4" /> Verify this draw
+                        </Link>
+                    )}
+                    <Link href="/hall-of-fame" className="flex items-center justify-center gap-2 rounded-2xl bg-white/10 py-3 text-sm font-bold hover:bg-white/15">
+                        <Trophy className="h-4 w-4" /> See the winners
+                    </Link>
+                    <Link href="/live-draws" className="flex items-center justify-center gap-2 rounded-2xl bg-red-600 py-3 text-sm font-bold">
+                        <Radio className="h-4 w-4" /> Watch other live draws
+                    </Link>
+                </div>
             </div>
         );
     }
 
     const isComplete = state.live_draw_status === 'completed';
     const isRevealing = state.live_draw_status === 'revealing' || isComplete;
+    const replaying = replayShown !== null && replayShown < revealed.length;
+    const shown = replayShown === null
+        ? revealed
+        : [...revealed].sort((a, b) => a.sequence - b.sequence).slice(0, replayShown);
 
     return (
         <>
             <Head title={`Live Draw – ${raffle.title}`} />
             <div className="flex h-screen w-full flex-col overflow-hidden bg-slate-950 text-white">
                 <div className="relative flex flex-1 flex-col overflow-hidden">
+                    <Link
+                        href="/live-draws"
+                        aria-label="All live draws"
+                        className="absolute left-3 top-3 z-30 flex h-10 w-10 items-center justify-center rounded-full bg-white/10 text-white/80 backdrop-blur hover:bg-white/20"
+                    >
+                        <ArrowLeft className="h-5 w-5" />
+                    </Link>
                     <div className="pointer-events-none absolute inset-0 z-0 overflow-hidden">
                         <div className="absolute left-0 top-0 h-full w-full bg-gradient-to-b from-red-900/10 to-transparent" />
                         <div className="absolute bottom-[-10%] right-[-10%] h-[70%] w-[70%] rounded-full bg-red-600/5 blur-[120px]" />
@@ -238,7 +280,7 @@ export default function LiveDrawShow({ raffle }) {
                         <div className="relative z-10 flex min-h-0 flex-1 flex-col overflow-hidden">
                             <div className="sticky top-0 z-20 border-b border-white/5 bg-slate-950/80 p-6 pb-4 text-center backdrop-blur-md">
                                 <p className="mb-1 text-[10px] font-black uppercase tracking-[0.5em] text-red-500">
-                                    {isComplete ? 'Final Standings' : 'Revealing Now'}
+                                    {replaying ? 'Replay' : isComplete ? 'Final Standings' : 'Revealing Now'}
                                 </p>
                                 <h2 className="text-2xl font-black tracking-tight">{raffle.title}</h2>
                                 {viewerCount !== null && (
@@ -250,7 +292,18 @@ export default function LiveDrawShow({ raffle }) {
 
                             <div className="flex-1 overflow-y-auto px-4 py-6">
                                 <div className="mx-auto max-w-md space-y-4 pb-4">
-                                    {[...revealed]
+                                    {isComplete && revealed.length > 0 && (
+                                        <button
+                                            type="button"
+                                            onClick={startReplay}
+                                            disabled={replaying}
+                                            className="mx-auto flex items-center gap-2 rounded-full bg-red-600 px-5 py-2.5 text-xs font-black uppercase tracking-widest shadow-lg shadow-red-600/30 transition-transform active:scale-95 disabled:opacity-60"
+                                        >
+                                            {replayShown === null ? <PlayCircle className="h-4 w-4" /> : <RotateCcw className="h-4 w-4" />}
+                                            {replaying ? `Revealing ${replayShown} of ${revealed.length}…` : replayShown === null ? 'Replay the draw' : 'Replay again'}
+                                        </button>
+                                    )}
+                                    {[...shown]
                                         .sort((a, b) => b.sequence - a.sequence)
                                         .map((r) => (
                                             <div
@@ -269,10 +322,17 @@ export default function LiveDrawShow({ raffle }) {
                                                                 : 'bg-white/10 text-white/40'
                                                     }`}
                                                 >
-                                                    {r.winner.prize_rank}
+                                                    {r.winner.avatar ? (
+                                                        <img src={r.winner.avatar} alt="" loading="lazy" className="h-10 w-10 rounded-xl bg-white/10 object-cover" />
+                                                    ) : (
+                                                        r.winner.prize_rank
+                                                    )}
                                                 </div>
                                                 <div className="min-w-0 flex-1">
-                                                    <h4 className="truncate text-sm font-black">{r.winner.name}</h4>
+                                                    <h4 className="truncate text-sm font-black">
+                                                        <span className="mr-1.5 text-white/40">#{r.winner.prize_rank}</span>
+                                                        {r.winner.name}
+                                                    </h4>
                                                     <div className="mt-1 flex flex-wrap gap-1">
                                                         <span className="inline-block rounded-md bg-green-600/20 px-2 py-0.5 text-[9px] font-black uppercase tracking-tighter text-green-500">
                                                             {r.winner.prize_name}
@@ -285,7 +345,7 @@ export default function LiveDrawShow({ raffle }) {
                                             </div>
                                         ))}
 
-                                    {isComplete && (
+                                    {isComplete && ! replaying && (
                                         <div className="pb-6 pt-8 text-center">
                                             <div className="flex justify-center gap-10">
                                                 <Stat label="Winners" value={revealed.length} />

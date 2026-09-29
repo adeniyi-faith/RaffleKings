@@ -3,6 +3,9 @@
 namespace App\Http\Middleware;
 
 use App\Models\CustomerMessage;
+use App\Models\Legacy\WpUser;
+use App\Models\UserPoints;
+use App\Models\Wallet;
 use App\Services\Auth\TurnstileVerifier;
 use App\Services\DailyClaimService;
 use App\Services\Maintenance;
@@ -60,6 +63,9 @@ class HandleInertiaRequests extends Middleware
                     'avatar' => $user->metaValue('profile_pic_url') ?: null,
                     // Unread messages in their inbox — the number on the bell.
                     'unread_messages' => CustomerMessage::query()->where('user_id', $user->ID)->whereNull('read_at')->count(),
+                    // Sent with every page so balances show the right amount
+                    // straight away, instead of ₦0 until a fetch finishes.
+                    'balances' => $this->balances($user),
                     // Today's daily reward is waiting: the red dot on the
                     // bottom nav's "My Rewards" (item 47).
                     'reward_ready' => config('site.switches.daily_claim', true) !== false
@@ -93,6 +99,18 @@ class HandleInertiaRequests extends Middleware
                     'forms' => app(TurnstileVerifier::class)->enabledForms(),
                 ],
             ],
+        ];
+    }
+
+    /** @return array{wallet: float, earnings: float, points: int} */
+    private function balances(WpUser $user): array
+    {
+        $wallet = Wallet::query()->where('user_id', $user->ID)->first(['wallet_balance', 'earnings_balance']);
+
+        return [
+            'wallet' => (float) ($wallet->wallet_balance ?? 0),
+            'earnings' => (float) ($wallet->earnings_balance ?? 0),
+            'points' => (int) (UserPoints::query()->where('user_id', $user->ID)->value('balance') ?? 0),
         ];
     }
 }
