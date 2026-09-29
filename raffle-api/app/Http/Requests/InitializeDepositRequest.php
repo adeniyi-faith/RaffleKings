@@ -15,6 +15,11 @@ class InitializeDepositRequest extends FormRequest
     {
         return [
             'amount' => ['required', 'numeric', 'min:'.config('payments.minimum_deposit')],
+            // Where to come back to after paying (item 46: the checkout the
+            // customer was topping up for). Only a path on this site: it
+            // must start with one "/" and hold no backslash or spaces, so it
+            // can never send anyone to another website.
+            'return_to' => ['nullable', 'string', 'max:500', 'regex:#^/(?![/\\\\])[^\\\\\s]*$#'],
         ];
     }
 }
