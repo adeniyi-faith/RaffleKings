@@ -3,6 +3,7 @@
 namespace App\Notifications;
 
 use App\Models\Deposit;
+use App\Notifications\Channels\InboxChannel;
 use App\Notifications\Channels\OneSignalChannel;
 use Illuminate\Bus\Queueable;
 use Illuminate\Contracts\Queue\ShouldQueue;
@@ -31,7 +32,7 @@ class DepositConfirmed extends Notification implements ShouldQueue
 
     public function via(mixed $notifiable): array
     {
-        return ['mail', OneSignalChannel::class];
+        return ['mail', OneSignalChannel::class, InboxChannel::class];
     }
 
     public function toMail(mixed $notifiable): MailMessage
@@ -48,6 +49,25 @@ class DepositConfirmed extends Notification implements ShouldQueue
         return [
             'headings' => ['en' => 'Deposit confirmed'],
             'contents' => ['en' => '₦'.number_format((float) $this->deposit->amount).' has been added to your wallet.'],
+        ];
+    }
+
+    /** The bell alert is written straight away, not on the next background run. */
+    public function viaConnections(): array
+    {
+        return [InboxChannel::class => 'sync'];
+    }
+
+    public function toInbox(mixed $notifiable): array
+    {
+        $amount = '₦'.number_format((float) $this->deposit->amount);
+
+        return [
+            'kind' => 'wallet',
+            'title' => 'Top-up confirmed',
+            'body' => "{$amount} has been added to your wallet. Reference: {$this->deposit->reference}.",
+            'link_url' => '/account/wallet',
+            'link_label' => 'Open wallet',
         ];
     }
 }
