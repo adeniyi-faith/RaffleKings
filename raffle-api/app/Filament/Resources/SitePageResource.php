@@ -8,6 +8,7 @@ use App\Filament\Resources\SitePageResource\Pages;
 use App\Filament\Support\MobileCard;
 use App\Models\SitePage;
 use App\Services\AdminAuditLogService;
+use App\Filament\Support\AiAssist;
 use Filament\Forms;
 use Filament\Forms\Form;
 use Filament\Resources\Resource;
@@ -56,7 +57,8 @@ class SitePageResource extends Resource
             Forms\Components\Section::make()->schema([
                 Forms\Components\TextInput::make('title')->required()->maxLength(120),
                 Forms\Components\Textarea::make('summary')->label('Short description')->rows(2)->maxLength(300)
-                    ->helperText('Shown under the title, and in link previews when the page is shared.'),
+                    ->helperText('Shown under the title, and in link previews when the page is shared.')
+                    ->hintAction(AiAssist::action('a one sentence description of a website page, for link previews', false, fn (Forms\Get $get) => 'Title: '.$get('title'))),
                 Forms\Components\RichEditor::make('body')
                     ->label('Text')
                     ->required()

@@ -8,6 +8,7 @@ use App\Filament\Resources\RaffleResource\RelationManagers\PrizeTiersRelationMan
 use App\Filament\Support\MobileCard;
 use App\Models\Raffle;
 use App\Services\LiveDrawService;
+use App\Filament\Support\AiAssist;
 use Filament\Forms;
 use Filament\Forms\Form;
 use Filament\Notifications\Notification;
@@ -42,7 +43,8 @@ class RaffleResource extends Resource
                     ->maxLength(255),
                 Forms\Components\Textarea::make('excerpt')
                     ->maxLength(2000)
-                    ->columnSpanFull(),
+                    ->columnSpanFull()
+                    ->hintAction(AiAssist::action('an exciting but honest description of a raffle for its page (under 600 characters)', false, fn (Forms\Get $get) => 'Raffle: '.$get('title').'; ticket price ₦'.$get('price'))),
                 Forms\Components\TextInput::make('price')
                     ->label('Ticket price (₦)')
                     ->required()
