@@ -431,8 +431,8 @@ export default function RewardsIndex({ referralCode, preview = null }) {
                             <h3 className="text-lg font-bold">Refer & Earn</h3>
                         </div>
 
-                        <p className="relative z-10 mb-3 max-w-[220px] text-xs text-orange-100">
-                            Earn commission on your friend's first deposit when they sign up with your link.
+                        <p className="relative z-10 mb-3 max-w-[240px] text-xs text-orange-100">
+                            Earn commission on your friend's first deposit, and climb the referral ladder for points, free spins and badges.
                         </p>
 
                         {referralLink ? (
@@ -471,6 +471,10 @@ export default function RewardsIndex({ referralCode, preview = null }) {
                                 </div>
                             </div>
                         )}
+
+                        <Link href="/referrals" className="relative z-10 mt-3 flex items-center justify-center gap-1 rounded-xl bg-white py-2.5 text-xs font-bold text-red-600 shadow active:scale-95">
+                            See your referral ladder <ArrowRight className="h-3 w-3" />
+                        </Link>
                     </div>
 
                     <PausedNotice feature="tasks" />

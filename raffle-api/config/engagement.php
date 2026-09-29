@@ -1,5 +1,7 @@
 <?php
 
+use App\Services\Engagement\ReferralLadder;
+
 /*
 |--------------------------------------------------------------------------
 | Community & engagement features (Phase 11)
@@ -15,6 +17,11 @@
 */
 
 return [
+    // Services told about purchases, claims, tasks and wins (App\Services\Engagement\Progress).
+    'listeners' => [
+        ReferralLadder::class,
+    ],
+
     // key => [name, what earns it, emoji]
     'badges' => [
         'first_ticket' => ['First Ticket', 'Bought your first ticket', '🎟️'],
