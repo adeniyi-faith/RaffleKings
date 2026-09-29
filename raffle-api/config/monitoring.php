@@ -23,4 +23,9 @@ return [
     // outage can't flood the admin chat.
     'max_per_hour' => (int) env('ERROR_ALERTS_MAX_PER_HOUR', 20),
 
+    // Phase 10: errors in customers' browsers are always saved on
+    // System → Health; Telegram alerts for them are off by default, since
+    // phone browsers and add-ons produce a lot of harmless noise.
+    'browser_error_alerts' => (bool) env('ERROR_ALERTS_BROWSER', false),
+
 ];

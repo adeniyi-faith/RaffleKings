@@ -16,7 +16,7 @@ use Illuminate\Support\Facades\Route;
 
 Route::middleware('auth:wordpress')->group(function () {
     Route::get('/badges', [BadgeController::class, 'index']);
-    Route::post('/badges/showcase', [BadgeController::class, 'showcase']);
+    Route::post('/badges/showcase', [BadgeController::class, 'showcase'])->middleware('throttle:money');
 
     Route::get('/referrals/overview', ReferralLadderController::class);
 
@@ -29,7 +29,7 @@ Route::middleware('auth:wordpress')->group(function () {
     Route::post('/raffles/{raffle}/team', [SocialBoostController::class, 'createTeam'])->whereNumber('raffle')->middleware('feature:team_up');
     Route::post('/teams/{code}/join', [SocialBoostController::class, 'join'])->middleware(['feature:team_up', 'throttle:20,1']);
 
-    Route::post('/raffles/{raffle}/live-draw/envelopes', [RedEnvelopeController::class, 'send'])->middleware(['feature:red_envelopes', 'feature:live_chat', 'throttle:6,1']);
+    Route::post('/raffles/{raffle}/live-draw/envelopes', [RedEnvelopeController::class, 'send'])->middleware(['feature:red_envelopes', 'feature:live_chat', 'throttle:6,1', 'not-on-break']);
     Route::post('/envelopes/{envelope}/claim', [RedEnvelopeController::class, 'claim'])->whereNumber('envelope')->middleware(['feature:red_envelopes', 'throttle:30,1']);
 
     Route::get('/stories/my-wins', [WinnerStoryController::class, 'mine']);
@@ -37,5 +37,5 @@ Route::middleware('auth:wordpress')->group(function () {
     Route::post('/stories/{story}/react', [WinnerStoryController::class, 'react'])->whereNumber('story')->middleware('throttle:60,1');
 
     Route::get('/season', [SeasonPassController::class, 'show']);
-    Route::post('/season/claim', [SeasonPassController::class, 'claim'])->middleware('feature:season_pass');
+    Route::post('/season/claim', [SeasonPassController::class, 'claim'])->middleware(['feature:season_pass', 'throttle:money']);
 });

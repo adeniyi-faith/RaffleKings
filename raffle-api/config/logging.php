@@ -73,6 +73,17 @@ return [
             'replace_placeholders' => true,
         ],
 
+        // Phase 10 monitoring: one JSON object per line (with the request's
+        // error code), for log tools to search. Use with LOG_STACK=json.
+        'json' => [
+            'driver' => 'daily',
+            'path' => storage_path('logs/laravel.json.log'),
+            'level' => env('LOG_LEVEL', 'debug'),
+            'days' => env('LOG_DAILY_DAYS', 14),
+            'formatter' => Monolog\Formatter\JsonFormatter::class,
+            'replace_placeholders' => true,
+        ],
+
         'monthly' => [
             'driver' => 'monthly',
             'path' => storage_path('logs/laravel.log'),
