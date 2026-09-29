@@ -330,6 +330,34 @@ final class SettingsRegistry
                 ],
             ],
 
+            'Consent & privacy' => [
+                'icon' => 'heroicon-o-shield-check',
+                'sections' => [
+                    'Google Analytics' => [
+                        'description' => 'Counts visitors and where they come from. In Google Analytics: Admin → Data streams → your website → Measurement ID (starts with G-). Leave empty to switch it off.',
+                        'settings' => [
+                            new Setting('services.google_analytics.measurement_id', 'Measurement ID', 'text', placeholder: 'G-XXXXXXXXXX', rules: ['nullable', 'regex:/^G-[A-Z0-9]{6,14}$/']),
+                        ],
+                    ],
+                    'Cookie consent banner' => [
+                        'description' => 'Nigeria\'s Data Protection Act (2023) expects clear notice and a real choice before non-essential tracking. With this on, PostHog and Google Analytics load in a visitor\'s browser only after they tap Accept; Decline keeps them off. Ask your lawyer to confirm what applies to you.',
+                        'settings' => [
+                            new Setting('services.analytics.require_consent', 'Ask visitors before tracking them', 'bool', 'Recommended. Switch off only if your lawyer says a banner is not needed for you.'),
+                            new Setting('services.analytics.consent_message', 'Banner message', 'textarea', 'Keep it short and plain.', rules: ['required', 'max:400']),
+                        ],
+                    ],
+                    'Privacy policy details' => [
+                        'description' => 'Filled in automatically in the "Analytics and cookies" part of the Privacy Policy page.',
+                        'settings' => [
+                            new Setting('services.analytics.controller_name', 'Company / business name', 'text', 'Who is responsible for customers\' data.', rules: ['required', 'max:120']),
+                            new Setting('services.analytics.privacy_email', 'Privacy contact email', 'email', 'Where customers send data requests. Falls back to the support email if empty.'),
+                            new Setting('services.analytics.dpo_name', 'Data protection officer (optional)', 'text', 'Name shown on the policy, if you have appointed one.', rules: ['nullable', 'max:120']),
+                            new Setting('services.analytics.retention', 'How long analytics data is kept', 'text', 'Shown as text, e.g. "12 months". Also set the same period in PostHog (Project settings → Data retention).', rules: ['required', 'max:60']),
+                        ],
+                    ],
+                ],
+            ],
+
             'AI' => [
                 'icon' => 'heroicon-o-sparkles',
                 'sections' => [

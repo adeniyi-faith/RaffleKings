@@ -1,23 +1,28 @@
 import { router } from '@inertiajs/react';
+import { consentStatus } from './consent';
 
-// The one place the browser records what visitors do (PostHog).
+// The one place the browser records what visitors do (PostHog and Google Analytics).
 //
 //   track('event_name', { any: 'details' })   record an action
 //
 // Page views, and linking a visit to a logged-in customer's numeric id, happen
-// by themselves on every page change (see startAnalytics below). The project key
-// comes from the admin's Settings → Analytics page, shared with every page as
-// the `analytics` prop; with no key saved, nothing is loaded and nothing is sent.
+// by themselves on every page change (see startAnalytics below). The keys come
+// from the admin's Settings → Analytics and Consent & privacy pages, shared with
+// every page as the `analytics` prop. Nothing loads without a key, and — while
+// the consent banner is switched on — nothing loads until the visitor accepts.
 //
 // Money events (purchase paid, top-up paid, withdrawal, win) are recorded by the
 // server instead, so ad-blockers and closed tabs can't hide them.
 
 let config = null;
-let loading = false;
-let ready = false;
+let phLoaded = false;
+let phReady = false;
+let gaLoaded = false;
 let queue = [];
-let lastUrl = null;
-let lastUserId = null;
+let currentUrl = null;
+let currentUserId = null;
+let sentUrl = null;
+let sentUserId = null;
 
 function safe(fn) {
     try {
@@ -27,41 +32,43 @@ function safe(fn) {
     }
 }
 
-function call(method, ...args) {
-    if (! config) {
+function allowed() {
+    return Boolean(config) && (! config.consent?.required || consentStatus() === 'granted');
+}
+
+function ph(method, ...args) {
+    if (! phLoaded) {
         return;
     }
 
-    if (ready && window.posthog) {
+    if (phReady && window.posthog) {
         safe(() => window.posthog[method](...args));
     } else {
         queue.push([method, args]);
     }
 }
 
-function load(next) {
-    config = next;
-
-    if (loading) {
+function loadPostHog() {
+    if (phLoaded || ! config.key) {
         return;
     }
 
-    loading = true;
+    phLoaded = true;
 
     const script = document.createElement('script');
     script.async = true;
     script.crossOrigin = 'anonymous';
-    script.src = `${next.host.replace('.i.posthog.com', '-assets.i.posthog.com')}/static/array.js`;
+    script.src = `${config.host.replace('.i.posthog.com', '-assets.i.posthog.com')}/static/array.js`;
     script.onload = () => safe(() => {
-        window.posthog.init(next.key, {
-            api_host: next.host,
+        window.posthog.init(config.key, {
+            api_host: config.host,
             // We send page views ourselves: the site changes pages without a reload.
             capture_pageview: false,
             capture_pageleave: true,
             autocapture: true,
             // A visitor profile is only created once we know who they are.
             person_profiles: 'identified_only',
-            disable_session_recording: ! next.recordings,
+            disable_session_recording: ! config.recordings,
             session_recording: {
                 // Everything typed into a field is hidden, plus anything marked
                 // data-rk-mask (balances) or data-rk-block (hide the whole area).
@@ -70,38 +77,101 @@ function load(next) {
                 blockSelector: '[data-rk-block]',
             },
         });
-        ready = true;
+        phReady = true;
         const waiting = queue;
         queue = [];
-        waiting.forEach(([method, args]) => call(method, ...args));
+        waiting.forEach(([method, args]) => ph(method, ...args));
     });
     document.head.appendChild(script);
 }
 
-export function track(name, props = {}) {
-    call('capture', name, props);
+function loadGoogleAnalytics() {
+    if (gaLoaded || ! config.ga_id) {
+        return;
+    }
+
+    gaLoaded = true;
+    window.dataLayer = window.dataLayer || [];
+    // Google's own snippet: it must push `arguments`, not an array.
+    window.gtag = function () { window.dataLayer.push(arguments); };
+    window.gtag('js', new Date());
+    // Page views are sent by us on each page change, not automatically.
+    window.gtag('config', config.ga_id, { send_page_view: false });
+
+    const script = document.createElement('script');
+    script.async = true;
+    script.src = `https://www.googletagmanager.com/gtag/js?id=${encodeURIComponent(config.ga_id)}`;
+    document.head.appendChild(script);
 }
 
-function onPage(page) {
-    if (page.props.analytics && ! config) {
-        load(page.props.analytics);
+function gtag(...args) {
+    if (gaLoaded && typeof window.gtag === 'function') {
+        safe(() => window.gtag(...args));
     }
+}
+
+// Bring the tools up to date with where the visitor is and who they are.
+function sync() {
+    if (! allowed()) {
+        return;
+    }
+
+    loadPostHog();
+    loadGoogleAnalytics();
 
     // Tie actions to the customer's id (never their name or email).
-    const userId = page.props.auth?.user?.id ?? null;
-
-    if (userId && userId !== lastUserId) {
-        call('identify', String(userId));
-    } else if (! userId && lastUserId) {
-        call('reset'); // logged out: the next visitor on this device is a stranger
+    if (currentUserId && currentUserId !== sentUserId) {
+        ph('identify', String(currentUserId));
+        gtag('set', { user_id: String(currentUserId) });
+    } else if (! currentUserId && sentUserId) {
+        ph('reset'); // logged out: the next visitor on this device is a stranger
+        gtag('set', { user_id: null });
     }
 
-    lastUserId = userId;
+    sentUserId = currentUserId;
 
     // Reloading the same page in place (live updates, refreshing balances) is not a new visit.
-    if (page.url !== lastUrl) {
-        lastUrl = page.url;
-        call('capture', '$pageview');
+    if (currentUrl !== null && currentUrl !== sentUrl) {
+        sentUrl = currentUrl;
+        ph('capture', '$pageview');
+        gtag('event', 'page_view', {
+            page_path: currentUrl,
+            page_location: window.location.href,
+            page_title: document.title,
+        });
+    }
+}
+
+export function track(name, props = {}) {
+    if (! allowed()) {
+        return;
+    }
+
+    ph('capture', name, props);
+    gtag('event', name, props);
+}
+
+function onConsentChange() {
+    if (! config) {
+        return;
+    }
+
+    if (allowed()) {
+        if (window.posthog?.has_opted_out_capturing?.()) {
+            safe(() => window.posthog.opt_in_capturing());
+        }
+        if (config.ga_id) {
+            window[`ga-disable-${config.ga_id}`] = false;
+        }
+        sync();
+    } else {
+        // Withdrawn: stop everything that is running.
+        if (phReady && window.posthog) {
+            safe(() => window.posthog.opt_out_capturing());
+        }
+        if (config.ga_id) {
+            window[`ga-disable-${config.ga_id}`] = true;
+        }
     }
 }
 
@@ -110,13 +180,26 @@ export function startAnalytics() {
         return;
     }
 
-    router.on('navigate', (event) => onPage(event.detail.page));
+    router.on('navigate', (event) => {
+        const page = event.detail.page;
+
+        if (page.props.analytics && ! config) {
+            config = page.props.analytics;
+        }
+
+        currentUrl = page.url;
+        currentUserId = page.props.auth?.user?.id ?? null;
+        sync();
+    });
+
+    window.addEventListener('rk-consent-changed', onConsentChange);
 
     // App install: eligible, installed, and opened from the home screen.
     window.addEventListener('beforeinstallprompt', () => track('app_install_available'));
     window.addEventListener('appinstalled', () => track('app_installed'));
 
     if (window.matchMedia?.('(display-mode: standalone)').matches || window.navigator.standalone === true) {
-        track('app_opened_from_home_screen');
+        // Wait a moment: the first page's settings arrive with the first navigation.
+        setTimeout(() => track('app_opened_from_home_screen'), 1500);
     }
 }

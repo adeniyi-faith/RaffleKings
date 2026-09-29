@@ -55,6 +55,40 @@ class AnalyticsTest extends TestCase
             ->where('analytics.recordings', true));
     }
 
+    public function test_google_analytics_alone_is_enough_to_share_the_settings_and_the_consent_banner_details(): void
+    {
+        config([
+            'services.posthog.project_key' => null,
+            'services.google_analytics.measurement_id' => 'G-ABC123XYZ9',
+            'services.analytics.require_consent' => true,
+            'services.analytics.consent_message' => 'Please choose.',
+        ]);
+
+        $this->get('/')->assertInertia(fn ($page) => $page
+            ->where('analytics.key', null)
+            ->where('analytics.ga_id', 'G-ABC123XYZ9')
+            ->where('analytics.consent.required', true)
+            ->where('analytics.consent.message', 'Please choose.'));
+    }
+
+    public function test_the_privacy_policy_gets_its_details_from_admin_settings(): void
+    {
+        $this->switchOn();
+        config([
+            'services.analytics.controller_name' => 'Acme Raffles Ltd',
+            'services.analytics.privacy_email' => null,
+            'site.support_email' => 'help@example.test',
+            'services.analytics.retention' => '6 months',
+        ]);
+
+        $this->get('/privacy-policy')->assertInertia(fn ($page) => $page
+            ->where('site.privacy.controller', 'Acme Raffles Ltd')
+            ->where('site.privacy.email', 'help@example.test')
+            ->where('site.privacy.retention', '6 months')
+            ->where('site.privacy.posthog', true)
+            ->where('site.privacy.google_analytics', false));
+    }
+
     public function test_an_event_is_sent_to_posthog_with_the_users_id(): void
     {
         $this->switchOn();

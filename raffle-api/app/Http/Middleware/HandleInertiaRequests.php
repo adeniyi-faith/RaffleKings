@@ -74,10 +74,15 @@ class HandleInertiaRequests extends Middleware
             ],
             // Product analytics (Settings → Analytics). No key = the browser
             // never loads PostHog at all.
-            'analytics' => fn () => filled(config('services.posthog.project_key')) ? [
-                'key' => config('services.posthog.project_key'),
+            'analytics' => fn () => filled(config('services.posthog.project_key')) || filled(config('services.google_analytics.measurement_id')) ? [
+                'key' => config('services.posthog.project_key') ?: null,
                 'host' => config('services.posthog.host'),
                 'recordings' => (bool) config('services.posthog.recordings'),
+                'ga_id' => config('services.google_analytics.measurement_id') ?: null,
+                'consent' => [
+                    'required' => (bool) config('services.analytics.require_consent'),
+                    'message' => config('services.analytics.consent_message'),
+                ],
             ] : null,
             // Admin-editable (Settings page): contact details, links, the
             // on/off switches and the numbers pages show customers.
@@ -88,6 +93,17 @@ class HandleInertiaRequests extends Middleware
                 'links' => array_filter(config('site.links', [])),
                 'switches' => config('site.switches'),
                 'paused_message' => config('site.paused_message'),
+                // The analytics part of the Privacy Policy page (Settings → Consent & privacy).
+                'privacy' => [
+                    'controller' => config('services.analytics.controller_name'),
+                    'email' => config('services.analytics.privacy_email') ?: config('site.support_email'),
+                    'dpo' => config('services.analytics.dpo_name'),
+                    'retention' => config('services.analytics.retention'),
+                    'posthog' => filled(config('services.posthog.project_key')),
+                    'recordings' => filled(config('services.posthog.project_key')) && (bool) config('services.posthog.recordings'),
+                    'google_analytics' => filled(config('services.google_analytics.measurement_id')),
+                    'consent_required' => (bool) config('services.analytics.require_consent'),
+                ],
                 'points_per_naira' => (int) config('rewards.points_per_naira'),
                 'minimum_redeem_points' => (int) config('rewards.minimum_redeem_points'),
                 'ticket_bundles' => app(TicketPricingService::class)->bundleQuantities(),
