@@ -13,10 +13,10 @@ import { useApi } from '../../lib/useApi';
 // reward to collect.
 const XP_LABELS = {
     ticket: 'per ticket',
-    daily_claim: 'daily check-in',
+    daily_claim: 'daily reward claim',
     task: 'per task',
-    prediction: 'per prediction',
-    prediction_correct: 'right prediction',
+    prediction: 'per prediction answered',
+    prediction_correct: 'extra for a right prediction',
 };
 
 function daysLeft(iso) {
@@ -79,7 +79,7 @@ export default function Season({ preview }) {
                         </div>
                         <div className="min-w-0 flex-1">
                             <p className="text-xs font-bold uppercase tracking-[0.2em] text-yellow-200">Season {state?.season ?? ''} Pass · Free</p>
-                            <h1 className="text-2xl font-black italic leading-tight">Play. Level up. Collect.</h1>
+                            <h1 className="text-2xl font-black italic leading-tight">Earn XP. Level up. Collect.</h1>
                             <div className="mt-2 h-2.5 overflow-hidden rounded-full bg-black/30">
                                 <div className="h-full rounded-full bg-gradient-to-r from-yellow-300 to-amber-500 transition-all" style={{ width: `${pct}%` }} />
                             </div>
@@ -126,7 +126,10 @@ export default function Season({ preview }) {
                     {state && (
                         <div className="rounded-2xl border border-white/10 bg-white/5 p-4">
                             <p className="mb-2 flex items-center gap-1.5 text-xs font-bold uppercase tracking-wider text-white/60">
-                                <Sparkles className="h-3.5 w-3.5 text-yellow-300" /> How to earn XP
+                                <Sparkles className="h-3.5 w-3.5 text-yellow-300" /> How it works
+                            </p>
+                            <p className="mb-3 text-[11px] text-white/70">
+                                XP are progress points. Every {state.xp_per_level} XP moves you up one level. Each level has a reward. When a level shows "Ready", tap Collect at the top.
                             </p>
                             <div className="flex flex-wrap gap-2">
                                 {Object.entries(state.xp_sources)
@@ -138,7 +141,7 @@ export default function Season({ preview }) {
                                     ))}
                             </div>
                             <p className="mt-2 text-[11px] text-white/50">
-                                Ticket XP stops at {state.xp_sources.ticket_daily_cap} a day, so playing a little every day goes furthest.
+                                You can earn up to {state.xp_sources.ticket_daily_cap} XP a day from tickets.
                             </p>
                         </div>
                     )}
@@ -179,7 +182,7 @@ export default function Season({ preview }) {
 
                     {state && (
                         <p className="pb-4 text-center text-[11px] text-white/40">
-                            The Season Pass is free. A new season starts when this one ends; uncollected rewards can be collected until then.
+                            The Season Pass is free. Collect your rewards before the season ends. A new season then starts from level 0.
                         </p>
                     )}
                 </div>

@@ -56,6 +56,13 @@ export default function UnlockPage({ link: initial, referrer, alreadyTapped }) {
                 <p className="mt-2 text-xs text-white/80">
                     {link.taps} of {link.needed} friends have tapped
                 </p>
+                {! link.completed && (
+                    <p className="mt-3 max-w-sm text-center text-xs text-white/80">
+                        {isOwner
+                            ? `Share this page. When ${link.needed} friends tap Help, you get a free extra entry in this raffle. Each friend who taps gets ${link.tapper_points} points.`
+                            : `Tapping is free. It gives ${link.owner} a step towards a free extra entry, and gives you ${link.tapper_points} points.`}
+                    </p>
+                )}
 
                 <div className="mt-8 w-full max-w-sm space-y-3">
                     {error && <p role="alert" className="rounded-xl bg-black/25 px-4 py-2 text-center text-sm">{error}</p>}
