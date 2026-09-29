@@ -47,6 +47,8 @@ class TicketPurchaseService
         private readonly TicketPricingService $pricing,
         private readonly WalletLedgerService $ledger,
         private readonly RaffleReadService $raffles,
+        private readonly GoldenBoxService $goldenBox,
+        private readonly WinningsTransferService $winnings,
     ) {}
 
     /**
@@ -59,6 +61,10 @@ class TicketPurchaseService
      *                                  (e.g. a UUID created when the "Pay" button is first
      *                                  pressed) and resends unchanged on any retry. Prevents
      *                                  a double-tap or a retried request from charging twice.
+     * @param  bool  $coverShortfallFromWinnings  Wallet purchases only: if the wallet is short,
+     *                                            move exactly the difference from winnings first
+     *                                            (checkout's "Use winnings to cover it"), in the
+     *                                            same transaction as the purchase.
      *
      * @throws InsufficientBalanceException
      * @throws TicketUnavailableException
@@ -74,6 +80,7 @@ class TicketPurchaseService
         float $submittedAmount,
         string $fundingSource,
         string $idempotencyKey,
+        bool $coverShortfallFromWinnings = false,
     ): RaffleTransaction {
         if (! in_array($fundingSource, ['wallet', 'earnings'], true)) {
             throw new InvalidArgumentException("Unknown funding source: {$fundingSource}");
@@ -113,10 +120,11 @@ class TicketPurchaseService
 
         $unitPrice = (float) $raffle['price'];
 
-        // No page offers the Golden Box discount and nothing records who is
-        // entitled to it, so it can't be self-awarded (item 46 decides
-        // whether it comes back, with a real entitlement check).
-        $isGoldenBox = false;
+        // The Golden Box discount comes only from an offer the server gave
+        // this customer for this exact raffle and ticket count (item 46),
+        // never from the request's own is_golden_box flag.
+        $goldenOffer = $this->goldenBox->discountFor($user->ID, $raffleId, count($ticketNumbers));
+        $isGoldenBox = $goldenOffer !== null;
 
         if (count(array_unique($ticketNumbers)) !== count($ticketNumbers)) {
             throw new InvalidArgumentException('The same ticket number was picked twice. Please review your numbers.');
@@ -129,6 +137,14 @@ class TicketPurchaseService
         }
 
         if (! $this->pricing->matchesExpectedPrice($submittedAmount, count($ticketNumbers), $unitPrice, $isGoldenBox)) {
+            if (! $isGoldenBox && $this->pricing->matchesExpectedPrice($submittedAmount, count($ticketNumbers), $unitPrice, true)
+                && ! $this->pricing->matchesExpectedPrice($submittedAmount, count($ticketNumbers), $unitPrice)) {
+                throw new InvalidArgumentException(sprintf(
+                    'Your Golden Box discount has ended. The price is now ₦%s. Please review your order before paying.',
+                    number_format($this->pricing->calculate(count($ticketNumbers), $unitPrice), 2),
+                ));
+            }
+
             $expected = $this->pricing->calculate(count($ticketNumbers), $unitPrice, $isGoldenBox);
 
             throw new InvalidArgumentException(
@@ -142,7 +158,8 @@ class TicketPurchaseService
         try {
             $transaction = DB::transaction(function () use (
                 $user, $raffleId, $ticketNumbers, $submittedAmount,
-                $balanceColumn, $transactionType, $idempotencyKey, $fundingSource
+                $balanceColumn, $transactionType, $idempotencyKey, $fundingSource,
+                $coverShortfallFromWinnings, $goldenOffer
             ) {
                 // Lock this user's wallet row for the duration of the
                 // transaction — a concurrent purchase or transfer by the
@@ -153,6 +170,18 @@ class TicketPurchaseService
                     ->first();
 
                 $currentBalance = (float) ($wallet->{$balanceColumn} ?? 0);
+
+                if ($currentBalance < $submittedAmount && $fundingSource === 'wallet' && $coverShortfallFromWinnings) {
+                    $shortfall = round($submittedAmount - $currentBalance, 2);
+                    $earnings = (float) ($wallet->earnings_balance ?? 0);
+
+                    if ($earnings + 0.001 < $shortfall) {
+                        throw new InsufficientBalanceException(round($shortfall - $earnings, 2));
+                    }
+
+                    $this->winnings->moveWithinLockedWallet($wallet, $shortfall, $user->ID);
+                    $currentBalance = (float) $wallet->wallet_balance;
+                }
 
                 if ($currentBalance < $submittedAmount) {
                     throw new InsufficientBalanceException($submittedAmount - $currentBalance);
@@ -188,14 +217,23 @@ class TicketPurchaseService
                 // — the fix for TD-06.
                 $this->allocateEntries($raffleId, $user->ID, $ticketNumbers, $transaction->id);
 
+                // Uses the discount up in this same transaction; if it ran
+                // out (or another purchase used it) a moment ago, nothing
+                // is charged and the customer sees the full price instead.
+                if ($goldenOffer && ! $this->goldenBox->markUsed($goldenOffer, $transaction->id)) {
+                    throw new InvalidArgumentException('Your Golden Box discount has ended. Please go back and review your order before paying.');
+                }
+
                 return $transaction;
             });
+
+            $this->goldenBox->markCompleted($user->ID);
 
             // Both fire AFTER the transaction commits — never inside it,
             // so a receipt or a live update can't go out for a purchase
             // that then rolls back.
             $user->notify(new TicketPurchaseReceipt($transaction, count($ticketNumbers)));
-            $this->broadcastTicketsUpdated($raffleId);
+            $this->broadcastTicketsUpdated($raffleId, $ticketNumbers);
 
             return $transaction;
         } catch (UniqueConstraintViolationException) {
@@ -239,7 +277,7 @@ class TicketPurchaseService
             throw new TicketUnavailableException($this->findUnavailable($raffleId, $ticketNumbers));
         }
 
-        $this->broadcastTicketsUpdated($raffleId);
+        $this->broadcastTicketsUpdated($raffleId, $ticketNumbers);
     }
 
     /**
@@ -249,9 +287,10 @@ class TicketPurchaseService
      * broadcasts it. Silently does nothing if the raffle can't be found
      * (e.g. a test exercising this service against a raffle id with no
      * backing post) — a live update is a nice-to-have, never something
-     * a purchase should fail over.
+     * a purchase should fail over. The numbers just taken go out too, so
+     * every open number grid greys them out at once (item 46).
      */
-    private function broadcastTicketsUpdated(int $raffleId): void
+    private function broadcastTicketsUpdated(int $raffleId, array $ticketNumbers = []): void
     {
         $raffle = $this->raffles->find($raffleId);
 
@@ -264,6 +303,7 @@ class TicketPurchaseService
             soldTickets: $raffle['sold_tickets'],
             remainingTickets: $raffle['remaining_tickets'],
             isClosed: $raffle['is_closed'],
+            takenNumbers: array_values(array_map('intval', $ticketNumbers)),
         ));
     }
 

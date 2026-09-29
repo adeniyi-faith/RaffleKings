@@ -15,6 +15,7 @@ class Deposit extends Model
         'amount',
         'currency',
         'authorization_url',
+        'return_to',
         'status',
         'failure_reason',
         'verified_at',

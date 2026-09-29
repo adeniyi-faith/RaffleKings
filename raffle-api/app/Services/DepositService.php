@@ -52,7 +52,7 @@ class DepositService
         ];
     }
 
-    public function initialize(WpUser $user, float $amount, string $callbackUrl): Deposit
+    public function initialize(WpUser $user, float $amount, string $callbackUrl, ?string $returnTo = null): Deposit
     {
         if ($amount < config('payments.minimum_deposit')) {
             throw new InvalidArgumentException(sprintf('Minimum deposit is ₦%.2f.', config('payments.minimum_deposit')));
@@ -66,6 +66,7 @@ class DepositService
             'amount' => $amount,
             'currency' => 'NGN',
             'status' => 'pending',
+            'return_to' => $returnTo,
         ]);
 
         $errors = [];

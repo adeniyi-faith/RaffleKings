@@ -29,6 +29,7 @@ class DepositController extends Controller
                 $user,
                 (float) $request->float('amount'),
                 url('/api/deposits/callback'),
+                $request->validated('return_to'),
             );
         } catch (PaymentGatewayException $e) {
             // The gateway's own error text is technical (it can name
@@ -71,7 +72,9 @@ class DepositController extends Controller
      * which reference to look up) — safe to call even if the webhook
      * already settled it first, since `DepositService::confirm()` is
      * idempotent — and then sends the browser to the wallet page to show
-     * the result.
+     * the result, or back to the page the top-up was started from (item
+     * 46: the checkout that was short), with `deposit=<id>` added so that
+     * page can show the result too.
      */
     public function callback(Request $request): RedirectResponse
     {
@@ -93,6 +96,12 @@ class DepositController extends Controller
             }
         }
 
-        return redirect('/account/wallet?deposit='.$deposit->id);
+        $returnTo = (string) ($deposit->return_to ?: '/account/wallet');
+
+        if (! preg_match('#^/(?![/\\\\])#', $returnTo)) {
+            $returnTo = '/account/wallet';
+        }
+
+        return redirect($returnTo.(str_contains($returnTo, '?') ? '&' : '?').'deposit='.$deposit->id);
     }
 }

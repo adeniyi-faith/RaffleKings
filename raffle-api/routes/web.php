@@ -5,6 +5,7 @@ use App\Http\Controllers\LegacyRedirectController;
 use App\Models\Legacy\RaffleEntry;
 use App\Models\Raffle;
 use App\Services\Auth\TurnstileVerifier;
+use App\Services\GoldenBoxService;
 use App\Services\RaffleReadService;
 use App\Services\TutorialReadService;
 use Illuminate\Http\Request;
@@ -96,11 +97,22 @@ Route::get('/raffles/{raffle}/numbers', function (Request $request, int $raffle,
 
     $taken = RaffleEntry::where('raffle_id', $raffle)->pluck('ticket_number')->map(fn ($n) => (int) $n)->values();
 
+    // Coming back from checkout (e.g. "Change numbers", or a number was
+    // taken while paying) keeps the picks that are still free.
+    $takenSet = array_flip($taken->all());
+    $preselected = collect(explode(',', (string) $request->query('numbers', '')))
+        ->map(fn ($n) => (int) $n)
+        ->filter(fn ($n) => $n >= 1 && $n <= $found['max_tickets'] && ! isset($takenSet[$n]))
+        ->unique()
+        ->take($qty)
+        ->values();
+
     return Inertia::render('Raffles/SelectNumbers', [
         'raffle' => $found,
         'qty' => $qty,
         'takenNumbers' => $taken,
         'maxTickets' => $found['max_tickets'],
+        'preselected' => $preselected,
     ]);
 });
 
@@ -124,10 +136,15 @@ Route::get('/checkout', function (Request $request, RaffleReadService $raffles) 
 
     abort_if(count($numbers) !== $qty, 422, 'Selected ticket numbers do not match the chosen quantity.');
 
+    // Item 46: remembered so a customer who leaves without paying can be
+    // offered the Golden Box on the raffle list.
+    app(GoldenBoxService::class)->rememberCheckout(Auth::guard('wordpress')->user(), $found, $numbers);
+
     return Inertia::render('Checkout/Index', [
         'raffle' => $found,
         'qty' => $qty,
         'ticketNumbers' => $numbers,
+        'minimumDeposit' => (float) config('payments.minimum_deposit'),
     ]);
 });
 

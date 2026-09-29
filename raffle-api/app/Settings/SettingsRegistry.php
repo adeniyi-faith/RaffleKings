@@ -137,7 +137,17 @@ final class SettingsRegistry
                             new Setting('pricing.bundles', 'Other tickets: bundle sizes', 'bundles', 'Each bundle is a one-tap button on the raffle page. The discount applies to that exact number of tickets.'),
                             new Setting('pricing.above_quantity', 'Other tickets: big-order discount for more than', 'int', 'Tickets. Set 0 for no big-order discount.', rules: ['required', 'integer', 'min:0']),
                             new Setting('pricing.above_percent_off', 'Other tickets: big-order % off', 'percent', rules: ['required', 'numeric', 'min:0', 'max:90']),
-                            new Setting('pricing.golden_box_percent_off', 'Golden Box: extra % off', 'percent', rules: ['required', 'numeric', 'min:0', 'max:90']),
+                        ],
+                    ],
+                    'Golden Box' => [
+                        'description' => 'A customer who leaves checkout without paying sees a gold offer on the raffle list: extra % off that same order, for a short time. Tapping it starts the discount. It can only be used once, on that raffle and number of tickets.',
+                        'settings' => [
+                            new Setting('pricing.golden_box_enabled', 'Offer the Golden Box', 'bool'),
+                            new Setting('pricing.golden_box_percent_off', 'Extra % off', 'percent', 'Taken off after any bulk discount.', rules: ['required', 'numeric', 'min:0', 'max:90']),
+                            new Setting('pricing.golden_box_minimum_order', 'Only for orders of at least', 'money', rules: ['required', 'numeric', 'min:0']),
+                            new Setting('pricing.golden_box_offer_minutes', 'Show the offer for (minutes)', 'int', 'Counted from when the customer first sees it.', rules: ['required', 'integer', 'min:1', 'max:1440']),
+                            new Setting('pricing.golden_box_claim_minutes', 'Discount lasts after tapping (minutes)', 'int', rules: ['required', 'integer', 'min:1', 'max:1440']),
+                            new Setting('pricing.golden_box_cooldown_days', 'Days before a customer can get another one', 'int', '0 = every unpaid checkout can get one.', rules: ['required', 'integer', 'min:0', 'max:365']),
                         ],
                     ],
                 ],
