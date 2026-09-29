@@ -1,4 +1,5 @@
 import { Head } from '@inertiajs/react';
+import { setConsent, useConsent } from '../lib/consent';
 import { useSite } from '../lib/site';
 import { ArrowLeft, Check, Cog, Database, Mail, ShieldCheck } from 'lucide-react';
 import { goBack } from '../lib/nav';
@@ -88,6 +89,8 @@ export default function PrivacyPolicy() {
                             </ul>
                         </div>
 
+                        <AnalyticsSection privacy={site.privacy} />
+
                         <div className="rounded-xl border border-red-100 bg-red-50 p-4 dark:border-red-900/30 dark:bg-red-900/10">
                             <h3 className="mb-2 text-sm font-bold text-red-600 dark:text-red-400">Data Deletion Rights</h3>
                             <p className="text-xs leading-relaxed text-red-800 dark:text-red-200">
@@ -99,7 +102,7 @@ export default function PrivacyPolicy() {
 
                     <div className="mt-12 border-t border-gray-100 pt-6 text-center dark:border-gray-800">
                         <a
-                            href={`mailto:${site.support_email || 'help@rafflekings.com.ng'}`}
+                            href={`mailto:${site.privacy?.email || site.support_email || 'help@rafflekings.com.ng'}`}
                             className="inline-flex items-center gap-2 rounded-full bg-blue-50 px-4 py-2 text-sm font-bold text-app-primary dark:bg-blue-900/30"
                         >
                             <Mail className="h-4 w-4" /> Contact Privacy Officer
@@ -125,6 +128,74 @@ function UseItem({ children }) {
     return (
         <div className="flex items-center gap-2 text-sm text-gray-600 dark:text-gray-300">
             <Check className="h-4 w-4 text-green-500" /> {children}
+        </div>
+    );
+}
+
+// "Analytics and cookies": what is measured, by whom, and the visitor's own choice.
+// The wording follows what is switched on in the admin (Settings → Analytics / Consent & privacy).
+function AnalyticsSection({ privacy }) {
+    const status = useConsent();
+
+    if (! privacy || (! privacy.posthog && ! privacy.google_analytics)) {
+        return null;
+    }
+
+    const tools = [privacy.posthog && 'PostHog', privacy.google_analytics && 'Google Analytics'].filter(Boolean).join(' and ');
+
+    return (
+        <div className="rounded-2xl border border-gray-100 bg-white p-5 shadow-sm dark:border-gray-800 dark:bg-dark-card">
+            <h3 className="mb-3 text-sm font-bold uppercase tracking-wide text-gray-900 dark:text-white">Analytics and Cookies</h3>
+            <div className="space-y-3 text-sm leading-relaxed text-gray-600 dark:text-gray-400">
+                <p>
+                    {privacy.controller} uses {tools} to understand how the site is used and to fix problems. This tells us which
+                    pages are visited, which buttons are tapped, and what type of phone or browser is used. It is not used to sell
+                    your data or to show you adverts.
+                </p>
+                {privacy.recordings && (
+                    <p>
+                        We also record visits, like a screen video, to find where people get stuck. Anything you type, your
+                        balances and your bank details are hidden from these recordings.
+                    </p>
+                )}
+                <p>
+                    When you are logged in, this activity is linked to your account number (never your name or email), so we can see,
+                    for example, that the same person signed up and later bought tickets. Records of purchases, top-ups, withdrawals
+                    and wins on your account are also sent to our analytics tool as part of running the service.
+                </p>
+                <p>We keep analytics data for {privacy.retention}.</p>
+                {privacy.consent_required && (
+                    <p>
+                        The tracking above only runs in your browser if you choose Accept. You can change your mind at any time:
+                        {' '}
+                        <strong className="text-gray-900 dark:text-white">
+                            {status === 'granted' ? 'you have accepted.' : status === 'denied' ? 'you have declined.' : 'you have not chosen yet.'}
+                        </strong>
+                    </p>
+                )}
+                <p>
+                    You can ask to see, correct or delete your data, or object to how it is used, by writing to {privacy.email}
+                    {privacy.dpo ? ` (Data Protection Officer: ${privacy.dpo})` : ''}.
+                </p>
+            </div>
+            {privacy.consent_required && (
+                <div className="mt-4 flex gap-2">
+                    <button
+                        type="button"
+                        onClick={() => setConsent('denied')}
+                        className="flex-1 rounded-xl border border-gray-200 py-2.5 text-sm font-bold text-gray-700 dark:border-dark-border dark:text-gray-200"
+                    >
+                        Decline tracking
+                    </button>
+                    <button
+                        type="button"
+                        onClick={() => setConsent('granted')}
+                        className="flex-1 rounded-xl bg-app-primary py-2.5 text-sm font-bold text-white"
+                    >
+                        Accept tracking
+                    </button>
+                </div>
+            )}
         </div>
     );
 }

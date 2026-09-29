@@ -100,6 +100,8 @@ class DepositService
 
         $deposit->update(['status' => 'failed', 'failure_reason' => implode(' | ', $errors)]);
 
+        app(\App\Services\Analytics\Analytics::class)->capture($user->ID, 'topup_failed', ['amount' => $amount, 'reason' => 'no_gateway_available']);
+
         throw new PaymentGatewayException('All payment gateways are currently unavailable: '.implode(' | ', $errors));
     }
 
@@ -119,8 +121,9 @@ class DepositService
 
         $verification = $gateway->verify($reference);
         $referralCommission = null;
+        $outcome = null; // what changed just now (not an already-settled repeat)
 
-        $deposit = DB::transaction(function () use ($reference, $gatewayName, $verification, &$referralCommission) {
+        $deposit = DB::transaction(function () use ($reference, $gatewayName, $verification, &$referralCommission, &$outcome) {
             $deposit = Deposit::query()->where('reference', $reference)->lockForUpdate()->first();
 
             if (! $deposit) {
@@ -137,6 +140,7 @@ class DepositService
                     'gateway_transaction_id' => $verification->gatewayTransactionId,
                     'failure_reason' => "Gateway reported status: {$verification->rawStatus}",
                 ]);
+                $outcome = 'topup_payment_failed';
 
                 return $deposit;
             }
@@ -150,6 +154,7 @@ class DepositService
                     'gateway_transaction_id' => $verification->gatewayTransactionId,
                     'failure_reason' => sprintf('Expected %.2f, gateway confirmed %.2f.', $deposit->amount, $verification->amount),
                 ]);
+                $outcome = 'topup_amount_mismatch';
 
                 return $deposit;
             }
@@ -178,9 +183,17 @@ class DepositService
             );
 
             $referralCommission = $this->referrals->payCommissionForFirstDeposit($deposit->user, (float) $deposit->amount, $deposit->id);
+            $outcome = 'topup_completed';
 
             return $deposit;
         });
+
+        if ($outcome !== null) {
+            app(\App\Services\Analytics\Analytics::class)->capture($deposit->user_id, $outcome, [
+                'amount' => (float) $deposit->amount,
+                'gateway' => $gatewayName,
+            ]);
+        }
 
         // Fired AFTER the transaction commits — never inside it, so a
         // notification can't go out for a deposit that then rolls back.
@@ -192,6 +205,10 @@ class DepositService
             if ($referralCommission) {
                 $referrer = WpUser::find($referralCommission->referrer_user_id);
                 $referrer?->notify(new ReferralCommissionEarned($referralCommission));
+
+                app(\App\Services\Analytics\Analytics::class)->capture($referralCommission->referrer_user_id, 'referral_commission_earned', [
+                    'amount' => (float) $referralCommission->commission_amount,
+                ]);
             }
         }
 

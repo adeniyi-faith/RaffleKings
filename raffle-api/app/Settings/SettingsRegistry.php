@@ -313,6 +313,51 @@ final class SettingsRegistry
                 ],
             ],
 
+            'Analytics' => [
+                'icon' => 'heroicon-o-chart-bar',
+                'sections' => [
+                    'PostHog' => [
+                        'description' => 'Shows what visitors do: pages, sign-ups, purchases, session recordings and heatmaps. In PostHog: Project settings → Project API key (starts with phc_). Leave the key empty to switch all tracking off. Money events (purchases, top-ups, withdrawals, wins) are sent from the server, so ad-blockers can\'t hide them.',
+                        'settings' => [
+                            new Setting('services.posthog.project_key', 'Project API key', 'text', 'Safe to store here: PostHog project keys are meant to be public.', placeholder: 'phc_...', rules: ['nullable', 'starts_with:phc_']),
+                            new Setting('services.posthog.host', 'PostHog region', 'select', 'Pick the region you chose when you created your PostHog project.', [
+                                'https://us.i.posthog.com' => 'US Cloud',
+                                'https://eu.i.posthog.com' => 'EU Cloud',
+                            ]),
+                            new Setting('services.posthog.recordings', 'Record visits (session replay)', 'bool', 'Video-like playback of visits. Anything typed into a field is always hidden.'),
+                        ],
+                    ],
+                ],
+            ],
+
+            'Consent & privacy' => [
+                'icon' => 'heroicon-o-shield-check',
+                'sections' => [
+                    'Google Analytics' => [
+                        'description' => 'Counts visitors and where they come from. In Google Analytics: Admin → Data streams → your website → Measurement ID (starts with G-). Leave empty to switch it off.',
+                        'settings' => [
+                            new Setting('services.google_analytics.measurement_id', 'Measurement ID', 'text', placeholder: 'G-XXXXXXXXXX', rules: ['nullable', 'regex:/^G-[A-Z0-9]{6,14}$/']),
+                        ],
+                    ],
+                    'Cookie consent banner' => [
+                        'description' => 'Nigeria\'s Data Protection Act (2023) expects clear notice and a real choice before non-essential tracking. With this on, PostHog and Google Analytics load in a visitor\'s browser only after they tap Accept; Decline keeps them off. Ask your lawyer to confirm what applies to you.',
+                        'settings' => [
+                            new Setting('services.analytics.require_consent', 'Ask visitors before tracking them', 'bool', 'Recommended. Switch off only if your lawyer says a banner is not needed for you.'),
+                            new Setting('services.analytics.consent_message', 'Banner message', 'textarea', 'Keep it short and plain.', rules: ['required', 'max:400']),
+                        ],
+                    ],
+                    'Privacy policy details' => [
+                        'description' => 'Filled in automatically in the "Analytics and cookies" part of the Privacy Policy page.',
+                        'settings' => [
+                            new Setting('services.analytics.controller_name', 'Company / business name', 'text', 'Who is responsible for customers\' data.', rules: ['required', 'max:120']),
+                            new Setting('services.analytics.privacy_email', 'Privacy contact email', 'email', 'Where customers send data requests. Falls back to the support email if empty.'),
+                            new Setting('services.analytics.dpo_name', 'Data protection officer (optional)', 'text', 'Name shown on the policy, if you have appointed one.', rules: ['nullable', 'max:120']),
+                            new Setting('services.analytics.retention', 'How long analytics data is kept', 'text', 'Shown as text, e.g. "12 months". Also set the same period in PostHog (Project settings → Data retention).', rules: ['required', 'max:60']),
+                        ],
+                    ],
+                ],
+            ],
+
             'AI' => [
                 'icon' => 'heroicon-o-sparkles',
                 'sections' => [
@@ -417,7 +462,25 @@ final class SettingsRegistry
             }
         }
 
+        foreach (self::hidden() as $setting) {
+            $all[$setting->key] = $setting;
+        }
+
         return $all;
+    }
+
+    /**
+     * Settings stored like any other but edited on their own admin screen
+     * rather than on the Settings page.
+     *
+     * @return list<Setting>
+     */
+    private static function hidden(): array
+    {
+        return [
+            // System → Tracked Events.
+            new Setting('services.analytics.disabled_events', 'Turned-off tracking events', 'tags'),
+        ];
     }
 
     public static function find(string $key): ?Setting

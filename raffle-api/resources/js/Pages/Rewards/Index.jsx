@@ -22,6 +22,7 @@ import { setBalances, useBalances } from '../../lib/balances';
 import ResultModal from '../../Components/rewards/ResultModal';
 import LoadError from '../../Components/ui/LoadError';
 import { goBack } from '../../lib/nav';
+import { track } from '../../lib/analytics';
 
 // Rebuild of rewards.php (item 28). What's preserved from the legacy
 // page: the blue hero with a points badge and a 7-day streak row, the
@@ -269,6 +270,7 @@ export default function RewardsIndex({ referralCode, initialState = null, referr
     }
 
     function copyLink() {
+        track('referral_link_shared', { method: 'copy', from: 'rewards' });
         navigator.clipboard?.writeText(referralLink).then(() => {
             setCopied(true);
             setTimeout(() => setCopied(false), 2000);

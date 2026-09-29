@@ -4,6 +4,7 @@ import { Head, Link, usePage } from '@inertiajs/react';
 import { ArrowLeft, MessageCircle, PlayCircle, Radio, RotateCcw, Send, ShieldCheck, Trophy, Zap } from 'lucide-react';
 import { echoOrNull } from '../../lib/echo';
 import { isOn, useSite } from '../../lib/site';
+import { track } from '../../lib/analytics';
 
 const REACTIONS = [
     { type: 'fire', emoji: '🔥' },
@@ -73,6 +74,11 @@ export default function LiveDrawShow({ raffle }) {
     }
 
     useEffect(() => () => clearInterval(replayTimer.current), []);
+
+    // Someone opened the live draw page.
+    useEffect(() => {
+        track('live_draw_viewed', { raffle_id: raffle.id });
+    }, [raffle.id]);
 
     useEffect(() => {
         let poll;

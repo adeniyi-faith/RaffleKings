@@ -250,6 +250,14 @@ class TicketPurchaseService
             $user->notify(new TicketPurchaseReceipt($transaction, count($ticketNumbers)));
             $this->broadcastTicketsUpdated($raffleId, $ticketNumbers);
 
+            app(\App\Services\Analytics\Analytics::class)->capture($user->ID, 'tickets_purchased', [
+                'raffle_id' => $raffleId,
+                'ticket_count' => count($ticketNumbers),
+                'amount' => round($submittedAmount, 2),
+                'funding_source' => $fundingSource,
+                'golden_box' => $isGoldenBox,
+            ]);
+
             return $transaction;
         } catch (UniqueConstraintViolationException) {
             // The transaction above has already been rolled back by this

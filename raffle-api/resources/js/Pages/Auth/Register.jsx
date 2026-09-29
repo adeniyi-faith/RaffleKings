@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useRef, useState } from 'react';
 import { Head, router } from '@inertiajs/react';
 import { Gift, Lock, Mail, User, UserPlus } from 'lucide-react';
 import Button from '../../Components/ui/Button';
@@ -6,6 +6,7 @@ import { Card } from '../../Components/ui/Card';
 import { TextInput, PasswordInput } from '../../Components/ui/TextInput';
 import Turnstile from '../../Components/Turnstile';
 import { apiPost } from '../../lib/api';
+import { track } from '../../lib/analytics';
 import PausedNotice from '../../Components/layout/PausedNotice';
 import { safeRedirect } from '../../lib/safeRedirect';
 import SimpleTop from '../../Components/layout/SimpleTop';
@@ -17,7 +18,16 @@ export default function Register({ turnstileSiteKey, referralCode, referrerName,
     const [error, setError] = useState(null);
     const [submitting, setSubmitting] = useState(false);
 
-    const update = (field) => (e) => setForm((f) => ({ ...f, [field]: e.target.value }));
+    const startedTracked = useRef(false);
+
+    const update = (field) => (e) => {
+        // First keystroke = they've started signing up (compare with signup_completed, sent by the server).
+        if (! startedTracked.current) {
+            startedTracked.current = true;
+            track('signup_started', { referred: Boolean(referralCode) });
+        }
+        setForm((f) => ({ ...f, [field]: e.target.value }));
+    };
 
     async function handleSubmit(e) {
         e.preventDefault();
@@ -33,6 +43,7 @@ export default function Register({ turnstileSiteKey, referralCode, referrerName,
             });
             router.visit(safeRedirect(redirect));
         } catch (err) {
+            track('signup_failed');
             setError(err.message);
         } finally {
             setSubmitting(false);

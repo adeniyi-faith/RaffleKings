@@ -155,6 +155,11 @@ class WithdrawalService
         // commit" discipline as every other service in this app.
         Notification::send(new AnonymousNotifiable, new WithdrawalRequestSubmittedAdminAlert($withdrawal));
 
+        app(\App\Services\Analytics\Analytics::class)->capture($user->ID, 'withdrawal_requested', [
+            'amount' => (float) $withdrawal->requested_amount,
+            'fee' => (float) $withdrawal->fee_amount,
+        ]);
+
         return $withdrawal;
     }
 
@@ -180,6 +185,8 @@ class WithdrawalService
         ]);
 
         $withdrawal->user->notify(new WithdrawalProcessed($withdrawal, 'paid'));
+
+        app(\App\Services\Analytics\Analytics::class)->capture($withdrawal->user_id, 'withdrawal_paid', ['amount' => (float) $withdrawal->amount_to_send]);
 
         return $withdrawal;
     }
@@ -230,6 +237,8 @@ class WithdrawalService
         ]);
 
         $withdrawal->user->notify(new WithdrawalProcessed($withdrawal, 'rejected', $reason));
+
+        app(\App\Services\Analytics\Analytics::class)->capture($withdrawal->user_id, 'withdrawal_rejected', ['amount' => (float) $withdrawal->requested_amount]);
 
         return $withdrawal;
     }

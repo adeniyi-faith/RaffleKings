@@ -3,10 +3,15 @@ import { createRoot } from 'react-dom/client';
 import { createInertiaApp } from '@inertiajs/react';
 import SiteNotices from './Components/layout/SiteNotices';
 import MaintenanceBanner from './Components/layout/MaintenanceBanner';
+import CookieBanner from './Components/layout/CookieBanner';
 // Starts tracking pages visited, for the Back buttons (lib/nav.js).
 import './lib/nav';
 // Reports JavaScript errors to System → Health (lib/errorReporter.js).
 import './lib/errorReporter';
+// Page views and who's who for PostHog (lib/analytics.js); off until a key is saved in Settings → Analytics.
+import { startAnalytics } from './lib/analytics';
+
+startAnalytics();
 
 const appName = import.meta.env.VITE_APP_NAME || 'RaffleKings';
 
@@ -29,6 +34,8 @@ createInertiaApp({
                             {/* Maintenance warnings (Settings → On / off). */}
                             <MaintenanceBanner />
                             <Component key={key} {...pageProps} />
+                            {/* Asks first-time visitors about analytics (Settings → Consent & privacy). */}
+                            <CookieBanner />
                         </>
                     )}
                 </App>

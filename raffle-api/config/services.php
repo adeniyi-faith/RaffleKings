@@ -129,6 +129,31 @@ return [
     |
     */
 
+    // Product analytics (PostHog). Set in the admin under Settings → Analytics.
+    // Empty key = tracking is off everywhere (browser and server).
+    'posthog' => [
+        'project_key' => env('POSTHOG_PROJECT_KEY'),
+        'host' => env('POSTHOG_HOST', 'https://us.i.posthog.com'),
+        'recordings' => true,
+    ],
+
+    // Google Analytics 4 (Settings → Analytics). Empty = not loaded.
+    'google_analytics' => [
+        'measurement_id' => env('GA_MEASUREMENT_ID'),
+    ],
+
+    // Consent banner and the analytics part of the privacy policy (Settings → Analytics).
+    'analytics' => [
+        'require_consent' => true,
+        'consent_message' => 'We use cookies and similar tools to see which pages people use and to fix problems. This includes recording how the site is used. What you type is never recorded. You can say no and still use everything.',
+        'controller_name' => 'RaffleKings',
+        'privacy_email' => null,
+        'dpo_name' => null,
+        'retention' => '12 months',
+        // Events an admin turned off (System → Tracked Events). Keys from App\Services\Analytics\EventCatalog.
+        'disabled_events' => [],
+    ],
+
     'gemini' => [
         'api_key' => env('GEMINI_API_KEY'),
         'model' => env('GEMINI_MODEL', 'gemini-2.5-flash-preview-09-2025'),

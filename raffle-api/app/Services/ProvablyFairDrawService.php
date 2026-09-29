@@ -194,6 +194,10 @@ class ProvablyFairDrawService
             $user = WpUser::find($winner->user_id);
             $user?->notify(new WinnerAnnounced($winner));
             $user && app(Progress::class)->won($user->ID);
+            app(\App\Services\Analytics\Analytics::class)->capture($winner->user_id, 'raffle_won', [
+                'raffle_id' => $raffleId,
+                'prize_cash_value' => (float) ($winner->prize_cash_value ?? 0),
+            ]);
         }
 
         Notification::send(new AnonymousNotifiable, new DrawCompletedAdminAlert($raffleId, count($winners)));
