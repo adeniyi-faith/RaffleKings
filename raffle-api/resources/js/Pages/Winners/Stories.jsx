@@ -83,7 +83,7 @@ export default function Stories({ wall, page }) {
                                 <img src={resolveAvatar({ avatar: s.avatar, name: s.name })} alt="" className="h-10 w-10 rounded-full bg-gray-100 object-cover" loading="lazy" />
                                 <div className="min-w-0 flex-1">
                                     <p className="flex items-center gap-1 text-sm font-bold text-gray-900 dark:text-white">
-                                        {s.name} {s.showcase.map((b) => <span key={b.key} title={b.name}>{b.emoji}</span>)}
+                                        {s.profile ? <Link href={s.profile} className="underline decoration-dotted underline-offset-2">{s.name}</Link> : s.name} {s.showcase.map((b) => <span key={b.key} title={b.name}>{b.emoji}</span>)}
                                     </p>
                                     <p className="truncate text-[11px] text-gray-500 dark:text-gray-400">
                                         Won {s.prize}

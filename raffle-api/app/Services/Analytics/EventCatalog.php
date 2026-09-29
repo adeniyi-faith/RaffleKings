@@ -76,6 +76,7 @@ final class EventCatalog
                 'prediction_answered' => self::server('Daily prediction answered', ''),
             ],
             'Community and live draw' => [
+                'player_profile_viewed' => self::browser('Player profile opened', 'Someone opened another player\'s public profile card.'),
                 'live_draw_viewed' => self::browser('Live draw opened', 'Someone opened a live draw page.'),
                 'live_draw_comment_posted' => self::server('Live-draw comment posted', 'That a comment was posted. The message itself is not recorded.'),
                 'red_envelope_sent' => self::server('Red envelope sent', ''),
@@ -88,6 +89,7 @@ final class EventCatalog
             ],
             'Account and safety' => [
                 'support_ticket_opened' => self::server('Support ticket opened', 'That a ticket was opened. The message is not recorded.'),
+                'profile_privacy_changed' => self::server('Profile privacy changed', 'Someone changed who can see their profile or whether their wins show.'),
                 'play_limit_changed' => self::server('Play limit changed', ''),
                 'break_started' => self::server('Break from playing started', ''),
             ],

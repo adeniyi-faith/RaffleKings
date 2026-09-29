@@ -17,6 +17,7 @@ use Illuminate\Support\Facades\Route;
 Route::middleware('auth:wordpress')->group(function () {
     Route::get('/badges', [BadgeController::class, 'index']);
     Route::post('/badges/showcase', [BadgeController::class, 'showcase'])->middleware('throttle:money');
+    Route::post('/badges/privacy', [BadgeController::class, 'updatePrivacy'])->middleware('throttle:money');
 
     Route::get('/referrals/overview', ReferralLadderController::class);
 
