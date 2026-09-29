@@ -1,6 +1,7 @@
 <?php
 
 use App\Services\Engagement\ReferralLadder;
+use App\Services\Engagement\SeasonPass;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Route;
@@ -21,4 +22,9 @@ Route::get('/account/badges', fn (Request $request) => $signedIn($request) ?? In
 Route::get('/referrals', fn () => Inertia::render('Referrals/Index', [
     'ladder' => app(ReferralLadder::class)->publicRungs(),
     'commissionPercent' => round((float) config('referrals.commission_rate') * 100),
+]));
+
+// The Season Pass track. Public like the Rewards page: a guest sees the levels and is asked to log in.
+Route::get('/rewards/season', fn () => Inertia::render('Rewards/Season', [
+    'preview' => app(SeasonPass::class)->state(0),
 ]));

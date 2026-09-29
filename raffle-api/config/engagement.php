@@ -1,6 +1,7 @@
 <?php
 
 use App\Services\Engagement\ReferralLadder;
+use App\Services\Engagement\SeasonPass;
 
 /*
 |--------------------------------------------------------------------------
@@ -20,6 +21,7 @@ return [
     // Services told about purchases, claims, tasks and wins (App\Services\Engagement\Progress).
     'listeners' => [
         ReferralLadder::class,
+        SeasonPass::class,
     ],
 
     // key => [name, what earns it, emoji]

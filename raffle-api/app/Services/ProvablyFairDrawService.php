@@ -274,12 +274,12 @@ class ProvablyFairDrawService
             ->get(['user_id', 'ticket_number'])
             ->map(fn ($e) => (object) ['user_id' => (int) $e->user_id, 'ticket_number' => (int) $e->ticket_number, 'key' => null]);
 
-        if (! $rules->loyaltyBonusEntries) {
-            return $tickets->values();
-        }
-
+        // Free bonus entries: loyalty ones only when this raffle's rules
+        // give them; ones customers earned elsewhere on the site (Season
+        // Pass tokens, Team Up, share unlocks) always take part.
         $bonus = RaffleBonusEntry::query()
             ->where('raffle_id', $legacyRaffleId)
+            ->when(! $rules->loyaltyBonusEntries, fn ($q) => $q->where('reason', '!=', 'loyalty'))
             ->whereNotIn('user_id', $excludedUserIds)
             ->when($verifying, fn ($q) => $q->where('created_at', '<=', $drawAt))
             ->orderBy('id')

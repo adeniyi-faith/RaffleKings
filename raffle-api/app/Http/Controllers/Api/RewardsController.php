@@ -11,6 +11,8 @@ use App\Exceptions\UnknownTaskException;
 use App\Http\Controllers\Controller;
 use App\Models\Legacy\WpUser;
 use App\Services\DailyClaimService;
+use App\Services\Engagement\Perks;
+use App\Services\Engagement\SeasonPass;
 use App\Services\LoyaltyService;
 use App\Services\PointRedemptionService;
 use App\Services\PointsService;
@@ -53,6 +55,9 @@ class RewardsController extends Controller
             'spin' => ['cost' => SpinService::cost(), 'odds' => $this->spin->odds()],
             // Raffle Rules Engine: loyalty tier and progress to the next one.
             'loyalty' => app(LoyaltyService::class)->profile($user->ID),
+            // Phase 11: Season Pass level, free spins waiting.
+            'season' => collect(app(SeasonPass::class)->state($user->ID))->only(['level', 'claimable', 'season'])->all(),
+            'free_spins' => app(Perks::class)->freeSpins($user->ID),
         ]);
     }
 

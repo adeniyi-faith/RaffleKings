@@ -35,6 +35,13 @@ return [
         'tasks' => true,
         'spin' => true,
         'point_redemption' => true,
+        // Phase 11 community features
+        'season_pass' => true,
+        'predictions' => true,
+        'team_up' => true,
+        'unlock_links' => true,
+        'red_envelopes' => true,
+        'winner_stories' => true,
     ],
 
     // Maintenance mode (App\Services\Maintenance): customers see a

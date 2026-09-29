@@ -399,6 +399,27 @@ export default function RewardsIndex({ referralCode, preview = null }) {
                     <PausedNotice feature="point_redemption" />
                     <PausedNotice feature="daily_claim" />
 
+                    {/* Phase 11: the free Season Pass track. */}
+                    <Link
+                        href="/rewards/season"
+                        className="group relative block overflow-hidden rounded-2xl bg-gradient-to-r from-indigo-700 via-purple-700 to-fuchsia-700 p-5 text-white shadow-lg shadow-fuchsia-500/20 transition-transform active:scale-[0.98]"
+                    >
+                        <div className="relative z-10 flex items-center gap-4">
+                            <div className="flex h-14 w-14 flex-shrink-0 flex-col items-center justify-center rounded-full border-2 border-yellow-300 bg-black/25">
+                                <span className="text-[8px] font-bold uppercase text-yellow-200">Level</span>
+                                <span className="text-xl font-black leading-none">{state?.season?.level ?? 0}</span>
+                            </div>
+                            <div className="min-w-0 flex-1">
+                                <p className="text-[10px] font-black uppercase tracking-[0.2em] text-yellow-300">Free · 30 levels</p>
+                                <h3 className="text-xl font-black italic">Season Pass</h3>
+                                <p className="text-xs text-purple-100">
+                                    {state?.season?.claimable ? `${state.season.claimable} ${state.season.claimable === 1 ? 'reward' : 'rewards'} ready to collect!` : 'Play every day to level up and collect rewards'}
+                                </p>
+                            </div>
+                            <ArrowRight className="h-5 w-5 transition-transform group-hover:translate-x-0.5" />
+                        </div>
+                    </Link>
+
                     <PausedNotice feature="spin" />
                     {/* Spin & Win lives on its own full-screen game page. */}
                     <Link
