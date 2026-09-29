@@ -15,6 +15,24 @@ class OneSignalChannelTest extends TestCase
 {
     use RefreshDatabase;
 
+    protected function setUp(): void
+    {
+        parent::setUp();
+        config(['services.onesignal.app_id' => '1a2b3c4d-1111-2222-3333-444455556666', 'services.onesignal.api_key' => 'key']);
+    }
+
+    public function test_a_malformed_app_id_skips_the_push_instead_of_failing(): void
+    {
+        // The live site had a value OneSignal rejected ("Failed to parse app_id").
+        config(['services.onesignal.app_id' => 'os_v2_app_not-an-id']);
+        Http::fake();
+        $user = $this->makeUser('player-123');
+
+        $user->notifyNow(new WinnerAnnounced($this->makeWinner($user->ID)));
+
+        Http::assertNothingSent();
+    }
+
     private function makeUser(?string $oneSignalId = 'player-123'): WpUser
     {
         $user = WpUser::create(['user_login' => 'u'.uniqid(), 'user_pass' => 'x', 'user_email' => uniqid().'@example.com']);
