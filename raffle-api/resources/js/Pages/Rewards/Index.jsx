@@ -433,6 +433,7 @@ export default function RewardsIndex({ referralCode, preview = null }) {
                                 <p className="text-[10px] font-black uppercase tracking-[0.2em] text-yellow-300">Game</p>
                                 <h3 className="text-xl font-black italic">Spin &amp; Win</h3>
                                 <p className="text-xs text-purple-100">
+                                    {state?.free_spins > 0 ? `🎁 ${state.free_spins} free ${state.free_spins === 1 ? 'spin' : 'spins'} waiting · ` : ''}
                                     {spinCost} points a spin
                                     {spinOdds.length > 0 && ` · top prize ${Math.max(...spinOdds.map((o) => o.payout))} pts`}
                                 </p>

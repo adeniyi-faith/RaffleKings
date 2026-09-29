@@ -9,6 +9,8 @@ use App\Models\SitePage;
 use App\Services\Auth\RegistrationService;
 use App\Services\Auth\TurnstileVerifier;
 use App\Services\DailyClaimService;
+use App\Services\Engagement\FreeSpinGifts;
+use App\Services\Engagement\Perks;
 use App\Services\GoldenBoxService;
 use App\Services\LiveDrawService;
 use App\Services\PointsService;
@@ -284,11 +286,13 @@ Route::get('/rewards', function () {
 // and is asked to log in to play. Spinning itself is POST /api/rewards/spin.
 Route::get('/rewards/spin', function () {
     $user = Auth::guard('wordpress')->user();
+    $user && app(FreeSpinGifts::class)->checkOccasions($user);
 
     return Inertia::render('Rewards/Spin', [
         'cost' => SpinService::cost(),
         'odds' => app(SpinService::class)->odds(),
         'points' => $user ? app(PointsService::class)->balance($user) : null,
+        'freeSpins' => $user ? app(Perks::class)->freeSpins($user->ID) : 0,
     ]);
 });
 
