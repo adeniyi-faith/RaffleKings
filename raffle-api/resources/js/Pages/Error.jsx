@@ -44,7 +44,7 @@ const CONTENT = {
     },
 };
 
-export default function Error({ status }) {
+export default function Error({ status, reference = null }) {
     const content = CONTENT[status] ?? CONTENT[500];
 
     return (
@@ -60,7 +60,12 @@ export default function Error({ status }) {
                     <h1 className="mb-1 text-6xl font-bold tracking-tighter text-gray-900 dark:text-white">{status}</h1>
                     <h2 className="mb-4 text-lg font-bold text-gray-800 dark:text-gray-100">{content.title}</h2>
 
-                    <p className="mb-8 text-sm leading-relaxed text-gray-500 dark:text-gray-400">{content.message}</p>
+                    <p className={`${reference ? 'mb-3' : 'mb-8'} text-sm leading-relaxed text-gray-500 dark:text-gray-400`}>{content.message}</p>
+                    {reference && (
+                        <p className="mb-8 text-xs text-gray-400 dark:text-gray-500">
+                            If you contact support, give them this error code: <span className="select-all font-mono font-bold text-gray-600 dark:text-gray-300">{reference}</span>
+                        </p>
+                    )}
 
                     <div className="space-y-3">
                         {content.retry && (

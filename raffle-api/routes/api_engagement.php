@@ -29,7 +29,7 @@ Route::middleware('auth:wordpress')->group(function () {
     Route::post('/raffles/{raffle}/team', [SocialBoostController::class, 'createTeam'])->whereNumber('raffle')->middleware('feature:team_up');
     Route::post('/teams/{code}/join', [SocialBoostController::class, 'join'])->middleware(['feature:team_up', 'throttle:20,1']);
 
-    Route::post('/raffles/{raffle}/live-draw/envelopes', [RedEnvelopeController::class, 'send'])->middleware(['feature:red_envelopes', 'feature:live_chat', 'throttle:6,1']);
+    Route::post('/raffles/{raffle}/live-draw/envelopes', [RedEnvelopeController::class, 'send'])->middleware(['feature:red_envelopes', 'feature:live_chat', 'throttle:6,1', 'not-on-break']);
     Route::post('/envelopes/{envelope}/claim', [RedEnvelopeController::class, 'claim'])->whereNumber('envelope')->middleware(['feature:red_envelopes', 'throttle:30,1']);
 
     Route::get('/stories/my-wins', [WinnerStoryController::class, 'mine']);

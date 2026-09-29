@@ -117,6 +117,12 @@ final class HealthReport
             $this->optionalSetting('SESSION_SECURE_COOKIE', (bool) config('session.secure'), 'Login cookies can be sent over plain HTTP.');
         }
 
+        $this->optionalSetting(
+            'SENTRY_LARAVEL_DSN',
+            filled(config('sentry.dsn')),
+            'Sentry error tracking is off. Errors still show here and in Telegram; Sentry adds full details and grouping. Create a free project at sentry.io and paste its DSN.',
+        );
+
         if (config('app.debug') && app()->environment('production')) {
             $this->addCritical('APP_DEBUG', 'Debug mode is on in production, so error pages show internal details to customers.');
         }

@@ -6,10 +6,12 @@ use App\Filament\Resources\Legacy\WpUserResource;
 use App\Models\Legacy\RaffleEntry;
 use App\Models\Legacy\WpUser;
 use App\Models\Legacy\WpUserMeta;
+use App\Models\PlayLimit;
 use App\Models\UserPoints;
 use App\Models\WalletLedgerEntry;
 use App\Models\WithdrawalRequest;
 use App\Services\ChatModerationService;
+use App\Services\ResponsiblePlayService;
 use App\Services\Risk\FraudWatchService;
 use Filament\Infolists\Components;
 use Filament\Infolists\Infolist;
@@ -120,6 +122,27 @@ class ViewWpUser extends ViewRecord
                         ->state(fn () => $this->summary()['status'] ?: ['Active'])
                         ->badge()
                         ->color(fn (string $state) => $state === 'Active' ? 'success' : 'danger'),
+                ]),
+
+            // Responsible play (item 38): read-only for staff. A break can't
+            // be ended early by anyone, and limits are the customer's own.
+            Components\Section::make('Play limits & breaks')
+                ->icon('heroicon-o-heart')
+                ->description('Set by the customer on Profile → Play Limits & Breaks. Staff cannot change them.')
+                ->visible(fn (WpUser $record) => PlayLimit::query()->whereKey($record->ID)->exists())
+                ->columns(['default' => 2, 'md' => 4])
+                ->schema([
+                    Components\TextEntry::make('on_break')->label('On a break until')
+                        ->state(fn (WpUser $record) => app(ResponsiblePlayService::class)->excludedUntil($record->ID)?->setTimezone(config('raffles.timezone'))->format('j M Y, g:ia') ?? 'Not on a break')
+                        ->color(fn (string $state) => $state === 'Not on a break' ? null : 'warning'),
+                    ...collect(['daily' => 'Daily', 'weekly' => 'Weekly', 'monthly' => 'Monthly'])->map(fn ($label, $period) => Components\TextEntry::make("limit_{$period}")
+                        ->label("{$label} limit")
+                        ->state(function (WpUser $record) use ($period, $naira) {
+                            $state = app(ResponsiblePlayService::class)->state($record->ID);
+                            $limit = $state['limits'][$period];
+
+                            return ($limit === null ? 'None' : $naira($limit)).' · spent '.$naira($state['spent'][$period]);
+                        }))->values()->all(),
                 ]),
 
             Components\Section::make('Lifetime')

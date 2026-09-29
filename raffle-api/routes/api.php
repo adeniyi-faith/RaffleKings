@@ -35,9 +35,14 @@ use App\Http\Controllers\Api\TicketPurchaseController;
 use App\Http\Controllers\Api\TutorialController;
 use App\Http\Controllers\Api\WalletController;
 use App\Http\Controllers\Api\WithdrawalController;
+use App\Http\Controllers\Api\Monitoring\ClientErrorController;
+use App\Http\Controllers\Api\ResponsiblePlayController;
 use Illuminate\Support\Facades\Route;
 
 // Public — no auth, matches the legacy get_raffles/get_raffle actions.
+// Phase 10 monitoring: JavaScript errors from the site's own pages.
+Route::post('/client-errors', [ClientErrorController::class, 'store'])->middleware('throttle:10,1');
+
 Route::get('/raffles', [RaffleController::class, 'index']);
 Route::get('/raffles/{raffle}', [RaffleController::class, 'show']);
 
@@ -102,7 +107,7 @@ Route::middleware('auth:wordpress')->group(function () {
 
     // The new checkout flow's settlement call (item 25) — see
     // TicketPurchaseController's docblock for the wallets-table caveat.
-    Route::post('/tickets/purchase', [TicketPurchaseController::class, 'store'])->middleware(['feature:ticket_sales', 'throttle:money']);
+    Route::post('/tickets/purchase', [TicketPurchaseController::class, 'store'])->middleware(['feature:ticket_sales', 'throttle:money', 'not-on-break']);
 
     // The authenticated user's balance on that same NEW wallets table —
     // what the checkout payment-method cards show (item 25).
@@ -113,12 +118,17 @@ Route::middleware('auth:wordpress')->group(function () {
 
     // Item 46: the Golden Box offer for a customer who left checkout unpaid.
     Route::get('/golden-box', [GoldenBoxController::class, 'show']);
-    Route::post('/golden-box/{offer}/claim', [GoldenBoxController::class, 'claim'])->whereNumber('offer')->middleware(['feature:ticket_sales', 'throttle:money']);
+    Route::post('/golden-box/{offer}/claim', [GoldenBoxController::class, 'claim'])->whereNumber('offer')->middleware(['feature:ticket_sales', 'throttle:money', 'not-on-break']);
 
     // "Edit Personal Details" (item 26 follow-up) — same target fields
     // as the legacy edit-profile.php.
     Route::get('/profile', [ProfileController::class, 'show']);
     Route::post('/profile', [ProfileController::class, 'update'])->middleware('throttle:money');
+
+    // Responsible play (Phase 10, item 38): spending limits and breaks.
+    Route::get('/play-limits', [ResponsiblePlayController::class, 'show']);
+    Route::post('/play-limits', [ResponsiblePlayController::class, 'updateLimits'])->middleware('throttle:money');
+    Route::post('/play-limits/break', [ResponsiblePlayController::class, 'takeBreak'])->middleware('throttle:money');
     Route::post('/profile/avatar', [ProfileController::class, 'uploadAvatar'])->middleware('throttle:avatar-upload');
 
     Route::get('/referrals/stats', [ReferralController::class, 'stats']);
@@ -137,12 +147,12 @@ Route::middleware('auth:wordpress')->group(function () {
     Route::post('/rewards/daily-claim', [RewardsController::class, 'claimDaily'])->middleware(['feature:daily_claim', 'throttle:money']);
     Route::post('/rewards/tasks/{task}/start', [RewardsController::class, 'startTask'])->middleware(['feature:tasks', 'throttle:30,1']);
     Route::post('/rewards/tasks/{task}/claim', [RewardsController::class, 'claimTask'])->middleware(['feature:tasks', 'throttle:money']);
-    Route::post('/rewards/spin', [RewardsController::class, 'spin'])->middleware(['feature:spin', 'throttle:game']);
+    Route::post('/rewards/spin', [RewardsController::class, 'spin'])->middleware(['feature:spin', 'throttle:game', 'not-on-break']);
     Route::post('/rewards/redeem', [RewardsController::class, 'redeem'])->middleware(['feature:point_redemption', 'throttle:money']);
 
     // Settles against the same NEW `wallets` table as everything else in
     // this app — see DepositService's docblock and LEGACY_MIGRATION.md.
-    Route::post('/deposits', [DepositController::class, 'store'])->middleware(['feature:deposits', 'throttle:money']);
+    Route::post('/deposits', [DepositController::class, 'store'])->middleware(['feature:deposits', 'throttle:money', 'not-on-break']);
     Route::get('/deposits/{deposit}', [DepositController::class, 'show']);
 
     Route::get('/bank-accounts', [BankAccountController::class, 'index']);

@@ -1,6 +1,8 @@
 <?php
 
+use App\Http\Middleware\AssignRequestId;
 use App\Http\Middleware\EnsureFeatureOn;
+use App\Http\Middleware\EnsureNotOnBreak;
 use App\Http\Middleware\EnsureUserIsAdministrator;
 use App\Http\Middleware\HandleInertiaRequests;
 use App\Http\Middleware\MaintenanceMode;
@@ -33,7 +35,7 @@ return Application::configure(basePath: dirname(__DIR__))
         ['middleware' => ['web', 'auth:wordpress']],
     )
     ->withMiddleware(function (Middleware $middleware): void {
-        $middleware->alias(['admin' => EnsureUserIsAdministrator::class, 'feature' => EnsureFeatureOn::class]);
+        $middleware->alias(['admin' => EnsureUserIsAdministrator::class, 'feature' => EnsureFeatureOn::class, 'not-on-break' => EnsureNotOnBreak::class]);
         $middleware->web(append: [HandleInertiaRequests::class, MaintenanceMode::class]);
         // Maintenance mode (Settings → On / off) covers the API too.
         $middleware->api(append: [MaintenanceMode::class]);
@@ -43,6 +45,10 @@ return Application::configure(basePath: dirname(__DIR__))
         // per-person request cap on the whole API (see the 'api' limiter
         // in AuthRateLimiterServiceProvider).
         $middleware->append(SecurityHeaders::class);
+
+        // Phase 10 monitoring: a reference code on every request (logs,
+        // saved errors, the customer's error page).
+        $middleware->prepend(AssignRequestId::class);
         $middleware->api(prepend: [VerifyApiOrigin::class]);
         $middleware->throttleApi('api');
 
@@ -58,6 +64,10 @@ return Application::configure(basePath: dirname(__DIR__))
         ]);
     })
     ->withExceptions(function (Exceptions $exceptions): void {
+        // Phase 10 monitoring: Sentry error tracking. Does nothing until
+        // SENTRY_LARAVEL_DSN is set.
+        \Sentry\Laravel\Integration::handles($exceptions);
+
         $exceptions->shouldRenderJsonWhen(
             fn (Request $request) => $request->is('api/*') || $request->expectsJson(),
         );
@@ -95,11 +105,13 @@ return Application::configure(basePath: dirname(__DIR__))
                     default => ['😵', 'Something went wrong', 'The error was recorded and shows on System → Health. Try again, or come back to it later.'],
                 };
 
-                return response()->view('errors.admin', compact('status', 'emoji', 'title', 'message'), $status);
+                $reference = $status >= 500 ? AssignRequestId::current() : null;
+
+                return response()->view('errors.admin', compact('status', 'emoji', 'title', 'message', 'reference'), $status);
             }
 
             try {
-                return Inertia::render('Error', ['status' => $status])
+                return Inertia::render('Error', ['status' => $status, 'reference' => $status >= 500 ? AssignRequestId::current() : null])
                     ->toResponse($request)
                     ->setStatusCode($status);
             } catch (Throwable) {

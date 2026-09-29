@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { Head, Link, usePage } from '@inertiajs/react';
-import {
+import { HeartHandshake,
     Award,
     Bell,
     Camera,
@@ -215,7 +215,8 @@ export default function Profile() {
                         {user && (
                             <MenuGroup title="Account">
                                 <MenuLink href="/account/edit-profile" icon={UserCog} iconClass="bg-blue-50 text-blue-600 dark:bg-blue-900/30 dark:text-blue-400" title="Personal Details" subtitle="Name, email, phone & password" />
-                                <MenuLink href="/account/bank-accounts" icon={Landmark} iconClass="bg-green-50 text-green-600 dark:bg-green-900/30 dark:text-green-400" title="Bank Details" subtitle="For withdrawals" last />
+                                <MenuLink href="/account/bank-accounts" icon={Landmark} iconClass="bg-green-50 text-green-600 dark:bg-green-900/30 dark:text-green-400" title="Bank Details" subtitle="For withdrawals" />
+                                <MenuLink href="/account/play-limits" icon={HeartHandshake} iconClass="bg-teal-50 text-teal-600 dark:bg-teal-900/30 dark:text-teal-400" title="Play Limits & Breaks" subtitle="Set a spending limit or take a break" last />
                             </MenuGroup>
                         )}
 
