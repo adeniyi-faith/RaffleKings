@@ -1,7 +1,9 @@
 import { useEffect, useState } from 'react';
 import { Head, Link } from '@inertiajs/react';
-import { CheckCircle2, Copy, HelpCircle, Lock, ShieldCheck, Unlock, XCircle } from 'lucide-react';
+import { ArrowLeft, CheckCircle2, Copy, HelpCircle, Lock, ShieldCheck, Unlock, XCircle } from 'lucide-react';
 import LoadError from '../../Components/ui/LoadError';
+import BottomNav from '../../Components/layout/BottomNav';
+import { goBack } from '../../lib/nav';
 
 // The real, user-facing "verify this draw yourself" view item 27 asks
 // for, built on the item 14 provably-fair engine
@@ -48,9 +50,14 @@ export default function LiveDrawVerify({ raffle }) {
         <>
             <Head title={`Verify Draw – ${raffle.title}`} />
             <div className="min-h-screen bg-gray-50 pb-24 dark:bg-dark-bg">
-                <div className="sticky top-0 z-10 border-b border-gray-100 bg-white px-5 pb-4 pt-4 dark:border-dark-border dark:bg-dark-bg">
-                    <h2 className="text-xl font-bold text-gray-900 dark:text-white">Verify This Draw</h2>
-                    <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">{raffle.title}</p>
+                <div className="sticky top-0 z-10 flex items-center gap-3 border-b border-gray-100 bg-white px-5 pb-4 pt-4 dark:border-dark-border dark:bg-dark-bg">
+                    <button onClick={() => goBack(`/raffles/${raffle.id}`)} className="-ml-1 p-1 text-gray-400 hover:text-gray-600 dark:hover:text-white" aria-label="Back">
+                        <ArrowLeft className="h-5 w-5" />
+                    </button>
+                    <div className="min-w-0">
+                        <h2 className="text-xl font-bold text-gray-900 dark:text-white">Verify This Draw</h2>
+                        <p className="mt-1 truncate text-xs text-gray-500 dark:text-gray-400">{raffle.title}</p>
+                    </div>
                 </div>
 
                 <div className="mx-auto max-w-lg space-y-5 p-5">
@@ -181,6 +188,7 @@ export default function LiveDrawVerify({ raffle }) {
                     )}
                 </div>
             </div>
+            <BottomNav />
         </>
     );
 }

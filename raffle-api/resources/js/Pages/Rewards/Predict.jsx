@@ -5,6 +5,8 @@ import LoadError from '../../Components/ui/LoadError';
 import PausedNotice from '../../Components/layout/PausedNotice';
 import { apiPost } from '../../lib/api';
 import { useApi } from '../../lib/useApi';
+import { goBack } from '../../lib/nav';
+import BottomNav from '../../Components/layout/BottomNav';
 
 // Phase 11: daily predictions — free to answer; a right answer earns points
 // and Season Pass XP once the question is settled.
@@ -45,7 +47,7 @@ export default function Predict({ preview }) {
             <div className="min-h-screen bg-gray-50 pb-28 dark:bg-dark-bg">
                 <div className="relative overflow-hidden bg-gradient-to-br from-emerald-600 via-teal-600 to-cyan-700 px-5 pb-14 pt-4 text-white">
                     <div className="pointer-events-none absolute -right-12 -top-12 h-48 w-48 rounded-full bg-white/10 blur-2xl" />
-                    <button onClick={() => window.history.back()} className="relative z-10 -ml-1 p-1 text-white/70 hover:text-white" aria-label="Back">
+                    <button onClick={() => goBack('/rewards')} className="relative z-10 -ml-1 p-1 text-white/70 hover:text-white" aria-label="Back">
                         <ArrowLeft className="h-6 w-6" />
                     </button>
                     <p className="relative z-10 mt-2 text-xs font-bold uppercase tracking-[0.2em] text-emerald-100">Free to play</p>
@@ -145,6 +147,7 @@ export default function Predict({ preview }) {
                     )}
                 </div>
             </div>
+            <BottomNav />
         </>
     );
 }

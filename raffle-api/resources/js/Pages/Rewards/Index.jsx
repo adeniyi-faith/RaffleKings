@@ -21,6 +21,7 @@ import BottomNav from '../../Components/layout/BottomNav';
 import { setBalances, useBalances } from '../../lib/balances';
 import ResultModal from '../../Components/rewards/ResultModal';
 import LoadError from '../../Components/ui/LoadError';
+import { goBack } from '../../lib/nav';
 
 // Rebuild of rewards.php (item 28). What's preserved from the legacy
 // page: the blue hero with a points badge and a 7-day streak row, the
@@ -307,7 +308,7 @@ export default function RewardsIndex({ referralCode, initialState = null, referr
 
                     <div className="relative z-10 mb-6 flex items-center justify-between">
                         <div className="flex min-w-0 items-center gap-3">
-                            <button onClick={() => window.history.back()} className="-ml-1 flex-shrink-0 p-1 text-white/70 hover:text-white" aria-label="Back">
+                            <button onClick={() => goBack('/')} className="-ml-1 flex-shrink-0 p-1 text-white/70 hover:text-white" aria-label="Back">
                                 <ArrowLeft className="h-6 w-6" />
                             </button>
                             <div>

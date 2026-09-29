@@ -7,6 +7,8 @@ import Confetti from '../../Components/ui/Confetti';
 import { apiPost } from '../../lib/api';
 import { refreshBalances } from '../../lib/balances';
 import { useApi } from '../../lib/useApi';
+import { goBack } from '../../lib/nav';
+import BottomNav from '../../Components/layout/BottomNav';
 
 // Phase 11: the Season Pass — a free 4-week track with 30 levels. Playing,
 // daily check-ins, tasks and predictions give XP; every level has a
@@ -62,7 +64,7 @@ export default function Season({ preview }) {
                 <div className="relative overflow-hidden bg-gradient-to-br from-indigo-700 via-purple-700 to-fuchsia-700 px-5 pb-8 pt-4">
                     <div className="pointer-events-none absolute -right-16 -top-16 h-56 w-56 rounded-full bg-yellow-300/20 blur-3xl" />
                     <div className="relative z-10 flex items-center justify-between">
-                        <button onClick={() => window.history.back()} className="-ml-1 p-1 text-white/70 hover:text-white" aria-label="Back">
+                        <button onClick={() => goBack('/rewards')} className="-ml-1 p-1 text-white/70 hover:text-white" aria-label="Back">
                             <ArrowLeft className="h-6 w-6" />
                         </button>
                         {state && (
@@ -187,6 +189,7 @@ export default function Season({ preview }) {
                     )}
                 </div>
             </div>
+            <BottomNav />
         </>
     );
 }

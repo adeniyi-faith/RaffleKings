@@ -6,6 +6,7 @@ import LoadError from '../../Components/ui/LoadError';
 import { formatNaira } from '../../lib/format';
 import { useApi } from '../../lib/useApi';
 import { useSite } from '../../lib/site';
+import BottomNav from '../../Components/layout/BottomNav';
 
 // Phase 11: the full referral page — your link, the ladder of rewards for
 // friends who join and play, your commission, and the friends you invited.
@@ -41,7 +42,7 @@ export default function ReferralsIndex({ ladder = [], commissionPercent = 0 }) {
         <>
             <Head title="Invite Friends" />
             <div className="min-h-screen bg-gray-50 pb-28 dark:bg-dark-bg">
-                <PageTop title="Invite Friends" subtitle="Earn together" />
+                <PageTop title="Invite Friends" subtitle="Earn together" back="/rewards" />
 
                 <div className="relative overflow-hidden bg-gradient-to-br from-orange-500 via-red-500 to-pink-600 px-5 pb-16 pt-6 text-white">
                     <div className="pointer-events-none absolute -right-10 -top-10 h-48 w-48 rounded-full bg-white/10 blur-2xl" />
@@ -174,6 +175,7 @@ export default function ReferralsIndex({ ladder = [], commissionPercent = 0 }) {
                     )}
                 </div>
             </div>
+            <BottomNav />
         </>
     );
 }

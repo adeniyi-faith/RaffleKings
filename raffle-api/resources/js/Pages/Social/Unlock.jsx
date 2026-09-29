@@ -3,6 +3,7 @@ import { Head, Link, usePage } from '@inertiajs/react';
 import { Check, Coins, Gift, Lock, Unlock as UnlockIcon } from 'lucide-react';
 import { apiPost } from '../../lib/api';
 import { shareLink } from '../../lib/share';
+import SimpleTop from '../../Components/layout/SimpleTop';
 
 // Phase 11: the page a friend opens from a "help me unlock" link.
 export default function UnlockPage({ link: initial, referrer, alreadyTapped }) {
@@ -34,7 +35,10 @@ export default function UnlockPage({ link: initial, referrer, alreadyTapped }) {
     return (
         <>
             <Head title={`Help ${link.owner} unlock a free entry`} />
-            <div className="flex min-h-screen flex-col items-center bg-gradient-to-b from-amber-500 via-orange-600 to-red-700 px-5 pb-16 pt-10 text-white">
+            <div className="flex min-h-screen flex-col items-center bg-gradient-to-b from-amber-500 via-orange-600 to-red-700 px-5 pb-16 text-white">
+                <div className="-mx-5 mb-6 w-[calc(100%+2.5rem)]">
+                    <SimpleTop onDark back="/raffles" />
+                </div>
                 <div className="flex h-20 w-20 items-center justify-center rounded-full bg-white/20 text-4xl shadow-xl">{link.completed ? '🔓' : '🔒'}</div>
                 <h1 className="mt-4 text-center text-2xl font-black">
                     {link.completed ? `${link.owner} unlocked it!` : isOwner ? 'Your unlock link' : `Help ${link.owner} unlock a free entry`}

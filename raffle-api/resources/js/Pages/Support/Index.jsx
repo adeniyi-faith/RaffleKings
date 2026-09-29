@@ -3,6 +3,7 @@ import { Head, Link, usePage } from '@inertiajs/react';
 import { ArrowLeft, BookOpen, ChevronDown, Inbox, MessageSquarePlus, Plus, Send } from 'lucide-react';
 import Modal from '../../Components/ui/Modal';
 import LoadError from '../../Components/ui/LoadError';
+import BottomNav from '../../Components/layout/BottomNav';
 
 // Rebuild of support.php (item 29) against the real ticketing backend
 // (SupportTicketController/SupportTicketService) — replacing the legacy
@@ -350,6 +351,7 @@ export default function SupportIndex() {
                     </button>
                 </form>
             </Modal>
+            <BottomNav />
         </>
     );
 }
