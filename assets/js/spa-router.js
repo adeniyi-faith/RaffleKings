@@ -123,6 +123,9 @@ const SPARouter = {
             // Scroll to top
             window.scrollTo({ top: 0, behavior: 'instant' });
 
+            // Count this page view (the browser does not reload, so analytics can't see it on its own)
+            if (typeof rkTrackPageview === 'function') { rkTrackPageview(); }
+
             // 5. Transition In (Show new view)
             if (currentActiveView !== targetView) {
                 targetView.style.display = 'flex';
