@@ -17,6 +17,7 @@ use App\Models\RafflePrizeTier;
 use App\Notifications\DrawCompletedAdminAlert;
 use App\Notifications\WinnerAnnounced;
 use App\Services\Draw\DrawRules;
+use App\Services\Engagement\Progress;
 use Illuminate\Notifications\AnonymousNotifiable;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Collection;
@@ -192,6 +193,7 @@ class ProvablyFairDrawService
         foreach ($winners as $winner) {
             $user = WpUser::find($winner->user_id);
             $user?->notify(new WinnerAnnounced($winner));
+            $user && app(Progress::class)->won($user->ID);
         }
 
         Notification::send(new AnonymousNotifiable, new DrawCompletedAdminAlert($raffleId, count($winners)));

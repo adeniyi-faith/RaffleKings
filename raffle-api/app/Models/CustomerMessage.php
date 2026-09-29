@@ -14,7 +14,7 @@ class CustomerMessage extends Model
     public const UPDATED_AT = null;
 
     /** news = from staff; the rest are personal alerts. */
-    public const KINDS = ['news', 'support', 'win', 'wallet', 'withdrawal', 'referral'];
+    public const KINDS = ['news', 'support', 'win', 'wallet', 'withdrawal', 'referral', 'reward'];
 
     protected $fillable = ['user_id', 'broadcast_id', 'kind', 'title', 'body', 'link_url', 'link_label', 'read_at', 'created_at'];
 

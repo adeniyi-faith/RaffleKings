@@ -212,3 +212,6 @@ Route::middleware('auth:wordpress')->group(function () {
         Route::patch('/support/tickets/{ticket}/status', [SupportTicketManagementController::class, 'setStatus']);
     });
 });
+
+// Phase 11 community and engagement features.
+require __DIR__.'/api_engagement.php';
