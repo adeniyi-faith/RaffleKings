@@ -51,10 +51,67 @@
     --animate-winner-flash: winner-flash 0.5s cubic-bezier(0.16, 1, 0.3, 1);
     --animate-wiggle: wiggle 2s linear infinite;
     --animate-soft-bounce: soft-bounce 1.2s ease-in-out infinite;
+    --animate-bulb-blink: bulb-blink 1.2s steps(1) infinite;
+    --animate-bulb-chase: bulb-blink 0.5s steps(1) infinite;
+    --animate-pointer-kick: pointer-kick 0.18s ease-out;
+    --animate-shake: shake 0.5s ease-in-out;
+    --animate-float-up: float-up 1.4s ease-out forwards;
 }
 
 /* The legacy 404 page's wiggling emoji (assets/css/404.css), reused on
    the branded error page (Pages/Error.jsx). */
+@keyframes bulb-blink {
+    0%,
+    100% {
+        opacity: 1;
+    }
+    50% {
+        opacity: 0.25;
+    }
+}
+
+@keyframes pointer-kick {
+    0% {
+        transform: rotate(0deg);
+    }
+    40% {
+        transform: rotate(-16deg);
+    }
+    100% {
+        transform: rotate(0deg);
+    }
+}
+
+@keyframes shake {
+    0%,
+    100% {
+        transform: translate(0, 0);
+    }
+    20% {
+        transform: translate(-6px, 3px);
+    }
+    40% {
+        transform: translate(6px, -3px);
+    }
+    60% {
+        transform: translate(-4px, -2px);
+    }
+    80% {
+        transform: translate(4px, 2px);
+    }
+}
+
+@keyframes float-up {
+    0% {
+        transform: translateY(0);
+        opacity: 1;
+    }
+    100% {
+        transform: translateY(-60px);
+        opacity: 0;
+    }
+}
+
 @keyframes soft-bounce {
     0%,
     100% {
