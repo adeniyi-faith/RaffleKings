@@ -156,7 +156,7 @@ class BroadcastResource extends Resource
                 ...MobileCard::desktop([
                     Tables\Columns\TextColumn::make('created_at')->label('Sent')->dateTime('j M Y, H:i')->description(fn (Broadcast $b) => 'by '.($b->sender?->display_name ?: 'unknown')),
                     Tables\Columns\TextColumn::make('title')->weight('bold')->limit(50)->description(fn (Broadcast $b) => app(Audience::class)->describe($b->audience, $b->audience_options ?? [])),
-                    Tables\Columns\TextColumn::make('recipients_count')->label('Customers')->numeric(),
+                    Tables\Columns\TextColumn::make('recipients_count')->label('Customers')->wholeNumber(),
                     Tables\Columns\TextColumn::make('channels')->label('By')->state(fn (Broadcast $b) => static::channelList($b)),
                     Tables\Columns\TextColumn::make('status')->badge()->state(fn (Broadcast $b) => static::status($b)[0])->color(fn (Broadcast $b) => static::status($b)[1]),
                 ]),
@@ -184,7 +184,7 @@ class BroadcastResource extends Resource
         return $infolist->schema([
             Components\Section::make()->columns(['default' => 2, 'md' => 4])->schema([
                 Components\TextEntry::make('status')->badge()->state(fn (Broadcast $b) => static::status($b)[0])->color(fn (Broadcast $b) => static::status($b)[1]),
-                Components\TextEntry::make('recipients_count')->label('Customers')->numeric(),
+                Components\TextEntry::make('recipients_count')->label('Customers')->wholeNumber(),
                 Components\TextEntry::make('read')->label('Read on the site')
                     ->state(fn (Broadcast $b) => in_array('inbox', $b->channels, true)
                         ? number_format($b->inboxMessages()->whereNotNull('read_at')->count()).' of '.number_format($b->inboxMessages()->count())

@@ -105,11 +105,11 @@ class WpUserResource extends Resource
                     Tables\Columns\TextColumn::make('wallet_balance')
                         ->label('Wallet')
                         ->state(fn (WpUser $record) => $record->wallet?->wallet_balance ?? 0)
-                        ->money('NGN'),
+                        ->naira(),
                     Tables\Columns\TextColumn::make('earnings_balance')
                         ->label('Winnings')
                         ->state(fn (WpUser $record) => $record->wallet?->earnings_balance ?? 0)
-                        ->money('NGN'),
+                        ->naira(),
                     Tables\Columns\TextColumn::make('user_registered')->label('Joined')->since()->sortable()->visibleFrom('2xl'),
                     Tables\Columns\IconColumn::make('is_banned')
                         ->label('Banned')

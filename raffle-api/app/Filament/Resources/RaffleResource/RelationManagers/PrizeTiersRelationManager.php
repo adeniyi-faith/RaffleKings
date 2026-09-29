@@ -50,7 +50,7 @@ class PrizeTiersRelationManager extends RelationManager
                 Tables\Columns\TextColumn::make('rank'),
                 Tables\Columns\TextColumn::make('tier_name'),
                 Tables\Columns\TextColumn::make('prize_description'),
-                Tables\Columns\TextColumn::make('cash_value')->money('NGN'),
+                Tables\Columns\TextColumn::make('cash_value')->naira(),
                 Tables\Columns\TextColumn::make('winner_count'),
             ])
             // Once the draw has run, the prize tiers are part of its public

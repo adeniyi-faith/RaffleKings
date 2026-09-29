@@ -47,7 +47,7 @@ class WithdrawalsRelationManager extends RelationManager
                 ]),
                 ...MobileCard::desktop([
                     Tables\Columns\TextColumn::make('created_at')->label('Asked')->dateTime('j M Y, H:i')->sortable(),
-                    Tables\Columns\TextColumn::make('amount_to_send')->label('To send')->money('NGN')->weight('bold')
+                    Tables\Columns\TextColumn::make('amount_to_send')->label('To send')->naira()->weight('bold')
                         ->description(fn (WithdrawalRequest $w) => (float) $w->fee_amount > 0 ? 'fee ₦'.number_format((float) $w->fee_amount) : null),
                     Tables\Columns\TextColumn::make('bankAccount.account_number')->label('To')->description(fn (WithdrawalRequest $w) => $w->bankAccount?->bank_name),
                     Tables\Columns\TextColumn::make('status')->badge()->formatStateUsing(fn ($state, WithdrawalRequest $w) => static::status($w)[0])->color(fn (WithdrawalRequest $w) => static::status($w)[1]),

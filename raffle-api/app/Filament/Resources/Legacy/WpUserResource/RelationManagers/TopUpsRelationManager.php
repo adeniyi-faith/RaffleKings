@@ -40,7 +40,7 @@ class TopUpsRelationManager extends RelationManager
                 ]),
                 ...MobileCard::desktop([
                     Tables\Columns\TextColumn::make('created_at')->label('Started')->dateTime('j M Y, H:i')->sortable(),
-                    Tables\Columns\TextColumn::make('amount')->money('NGN')->weight('bold'),
+                    Tables\Columns\TextColumn::make('amount')->naira()->weight('bold'),
                     Tables\Columns\TextColumn::make('gateway')->formatStateUsing(fn ($state) => ucfirst((string) $state)),
                     Tables\Columns\TextColumn::make('status')->badge()->state(fn (Deposit $d) => PaymentResource::statusLabel($d))->color(fn (Deposit $d) => PaymentResource::statusColor($d)),
                     Tables\Columns\TextColumn::make('reference')->fontFamily('mono')->size('xs')->copyable(),

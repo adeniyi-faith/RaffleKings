@@ -15,6 +15,10 @@ return [
 
     'name' => env('APP_NAME', 'Laravel'),
 
+    // Changes on every deploy (the commit id) so browsers and Cloudflare
+    // pick up new admin CSS/JS instead of an old cached copy.
+    'asset_version' => env('ASSET_VERSION'),
+
     /*
     |--------------------------------------------------------------------------
     | Application Environment

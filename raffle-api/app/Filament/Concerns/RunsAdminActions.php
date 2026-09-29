@@ -3,6 +3,7 @@
 namespace App\Filament\Concerns;
 
 use App\Models\Legacy\WpUser;
+use App\Support\Formats;
 use Closure;
 use Filament\Notifications\Notification;
 use RuntimeException;
@@ -30,9 +31,7 @@ trait RunsAdminActions
     /** "₦4,000" / "₦1,250.50" — the way customers and staff read amounts. */
     public static function naira(float|string|null $amount): string
     {
-        $amount = (float) $amount;
-
-        return '₦'.number_format($amount, fmod($amount, 1.0) == 0.0 ? 0 : 2);
+        return Formats::naira($amount);
     }
 
     protected static function attempt(Closure $action, string $successMessage): void
