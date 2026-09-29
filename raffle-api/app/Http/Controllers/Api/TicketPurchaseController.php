@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\Api;
 
 use App\Exceptions\InsufficientBalanceException;
+use App\Exceptions\PlayLimitException;
 use App\Exceptions\RaffleNotOnSaleException;
 use App\Exceptions\TicketUnavailableException;
 use App\Http\Controllers\Controller;
@@ -65,6 +66,9 @@ class TicketPurchaseController extends Controller
                 'message' => $e->getMessage(),
                 'closed_reason' => $e->reason,
             ], 409);
+        } catch (PlayLimitException $e) {
+            // The customer's own spending limit or break (item 38).
+            return response()->json(['message' => $e->getMessage(), 'play_limit' => true], 422);
         } catch (InvalidArgumentException $e) {
             return response()->json(['message' => $e->getMessage()], 422);
         }

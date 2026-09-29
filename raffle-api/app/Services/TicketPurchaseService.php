@@ -53,6 +53,7 @@ class TicketPurchaseService
         private readonly GoldenBoxService $goldenBox,
         private readonly WinningsTransferService $winnings,
         private readonly RaffleRulesService $rules,
+        private readonly ResponsiblePlayService $play,
     ) {}
 
     /**
@@ -177,6 +178,11 @@ class TicketPurchaseService
                     ->where('user_id', $user->ID)
                     ->lockForUpdate()
                     ->first();
+
+                // Responsible play (item 38): the customer's own break and
+                // spending limits. Checked under the wallet lock, so two
+                // purchases at once can't both slip past a limit.
+                $this->play->assertCanSpend($user->ID, (float) $submittedAmount);
 
                 $currentBalance = (float) ($wallet->{$balanceColumn} ?? 0);
 

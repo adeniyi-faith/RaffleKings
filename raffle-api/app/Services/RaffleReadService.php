@@ -191,6 +191,9 @@ class RaffleReadService
             'remaining_tickets' => max(0, $raffle->max_tickets - $sold),
             'grand_prize' => $raffle->grand_prize,
             'prize_list' => $this->prizeLines($raffle),
+            // Responsible play (item 38): how many prizes there are, for the
+            // "Your chances" box. At least the grand prize.
+            'winner_count' => max(1, (int) $raffle->prizeTiers->sum('winner_count')),
             'prize_type' => $raffle->prize_type ?: 'other',
             'expiry' => $raffle->expiry?->toDateString(),
             'ends_at' => $raffle->endsAt()?->toIso8601String(),

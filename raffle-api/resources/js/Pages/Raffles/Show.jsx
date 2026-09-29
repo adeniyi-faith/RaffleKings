@@ -186,13 +186,8 @@ export default function RaffleShow({ raffle, drawInfo = null }) {
                             <p className="text-xs leading-relaxed text-amber-800 dark:text-amber-300">{notEligible}</p>
                         </div>
                         )}
-{! isClosed && (
-                        <div className="mt-2 flex items-start gap-3 rounded-xl border border-blue-100 bg-blue-50 p-3 dark:border-blue-900/30 dark:bg-blue-900/20">
-                            <Zap className="mt-0.5 h-4 w-4 flex-shrink-0 text-blue-600 dark:text-blue-400" />
-                            <p className="text-xs leading-relaxed text-blue-800 dark:text-blue-300">
-                                <strong>Increase your odds:</strong> more tickets means more chances to win. Lock in your bundle now!
-                            </p>
-                        </div>
+{! isClosed && raffle.max_tickets > 0 && (
+                        <YourChances maxTickets={raffle.max_tickets} winners={raffle.winner_count ?? 1} sold={soldTickets} />
                         )}
                     </Card>
                 </section>
@@ -324,5 +319,30 @@ function HowThisDrawWorks({ drawInfo }) {
                 </div>
             )}
         </Card>
+    );
+}
+
+// Responsible play (item 38): the real chance of one ticket winning, in
+// plain words, before the customer buys.
+function YourChances({ maxTickets, winners, sold }) {
+    const prizes = Math.min(winners, maxTickets);
+    const anyPrize = Math.max(1, Math.round(maxTickets / prizes));
+
+    return (
+        <div className="mt-2 flex items-start gap-3 rounded-xl border border-blue-100 bg-blue-50 p-3 dark:border-blue-900/30 dark:bg-blue-900/20">
+            <Zap className="mt-0.5 h-4 w-4 flex-shrink-0 text-blue-600 dark:text-blue-400" />
+            <div className="text-xs leading-relaxed text-blue-800 dark:text-blue-300">
+                <p className="font-bold">Your chances with one ticket</p>
+                <ul className="mt-1 list-disc space-y-0.5 pl-4">
+                    <li>Grand prize: 1 in {maxTickets.toLocaleString()} if every ticket sells.</li>
+                    {prizes > 1 && <li>Any prize: about 1 in {anyPrize.toLocaleString()} ({prizes} prizes to win).</li>}
+                    <li>{sold.toLocaleString()} of {maxTickets.toLocaleString()} tickets sold so far. Each extra ticket you buy adds one more chance.</li>
+                </ul>
+                <p className="mt-1 text-[11px] opacity-80">
+                    It's a game of chance: only spend what you can afford.{' '}
+                    <Link href="/account/play-limits" className="font-bold underline">Set a spending limit</Link>
+                </p>
+            </div>
+        </div>
     );
 }

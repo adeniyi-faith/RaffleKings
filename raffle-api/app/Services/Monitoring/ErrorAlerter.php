@@ -2,6 +2,7 @@
 
 namespace App\Services\Monitoring;
 
+use App\Http\Middleware\AssignRequestId;
 use App\Models\SiteError;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Http;
@@ -53,6 +54,30 @@ class ErrorAlerter
             title: $title,
             lines: [...$details, ...$this->requestLines()],
         );
+    }
+
+    /**
+     * A JavaScript error in a customer's browser (POST /api/client-errors).
+     * Saved for System → Health; sent to Telegram only when switched on.
+     */
+    public function browser(string $message, ?string $source, ?string $page, ?string $userAgent): void
+    {
+        $where = $source ? Str::limit($source, 200) : 'unknown place';
+        $lines = array_values(array_filter([
+            Str::limit($message, 400),
+            'at '.$where,
+            $page ? 'page '.Str::limit($page, 200) : null,
+            $userAgent ? 'browser '.Str::limit($userAgent, 160) : null,
+            ...$this->requestLines(),
+        ]));
+
+        if (! config('monitoring.browser_error_alerts')) {
+            $this->remember('browser:'.$message.'@'.$where, 'Browser error', $lines);
+
+            return;
+        }
+
+        $this->send('browser:'.$message.'@'.$where, 'Browser error', $lines);
     }
 
     /** @param  array<int, string>  $lines */
@@ -131,9 +156,12 @@ class ErrorAlerter
         $request = request();
         $userId = rescue(fn () => auth('wordpress')->id(), null, false);
 
+        $reference = AssignRequestId::current();
+
         return array_values(array_filter([
             $request->method().' '.Str::limit($request->path(), 150),
             $userId ? "user #{$userId}" : null,
+            $reference ? "error code {$reference}" : null,
         ]));
     }
 }

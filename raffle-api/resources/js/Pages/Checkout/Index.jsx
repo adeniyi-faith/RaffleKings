@@ -56,6 +56,7 @@ export default function CheckoutIndex({ raffle, ticketNumbers, qty, minimumDepos
     const [method, setMethod] = useState(null); // chosen once the balances load
     const [status, setStatus] = useState('idle'); // idle | processing | topping-up | success | error
     const [error, setError] = useState(null);
+    const [playLimit, setPlayLimit] = useState(false); // blocked by the customer's own limit or break
     const [takenNumbers, setTakenNumbers] = useState([]);
     const [purchase, setPurchase] = useState(null);
     const [deposit, setDeposit] = useState(null); // a top-up we just came back from
@@ -164,6 +165,8 @@ export default function CheckoutIndex({ raffle, ticketNumbers, qty, minimumDepos
                 if (response.status === 402) {
                     loadWallet();
                 }
+
+                setPlayLimit(Boolean(data.play_limit));
 
                 if (response.status === 422) {
                     refreshQuote();
@@ -316,6 +319,11 @@ export default function CheckoutIndex({ raffle, ticketNumbers, qty, minimumDepos
                     {error && (
                         <div className="mt-4 rounded-lg bg-red-50 px-3 py-2 text-sm text-red-700 dark:bg-red-900/20 dark:text-red-400">
                             {error}
+                            {playLimit && (
+                                <Link href="/account/play-limits" className="mt-2 block font-bold text-red-800 underline dark:text-red-300">
+                                    See my play limits
+                                </Link>
+                            )}
                             {takenNumbers.length > 0 && (
                                 <Link href={repickUrl} className="mt-2 block font-bold text-red-800 underline dark:text-red-300">
                                     Pick other numbers
