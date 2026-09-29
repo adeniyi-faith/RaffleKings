@@ -1,5 +1,6 @@
 <?php
 
+use App\Services\Engagement\Predictions;
 use App\Services\Engagement\ReferralLadder;
 use App\Services\Engagement\SeasonPass;
 use Illuminate\Http\Request;
@@ -27,4 +28,9 @@ Route::get('/referrals', fn () => Inertia::render('Referrals/Index', [
 // The Season Pass track. Public like the Rewards page: a guest sees the levels and is asked to log in.
 Route::get('/rewards/season', fn () => Inertia::render('Rewards/Season', [
     'preview' => app(SeasonPass::class)->state(0),
+]));
+
+// Daily predictions. Public: a guest sees today's questions and is asked to log in to answer.
+Route::get('/rewards/predict', fn () => Inertia::render('Rewards/Predict', [
+    'preview' => app(Predictions::class)->board(null),
 ]));
