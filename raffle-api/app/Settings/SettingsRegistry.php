@@ -394,6 +394,12 @@ final class SettingsRegistry
             'Alerts & push' => [
                 'icon' => 'heroicon-o-bell-alert',
                 'sections' => [
+                    'Sentry (error tracking)' => [
+                        'description' => 'Collects full details of any error on the site and groups repeats. In sentry.io: create a project (choose Laravel), then Project settings → Client Keys (DSN) → copy the DSN. Leave empty to switch it off. It takes effect the next time the site handles a request after you save.',
+                        'settings' => [
+                            new Setting('sentry.dsn', 'Sentry DSN', 'secret', 'Stored encrypted. Looks like https://…@…ingest.sentry.io/…', placeholder: 'https://abc123@o123456.ingest.sentry.io/1234567', rules: ['nullable', 'starts_with:https://']),
+                        ],
+                    ],
                     'Telegram (staff alerts)' => [
                         'description' => 'New withdrawals, bank transfers and site errors are sent to your staff Telegram. Create a bot with @BotFather to get the token; send your bot a message, then use @userinfobot to find each chat ID.',
                         'settings' => [
