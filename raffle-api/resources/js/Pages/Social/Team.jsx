@@ -3,7 +3,7 @@ import { Head, Link, router, usePage } from '@inertiajs/react';
 import { Clock, Users } from 'lucide-react';
 import { apiPost } from '../../lib/api';
 import { formatNaira } from '../../lib/format';
-import { rememberTeam, shareLink } from '../../lib/share';
+import { rememberTeam, shareLink, teamInviteText } from '../../lib/share';
 import SimpleTop from '../../Components/layout/SimpleTop';
 
 // Phase 11: the page a friend opens from a Team Up invite.
@@ -79,7 +79,7 @@ export default function TeamPage({ team: initial, referrer, hasTicket }) {
                     {error && <p role="alert" className="rounded-xl bg-black/25 px-4 py-2 text-center text-sm">{error}</p>}
 
                     {team.is_member && open && (
-                        <button onClick={() => shareLink('Join my team! If our team fills, we all get a free bonus entry:', window.location.href)} className="w-full rounded-2xl bg-white py-4 text-base font-black text-indigo-700 shadow-xl active:scale-95">
+                        <button onClick={() => shareLink(teamInviteText({ prize: team.raffle?.grand_prize, raffleTitle: team.raffle?.title, url: `${window.location.origin}${here}`, bonusEntries: team.bonus_entries }))} className="w-full rounded-2xl bg-white py-4 text-base font-black text-indigo-700 shadow-xl active:scale-95">
                             Invite friends
                         </button>
                     )}
