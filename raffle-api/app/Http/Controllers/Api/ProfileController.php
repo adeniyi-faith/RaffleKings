@@ -5,12 +5,14 @@ namespace App\Http\Controllers\Api;
 use App\Http\Controllers\Controller;
 use App\Models\Legacy\WpUser;
 use App\Models\Legacy\WpUserMeta;
+use App\Models\UserEngagement;
 use App\Services\Auth\WordPressPasswordHasher;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Validation\Rule;
+use Illuminate\Validation\ValidationException;
 
 /**
  * The "Edit Personal Details" page (rebuild of the legacy edit-profile.php,
@@ -46,6 +48,8 @@ class ProfileController extends Controller
             'phone' => $user->metaValue('phone') ?? '',
             'state' => $user->metaValue('state') ?? '',
             'avatar' => $user->metaValue('profile_pic_url') ?: null,
+            // Phase 11: day and month only, for the free birthday spin. Set once.
+            'birthday' => UserEngagement::query()->where('user_id', $user->ID)->value('birthday'),
         ]);
     }
 
@@ -86,7 +90,24 @@ class ProfileController extends Controller
             'phone' => ['nullable', 'string', 'max:30'],
             'state' => ['nullable', 'string', 'max:50'],
             'password' => ['nullable', 'string', 'min:8'],
+            'birthday' => ['nullable', 'string', 'regex:/^(0[1-9]|1[0-2])-(0[1-9]|[12]\d|3[01])$/'],
         ]);
+
+        // The birthday (MM-DD) can be set once; after that only support can change it,
+        // so nobody moves it around to collect extra birthday spins.
+        if (! empty($validated['birthday'])) {
+            [$month, $day] = array_map('intval', explode('-', $validated['birthday']));
+
+            if (! checkdate($month, $day, 2024)) {
+                throw ValidationException::withMessages(['birthday' => 'That date does not exist.']);
+            }
+
+            $row = UserEngagement::for($user->ID);
+
+            if (! $row->birthday) {
+                $row->update(['birthday' => $validated['birthday']]);
+            }
+        }
 
         $user->forceFill([
             'display_name' => $validated['display_name'],

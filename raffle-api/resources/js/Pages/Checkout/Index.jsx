@@ -19,6 +19,7 @@ import { useLiveRaffle } from '../../hooks/useLiveRaffle';
 import { useTicketPriceQuote } from '../../hooks/useTicketPriceQuote';
 import { useTimeLeft } from '../../hooks/useTimeLeft';
 import { formatNaira } from '../../lib/format';
+import BoostPanel from '../../Components/social/BoostPanel';
 import { apiPost } from '../../lib/api';
 import { refreshBalances, useBalances } from '../../lib/balances';
 import PausedNotice from '../../Components/layout/PausedNotice';
@@ -357,7 +358,7 @@ export default function CheckoutIndex({ raffle, ticketNumbers, qty, minimumDepos
             </div>
 
             {busy && <ProcessingModal />}
-            {status === 'success' && <SuccessModal raffle={raffle} amount={price} numbers={purchase?.ticket_numbers ?? ticketNumbers} />}
+            {status === 'success' && <SuccessModal raffle={raffle} amount={price} numbers={purchase?.ticket_numbers ?? ticketNumbers} bonusEntries={purchase?.bonus_entries ?? 0} />}
         </>
     );
 }
@@ -511,7 +512,7 @@ function ProcessingModal() {
     );
 }
 
-function SuccessModal({ raffle, amount, numbers }) {
+function SuccessModal({ raffle, amount, numbers, bonusEntries = 0 }) {
     const [shareNote, setShareNote] = useState(null);
     const count = numbers.length;
     const raffleUrl = `${window.location.origin}/raffles/${raffle.id}`;
@@ -552,6 +553,15 @@ function SuccessModal({ raffle, amount, numbers }) {
                         <p className="mb-4 text-sm text-gray-500 dark:text-gray-400">
                             You paid {formatNaira(amount)} for {count} ticket{count === 1 ? '' : 's'} in {raffle.title}. Good luck!
                         </p>
+                        {bonusEntries > 0 && (
+                            <p className="-mt-2 mb-4 rounded-full bg-yellow-100 px-3 py-1 text-xs font-bold text-yellow-800 dark:bg-yellow-900/30 dark:text-yellow-300">
+                                ⭐ Plus {bonusEntries} free bonus {bonusEntries === 1 ? 'entry' : 'entries'} in this draw
+                            </p>
+                        )}
+
+                        <div className="mb-4 w-full">
+                            <BoostPanel raffleId={raffle.id} raffleTitle={raffle.title} compact />
+                        </div>
 
                         <div className="mb-6 w-full rounded-2xl border border-gray-100 bg-gray-50 p-3 dark:border-gray-700 dark:bg-dark-bg/50">
                             <p className="mb-2 flex items-center justify-center gap-1 text-[10px] font-bold uppercase tracking-wider text-gray-400">

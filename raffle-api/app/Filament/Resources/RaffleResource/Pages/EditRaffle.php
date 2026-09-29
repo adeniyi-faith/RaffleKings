@@ -30,6 +30,16 @@ class EditRaffle extends EditRecord
         return $data;
     }
 
+    /** Switching "Flash raffle" off also removes its exact end time. */
+    protected function mutateFormDataBeforeSave(array $data): array
+    {
+        if (array_key_exists('is_flash', $data) && ! $data['is_flash']) {
+            $data['sales_end_at'] = null;
+        }
+
+        return $data;
+    }
+
     /** Raffle Rules Engine: every change to a raffle's draw rules is audited. */
     protected function afterSave(): void
     {

@@ -66,7 +66,7 @@ const CHIP = {
     jackpot: 'bg-yellow-400 text-yellow-900',
 };
 
-export default function Spin({ cost, odds, points: initialPoints }) {
+export default function Spin({ cost, odds, points: initialPoints, freeSpins: initialFree = 0 }) {
     const { auth } = usePage().props;
     const site = useSite();
     const isGuest = ! auth?.user;
@@ -75,6 +75,8 @@ export default function Spin({ cost, odds, points: initialPoints }) {
     const wheelRef = useRef(null);
 
     const [points, setPoints] = useState(initialPoints);
+    // Phase 11: free spins (birthday, milestones, Season Pass…) are used first.
+    const [freeSpins, setFreeSpins] = useState(initialFree);
     const [phase, setPhase] = useState('ready'); // ready | spinning | result
     const [result, setResult] = useState(null);
     const [error, setError] = useState(null);
@@ -83,7 +85,7 @@ export default function Spin({ cost, odds, points: initialPoints }) {
     const [sound, setSound] = useState(soundOn);
     const shownPoints = useCountUp(points);
 
-    const canAfford = points !== null && points >= cost;
+    const canAfford = freeSpins > 0 || (points !== null && points >= cost);
     const spinsWon = history.reduce((sum, h) => sum + h.payout, 0);
     const net = spinsWon - history.length * cost;
     const averageBack = Math.round(odds.reduce((sum, o) => sum + o.payout * o.probability, 0));
@@ -97,13 +99,19 @@ export default function Spin({ cost, odds, points: initialPoints }) {
         setError(null);
         setResult(null);
         setPhase('spinning');
-        setPoints((p) => p - cost);
+        const free = freeSpins > 0;
+        if (! free) setPoints((p) => p - cost);
         wheelRef.current?.start();
 
         try {
             // A short wind-up even when the server answers instantly.
             const [response] = await Promise.all([
-                fetch('/api/rewards/spin', { method: 'POST', credentials: 'same-origin', headers: { Accept: 'application/json' } }),
+                fetch('/api/rewards/spin', {
+                    method: 'POST',
+                    credentials: 'same-origin',
+                    headers: { Accept: 'application/json', 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ free }),
+                }),
                 sleep(700),
             ]);
             const data = await response.json().catch(() => ({}));
@@ -114,7 +122,9 @@ export default function Spin({ cost, odds, points: initialPoints }) {
 
             await wheelRef.current?.landOn(data.visual_index);
 
-            const profit = data.payout - cost;
+            // A free spin that lands on nothing is a miss, not "points back".
+            const profit = data.free ? (data.payout > 0 ? data.payout : -1) : data.payout - cost;
+            setFreeSpins(data.free_spins_left ?? 0);
             if (profit > 0) winSound(data.outcome === 'jackpot');
             else if (profit === 0) evenSound();
             else loseSound();
@@ -260,8 +270,10 @@ export default function Spin({ cost, odds, points: initialPoints }) {
                                 className="flex w-full items-center justify-center gap-3 rounded-2xl bg-gradient-to-b from-yellow-300 to-amber-500 py-4 text-xl font-black uppercase text-amber-950 shadow-[0_6px_0_#b45309,0_12px_30px_rgba(250,204,21,0.35)] transition-transform active:translate-y-1 active:shadow-[0_2px_0_#b45309] disabled:cursor-not-allowed disabled:opacity-60"
                             >
                                 <Sparkles className="h-5 w-5" />
-                                {phase === 'spinning' ? 'Spinning…' : history.length ? 'Spin again' : 'Spin'}
-                                <span className="rounded-lg bg-white/40 px-2 py-0.5 text-xs font-bold normal-case">−{cost} pts</span>
+                                {phase === 'spinning' ? 'Spinning…' : freeSpins > 0 ? 'Free spin' : history.length ? 'Spin again' : 'Spin'}
+                                <span className="rounded-lg bg-white/40 px-2 py-0.5 text-xs font-bold normal-case">
+                                    {freeSpins > 0 ? `${freeSpins} free left` : `−${cost} pts`}
+                                </span>
                             </button>
                         )}
 
@@ -326,7 +338,7 @@ export default function Spin({ cost, odds, points: initialPoints }) {
                     <ResultOverlay
                         result={result}
                         cost={cost}
-                        canSpinAgain={isOn(site, 'spin') && points >= cost}
+                        canSpinAgain={isOn(site, 'spin') && (freeSpins > 0 || points >= cost)}
                         onAgain={() => {
                             setPhase('ready');
                             spin();

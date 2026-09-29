@@ -50,10 +50,15 @@ class Raffle extends Model
         'live_draw_started_at',
         // Raffle Rules Engine: this raffle's published draw rules.
         'draw_rules',
+        // Phase 11 flash raffles: sales stop at this exact moment.
+        'is_flash',
+        'sales_end_at',
     ];
 
     protected $casts = [
         'draw_rules' => 'array',
+        'is_flash' => 'boolean',
+        'sales_end_at' => 'datetime',
         'price' => 'decimal:2',
         'public_id' => 'integer',
         'max_tickets' => 'integer',
@@ -110,6 +115,11 @@ class Raffle extends Model
      */
     public function endsAt(): ?Carbon
     {
+        // A flash raffle (or any raffle given an exact end) stops at that moment.
+        if ($this->sales_end_at) {
+            return $this->sales_end_at->copy();
+        }
+
         if (! $this->expiry) {
             return null;
         }

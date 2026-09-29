@@ -1,3 +1,4 @@
+import { useEffect, useState } from 'react';
 import { Link } from '@inertiajs/react';
 import { Banknote, CarFront, Clock, Laptop, Smartphone, Ticket, Timer, XCircle, Zap } from 'lucide-react';
 import { formatNaira } from '../../lib/format';
@@ -16,7 +17,7 @@ function prizeIcon(title = '') {
 
 // Same "Ending Soon" / "N Days Left" / "Closed" badge thresholds as
 // raffles.php's buildCard() (<=1 day, <=3 days, else a bare date).
-function ExpiryBadge({ expiry, isClosed }) {
+function ExpiryBadge({ expiry, endsAt, isClosed }) {
     if (isClosed) {
         return (
             <span className="flex items-center gap-1 rounded-full bg-black/20 px-2.5 py-1 text-[10px] font-bold text-white backdrop-blur-sm">
@@ -25,15 +26,16 @@ function ExpiryBadge({ expiry, isClosed }) {
         );
     }
 
-    if (!expiry) {
+    if (! expiry && ! endsAt) {
         return null;
     }
 
-    const expiryDate = new Date(expiry);
+    // The real moment sales stop (end of day in Lagos, or a flash raffle's exact time).
+    const expiryDate = new Date(endsAt || expiry);
     if (Number.isNaN(expiryDate.getTime())) {
         return null;
     }
-    expiryDate.setHours(23, 59, 59, 999);
+    if (! endsAt) expiryDate.setHours(23, 59, 59, 999);
 
     const diffDays = Math.ceil(Math.abs(expiryDate - new Date()) / (1000 * 60 * 60 * 24));
 
@@ -95,6 +97,10 @@ export default function RaffleCard({ raffle }) {
         );
     }
 
+    if (raffle.is_flash) {
+        return <FlashCard raffle={raffle} progress={progress} />;
+    }
+
     if (isMicro) {
         return (
             <Link
@@ -144,7 +150,7 @@ export default function RaffleCard({ raffle }) {
                 <div className="flex h-14 w-14 items-center justify-center rounded-2xl border border-white/10 bg-white/10 shadow-lg backdrop-blur-md transition-transform group-hover:scale-105">
                     <Icon className="h-7 w-7 text-white" />
                 </div>
-                <ExpiryBadge expiry={raffle.expiry} isClosed={false} />
+                <ExpiryBadge expiry={raffle.expiry} endsAt={raffle.ends_at} isClosed={false} />
             </div>
 
             <div className="relative z-10 mb-6">
@@ -177,6 +183,58 @@ export default function RaffleCard({ raffle }) {
             <div className="relative z-10 flex items-center justify-between pt-4">
                 <p className="text-2xl font-black text-white">{formatNaira(raffle.price)}</p>
                 <span className="rounded-xl bg-white px-4 py-2 text-xs font-bold text-green-800 shadow-md">Enter Now</span>
+            </div>
+        </Link>
+    );
+}
+
+// Phase 11: a live hh:mm:ss countdown to an exact moment.
+export function useClock(endsAt) {
+    const [left, setLeft] = useState(() => (endsAt ? new Date(endsAt).getTime() - Date.now() : 0));
+
+    useEffect(() => {
+        if (! endsAt) return undefined;
+        const id = setInterval(() => setLeft(new Date(endsAt).getTime() - Date.now()), 1000);
+
+        return () => clearInterval(id);
+    }, [endsAt]);
+
+    const s = Math.max(0, Math.floor(left / 1000));
+    const pad = (n) => String(n).padStart(2, '0');
+
+    return { done: s <= 0, text: `${pad(Math.floor(s / 3600))}:${pad(Math.floor((s % 3600) / 60))}:${pad(s % 60)}` };
+}
+
+// Phase 11: a flash raffle — a short raffle with a real, exact end time.
+function FlashCard({ raffle, progress }) {
+    const clock = useClock(raffle.ends_at);
+
+    return (
+        <Link
+            href={`/raffles/${raffle.id}`}
+            className="group relative block overflow-hidden rounded-3xl bg-gradient-to-br from-fuchsia-600 via-rose-600 to-orange-500 p-5 shadow-xl shadow-rose-600/25 transition-transform active:scale-[0.98]"
+        >
+            <div className="pointer-events-none absolute -right-8 -top-8 h-32 w-32 rounded-full bg-yellow-300/30 blur-2xl" />
+            <div className="relative z-10 flex items-center justify-between">
+                <span className="flex items-center gap-1 rounded-full bg-black/25 px-3 py-1 text-[11px] font-black uppercase tracking-widest text-yellow-200">
+                    <Zap className="h-3.5 w-3.5 fill-current" /> Flash
+                </span>
+                <span className="rounded-lg bg-black/30 px-2.5 py-1 font-mono text-sm font-black tabular-nums text-white">
+                    {clock.done ? 'ENDED' : clock.text}
+                </span>
+            </div>
+            <h3 className="relative z-10 mt-3 text-xl font-black leading-tight text-white">{raffle.title}</h3>
+            {raffle.grand_prize && <p className="relative z-10 truncate text-sm text-white/90">Win: <b>{raffle.grand_prize}</b></p>}
+            <div className="relative z-10 mt-3 h-2 overflow-hidden rounded-full bg-black/25">
+                <div className="h-full rounded-full bg-yellow-300" style={{ width: `${progress}%` }} />
+            </div>
+            <div className="relative z-10 mt-1.5 flex justify-between text-[10px] font-bold text-white/90">
+                <span>{raffle.sold_tickets} sold</span>
+                <span>Only {raffle.remaining_tickets} left</span>
+            </div>
+            <div className="relative z-10 mt-3 flex items-center justify-between">
+                <p className="text-2xl font-black text-white">{formatNaira(raffle.price)}</p>
+                <span className="rounded-xl bg-white px-4 py-2 text-xs font-black text-rose-600 shadow-md">Enter now</span>
             </div>
         </Link>
     );

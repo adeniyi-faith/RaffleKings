@@ -17,6 +17,7 @@ use App\Models\RafflePrizeTier;
 use App\Notifications\DrawCompletedAdminAlert;
 use App\Notifications\WinnerAnnounced;
 use App\Services\Draw\DrawRules;
+use App\Services\Engagement\Progress;
 use Illuminate\Notifications\AnonymousNotifiable;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Collection;
@@ -192,6 +193,7 @@ class ProvablyFairDrawService
         foreach ($winners as $winner) {
             $user = WpUser::find($winner->user_id);
             $user?->notify(new WinnerAnnounced($winner));
+            $user && app(Progress::class)->won($user->ID);
         }
 
         Notification::send(new AnonymousNotifiable, new DrawCompletedAdminAlert($raffleId, count($winners)));
@@ -272,12 +274,12 @@ class ProvablyFairDrawService
             ->get(['user_id', 'ticket_number'])
             ->map(fn ($e) => (object) ['user_id' => (int) $e->user_id, 'ticket_number' => (int) $e->ticket_number, 'key' => null]);
 
-        if (! $rules->loyaltyBonusEntries) {
-            return $tickets->values();
-        }
-
+        // Free bonus entries: loyalty ones only when this raffle's rules
+        // give them; ones customers earned elsewhere on the site (Season
+        // Pass tokens, Team Up, share unlocks) always take part.
         $bonus = RaffleBonusEntry::query()
             ->where('raffle_id', $legacyRaffleId)
+            ->when(! $rules->loyaltyBonusEntries, fn ($q) => $q->where('reason', '!=', 'loyalty'))
             ->whereNotIn('user_id', $excludedUserIds)
             ->when($verifying, fn ($q) => $q->where('created_at', '<=', $drawAt))
             ->orderBy('id')

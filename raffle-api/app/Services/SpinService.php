@@ -4,6 +4,7 @@ namespace App\Services;
 
 use App\Exceptions\InsufficientPointsException;
 use App\Models\Legacy\WpUser;
+use App\Services\Engagement\Perks;
 use Illuminate\Support\Facades\DB;
 
 /**
@@ -65,14 +66,20 @@ class SpinService
     }
 
     /**
-     * @return array{payout: int, outcome: string, visual_index: int, new_balance: int}
+     * @return array{payout: int, outcome: string, visual_index: int, new_balance: int, free: bool, free_spins_left: int}
      *
      * @throws InsufficientPointsException
      */
-    public function spin(WpUser $user): array
+    public function spin(WpUser $user, bool $free = false): array
     {
-        return DB::transaction(function () use ($user) {
-            $balanceAfterCost = $this->points->debit($user, self::cost(), 'spin_cost', description: 'Spin & Win entry fee');
+        return DB::transaction(function () use ($user, $free) {
+            // Phase 11: a free spin (birthday, milestones, Season Pass, referral
+            // ladder) is used instead of points when the customer has one.
+            $free = $free && app(Perks::class)->useFreeSpin($user->ID);
+
+            $balanceAfterCost = $free
+                ? $this->points->balance($user)
+                : $this->points->debit($user, self::cost(), 'spin_cost', description: 'Spin & Win entry fee');
 
             [$prize, $index] = $this->draw();
 
@@ -87,6 +94,8 @@ class SpinService
                 'outcome' => $prize['outcome'],
                 'visual_index' => $index,
                 'new_balance' => $newBalance,
+                'free' => $free,
+                'free_spins_left' => app(Perks::class)->freeSpins($user->ID),
             ];
         });
     }

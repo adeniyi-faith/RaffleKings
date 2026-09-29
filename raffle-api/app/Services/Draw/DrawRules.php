@@ -127,6 +127,8 @@ final class DrawRules
             $lines[] = 'Loyal players get free extra entries: '.($perks ?: 'set by tier').'. They take part in the draw just like tickets.';
         }
 
+        $lines[] = 'Free bonus entries players earn on the site (Season Pass rewards, Team Up, share unlocks) take part like tickets. A win from one shows as "Bonus entry".';
+
         if ($this->consolationOn()) {
             $lines[] = "Buy {$this->consolationMinTickets}+ tickets and don't win? You get {$this->consolationPoints} reward points.";
         }

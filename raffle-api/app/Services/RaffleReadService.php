@@ -160,15 +160,16 @@ class RaffleReadService
         // Open raffles always come before closed ones, whatever the sort:
         // published, not past the end date, and not sold out.
         $query->orderByRaw(
-            "CASE WHEN raffles.status = 'published' AND (raffles.expiry IS NULL OR raffles.expiry >= ?) AND (SELECT COUNT(*) FROM {$entries} WHERE {$entries}.raffle_id = raffles.public_id) < raffles.max_tickets THEN 0 ELSE 1 END",
-            [$today],
+            "CASE WHEN raffles.status = 'published' AND (raffles.expiry IS NULL OR raffles.expiry >= ?) AND (raffles.sales_end_at IS NULL OR raffles.sales_end_at > ?) AND (SELECT COUNT(*) FROM {$entries} WHERE {$entries}.raffle_id = raffles.public_id) < raffles.max_tickets THEN 0 ELSE 1 END",
+            [$today, now()->utc()->format('Y-m-d H:i:s')],
         );
 
         return match ($sort) {
             'price_asc' => $query->orderBy('price')->orderByDesc('id'),
             'price_desc' => $query->orderByDesc('price')->orderByDesc('id'),
             // Soonest end date first; raffles with no end date last.
-            'closing_soon' => $query->orderByRaw('CASE WHEN expiry IS NULL THEN 1 ELSE 0 END')->orderBy('expiry')->orderByDesc('id'),
+            // Flash raffles (exact end times) first among open ones.
+            'closing_soon' => $query->orderByRaw('CASE WHEN sales_end_at IS NOT NULL THEN 0 WHEN expiry IS NULL THEN 2 ELSE 1 END')->orderBy('sales_end_at')->orderBy('expiry')->orderByDesc('id'),
             default => $query->orderByDesc('created_at')->orderByDesc('id'),
         };
     }
@@ -196,6 +197,7 @@ class RaffleReadService
             'is_closed' => $closedReason !== null,
             'closed_reason' => $closedReason,
             'is_live_draw_enabled' => (bool) $raffle->is_live_draw_enabled,
+            'is_flash' => (bool) $raffle->is_flash,
         ];
     }
 

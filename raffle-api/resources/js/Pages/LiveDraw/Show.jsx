@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
+import { EnvelopeStrip, SendEnvelope } from '../../Components/live/RedEnvelopes';
 import { Head, Link, usePage } from '@inertiajs/react';
 import { ArrowLeft, MessageCircle, PlayCircle, Radio, RotateCcw, Send, ShieldCheck, Trophy, Zap } from 'lucide-react';
 import { echoOrNull } from '../../lib/echo';
@@ -44,6 +45,9 @@ export default function LiveDrawShow({ raffle }) {
     const [revealed, setRevealed] = useState([]);
     const [comments, setComments] = useState([]);
     const [reactionCounts, setReactionCounts] = useState({});
+    // Phase 11: red envelopes dropped in this chat.
+    const [envelopes, setEnvelopes] = useState([]);
+    const [sendingEnvelope, setSendingEnvelope] = useState(false);
     const [commentDraft, setCommentDraft] = useState('');
     const [chatError, setChatError] = useState(null);
     const [liveConnected, setLiveConnected] = useState(false);
@@ -78,6 +82,10 @@ export default function LiveDrawShow({ raffle }) {
             setRevealed(data.revealed ?? []);
             setComments(data.comments ?? []);
             setReactionCounts(data.reaction_counts ?? {});
+            setEnvelopes((prev) => {
+                const mine = Object.fromEntries(prev.map((e) => [e.id, e.your_points]));
+                return (data.envelopes ?? []).map((e) => ({ ...e, your_points: e.your_points ?? mine[e.id] ?? null }));
+            });
         }
 
         function fetchState() {
@@ -118,6 +126,15 @@ export default function LiveDrawShow({ raffle }) {
 
             channel.listen('.reaction.posted', (payload) => {
                 setReactionCounts(payload.counts);
+            });
+
+            channel.listen('.envelope.dropped', (payload) => {
+                setEnvelopes((prev) => (prev.some((e) => e.id === payload.id) ? prev : [{ ...payload, your_points: null, is_yours: payload.sender_id === auth?.user?.id }, ...prev]));
+            });
+
+            channel.listen('.envelope.claimed', (payload) => {
+                setEnvelopes((prev) => prev.map((e) => (e.id === payload.id ? { ...e, claimed_count: payload.claimed_count } : e)));
+                setComments((prev) => [...prev, { id: `env-${payload.id}-${payload.claimed_count}`, user_name: '🧧', body: `${payload.claimer} got ${payload.points} points from ${payload.sender}'s red envelope` }].slice(-100));
             });
 
             // Presence channel: an honest "N watching" count, replacing
@@ -393,6 +410,8 @@ export default function LiveDrawShow({ raffle }) {
                         </div>
                     </div>
 
+                    <EnvelopeStrip envelopes={envelopes} setEnvelopes={setEnvelopes} signedIn={!! auth?.user} />
+
                     <div className="flex-1 space-y-1.5 overflow-y-auto px-4 py-2">
                         {comments.length === 0 && (
                             <p className="pt-4 text-center text-[10px] uppercase tracking-widest text-white/20">No comments yet. Say hi!</p>
@@ -428,6 +447,11 @@ export default function LiveDrawShow({ raffle }) {
                                 <button type="submit" className="rounded-full bg-red-600 p-2 transition-transform active:scale-90">
                                     <Send className="h-4 w-4" />
                                 </button>
+                                {isOn(site, 'red_envelopes') && (
+                                    <button type="button" onClick={() => setSendingEnvelope(true)} className="rounded-full bg-yellow-400/90 px-2 py-1.5 text-base leading-none transition-transform active:scale-90" aria-label="Send a red envelope">
+                                        🧧
+                                    </button>
+                                )}
                             </>
                         ) : (
                             <Link
@@ -440,8 +464,13 @@ export default function LiveDrawShow({ raffle }) {
                     </form>
                 </div>
             </div>
+            <EnvelopeSheet open={sendingEnvelope} raffleId={raffle.id} onClose={() => setSendingEnvelope(false)} />
         </>
     );
+}
+
+function EnvelopeSheet({ open, raffleId, onClose }) {
+    return open ? <SendEnvelope raffleId={raffleId} onClose={onClose} /> : null;
 }
 
 function Stat({ label, value, accent = '' }) {
