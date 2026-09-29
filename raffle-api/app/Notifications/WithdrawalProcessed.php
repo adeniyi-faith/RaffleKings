@@ -3,6 +3,7 @@
 namespace App\Notifications;
 
 use App\Models\WithdrawalRequest;
+use App\Notifications\Channels\InboxChannel;
 use Illuminate\Bus\Queueable;
 use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Notifications\Messages\MailMessage;
@@ -37,7 +38,7 @@ class WithdrawalProcessed extends Notification implements ShouldQueue
 
     public function via(mixed $notifiable): array
     {
-        return ['mail'];
+        return ['mail', InboxChannel::class];
     }
 
     public function toMail(mixed $notifiable): MailMessage
@@ -59,5 +60,32 @@ class WithdrawalProcessed extends Notification implements ShouldQueue
         }
 
         return $message;
+    }
+
+    /** The bell alert is written straight away, not on the next background run. */
+    public function viaConnections(): array
+    {
+        return [InboxChannel::class => 'sync'];
+    }
+
+    public function toInbox(mixed $notifiable): array
+    {
+        if ($this->outcome === 'paid') {
+            return [
+                'kind' => 'withdrawal',
+                'title' => 'Withdrawal sent',
+                'body' => '₦'.number_format((float) $this->withdrawal->amount_to_send).' has been sent to your bank account.',
+                'link_url' => '/account/transactions',
+                'link_label' => 'See history',
+            ];
+        }
+
+        return [
+            'kind' => 'withdrawal',
+            'title' => 'Withdrawal declined',
+            'body' => '₦'.number_format((float) $this->withdrawal->requested_amount).' has been returned to your winnings.'.($this->reason ? " Reason: {$this->reason}" : ''),
+            'link_url' => '/support',
+            'link_label' => 'Ask support',
+        ];
     }
 }

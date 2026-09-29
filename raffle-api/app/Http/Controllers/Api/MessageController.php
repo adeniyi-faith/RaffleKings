@@ -16,7 +16,7 @@ class MessageController extends Controller
     public function index(Request $request): JsonResponse
     {
         $userId = $request->user()->getKey();
-        $messages = CustomerMessage::query()->where('user_id', $userId)->latest('id')->limit(50)->get();
+        $messages = CustomerMessage::query()->where('user_id', $userId)->latest('created_at')->latest('id')->limit(50)->get();
 
         return response()->json([
             'messages' => $messages->map->toPublicArray()->values(),

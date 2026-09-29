@@ -14,6 +14,7 @@ use Filament\Panel;
 use Filament\PanelProvider;
 use Filament\Support\Colors\Color;
 use Filament\Support\Facades\FilamentAsset;
+use Filament\Tables\Columns\Summarizers;
 use Filament\Tables\Columns\TextColumn;
 use Filament\View\PanelsRenderHook;
 use Illuminate\Cookie\Middleware\AddQueuedCookiesToResponse;
@@ -48,6 +49,14 @@ class AdminPanelProvider extends PanelProvider
         foreach ([TextColumn::class, TextEntry::class] as $component) {
             $component::macro('naira', fn () => $this->formatStateUsing(fn ($state) => Formats::naira($state)));
             $component::macro('wholeNumber', fn () => $this->formatStateUsing(fn ($state) => Formats::wholeNumber($state)));
+        }
+
+        // Table totals (Sum/Average/Count under a column) switch on
+        // ->numeric() by themselves, which needs intl too. "Important" so it
+        // runs after Filament's own setup; a page's own ->formatStateUsing()
+        // still wins.
+        foreach ([Summarizers\Sum::class, Summarizers\Average::class, Summarizers\Count::class] as $summarizer) {
+            $summarizer::configureUsing(fn ($s) => $s->formatStateUsing(fn ($state) => Formats::wholeNumber($state)), isImportant: true);
         }
 
         // Adds ?v=<version> to the admin's CSS/JS links, so after a deploy
