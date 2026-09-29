@@ -91,13 +91,13 @@
             configured for this environment (local dev, tests) — never
             blocks the page.
         --}}
-        @if(config('services.onesignal.app_id'))
+        @if(\App\Notifications\Channels\OneSignalChannel::appId())
             <script src="https://cdn.onesignal.com/sdks/web/v16/OneSignalSDK.page.js" defer></script>
             <script>
                 window.OneSignalDeferred = window.OneSignalDeferred || [];
                 window.OneSignalDeferred.push(async function (OneSignal) {
                     await OneSignal.init({
-                        appId: @json(config('services.onesignal.app_id')),
+                        appId: @json(\App\Notifications\Channels\OneSignalChannel::appId()),
                         notifyButton: { enable: false },
                         allowLocalhostAsSecureOrigin: true,
                     });
