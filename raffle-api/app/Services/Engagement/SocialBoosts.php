@@ -68,11 +68,16 @@ class SocialBoosts
         return $code;
     }
 
+    /**
+     * The name other people see on a team or an unlock link: the customer's
+     * username, in full. (It used to cut a display name at its first space,
+     * so "Mr John" showed as "Mr".)
+     */
     private function firstName(?WpUser $user): string
     {
-        $name = trim((string) ($user?->display_name ?: $user?->user_login));
+        $name = trim((string) ($user?->user_login ?: $user?->display_name));
 
-        return $name === '' ? 'A friend' : explode(' ', $name)[0];
+        return $name === '' ? 'A friend' : $name;
     }
 
     /** What the raffle page and the purchase success screen show a signed-in customer. */

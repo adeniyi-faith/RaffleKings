@@ -120,7 +120,7 @@ final class HealthReport
         $this->optionalSetting(
             'SENTRY_LARAVEL_DSN',
             filled(config('sentry.dsn')),
-            'Sentry error tracking is off. Errors still show here and in Telegram; Sentry adds full details and grouping. Create a free project at sentry.io and paste its DSN.',
+            'Sentry error tracking is off. Errors still show here and in Telegram; Sentry adds full details and grouping. Create a free project at sentry.io and paste its DSN in Settings → Alerts & push.',
         );
 
         if (config('app.debug') && app()->environment('production')) {

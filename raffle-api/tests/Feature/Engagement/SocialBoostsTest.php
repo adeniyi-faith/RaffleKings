@@ -81,6 +81,20 @@ class SocialBoostsTest extends TestCase
         $this->expectExceptionOnce(fn () => $boosts->join($this->player('m3', 5), $team->code), 'already full');
     }
 
+    public function test_a_team_shows_each_persons_username_not_the_first_word_of_their_display_name(): void
+    {
+        $this->createRaffle(['public_id' => 5]);
+        $captain = $this->player('john_a', 5);
+        $captain->update(['display_name' => 'Mr John Adeyemi']);
+        $boosts = app(SocialBoosts::class);
+        $team = $boosts->createTeam($captain, 5);
+
+        $view = $boosts->presentTeam($team);
+
+        $this->assertSame('john_a', $view['captain']);
+        $this->assertSame('john_a', $view['members'][0]['name']);
+    }
+
     public function test_an_expired_team_cannot_be_joined(): void
     {
         $this->createRaffle(['public_id' => 5]);
