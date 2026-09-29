@@ -23,20 +23,20 @@ export default function Header() {
             className="sticky top-0 z-30 flex flex-shrink-0 items-center justify-between border-b border-transparent bg-white px-4 pb-3 shadow-sm backdrop-blur-md transition-colors duration-200 dark:border-gray-800 dark:bg-dark-bg/95 dark:shadow-none sm:px-5"
             style={{ paddingTop: 'calc(env(safe-area-inset-top) + 0.75rem)' }}
         >
-            <Link href="/" className="flex items-center gap-2 transition-transform active:scale-95">
+            <Link href="/" className="flex shrink-0 items-center gap-2 transition-transform active:scale-95">
                 <img src="/images/icon-192.png" alt="RaffleKings Logo" width="32" height="32" className="h-8 w-8 rounded-lg" />
                 <h1 className="text-lg font-black leading-none tracking-tight text-gray-900 dark:text-white">
                     Raffle<span className="text-app-primary">Kings</span>
                 </h1>
             </Link>
 
-            <div className="flex items-center gap-3">
+            <div className="ml-4 flex min-w-0 items-center gap-2.5">
                 {user && (
                 <button
                     type="button"
                     onClick={toggleHidden}
                     aria-label={hidden ? 'Show balance' : 'Hide balance'}
-                    className="group flex items-center gap-2 rounded-full border border-gray-200 bg-gray-100 px-3 py-1.5 transition-transform active:scale-95 dark:border-gray-700 dark:bg-gray-800"
+                    className="group flex items-center gap-1.5 rounded-full border border-gray-200 bg-gray-100 px-2.5 py-1.5 transition-transform active:scale-95 dark:border-gray-700 dark:bg-gray-800"
                 >
                     <Wallet className="h-3 w-3 text-gray-500 transition-colors group-hover:text-app-primary dark:text-gray-400" />
                     <span className="whitespace-nowrap text-xs font-bold text-gray-700 dark:text-gray-200">
