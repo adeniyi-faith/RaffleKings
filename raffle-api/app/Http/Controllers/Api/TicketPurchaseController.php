@@ -7,6 +7,7 @@ use App\Exceptions\RaffleNotOnSaleException;
 use App\Exceptions\TicketUnavailableException;
 use App\Http\Controllers\Controller;
 use App\Http\Requests\PurchaseTicketsRequest;
+use App\Models\Legacy\RaffleEntry;
 use App\Models\Legacy\WpUser;
 use App\Services\TicketPurchaseService;
 use Illuminate\Http\JsonResponse;
@@ -46,6 +47,7 @@ class TicketPurchaseController extends Controller
                 submittedAmount: (float) $request->float('submitted_amount'),
                 fundingSource: $request->string('funding_source')->toString(),
                 idempotencyKey: $request->string('idempotency_key')->toString(),
+                coverShortfallFromWinnings: $request->boolean('use_winnings_for_shortfall'),
             );
         } catch (InsufficientBalanceException $e) {
             return response()->json([
@@ -66,11 +68,22 @@ class TicketPurchaseController extends Controller
             return response()->json(['message' => $e->getMessage()], 422);
         }
 
+        // The success screen shows the customer's actual ticket numbers
+        // (item 46), read back from what was really allocated.
         return response()->json([
             'id' => $transaction->id,
             'status' => $transaction->status,
             'type' => $transaction->type,
             'claimed_amount' => $transaction->claimed_amount,
+            'raffle_id' => (int) $request->integer('raffle_id'),
+            'ticket_numbers' => RaffleEntry::query()
+                ->where('txn_id', $transaction->id)
+                ->where('user_id', $user->ID)
+                ->where('raffle_id', (int) $request->integer('raffle_id'))
+                ->orderBy('ticket_number')
+                ->pluck('ticket_number')
+                ->map(fn ($n) => (int) $n)
+                ->values(),
         ], 201);
     }
 }

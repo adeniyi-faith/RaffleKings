@@ -19,6 +19,7 @@ final class LedgerReasons
         'opening_balance' => 'Opening balance (from old site)',
         'deposit_bonus' => 'Top-up bonus',
         'transaction_revoked' => 'Reversed by admin',
+        'earnings_transfer' => 'Winnings moved to wallet',
     ];
 
     public static function label(?string $reason): string

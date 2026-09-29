@@ -27,6 +27,7 @@ import { formatNaira } from '../../lib/format';
 import { apiPost } from '../../lib/api';
 import { resolveAvatar } from '../../lib/avatar';
 import { useSite } from '../../lib/site';
+import TransferWinningsModal from '../../Components/wallet/TransferWinningsModal';
 
 // Faithful rebuild of the legacy profile.php: the blue avatar header,
 // the guest "join now" card (or the two wallet cards when logged in),
@@ -37,6 +38,7 @@ export default function Profile() {
     const user = auth?.user;
     const [wallet, setWallet] = useState(0);
     const [earnings, setEarnings] = useState(0);
+    const [transferOpen, setTransferOpen] = useState(false);
     const [isDark, setIsDark] = useState(() => document.documentElement.classList.contains('dark'));
 
     useEffect(() => {
@@ -147,12 +149,13 @@ export default function Profile() {
                                         </div>
                                     </div>
                                     <div className="relative z-10 mt-4 flex gap-3">
-                                        <Link
-                                            href="/account/wallet"
+                                        <button
+                                            type="button"
+                                            onClick={() => setTransferOpen(true)}
                                             className="flex flex-1 items-center justify-center gap-2 rounded-xl border border-white/30 bg-white/20 py-2.5 text-xs font-bold text-white backdrop-blur-md transition-transform hover:bg-white/30 active:scale-95"
                                         >
                                             <RefreshCw className="h-3 w-3" /> Transfer
-                                        </Link>
+                                        </button>
                                         <Link
                                             href="/account/withdraw"
                                             className="flex flex-1 items-center justify-center gap-2 rounded-xl bg-white py-2.5 text-xs font-bold text-orange-600 shadow-sm transition-transform hover:bg-orange-50 active:scale-95"
@@ -269,6 +272,16 @@ export default function Profile() {
 
                 <BottomNav />
             </div>
+
+            <TransferWinningsModal
+                open={transferOpen}
+                onClose={() => setTransferOpen(false)}
+                earnings={earnings}
+                onDone={(data) => {
+                    setWallet(data.wallet_balance);
+                    setEarnings(data.earnings_balance);
+                }}
+            />
         </>
     );
 }
