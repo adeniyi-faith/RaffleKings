@@ -27,7 +27,7 @@ $rk_completion = function_exists('rk_get_profile_completion_state') ? rk_get_pro
     <!-- *** SECURITY PATCH: CENTRALIZED CONFIG WITH CACHE BUSTING *** -->
     <script src="config.js?v=<?php echo time(); ?>"></script>
     <script src="watchdog.js"></script>
-    <script src="assets/js/analytics.js"></script>
+    <script src="analytics.js"></script>
 
     <script>
         window.RK_PROFILE_COMPLETION = <?php echo wp_json_encode($rk_completion); ?>;

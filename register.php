@@ -81,7 +81,7 @@
     <!-- Config -->
     <script src="config.js?v=<?php echo time(); ?>"></script>
     <script src="watchdog.js"></script>
-    <script src="assets/js/analytics.js"></script>
+    <script src="analytics.js"></script>
 
     <style>
         * { -webkit-tap-highlight-color: transparent; }
