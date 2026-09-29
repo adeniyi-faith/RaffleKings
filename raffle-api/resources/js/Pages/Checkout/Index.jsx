@@ -20,6 +20,7 @@ import { useTicketPriceQuote } from '../../hooks/useTicketPriceQuote';
 import { useTimeLeft } from '../../hooks/useTimeLeft';
 import { formatNaira } from '../../lib/format';
 import { apiPost } from '../../lib/api';
+import { refreshBalances, useBalances } from '../../lib/balances';
 import PausedNotice from '../../Components/layout/PausedNotice';
 import Confetti from '../../Components/ui/Confetti';
 
@@ -48,7 +49,9 @@ export default function CheckoutIndex({ raffle, ticketNumbers, qty, minimumDepos
     // the presence channel is always joined).
     const { remainingTickets, viewerCount } = useLiveRaffle(raffle.id, raffle, true);
 
-    const [wallet, setWallet] = useState(null);
+    // Balances come with the page (no ₦0 flash) and are shared with the top bar.
+    const balances = useBalances();
+    const wallet = balances ? { wallet_balance: balances.wallet, earnings_balance: balances.earnings } : null;
     const [method, setMethod] = useState(null); // chosen once the balances load
     const [status, setStatus] = useState('idle'); // idle | processing | topping-up | success | error
     const [error, setError] = useState(null);
@@ -65,13 +68,7 @@ export default function CheckoutIndex({ raffle, ticketNumbers, qty, minimumDepos
     const canAfford = (m) => wallet !== null && balanceFor(m) >= price;
 
     function loadWallet() {
-        return fetch('/api/wallet', { credentials: 'same-origin', headers: { Accept: 'application/json' } })
-            .then((res) => (res.ok ? res.json() : null))
-            .then((data) => {
-                setWallet(data);
-                return data;
-            })
-            .catch(() => setWallet(null));
+        return refreshBalances(true);
     }
 
     useEffect(() => {
@@ -176,6 +173,7 @@ export default function CheckoutIndex({ raffle, ticketNumbers, qty, minimumDepos
 
             setPurchase(data);
             setStatus('success');
+            loadWallet();
         } catch (err) {
             setError(err.message);
             setStatus('error');

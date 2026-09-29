@@ -4,7 +4,10 @@ namespace App\Services;
 
 use App\Models\Legacy\RaffleEntry;
 use App\Models\Legacy\RaffleTransaction;
+use App\Models\Legacy\RaffleWinner;
 use App\Models\Legacy\WpUser;
+use App\Models\Raffle;
+use App\Models\RaffleDraw;
 use App\Models\WalletLedgerEntry;
 use Illuminate\Support\Collection;
 
@@ -54,15 +57,47 @@ class AccountReadService
         $raffleIds = $entries->pluck('raffle_id')->unique()->all();
         $raffles = $this->raffles->findMany($raffleIds);
 
-        $grouped = $entries->groupBy('raffle_id')->map(function (Collection $group, $raffleId) use ($raffles) {
+        // Item 48: each raffle's draw, so the card can say "You won!" and
+        // link to its live draw, results and proof. Wins only show once
+        // results are public: the draw has run and, for a live draw, the
+        // live reveal has finished (so nobody's surprise is spoiled).
+        $natives = Raffle::query()->whereIn('public_id', $raffleIds)->get()->keyBy('public_id');
+        $draws = RaffleDraw::query()->whereIn('raffle_id', $natives->pluck('id'))->get()->keyBy('raffle_id');
+        $wins = RaffleWinner::query()
+            ->where('user_id', $user->getKey())
+            ->whereIn('raffle_id', $raffleIds)
+            ->orderBy('prize_rank')
+            ->get()
+            ->groupBy('raffle_id');
+
+        $grouped = $entries->groupBy('raffle_id')->map(function (Collection $group, $raffleId) use ($raffles, $natives, $draws, $wins) {
             $raffle = $raffles->get((int) $raffleId);
-            $first = $group->first();
+            $native = $natives->get((int) $raffleId);
+            $draw = $native ? $draws->get($native->id) : null;
+            $live = (bool) $native?->is_live_draw_enabled;
+            $resultsPublic = $draw?->hasRun() && (! $live || $native->live_draw_status === 'completed');
 
             return [
                 'raffle_id' => (int) $raffleId,
                 'raffle_title' => $raffle['title'] ?? ('Raffle #'.$raffleId),
                 'date' => optional($group->max('created_at'))->toISOString(),
                 'status' => $this->deriveStatus($raffle),
+                'native_id' => $native?->id,
+                'draw' => [
+                    'committed' => (bool) $draw,
+                    'results_public' => (bool) $resultsPublic,
+                    'live' => $live,
+                    'live_status' => $live ? $native->live_draw_status : null,
+                ],
+                'wins' => $resultsPublic
+                    ? $wins->get((int) $raffleId, collect())->map(fn (RaffleWinner $w) => [
+                        'ticket_number' => str_pad((string) $w->ticket_number, 3, '0', STR_PAD_LEFT),
+                        'prize_name' => $w->prize_name,
+                        'prize_rank' => (int) $w->prize_rank,
+                        'prize_cash_value' => (float) $w->prize_cash_value,
+                        'is_credited' => (bool) $w->is_credited,
+                    ])->values()->all()
+                    : [],
                 'tickets' => $group->pluck('ticket_number')
                     ->map(fn ($n) => str_pad((string) $n, 3, '0', STR_PAD_LEFT))
                     ->values()

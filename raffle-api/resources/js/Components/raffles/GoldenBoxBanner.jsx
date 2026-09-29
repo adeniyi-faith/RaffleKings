@@ -11,14 +11,17 @@ import { apiPost } from '../../lib/api';
 // who gets it; tapping it starts the discount and returns the customer
 // to the checkout they left.
 export default function GoldenBoxBanner({ className = '' }) {
-    const { auth } = usePage().props;
-    const [offer, setOffer] = useState(null);
+    const { auth, goldenBox } = usePage().props;
+    // Pages that send the offer with the page (home, raffle list) show it
+    // straight away; anywhere else it's fetched.
+    const sentWithPage = goldenBox !== undefined;
+    const [offer, setOffer] = useState(sentWithPage ? goldenBox : null);
     const [claiming, setClaiming] = useState(false);
     const [error, setError] = useState(null);
     const { label, done } = useTimeLeft(offer?.ends_at);
 
     useEffect(() => {
-        if (! auth?.user) {
+        if (! auth?.user || sentWithPage) {
             return;
         }
 

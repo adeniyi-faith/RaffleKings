@@ -43,7 +43,7 @@ final class StaffRoles
         ],
         'content' => [
             'label' => 'Content',
-            'description' => 'Raffles and draws, announcements, tutorials, chat and messages to customers.',
+            'description' => 'Raffles and draws, announcements, tutorials, the Terms and About pages, chat and messages to customers.',
             'abilities' => ['raffles', 'content', 'chat', 'messages'],
         ],
     ];
@@ -70,6 +70,7 @@ final class StaffRoles
         Filament\Resources\RaffleDrawResource::class => 'raffles',
         Filament\Resources\SiteNoticeResource::class => 'content',
         Filament\Resources\TutorialResource::class => 'content',
+        Filament\Resources\SitePageResource::class => 'content',
         Filament\Resources\BroadcastResource::class => 'messages',
         Filament\Resources\AdminAuditLogResource::class => 'system',
         Filament\Pages\SystemHealth::class => 'system',

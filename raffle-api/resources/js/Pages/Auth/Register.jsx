@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { Head, router } from '@inertiajs/react';
-import { Lock, Mail, User, UserPlus } from 'lucide-react';
+import { Gift, Lock, Mail, User, UserPlus } from 'lucide-react';
 import Button from '../../Components/ui/Button';
 import { Card } from '../../Components/ui/Card';
 import { TextInput, PasswordInput } from '../../Components/ui/TextInput';
@@ -9,8 +9,9 @@ import { apiPost } from '../../lib/api';
 import PausedNotice from '../../Components/layout/PausedNotice';
 import { safeRedirect } from '../../lib/safeRedirect';
 
-export default function Register({ turnstileSiteKey, referralCode, redirect }) {
+export default function Register({ turnstileSiteKey, referralCode, referrerName, redirect }) {
     const [form, setForm] = useState({ username: '', email: '', password: '' });
+    const [accepted, setAccepted] = useState(false);
     const [turnstileToken, setTurnstileToken] = useState('');
     const [error, setError] = useState(null);
     const [submitting, setSubmitting] = useState(false);
@@ -26,6 +27,7 @@ export default function Register({ turnstileSiteKey, referralCode, redirect }) {
             await apiPost('/api/auth/register', {
                 ...form,
                 referral_code: referralCode || null,
+                accept_terms: accepted,
                 turnstile_token: turnstileToken || null,
             });
             router.visit(safeRedirect(redirect));
@@ -51,6 +53,17 @@ export default function Register({ turnstileSiteKey, referralCode, redirect }) {
                             Join RaffleKings and get a ₦300 welcome bonus.
                         </p>
                     </div>
+
+                    {referrerName && (
+                        <div className="mb-4 flex items-center gap-3 rounded-2xl border border-amber-200 bg-amber-50 p-3 dark:border-amber-900/40 dark:bg-amber-900/20">
+                            <div className="flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-full bg-amber-400 text-white">
+                                <Gift className="h-4 w-4" />
+                            </div>
+                            <p className="text-sm text-amber-900 dark:text-amber-200">
+                                Invited by <span className="font-bold">{referrerName}</span>. Sign up to start playing together.
+                            </p>
+                        </div>
+                    )}
 
                     {error && (
                         <div className="mb-4 rounded-lg bg-red-50 px-3 py-2 text-sm text-red-700 dark:bg-red-900/20 dark:text-red-400">
@@ -84,6 +97,27 @@ export default function Register({ turnstileSiteKey, referralCode, redirect }) {
                             minLength={6}
                         />
 
+                        <label className="flex cursor-pointer items-start gap-3 rounded-xl border border-gray-200 bg-gray-50 p-3 text-xs leading-relaxed text-gray-600 dark:border-gray-700 dark:bg-gray-800/50 dark:text-gray-300">
+                            <input
+                                type="checkbox"
+                                checked={accepted}
+                                onChange={(e) => setAccepted(e.target.checked)}
+                                className="mt-0.5 h-4 w-4 flex-shrink-0 rounded border-gray-300 text-app-primary focus:ring-app-primary"
+                                required
+                            />
+                            <span>
+                                I am <strong className="text-gray-900 dark:text-white">18 or older</strong> and I accept the{' '}
+                                <a href="/terms" target="_blank" rel="noopener" className="font-semibold text-app-primary underline">
+                                    Terms of Service
+                                </a>{' '}
+                                and{' '}
+                                <a href="/privacy-policy" target="_blank" rel="noopener" className="font-semibold text-app-primary underline">
+                                    Privacy Policy
+                                </a>
+                                .
+                            </span>
+                        </label>
+
                         {turnstileSiteKey && (
                             <Turnstile
                                 siteKey={turnstileSiteKey}
@@ -92,14 +126,14 @@ export default function Register({ turnstileSiteKey, referralCode, redirect }) {
                             />
                         )}
 
-                        <Button type="submit" disabled={submitting || (turnstileSiteKey && ! turnstileToken)}>
+                        <Button type="submit" disabled={submitting || ! accepted || (turnstileSiteKey && ! turnstileToken)}>
                             {submitting ? 'Creating account…' : 'Create account'}
                         </Button>
                     </form>
 
                     <p className="mt-4 text-center text-xs text-gray-500 dark:text-gray-400">
                         Already have an account?{' '}
-                        <a href="/login" className="font-semibold text-app-primary">
+                        <a href={redirect ? `/login?redirect=${encodeURIComponent(redirect)}` : '/login'} className="font-semibold text-app-primary">
                             Log in
                         </a>
                     </p>

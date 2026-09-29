@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from 'react';
 import { Head, Link, usePage } from '@inertiajs/react';
 import { ArrowLeft, Coins, Gift, Info, Sparkles, Volume2, VolumeX, X } from 'lucide-react';
 import SpinWheel from '../../Components/rewards/SpinWheel';
+import { setBalances } from '../../lib/balances';
 import Confetti from '../../Components/ui/Confetti';
 import { isOn, useSite } from '../../lib/site';
 import { evenSound, loseSound, setSoundOn, soundOn, tick, unlockSound, winSound } from '../../lib/gameSound';
@@ -119,6 +120,7 @@ export default function Spin({ cost, odds, points: initialPoints }) {
             else loseSound();
 
             setPoints(data.new_balance);
+            setBalances({ points: data.new_balance });
             setHistory((h) => [{ payout: data.payout, outcome: data.outcome }, ...h].slice(0, 12));
             setResult({ ...data, profit });
             setPhase('result');

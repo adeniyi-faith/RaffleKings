@@ -5,6 +5,7 @@ namespace App\Http\Controllers\Api;
 use App\Http\Controllers\Controller;
 use App\Models\Legacy\RaffleWinner;
 use App\Models\Legacy\WpUser;
+use App\Models\Legacy\WpUserMeta;
 use App\Models\Raffle;
 use Illuminate\Http\JsonResponse;
 
@@ -37,6 +38,7 @@ class HallOfFameController extends Controller
 
         $userIds = $winners->pluck('user_id')->unique();
         $users = WpUser::query()->whereIn('ID', $userIds)->get()->keyBy('ID');
+        $pictures = WpUserMeta::query()->whereIn('user_id', $userIds)->where('meta_key', 'profile_pic_url')->pluck('meta_value', 'user_id');
 
         $legacyRaffleIds = $winners->pluck('raffle_id')->unique();
         // Winner rows store the raffle's permanent public number (item 43).
@@ -44,16 +46,20 @@ class HallOfFameController extends Controller
             ->whereIn('public_id', $legacyRaffleIds)
             ->pluck('id', 'public_id');
 
-        $formatted = $winners->map(function (RaffleWinner $w) use ($users, $nativeRaffleIdsByLegacyId) {
+        $formatted = $winners->map(function (RaffleWinner $w) use ($users, $pictures, $nativeRaffleIdsByLegacyId) {
             $user = $users->get($w->user_id);
             $prizeDisplay = $w->prize_cash_value > 0
                 ? '₦'.number_format((float) $w->prize_cash_value)
                 : $w->prize_name;
 
+            $name = $user ? ($user->display_name ?: $user->user_login) : 'Lucky Winner';
+
             return [
                 'id' => $w->id,
-                'name' => $user ? ($user->display_name ?: $user->user_login) : 'Lucky Winner',
-                'avatar' => $user ? "https://api.dicebear.com/7.x/initials/svg?seed={$user->display_name}" : null,
+                'name' => $name,
+                // Item 48: the winner's own profile picture, or the same
+                // cartoon avatar they see on their profile (lib/avatar.js).
+                'avatar' => self::avatar($pictures->get($w->user_id), $name),
                 'prize' => $prizeDisplay,
                 'prize_amount' => (float) $w->prize_cash_value,
                 'ticket' => $w->ticket_number,
@@ -67,5 +73,15 @@ class HallOfFameController extends Controller
             'recent' => $formatted->values(),
             'total_count' => RaffleWinner::query()->where('is_visible', true)->count(),
         ]);
+    }
+
+    /** A real uploaded picture (https, or a path on this site), else the site-wide cartoon avatar for that name. */
+    public static function avatar(?string $picture, string $name): string
+    {
+        if (is_string($picture) && (str_starts_with($picture, 'https://') || preg_match('#^/(?!/)#', $picture))) {
+            return $picture;
+        }
+
+        return 'https://api.dicebear.com/9.x/adventurer/svg?seed='.rawurlencode(preg_replace('/\s+/', '', $name)).'&backgroundColor=e5e7eb';
     }
 }
