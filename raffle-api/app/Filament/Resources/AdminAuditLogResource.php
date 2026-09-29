@@ -45,6 +45,7 @@ class AdminAuditLogResource extends Resource
         'broadcast.sent' => 'Message sent to customers',
         'tutorial.created' => 'Tutorial written',
         'tutorial.updated' => 'Tutorial edited',
+        'site_page.updated' => 'Terms or About page edited',
         'tutorial.shown' => 'Tutorial put on the site',
         'tutorial.hidden' => 'Tutorial hidden',
         'tutorial.deleted' => 'Tutorial deleted',

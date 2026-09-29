@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { Head, Link, router } from '@inertiajs/react';
-import { ArrowLeft, Hash, Ticket } from 'lucide-react';
+import { ArrowLeft, ExternalLink, Hash, PlayCircle, Radio, ShieldCheck, Ticket, Trophy } from 'lucide-react';
+import { formatNaira } from '../../lib/format';
 
 // Faithful rebuild of my-tickets.php against the new ledger/wallet/
 // bank-account-era account APIs (item 26) — same skeleton loader, same
@@ -127,6 +128,8 @@ export default function AccountTickets() {
                     {state === 'ready' &&
                         groups.map((group) => {
                             const style = STATUS_STYLES[group.status] || STATUS_STYLES.Concluded;
+                            const wins = group.wins || [];
+                            const winning = new Set(wins.map((w) => w.ticket_number));
 
                             return (
                                 <div
@@ -141,8 +144,8 @@ export default function AccountTickets() {
                                             </p>
                                         </div>
                                         <div className="text-right">
-                                            <span className={`rounded-lg px-2 py-1 text-[10px] font-bold ${style.badge}`}>
-                                                {group.status}
+                                            <span className={`rounded-lg px-2 py-1 text-[10px] font-bold ${wins.length ? 'bg-yellow-400 text-yellow-950' : style.badge}`}>
+                                                {wins.length ? 'You won!' : group.status}
                                             </span>
                                             <p className="mt-1 text-[10px] text-gray-400 dark:text-gray-500">ID: #{group.raffle_id}</p>
                                         </div>
@@ -156,12 +159,70 @@ export default function AccountTickets() {
                                             {group.tickets.map((n) => (
                                                 <span
                                                     key={n}
-                                                    className="rounded border border-gray-200 bg-white px-2 py-1 font-mono text-xs font-bold text-gray-800 shadow-sm dark:border-gray-700 dark:bg-dark-bg dark:text-gray-300"
+                                                    className={
+                                                        winning.has(n)
+                                                            ? 'rounded border border-yellow-500 bg-yellow-400 px-2 py-1 font-mono text-xs font-black text-yellow-950 shadow-sm'
+                                                            : 'rounded border border-gray-200 bg-white px-2 py-1 font-mono text-xs font-bold text-gray-800 shadow-sm dark:border-gray-700 dark:bg-dark-bg dark:text-gray-300'
+                                                    }
                                                 >
                                                     {n}
                                                 </span>
                                             ))}
                                         </div>
+                                    </div>
+
+                                    {wins.length > 0 && (
+                                        <div className="mt-3 space-y-2">
+                                            {wins.map((w) => (
+                                                <div
+                                                    key={`${w.ticket_number}-${w.prize_rank}`}
+                                                    className="flex items-center gap-3 rounded-xl bg-gradient-to-r from-yellow-400 to-amber-500 p-3 text-yellow-950 shadow-md shadow-yellow-500/20"
+                                                >
+                                                    <Trophy className="h-6 w-6 flex-shrink-0" />
+                                                    <div className="min-w-0">
+                                                        <p className="text-sm font-black">
+                                                            You won {w.prize_cash_value > 0 ? formatNaira(w.prize_cash_value) : w.prize_name}!
+                                                        </p>
+                                                        <p className="text-[11px] font-semibold">
+                                                            Ticket {w.ticket_number}
+                                                            {' · '}
+                                                            {w.prize_cash_value > 0
+                                                                ? w.is_credited
+                                                                    ? 'Paid into your winnings'
+                                                                    : 'Being paid into your winnings'
+                                                                : w.is_credited
+                                                                  ? 'Delivered'
+                                                                  : "We'll contact you about delivery"}
+                                                        </p>
+                                                    </div>
+                                                </div>
+                                            ))}
+                                        </div>
+                                    )}
+
+                                    <div className="mt-3 flex flex-wrap gap-2">
+                                        <TicketLink href={`/raffles/${group.raffle_id}`} icon={ExternalLink}>
+                                            Raffle
+                                        </TicketLink>
+                                        {group.draw?.live && group.native_id && (
+                                            <TicketLink
+                                                href={`/raffles/${group.native_id}/live-draw`}
+                                                icon={group.draw.live_status === 'completed' ? PlayCircle : Radio}
+                                                accent={group.draw.live_status === 'revealing'}
+                                            >
+                                                {group.draw.live_status === 'revealing' ? 'Live now' : group.draw.live_status === 'completed' ? 'Replay draw' : 'Live draw'}
+                                            </TicketLink>
+                                        )}
+                                        {group.draw?.results_public && (
+                                            <TicketLink href="/hall-of-fame" icon={Trophy}>
+                                                Results
+                                            </TicketLink>
+                                        )}
+                                        {group.draw?.committed && group.native_id && (
+                                            <TicketLink href={`/raffles/${group.native_id}/verify`} icon={ShieldCheck}>
+                                                Verify draw
+                                            </TicketLink>
+                                        )}
                                     </div>
                                 </div>
                             );
@@ -169,5 +230,18 @@ export default function AccountTickets() {
                 </div>
             </div>
         </>
+    );
+}
+
+function TicketLink({ href, icon: Icon, children, accent = false }) {
+    return (
+        <Link
+            href={href}
+            className={`flex items-center gap-1.5 rounded-lg px-2.5 py-1.5 text-[11px] font-bold transition-transform active:scale-95 ${
+                accent ? 'bg-red-600 text-white' : 'bg-gray-100 text-gray-700 hover:bg-gray-200 dark:bg-gray-800 dark:text-gray-200'
+            }`}
+        >
+            <Icon className="h-3.5 w-3.5" /> {children}
+        </Link>
     );
 }

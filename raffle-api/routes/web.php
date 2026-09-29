@@ -2,16 +2,21 @@
 
 use App\Http\Controllers\Api\TutorialController;
 use App\Http\Controllers\LegacyRedirectController;
+use App\Models\Deposit;
 use App\Models\Legacy\RaffleEntry;
 use App\Models\Raffle;
+use App\Models\SitePage;
+use App\Services\Auth\RegistrationService;
 use App\Services\Auth\TurnstileVerifier;
 use App\Services\DailyClaimService;
 use App\Services\GoldenBoxService;
+use App\Services\LiveDrawService;
 use App\Services\PointsService;
 use App\Services\RaffleReadService;
 use App\Services\SpinService;
 use App\Services\TaskClaimService;
 use App\Services\TutorialReadService;
+use App\Support\PageMeta;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Route;
@@ -33,15 +38,34 @@ Route::get('/', function (Request $request, RaffleReadService $raffles) {
 
     return Inertia::render('Home', [
         'trending' => $raffles->listActive(['sort' => 'closing_soon', 'per_page' => 10])['raffles'],
+        // Sent with the page so the gold banner doesn't pop in late.
+        'goldenBox' => ($user = Auth::guard('wordpress')->user()) ? app(GoldenBoxService::class)->offerFor($user) : null,
     ]);
 });
 
 // Registration/login/password-reset pages (item 23), against the new
 // /api/auth/* endpoints — see App\Services\Auth's docblocks.
-Route::get('/register', function (Request $request) {
+Route::get('/register', function (Request $request, RegistrationService $registration) {
+    $code = is_string($request->query('ref')) ? $request->query('ref') : null;
+    // Item 48: "Invited by …" on the form, and in the link preview a
+    // shared referral link shows on WhatsApp.
+    $referrer = $code ? $registration->findReferrer($code) : null;
+    $referrerName = $referrer ? ($referrer->display_name ?: $referrer->user_login) : null;
+
+    if ($referrerName) {
+        PageMeta::set([
+            'title' => "{$referrerName} invited you to ".config('app.name'),
+            'description' => 'Join free, get a welcome bonus, and win cash, phones and more in fair, verifiable raffle draws.',
+        ]);
+    }
+
     return Inertia::render('Auth/Register', [
         'turnstileSiteKey' => app(TurnstileVerifier::class)->enabled('register') ? config('services.turnstile.site_key') : null,
-        'referralCode' => $request->query('ref'),
+        'referralCode' => $code,
+        'referrerName' => $referrerName,
+        // Item 48: a guest sent here mid-purchase goes back there after
+        // signing up (the page only follows a same-site path).
+        'redirect' => is_string($request->query('redirect')) ? $request->query('redirect') : null,
     ]);
 });
 
@@ -66,6 +90,7 @@ Route::get('/raffles', function (Request $request, RaffleReadService $raffles) {
         'initial' => $raffles->listActive($request->only([
             'search', 'prize_type', 'min_price', 'max_price', 'sort', 'page',
         ])),
+        'goldenBox' => ($user = Auth::guard('wordpress')->user()) ? app(GoldenBoxService::class)->offerFor($user) : null,
     ]);
 });
 
@@ -74,6 +99,14 @@ Route::get('/raffles/{raffle}', function (int $raffle, RaffleReadService $raffle
     $found = $raffles->find($raffle);
 
     abort_if(! $found, 404);
+
+    // Item 48: a shared raffle link previews with its own name and prize.
+    PageMeta::set([
+        'title' => $found['title'].' | '.config('app.name'),
+        'description' => ($found['grand_prize'] ? 'Win '.$found['grand_prize'].'. ' : '')
+            .'Tickets from ₦'.number_format($found['price']).'. '
+            .($found['is_closed'] ? 'This raffle has closed.' : $found['remaining_tickets'].' tickets left. Pick your lucky numbers now.'),
+    ]);
 
     return Inertia::render('Raffles/Show', ['raffle' => $found]);
 });
@@ -183,7 +216,21 @@ Route::get('/account/transactions', function (Request $request) use ($accountGua
 // Wallet balance itself comes from GET /api/wallet (real-time), same
 // as the checkout payment-method cards (item 25) — nothing to SSR here.
 Route::get('/account/wallet', function (Request $request) use ($accountGuard) {
-    return $accountGuard($request) ?? Inertia::render('Account/Wallet');
+    if ($redirect = $accountGuard($request)) {
+        return $redirect;
+    }
+
+    // Item 48: a fuller top-up page — the real smallest top-up and the
+    // customer's last few top-ups.
+    return Inertia::render('Account/Wallet', [
+        'minimumDeposit' => (float) config('payments.minimum_deposit'),
+        'recentTopups' => Deposit::query()
+            ->where('user_id', Auth::guard('wordpress')->id())
+            ->latest('id')
+            ->limit(5)
+            ->get(['id', 'amount', 'status', 'created_at'])
+            ->map(fn (Deposit $d) => ['id' => $d->id, 'amount' => (float) $d->amount, 'status' => $d->status, 'created_at' => $d->created_at?->toIso8601String()]),
+    ]);
 });
 
 Route::get('/messages', function (Request $request) use ($accountGuard) {
@@ -258,6 +305,25 @@ Route::get('/support/tutorials/{tutorial}', function (Request $request, string $
     return Inertia::render('Support/Tutorial', $found);
 });
 
+// Terms of Service and About (item 48) — public, admin-editable pages
+// (Site → Pages). The old site linked to a Terms page that didn't exist.
+foreach (SitePage::SLUGS as $slug => $path) {
+    Route::get($path, function () use ($slug) {
+        $page = SitePage::query()->where('slug', $slug)->first();
+        abort_if(! $page, 404);
+
+        PageMeta::set(['title' => $page->title.' | '.config('app.name'), 'description' => $page->summary]);
+
+        return Inertia::render('SitePage', [
+            'slug' => $page->slug,
+            'title' => $page->title,
+            'summary' => $page->summary,
+            'body' => $page->renderedBody(),
+            'updated_at' => $page->updated_at?->toIso8601String(),
+        ]);
+    });
+}
+
 // Standalone Privacy Policy (matching the legacy privacy-policy.php) --
 // public, static content, same as the legacy page.
 Route::get('/privacy-policy', fn () => Inertia::render('PrivacyPolicy'));
@@ -265,6 +331,14 @@ Route::get('/privacy-policy', fn () => Inertia::render('PrivacyPolicy'));
 // Hall of Fame (item 27) — public, same as the legacy winners.php (no
 // login check there). Data itself comes from GET /api/hall-of-fame.
 Route::get('/hall-of-fame', fn () => Inertia::render('HallOfFame'));
+
+// All live draws (item 48): happening now, coming up, and past events
+// anyone can open and replay. Public, like each live-draw page.
+Route::get('/live-draws', function (LiveDrawService $liveDraws) {
+    PageMeta::set(['title' => 'Live Draws | '.config('app.name'), 'description' => 'Watch raffle draws live, or replay past draws and see every winner revealed.']);
+
+    return Inertia::render('LiveDraw/Index', $liveDraws->events());
+});
 
 // Live Draw (item 27) — public viewing, same as the legacy livedraw.php
 // (anyone with the link could watch; only posting a comment/reaction

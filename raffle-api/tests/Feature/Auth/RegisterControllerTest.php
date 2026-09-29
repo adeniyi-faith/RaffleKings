@@ -27,6 +27,7 @@ class RegisterControllerTest extends TestCase
     public function test_it_creates_a_real_wp_user_and_auto_logs_in_with_a_cookie_the_wordpress_guard_recognises(): void
     {
         $response = $this->postJson('/api/auth/register', [
+            'accept_terms' => true,
             'username' => 'newplayer',
             'email' => 'newplayer@example.com',
             'password' => 'letmein1',
@@ -54,6 +55,7 @@ class RegisterControllerTest extends TestCase
     public function test_it_grants_the_same_welcome_bonus_amount_the_legacy_site_gives_on_the_new_wallet(): void
     {
         $this->postJson('/api/auth/register', [
+            'accept_terms' => true,
             'username' => 'bonushunter',
             'email' => 'bonushunter@example.com',
             'password' => 'letmein1',
@@ -80,6 +82,7 @@ class RegisterControllerTest extends TestCase
         $referrer = WpUser::create(['user_login' => 'ref1', 'user_pass' => 'x', 'user_email' => 'ref1@example.com']);
 
         $this->postJson('/api/auth/register', [
+            'accept_terms' => true,
             'username' => 'referee1',
             'email' => 'referee1@example.com',
             'password' => 'letmein1',
@@ -96,12 +99,14 @@ class RegisterControllerTest extends TestCase
         WpUser::create(['user_login' => 'taken', 'user_pass' => 'x', 'user_email' => 'taken@example.com']);
 
         $this->postJson('/api/auth/register', [
+            'accept_terms' => true,
             'username' => 'taken',
             'email' => 'someoneelse@example.com',
             'password' => 'letmein1',
         ])->assertStatus(422);
 
         $this->postJson('/api/auth/register', [
+            'accept_terms' => true,
             'username' => 'freshuser',
             'email' => 'taken@example.com',
             'password' => 'letmein1',
@@ -111,6 +116,7 @@ class RegisterControllerTest extends TestCase
     public function test_it_rejects_a_weak_password(): void
     {
         $this->postJson('/api/auth/register', [
+            'accept_terms' => true,
             'username' => 'weakpass',
             'email' => 'weakpass@example.com',
             'password' => 'alllettersnodigits',
@@ -122,6 +128,7 @@ class RegisterControllerTest extends TestCase
         config(['services.turnstile.secret_key' => 'fake-secret', 'services.turnstile.site_key' => 'fake-site']);
 
         $this->postJson('/api/auth/register', [
+            'accept_terms' => true,
             'username' => 'botlike',
             'email' => 'botlike@example.com',
             'password' => 'letmein1',
@@ -135,6 +142,7 @@ class RegisterControllerTest extends TestCase
         config(['services.turnstile.secret_key' => 'fake-secret', 'services.turnstile.site_key' => null]);
 
         $this->postJson('/api/auth/register', [
+            'accept_terms' => true,
             'username' => 'realperson',
             'email' => 'real@example.com',
             'password' => 'letmein1',
@@ -146,6 +154,7 @@ class RegisterControllerTest extends TestCase
         config(['services.turnstile.secret_key' => 'fake-secret', 'services.turnstile.site_key' => 'fake-site', 'services.turnstile.forms.register' => false]);
 
         $this->postJson('/api/auth/register', [
+            'accept_terms' => true,
             'username' => 'realperson',
             'email' => 'real@example.com',
             'password' => 'letmein1',

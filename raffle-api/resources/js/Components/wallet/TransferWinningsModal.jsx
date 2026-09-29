@@ -3,6 +3,7 @@ import { ArrowDown, Award, CheckCircle2, Wallet } from 'lucide-react';
 import Modal from '../ui/Modal';
 import { apiPost } from '../../lib/api';
 import { formatNaira } from '../../lib/format';
+import { setBalances } from '../../lib/balances';
 
 // Move winnings into the spending wallet (item 46): free, instant, one
 // way. Used by the Profile page's "Transfer" button, which used to only
@@ -43,6 +44,7 @@ export default function TransferWinningsModal({ open, onClose, earnings, onDone 
             const data = await apiPost('/api/wallet/transfer', { amount: numeric });
             setMoved(data.moved);
             setStatus('done');
+            setBalances(data);
             onDone?.(data);
         } catch (err) {
             setError(err.message);

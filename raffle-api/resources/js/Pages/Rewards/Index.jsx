@@ -18,6 +18,7 @@ import { isOn, useSite } from '../../lib/site';
 import PausedNotice from '../../Components/layout/PausedNotice';
 import { usePushPermission } from '../../hooks/usePushPermission';
 import BottomNav from '../../Components/layout/BottomNav';
+import { setBalances, useBalances } from '../../lib/balances';
 import ResultModal from '../../Components/rewards/ResultModal';
 
 // Rebuild of rewards.php (item 28). What's preserved from the legacy
@@ -77,6 +78,7 @@ export default function RewardsIndex({ referralCode, preview = null }) {
     const pointsPerNaira = site.points_per_naira || 10;
     const minRedeem = site.minimum_redeem_points || 100;
     const isGuest = ! auth?.user;
+    const pageBalances = useBalances();
     const [state, setState] = useState(null);
     const [referral, setReferral] = useState(null);
     const [busy, setBusy] = useState(null); // id of whatever action is in flight
@@ -108,6 +110,7 @@ export default function RewardsIndex({ referralCode, preview = null }) {
             .then((res) => (res.ok ? res.json() : null))
             .then((data) => {
                 setState(data);
+                if (data) setBalances({ points: data.points });
                 // Keep a "Claim in 8s" countdown going after a reload.
                 const ready = {};
                 (data?.tasks ?? []).forEach((t) => {
@@ -255,7 +258,8 @@ export default function RewardsIndex({ referralCode, preview = null }) {
 
     // A guest sees the real rewards (item 47) instead of blank rows.
     const data = isGuest ? preview : state;
-    const points = state?.points ?? 0;
+    // Sent with the page, so the badge shows the real number straight away.
+    const points = state?.points ?? pageBalances?.points ?? 0;
     const streak = state?.streak ?? 0;
     const claimedToday = state?.is_claimed_today ?? false;
     const schedule = data?.daily_schedule ?? [];
@@ -284,8 +288,8 @@ export default function RewardsIndex({ referralCode, preview = null }) {
                     <div className="pointer-events-none absolute right-0 top-0 h-64 w-64 -translate-y-1/2 translate-x-1/2 rounded-full bg-white/5 blur-3xl" />
 
                     <div className="relative z-10 mb-6 flex items-center justify-between">
-                        <div className="flex items-center gap-3">
-                            <button onClick={() => window.history.back()} className="-ml-1 p-1 text-white/70 hover:text-white" aria-label="Back">
+                        <div className="flex min-w-0 items-center gap-3">
+                            <button onClick={() => window.history.back()} className="-ml-1 flex-shrink-0 p-1 text-white/70 hover:text-white" aria-label="Back">
                                 <ArrowLeft className="h-6 w-6" />
                             </button>
                             <div>
@@ -298,7 +302,7 @@ export default function RewardsIndex({ referralCode, preview = null }) {
                                                 Next reward in <span className="font-mono font-bold text-white">{hms(nextReset)}</span>
                                             </>
                                         ) : (
-                                            <span className="font-bold text-yellow-300">Today's reward is ready. Tap it!</span>
+                                            <span className="font-bold text-yellow-300">Today's reward is ready!</span>
                                         )}
                                     </p>
                                 )}
@@ -311,9 +315,9 @@ export default function RewardsIndex({ referralCode, preview = null }) {
                                 Log in
                             </Link>
                         ) : (
-                            <div className="flex items-center gap-2 rounded-full border border-white/20 bg-white/10 px-3 py-1.5 backdrop-blur-md">
-                                <Coins className="h-4 w-4 fill-current text-yellow-400" />
-                                <span className="text-sm font-bold text-white">{points} Pts</span>
+                            <div className="ml-2 flex flex-shrink-0 items-center gap-1.5 whitespace-nowrap rounded-full border border-white/20 bg-white/10 px-3 py-1.5 backdrop-blur-md">
+                                <Coins className="h-4 w-4 flex-shrink-0 fill-current text-yellow-400" />
+                                <span className="text-sm font-bold tabular-nums text-white">{points.toLocaleString()} pts</span>
                             </div>
                         )}
                     </div>

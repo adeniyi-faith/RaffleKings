@@ -5,6 +5,7 @@ namespace App\Services;
 use App\Events\LiveDrawCommentPosted;
 use App\Events\LiveDrawReactionPosted;
 use App\Exceptions\DrawNotCommittedException;
+use App\Http\Controllers\Api\HallOfFameController;
 use App\Jobs\RunLiveDrawRevealJob;
 use App\Models\Legacy\RaffleWinner;
 use App\Models\Legacy\WpUser;
@@ -73,6 +74,67 @@ class LiveDrawService
             'revealed' => $revealedSoFar,
             'comments' => $this->recentComments($raffle),
             'reaction_counts' => $this->reactionCounts($raffle),
+        ];
+    }
+
+    /**
+     * Every raffle with a live draw, for the Live Draws page (item 48):
+     * happening now, coming up, and past events people can replay.
+     *
+     * @return array{live: list<array>, upcoming: list<array>, past: list<array>}
+     */
+    public function events(): array
+    {
+        $raffles = Raffle::query()
+            ->publiclyVisible()
+            ->where('is_live_draw_enabled', true)
+            ->orderByDesc('live_draw_started_at')
+            ->orderByDesc('id')
+            ->limit(100)
+            ->get();
+
+        $revealCounts = LiveDrawReveal::query()
+            ->whereIn('raffle_id', $raffles->pluck('id'))
+            ->selectRaw('raffle_id, count(*) as total')
+            ->groupBy('raffle_id')
+            ->pluck('total', 'raffle_id');
+
+        $topPrize = RaffleWinner::query()
+            ->whereIn('raffle_id', $raffles->pluck('public_id'))
+            ->where('prize_rank', 1)
+            ->get(['raffle_id', 'user_id', 'prize_name'])
+            ->keyBy('raffle_id');
+
+        $present = function (Raffle $raffle) use ($revealCounts, $topPrize) {
+            $top = $topPrize->get($raffle->public_id);
+            $topUser = $top && $raffle->live_draw_status === 'completed' ? WpUser::find($top->user_id) : null;
+
+            return [
+                'id' => $raffle->id,
+                'public_id' => $raffle->public_id,
+                'title' => $raffle->title,
+                'grand_prize' => $raffle->grand_prize,
+                'status' => $raffle->live_draw_status,
+                'scheduled_at' => $raffle->live_draw_scheduled_at?->toIso8601String(),
+                'started_at' => $raffle->live_draw_started_at?->toIso8601String(),
+                'winners' => (int) ($revealCounts[$raffle->id] ?? 0),
+                'top_winner' => $topUser ? ($topUser->display_name ?: $topUser->user_login) : null,
+                'theme_color' => $raffle->live_draw_theme_color,
+            ];
+        };
+
+        $grouped = $raffles->groupBy(fn (Raffle $r) => match ($r->live_draw_status) {
+            'revealing' => 'live',
+            'completed' => 'past',
+            default => 'upcoming',
+        });
+
+        return [
+            'live' => $grouped->get('live', collect())->map($present)->values()->all(),
+            'upcoming' => $grouped->get('upcoming', collect())
+                ->sortBy(fn (Raffle $r) => $r->live_draw_scheduled_at?->getTimestamp() ?? PHP_INT_MAX)
+                ->map($present)->values()->all(),
+            'past' => $grouped->get('past', collect())->map($present)->values()->all(),
         ];
     }
 
@@ -204,10 +266,12 @@ class LiveDrawService
     public function winnerPayload(RaffleWinner $winner): array
     {
         $user = WpUser::find($winner->user_id);
+        $name = $user ? ($user->display_name ?: $user->user_login) : 'Lucky Winner';
 
         return [
             'id' => $winner->id,
-            'name' => $user ? ($user->display_name ?: $user->user_login) : 'Lucky Winner',
+            'name' => $name,
+            'avatar' => HallOfFameController::avatar($user?->metaValue('profile_pic_url'), $name),
             'ticket_number' => $winner->ticket_number,
             'prize_name' => $winner->prize_name,
             'prize_rank' => $winner->prize_rank,

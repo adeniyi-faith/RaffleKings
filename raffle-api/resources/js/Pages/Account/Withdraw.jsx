@@ -3,6 +3,7 @@ import { Head, Link, router } from '@inertiajs/react';
 import { AlertTriangle, ArrowLeft, ArrowRight, Check, Info, Lock, ThumbsUp } from 'lucide-react';
 import { formatNaira } from '../../lib/format';
 import PausedNotice from '../../Components/layout/PausedNotice';
+import { refreshBalances, useBalances } from '../../lib/balances';
 
 // Faithful rebuild of withdraw.php + components/financials/withdraw-modals.php
 // against the real WithdrawalController/WithdrawalService (items 12/18) —
@@ -14,7 +15,8 @@ import PausedNotice from '../../Components/layout/PausedNotice';
 const QUICK_AMOUNTS = [2000, 5000, 10000];
 
 export default function AccountWithdraw() {
-    const [earnings, setEarnings] = useState(null);
+    const balances = useBalances(); // sent with the page: no ₦0 flash
+    const earnings = balances ? balances.earnings : null;
     const [primaryAccount, setPrimaryAccount] = useState(undefined); // undefined = loading, null = none
     const [amount, setAmount] = useState('');
     const [requirements, setRequirements] = useState(null);
@@ -24,10 +26,7 @@ export default function AccountWithdraw() {
     const [successMessage, setSuccessMessage] = useState('');
 
     useEffect(() => {
-        fetch('/api/wallet')
-            .then((res) => (res.ok ? res.json() : null))
-            .then((data) => setEarnings(data ? data.earnings_balance : 0))
-            .catch(() => setEarnings(0));
+        refreshBalances(true);
 
         fetch('/api/bank-accounts')
             .then((res) => (res.ok ? res.json() : { accounts: [] }))
@@ -88,6 +87,7 @@ export default function AccountWithdraw() {
 
             setSuccessMessage('Your withdrawal is being processed. Funds usually arrive within 24 hours.');
             setModal('success');
+            refreshBalances(true);
         } catch (err) {
             setErrorMessage(err.message);
         } finally {

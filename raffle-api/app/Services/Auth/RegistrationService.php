@@ -5,6 +5,7 @@ namespace App\Services\Auth;
 use App\Auth\WordPressAuthCookieIssuer;
 use App\Models\Legacy\WpUser;
 use App\Models\Legacy\WpUserMeta;
+use App\Models\SitePage;
 use App\Models\Wallet;
 use App\Models\WalletLedgerEntry;
 use App\Services\WalletLedgerService;
@@ -79,6 +80,14 @@ class RegistrationService
 
         $this->setMeta($user, 'rk_referral_code', $data['username']);
 
+        // Item 48: when they confirmed they're 18+ and accepted the Terms,
+        // and which version (the Terms page's last-changed date).
+        if (! empty($data['accept_terms'])) {
+            $this->setMeta($user, 'rk_terms_accepted_at', now()->toIso8601String());
+            $this->setMeta($user, 'rk_age_confirmed', '18+');
+            $this->setMeta($user, 'rk_terms_version', (string) (SitePage::query()->where('slug', 'terms')->value('updated_at') ?? ''));
+        }
+
         if (filled($data['referral_code'] ?? null)) {
             $this->captureReferrer($user, $data['referral_code']);
         }
@@ -108,11 +117,20 @@ class RegistrationService
      * (registration sets both to the same value, so in practice these
      * always agree, but a code could exist from before that changed).
      */
-    private function captureReferrer(WpUser $user, string $code): void
+    public function findReferrer(string $code): ?WpUser
     {
-        $referrer = WpUser::where('user_login', $code)
+        if (trim($code) === '') {
+            return null;
+        }
+
+        return WpUser::where('user_login', $code)
             ->orWhereHas('meta', fn ($q) => $q->where('meta_key', 'rk_referral_code')->where('meta_value', $code))
             ->first();
+    }
+
+    private function captureReferrer(WpUser $user, string $code): void
+    {
+        $referrer = $this->findReferrer($code);
 
         if ($referrer && $referrer->getKey() !== $user->getKey()) {
             $this->setMeta($user, 'referred_by', (string) $referrer->getKey());
