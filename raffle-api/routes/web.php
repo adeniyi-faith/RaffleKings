@@ -359,6 +359,15 @@ Route::get('/player/{username}', function (Request $request, string $username, P
     $card = $profiles->card($username);
     $viewer = Auth::guard('wordpress')->user();
 
+    // A shared card link previews (WhatsApp, Facebook, X) with the player's name and badge count.
+    if ($card) {
+        PageMeta::set([
+            'title' => $card['username'].' on '.config('app.name'),
+            'description' => count($card['badges']).' badges collected · '.$card['raffles_entered'].' raffles played'
+                .($card['member_since'] ? ' · member since '.$card['member_since'] : '').'. Join '.config('app.name').' and win cash prizes in fair, verifiable draws.',
+        ]);
+    }
+
     return Inertia::render('Player/Show', [
         'profile' => $card,
         'is_you' => $card && $viewer && strcasecmp($viewer->user_login, $card['username']) === 0,

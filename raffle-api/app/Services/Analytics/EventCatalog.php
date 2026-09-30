@@ -76,6 +76,7 @@ final class EventCatalog
                 'prediction_answered' => self::server('Daily prediction answered', ''),
             ],
             'Community and live draw' => [
+                'profile_link_shared' => self::browser('Profile link shared', 'A player copied or shared the link to their own profile, and from which page.'),
                 'player_profile_viewed' => self::browser('Player profile opened', 'Someone opened another player\'s public profile card.'),
                 'live_draw_viewed' => self::browser('Live draw opened', 'Someone opened a live draw page.'),
                 'live_draw_comment_posted' => self::server('Live-draw comment posted', 'That a comment was posted. The message itself is not recorded.'),

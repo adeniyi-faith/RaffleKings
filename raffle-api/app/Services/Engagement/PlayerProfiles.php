@@ -2,12 +2,14 @@
 
 namespace App\Services\Engagement;
 
+use App\Models\Legacy\RaffleEntry;
 use App\Models\Legacy\RaffleWinner;
 use App\Models\Legacy\WpUser;
 use App\Models\UserBadge;
 use App\Models\UserEngagement;
 use App\Services\DailyClaimService;
 use Illuminate\Support\Carbon;
+use Illuminate\Support\Facades\Cache;
 
 /**
  * The public "player card" at /player/{username}: username, picture, badges
@@ -39,13 +41,39 @@ class PlayerProfiles
         return $user && $this->isPublic($user) ? $user : null;
     }
 
+    /**
+     * Does this customer have a public card? Remembered for a minute so lists
+     * (winners, live chat) can ask about many people cheaply; changing your own
+     * privacy takes effect at once.
+     */
     public function isPublic(WpUser $user): bool
     {
-        if ($user->staffRole() !== null || $user->isBanned()) {
-            return false;
-        }
+        return Cache::remember(self::cacheKey($user->ID), 60, function () use ($user) {
+            if ($user->staffRole() !== null || $user->isBanned()) {
+                return false;
+            }
 
-        return $this->settings($user->ID)['visibility'] === 'everyone';
+            return $this->settings($user->ID)['visibility'] === 'everyone';
+        });
+    }
+
+    /** Where a name should link to: the player's card, or null when there isn't a public one. */
+    public function pathFor(?WpUser $user): ?string
+    {
+        return $user && $this->isPublic($user) ? '/player/'.rawurlencode($user->user_login) : null;
+    }
+
+    /** The name other players see: the username, in full. */
+    public static function nameOf(?WpUser $user, string $fallback = 'A player'): string
+    {
+        $name = trim((string) ($user?->user_login ?: $user?->display_name));
+
+        return $name === '' ? $fallback : $name;
+    }
+
+    private static function cacheKey(int $userId): string
+    {
+        return "player-profile-public:{$userId}";
     }
 
     /** @return array{visibility: string, show_wins: bool} */
@@ -71,6 +99,7 @@ class PlayerProfiles
             $values['visibility'] = $changes['visibility'];
         }
 
+        Cache::forget(self::cacheKey($userId));
         $row = UserEngagement::for($userId);
         $row->update(array_filter([
             'profile_visibility' => $values['visibility'] ?? null,
@@ -110,6 +139,8 @@ class PlayerProfiles
             'badges' => $badges->all(),
             'badge_total' => count($this->badges->catalog()),
             'streak' => $this->streak($user),
+            // How many different raffles they have bought tickets in (a number only; never amounts).
+            'raffles_entered' => RaffleEntry::query()->where('user_id', $user->ID)->distinct()->count('raffle_id'),
             'wins' => $showWins ? RaffleWinner::query()->where('user_id', $user->ID)->count() : null,
         ];
     }

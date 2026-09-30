@@ -3,6 +3,7 @@ import { Head, Link, usePage } from '@inertiajs/react';
 import { Check, Coins, Gift, Lock, Unlock as UnlockIcon } from 'lucide-react';
 import { apiPost } from '../../lib/api';
 import { shareLink, unlockInviteText } from '../../lib/share';
+import PlayerName from '../../Components/ui/PlayerName';
 import SimpleTop from '../../Components/layout/SimpleTop';
 
 // Phase 11: the page a friend opens from a "help me unlock" link.
@@ -43,6 +44,11 @@ export default function UnlockPage({ link: initial, referrer, alreadyTapped }) {
                 <h1 className="mt-4 text-center text-2xl font-black">
                     {link.completed ? `${link.owner} unlocked it!` : isOwner ? 'Your unlock link' : `Help ${link.owner} unlock a free entry`}
                 </h1>
+                {! isOwner && link.owner_profile && (
+                    <p className="mt-1 text-center text-xs text-white/80">
+                        Link from <PlayerName name={link.owner} profile={link.owner_profile} className="font-bold" />
+                    </p>
+                )}
                 {link.raffle && (
                     <p className="mt-1 text-center text-sm text-white/90">
                         in <b>{link.raffle.title}</b>

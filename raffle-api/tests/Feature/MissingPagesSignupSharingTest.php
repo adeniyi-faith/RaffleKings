@@ -226,8 +226,8 @@ class MissingPagesSignupSharingTest extends TestCase
 
         $avatars = collect($this->getJson('/api/hall-of-fame')->json('recent'))->pluck('avatar', 'name');
 
-        $this->assertSame('/storage/avatars/'.$withPicture->ID.'.jpg', $avatars['Ada Lovelace']);
-        $this->assertStringContainsString('dicebear.com/9.x/adventurer', $avatars['Bola']);
+        $this->assertSame('/storage/avatars/'.$withPicture->ID.'.jpg', $avatars['ada']);
+        $this->assertStringContainsString('dicebear.com/9.x/adventurer', $avatars['bola']);
     }
 
     // --- No flicker ----------------------------------------------------------------------

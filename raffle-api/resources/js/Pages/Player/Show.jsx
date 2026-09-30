@@ -1,10 +1,11 @@
 import { useEffect } from 'react';
 import { Head, Link } from '@inertiajs/react';
-import { Award, Calendar, Flame, Lock, Trophy } from 'lucide-react';
+import { Award, Calendar, Flame, Lock, Ticket, Trophy } from 'lucide-react';
 import PageTop from '../../Components/ui/PageTop';
 import BottomNav from '../../Components/layout/BottomNav';
 import { resolveAvatar } from '../../lib/avatar';
 import { track } from '../../lib/analytics';
+import ShareProfile from '../../Components/ui/ShareProfile';
 
 // A player's public card: username, picture and badges. Never money or private details.
 // A private profile and a username that doesn't exist look the same on purpose.
@@ -54,6 +55,9 @@ export default function PlayerShow({ profile, is_you: isYou = false }) {
                                 <Calendar className="h-3 w-3" /> Member since {profile.member_since}
                             </p>
                         )}
+                        {isYou && (
+                            <ShareProfile username={profile.username} url={`${window.location.origin}/player/${encodeURIComponent(profile.username)}`} from="my_profile" className="mt-4" />
+                        )}
                         {profile.showcase.length > 0 && (
                             <div className="mt-4 flex items-center justify-center gap-3">
                                 {profile.showcase.map((b) => (
@@ -70,7 +74,8 @@ export default function PlayerShow({ profile, is_you: isYou = false }) {
                         </p>
                     )}
 
-                    <div className="grid grid-cols-3 gap-3 text-center">
+                    <div className={`grid gap-3 text-center ${profile.wins !== null ? 'grid-cols-2' : 'grid-cols-3'}`}>
+                        <Stat icon={Ticket} value={profile.raffles_entered} label="Raffles played" />
                         <Stat icon={Award} value={`${profile.badges.length}/${profile.badge_total}`} label="Badges" />
                         <Stat icon={Flame} value={profile.streak} label="Day streak" />
                         {profile.wins !== null && <Stat icon={Trophy} value={profile.wins} label="Wins" />}
