@@ -46,6 +46,7 @@ class TrackApiActions
         'api/stories' => 'winner_story_posted',
         'api/bank-accounts' => 'bank_account_added',
         'api/support/tickets' => 'support_ticket_opened',
+        'api/badges/privacy' => 'profile_privacy_changed',
         'api/play-limits' => 'play_limit_changed',
         'api/play-limits/break' => 'break_started',
     ];

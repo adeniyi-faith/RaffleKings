@@ -323,6 +323,8 @@ class SocialBoosts
             'captain' => $this->firstName($users->get($team->captain_id)),
             'members' => $members->map(fn ($m) => [
                 'name' => $this->firstName($users->get($m->user_id)),
+                // Set only when that player has a public profile card to open.
+                'profile' => ($u = $users->get($m->user_id)) && app(PlayerProfiles::class)->isPublic($u) ? '/player/'.rawurlencode($u->user_login) : null,
                 'is_captain' => $m->user_id === $team->captain_id,
                 'is_you' => $viewerId !== null && $m->user_id === $viewerId,
             ])->values()->all(),

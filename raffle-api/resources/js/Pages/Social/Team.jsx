@@ -64,7 +64,11 @@ export default function TeamPage({ team: initial, referrer, hasTicket }) {
                         return (
                             <div key={i} className={`flex items-center gap-3 rounded-2xl px-4 py-3 ${m ? 'bg-white text-indigo-800' : 'border border-dashed border-white/40 text-white/70'}`}>
                                 <Users className="h-4 w-4" />
-                                <span className="text-sm font-bold">{m ? `${m.is_captain ? '🧢 ' : ''}${m.is_you ? 'You' : m.name}${m.is_captain ? ' (captain)' : ''}` : 'Open slot'}</span>
+                                {m && m.profile && ! m.is_you ? (
+                                    <Link href={m.profile} className="text-sm font-bold underline decoration-dotted underline-offset-2">{`${m.is_captain ? '🧢 ' : ''}${m.name}${m.is_captain ? ' (captain)' : ''}`}</Link>
+                                ) : (
+                                    <span className="text-sm font-bold">{m ? `${m.is_captain ? '🧢 ' : ''}${m.is_you ? 'You' : m.name}${m.is_captain ? ' (captain)' : ''}` : 'Open slot'}</span>
+                                )}
                             </div>
                         );
                     })}
