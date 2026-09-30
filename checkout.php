@@ -1,3 +1,11 @@
+<?php
+// Boot WordPress just to learn whether this visitor is signed in (the site
+// uses a login cookie, which plain HTML pages cannot read).
+define('RK_FRONTEND_APP', true);
+define('WP_USE_THEMES', false);
+require_once(__DIR__ . '/wp/wp-load.php');
+$rk_logged_in = is_user_logged_in();
+?>
 <!DOCTYPE html>
 <html lang="en" class="h-full">
 <head>
@@ -300,6 +308,36 @@
         </div>
     </div>
 
+    <!-- Guest sign-in gate: shown instead of payment options to visitors who are not signed in -->
+    <div id="guest-gate" class="hidden fixed inset-0 z-[90] bg-black/80 backdrop-blur-sm flex items-end sm:items-center justify-center p-0 sm:p-4">
+        <div class="bg-white dark:bg-dark-card w-full max-w-sm rounded-t-3xl sm:rounded-3xl overflow-hidden shadow-2xl border border-gray-100 dark:border-gray-800" style="padding-bottom: env(safe-area-inset-bottom);">
+            <div class="bg-red-600 px-5 py-4 text-center">
+                <h2 class="text-xl font-black text-white tracking-tight">One last step! &#9200;</h2>
+                <p class="text-red-100 text-xs font-medium mt-0.5">Sign in to lock in your lucky numbers</p>
+            </div>
+            <div class="p-5 space-y-4">
+                <div>
+                    <p class="text-[10px] uppercase font-bold tracking-widest text-gray-400 text-center mb-2">Your lucky numbers</p>
+                    <div id="gate-numbers" class="flex flex-wrap justify-center gap-2"></div>
+                </div>
+                <div class="bg-yellow-50 dark:bg-yellow-900/20 border border-yellow-100 dark:border-yellow-900/40 rounded-xl p-3 flex items-start gap-3">
+                    <div class="mt-0.5 text-yellow-600"><i data-lucide="alert-triangle" class="w-4 h-4"></i></div>
+                    <p class="text-xs text-yellow-800 dark:text-yellow-300 leading-snug">
+                        We&rsquo;ll keep these numbers for you and bring you straight back here after you sign in.
+                        <span class="font-bold">But don&rsquo;t wait</span> &mdash; your numbers are not locked until you pay, so if you delay, someone else can take them.
+                    </p>
+                </div>
+                <a id="gate-register" href="register.php" class="w-full bg-green-600 hover:bg-green-700 text-white font-bold py-3.5 rounded-xl shadow-lg shadow-green-200 dark:shadow-none flex items-center justify-center gap-2 active:scale-95 transition-transform">
+                    Create free account <i data-lucide="arrow-right" class="w-4 h-4"></i>
+                </a>
+                <a id="gate-login" href="login.php" class="w-full bg-gray-900 dark:bg-white text-white dark:text-gray-900 font-bold py-3.5 rounded-xl flex items-center justify-center gap-2 active:scale-95 transition-transform">
+                    I already have an account
+                </a>
+                <a href="raffles.php" class="block text-center text-xs text-gray-400 hover:text-gray-600 py-1">Not now</a>
+            </div>
+        </div>
+    </div>
+
     <!-- Success Modal -->
     <div id="success-modal" class="fixed inset-0 bg-black/90 z-[100] hidden flex items-center justify-center backdrop-blur-md p-4 transition-opacity duration-300">
         <div class="bg-white dark:bg-dark-card rounded-[2rem] w-full max-w-sm mx-auto overflow-hidden transform scale-90 opacity-0 transition-all duration-300 relative border border-gray-100 dark:border-gray-800 shadow-2xl flex flex-col min-h-[500px]" id="success-content">
@@ -383,6 +421,7 @@
         let tickets = parseInt(urlParams.get('tickets')) || 0;
         const numbersRaw = urlParams.get('numbers') || '';
         const numbers = numbersRaw ? numbersRaw.split(',') : [];
+        const isLoggedIn = <?php echo $rk_logged_in ? 'true' : 'false'; ?>;
         const raffleId = urlParams.get('raffle_id') || 0;
         let amount = 0;
 
@@ -474,6 +513,13 @@
 
         document.addEventListener('DOMContentLoaded', async () => {
             const token = localStorage.getItem('token');
+
+            if (!isLoggedIn) {
+                showGuestGate();
+                await verifyRealPrice(); // price is public, so the page behind the gate is still right
+                return;
+            }
+
             if (tickets > 0 || true) initExitIntent();
 
             await verifyRealPrice();
@@ -509,6 +555,35 @@
                 }
             } catch(e) { console.error("Error fetching balance", e); }
         });
+
+        // Visitors who are not signed in: remember their numbers, ask them to sign in
+        // or sign up, and send them back to this exact checkout page afterwards.
+        function showGuestGate() {
+            const returnUrl = 'checkout.php' + window.location.search;
+            try {
+                localStorage.setItem('pendingCheckout', JSON.stringify({
+                    amount: urlParams.get('amount'),
+                    tickets: tickets,
+                    numbers: numbersRaw,
+                    raffle_id: raffleId,
+                    raffleId: raffleId,
+                    price: urlParams.get('amount'),
+                    qty: tickets,
+                    timestamp: Date.now()
+                }));
+            } catch (e) {}
+
+            const ret = '?return=' + encodeURIComponent(returnUrl);
+            document.getElementById('gate-login').href = 'login.php' + ret;
+            document.getElementById('gate-register').href = 'register.php' + ret;
+
+            document.getElementById('gate-numbers').innerHTML = numbers.map(n =>
+                `<span class="min-w-[2.5rem] h-10 px-2 rounded-xl bg-yellow-400 text-gray-900 font-black text-sm flex items-center justify-center shadow">${String(n).replace(/[^0-9]/g, '')}</span>`
+            ).join('');
+
+            document.getElementById('guest-gate').classList.remove('hidden');
+            if (typeof lucide !== 'undefined') lucide.createIcons();
+        }
 
         async function verifyRealPrice() {
             try {
@@ -1085,6 +1160,7 @@
         }
 
         function triggerExitIntent() {
+            if (!isLoggedIn) { window.location.href = 'raffles.php'; return; }
             showExitModal();
         }
 

@@ -1,3 +1,11 @@
+<?php
+// Boot WordPress just to learn whether this visitor is signed in (the site
+// uses a login cookie, which plain HTML pages cannot read).
+define('RK_FRONTEND_APP', true);
+define('WP_USE_THEMES', false);
+require_once(__DIR__ . '/wp/wp-load.php');
+$rk_logged_in = is_user_logged_in();
+?>
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -196,6 +204,7 @@
         let targetQty = 0;
         let maxPool = 1000;
         let takenNumbers = [];
+        const isLoggedIn = <?php echo $rk_logged_in ? 'true' : 'false'; ?>;
 
         document.addEventListener('DOMContentLoaded', async () => {
             lucide.createIcons();
@@ -255,10 +264,8 @@
 
         // *** THE TRAP LOGIC ***
         function checkWalletStatus() {
-            // Only checks if token exists (User logged in)
-            const token = localStorage.getItem('token');
-            // Note: If no token, we assume guest and let them pick, but Checkout will redirect to Register
-            if (!token) return;
+            // Guests can pick numbers freely; Checkout asks them to sign in.
+            if (!isLoggedIn) return;
 
             const wallet = parseFloat(localStorage.getItem('walletBalance')) || 0;
             const earnings = parseFloat(localStorage.getItem('earningsBalance')) || 0;
@@ -443,7 +450,6 @@
             lucide.createIcons();
 
             const numbersStr = selectedNumbers.join(',');
-            const isLoggedIn = localStorage.getItem('token');
 
             const checkoutData = {
                 amount: selection.totalPrice,
@@ -452,16 +458,15 @@
                 raffle_id: selection.raffleId,
                 raffleId: selection.raffleId,
                 price: selection.totalPrice,
-                qty: targetQty
+                qty: targetQty,
+                timestamp: Date.now()
             };
             localStorage.setItem('pendingCheckout', JSON.stringify(checkoutData));
 
+            // Everyone goes to checkout. Guests are asked to sign in there and
+            // are sent straight back afterwards.
             setTimeout(() => {
-                if (isLoggedIn) {
-                    window.location.href = `checkout.php?amount=${selection.totalPrice}&tickets=${targetQty}&numbers=${numbersStr}&raffle_id=${selection.raffleId}`;
-                } else {
-                    window.location.href = `register-special.php?amount=${selection.totalPrice}&tickets=${targetQty}&numbers=${numbersStr}&raffle_id=${selection.raffleId}`;
-                }
+                window.location.href = `checkout.php?amount=${selection.totalPrice}&tickets=${targetQty}&numbers=${numbersStr}&raffle_id=${selection.raffleId}`;
             }, 500);
         }
     </script>
