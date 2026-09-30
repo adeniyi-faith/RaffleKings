@@ -3,6 +3,7 @@
 namespace App\Http\Middleware;
 
 use App\Models\CustomerMessage;
+use App\Models\Growth\Affiliate;
 use App\Models\Legacy\WpUser;
 use App\Models\UserPoints;
 use App\Models\Wallet;
@@ -70,6 +71,8 @@ class HandleInertiaRequests extends Middleware
                     'balances' => $this->balances($user),
                     // Today's daily reward is waiting: the red dot on the
                     // bottom nav's "My Rewards" (item 47).
+                    // Affiliates: a link to their dashboard on the profile page.
+                    'is_affiliate' => Features::on('affiliates') && Affiliate::query()->where('user_id', $user->ID)->exists(),
                     'reward_ready' => config('site.switches.daily_claim', true) !== false
                         && ! app(DailyClaimService::class)->state($user)['is_claimed_today'],
                 ] : null,

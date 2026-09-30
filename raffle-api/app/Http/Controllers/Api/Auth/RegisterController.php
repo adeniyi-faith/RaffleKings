@@ -6,9 +6,13 @@ use App\Http\Controllers\Controller;
 use App\Services\Auth\RegistrationService;
 use App\Services\Auth\TurnstileVerifier;
 use App\Services\Auth\WordPressCookieFactory;
+use App\Services\Growth\AffiliateService;
+use App\Services\Growth\PromoCodeService;
+use App\Services\Risk\AbuseDetector;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Validation\ValidationException;
+use InvalidArgumentException;
 
 class RegisterController extends Controller
 {
@@ -27,6 +31,8 @@ class RegisterController extends Controller
             'email' => ['required', 'email', 'max:100'],
             'password' => ['required', 'string', 'min:8', 'max:128', 'regex:/^(?=.*[A-Za-z])(?=.*\d).+$/'],
             'referral_code' => ['nullable', 'string', 'max:60'],
+            // Promo codes (Settings → On / off → New features).
+            'promo_code' => ['nullable', 'string', 'max:40'],
             // Item 48: customers must be 18+ and accept the Terms of Service.
             'accept_terms' => ['accepted'],
             'turnstile_token' => [$this->turnstile->enabled() ? 'required' : 'nullable', 'string'],
@@ -39,7 +45,25 @@ class RegisterController extends Controller
             throw ValidationException::withMessages(['turnstile_token' => 'Please complete the security check and try again.']);
         }
 
+        // A wrong promo code is said before the account is made, so the
+        // customer can fix it instead of losing the bonus.
+        try {
+            $promo = app(PromoCodeService::class)->assertUsableAtSignup($data['promo_code'] ?? null);
+        } catch (InvalidArgumentException $e) {
+            throw ValidationException::withMessages(['promo_code' => $e->getMessage()]);
+        }
+
         $result = $this->registration->register($data, $request->ip(), $request->userAgent());
+
+        // Where this customer came from: a promo code first, else an
+        // affiliate link they clicked in the last 30 days.
+        if ($promo) {
+            app(PromoCodeService::class)->applyAtSignup($result['user'], $promo);
+        }
+        app(AffiliateService::class)->attributeSignup($result['user'], $request->cookie(AffiliateService::COOKIE));
+
+        // Multi-account protection: which browser this account was made on.
+        app(AbuseDetector::class)->recordDevice($result['user']->ID, $request);
 
         $cookieName = app('wordpress.auth_cookie_name');
         $cookie = $this->cookies->make($cookieName, $result['cookie']['value'], $result['cookie']['expiration']);

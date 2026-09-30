@@ -1,6 +1,6 @@
 import { useRef, useState } from 'react';
 import { Head, router } from '@inertiajs/react';
-import { Gift, Lock, Mail, User, UserPlus } from 'lucide-react';
+import { Gift, Lock, Mail, Tag, User, UserPlus } from 'lucide-react';
 import Button from '../../Components/ui/Button';
 import { Card } from '../../Components/ui/Card';
 import { TextInput, PasswordInput } from '../../Components/ui/TextInput';
@@ -11,8 +11,11 @@ import PausedNotice from '../../Components/layout/PausedNotice';
 import { safeRedirect } from '../../lib/safeRedirect';
 import SimpleTop from '../../Components/layout/SimpleTop';
 
-export default function Register({ turnstileSiteKey, referralCode, referrerName, redirect }) {
+export default function Register({ turnstileSiteKey, referralCode, referrerName, redirect, promoEnabled = false, promoCode = null }) {
     const [form, setForm] = useState({ username: '', email: '', password: '' });
+    // Promo codes (only while switched on): filled in from a ?promo= link.
+    const [promo, setPromo] = useState(promoCode || '');
+    const [showPromo, setShowPromo] = useState(Boolean(promoCode));
     const [accepted, setAccepted] = useState(false);
     const [turnstileToken, setTurnstileToken] = useState('');
     const [error, setError] = useState(null);
@@ -38,6 +41,7 @@ export default function Register({ turnstileSiteKey, referralCode, referrerName,
             await apiPost('/api/auth/register', {
                 ...form,
                 referral_code: referralCode || null,
+                promo_code: promoEnabled && promo.trim() ? promo.trim() : null,
                 accept_terms: accepted,
                 turnstile_token: turnstileToken || null,
             });
@@ -118,6 +122,21 @@ export default function Register({ turnstileSiteKey, referralCode, referrerName,
                             required
                             minLength={8}
                         />
+
+                        {promoEnabled && (showPromo ? (
+                            <TextInput
+                                label="Promo code (optional)"
+                                icon={Tag}
+                                placeholder="e.g. TOBI10"
+                                maxLength={40}
+                                value={promo}
+                                onChange={(e) => setPromo(e.target.value.toUpperCase())}
+                            />
+                        ) : (
+                            <button type="button" onClick={() => setShowPromo(true)} className="text-xs font-semibold text-app-primary">
+                                Have a promo code?
+                            </button>
+                        ))}
 
                         <label className="flex cursor-pointer items-start gap-3 rounded-xl border border-gray-200 bg-gray-50 p-3 text-xs leading-relaxed text-gray-600 dark:border-gray-700 dark:bg-gray-800/50 dark:text-gray-300">
                             <input

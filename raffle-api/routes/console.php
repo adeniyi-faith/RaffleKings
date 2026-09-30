@@ -62,3 +62,9 @@ Schedule::call(function () {
 // Reminders ("raffle ends soon", "you left tickets in checkout").
 // Does nothing while switched off in Settings → On / off → New features.
 Schedule::command('reminders:send')->everyFiveMinutes()->withoutOverlapping(10);
+
+// Affiliates: earnings past their hold are paid into the affiliate's winnings.
+Schedule::call(fn () => app(\App\Services\Growth\AffiliateService::class)->releaseDue())
+    ->hourly()
+    ->name('affiliate-payouts')
+    ->withoutOverlapping(30);

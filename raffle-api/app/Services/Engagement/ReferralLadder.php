@@ -9,6 +9,8 @@ use App\Models\ReferralCommission;
 use App\Models\ReferralMilestone;
 use App\Notifications\EngagementAlert;
 use App\Services\PointsService;
+use App\Services\Risk\AbuseDetector;
+use App\Support\Features;
 use Illuminate\Database\UniqueConstraintViolationException;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Collection;
@@ -61,7 +63,20 @@ class ReferralLadder
     {
         $ids = $this->refereeIds($userId);
 
-        return $ids->isEmpty() ? 0 : RaffleEntry::query()->whereIn('user_id', $ids)->distinct()->count('user_id');
+        if ($ids->isEmpty()) {
+            return 0;
+        }
+
+        $players = RaffleEntry::query()->whereIn('user_id', $ids)->distinct()->pluck('user_id');
+
+        // Multi-account protection: a "friend" who looks like the customer
+        // themselves doesn't lift them up the ladder.
+        if (Features::on('abuse_detection')) {
+            $detector = app(AbuseDetector::class);
+            $players = $players->reject(fn ($id) => $detector->linkBetween($userId, (int) $id) !== null);
+        }
+
+        return $players->count();
     }
 
     /** Progress listener: a customer's very first tickets may lift their referrer up the ladder. */
@@ -124,7 +139,7 @@ class ReferralLadder
         $ids = $this->refereeIds($user->ID);
         $friends = $ids->isEmpty() ? collect() : WpUser::query()->whereIn('ID', $ids)->orderByDesc('user_registered')->limit(100)->get(['ID', 'display_name', 'user_login', 'user_registered']);
         $played = $ids->isEmpty() ? collect() : RaffleEntry::query()->whereIn('user_id', $ids)->selectRaw('user_id, min(created_at) as first_played')->groupBy('user_id')->pluck('first_played', 'user_id');
-        $commissions = ReferralCommission::query()->where('referrer_user_id', $user->ID)->get();
+        $commissions = ReferralCommission::query()->where('referrer_user_id', $user->ID)->where('status', 'paid')->get();
         $reached = ReferralMilestone::query()->where('user_id', $user->ID)->pluck('reached_at', 'friends');
         $qualified = $played->count();
 
