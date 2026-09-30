@@ -235,7 +235,22 @@
     from { transform: translateY(28px); opacity: 0; }
     to { transform: none; opacity: 1; }
 }
-.rk-sheet { animation: rk-sheet-up 0.22s ease-out; }
+.rk-sheet { animation: rk-sheet-up 0.18s ease-out; will-change: transform; }
+@keyframes rk-fade-in { from { opacity: 0; } to { opacity: 1; } }
+.rk-fade { animation: rk-fade-in 0.15s ease-out; }
+@keyframes rk-shine {
+    0% { transform: translateX(-120%) skewX(-20deg); }
+    60%, 100% { transform: translateX(320%) skewX(-20deg); }
+}
+.rk-shine::after {
+    content: '';
+    position: absolute;
+    inset: 0 auto 0 0;
+    width: 30%;
+    background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.45), transparent);
+    animation: rk-shine 3s ease-in-out infinite;
+}
 @media (prefers-reduced-motion: reduce) {
-    .rk-sheet { animation: none; }
+    .rk-sheet, .rk-fade { animation: none; }
+    .rk-shine::after { animation: none; display: none; }
 }
