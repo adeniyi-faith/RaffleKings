@@ -2,6 +2,7 @@
 
 namespace App\Http\Middleware;
 
+use App\Services\Admin\Impersonation;
 use App\Services\Risk\AbuseDetector;
 use App\Support\Features;
 use Closure;
@@ -33,7 +34,8 @@ class RememberDevice
             return $response;
         }
 
-        if ($user = Auth::guard('wordpress')->user()) {
+        // An owner viewing the site as a customer must not tie their own device to that customer.
+        if (($user = Auth::guard('wordpress')->user()) && ! Impersonation::current($request)) {
             app(AbuseDetector::class)->recordDevice($user->getKey(), $request);
         }
 

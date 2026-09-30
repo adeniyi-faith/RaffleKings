@@ -3,6 +3,7 @@
 namespace App\Auth;
 
 use App\Models\Legacy\WpUser;
+use App\Services\Admin\Impersonation;
 use App\Services\Auth\LoginService;
 use App\Services\Auth\StaffTwoStep;
 use App\Services\Auth\WordPressCookieFactory;
@@ -49,6 +50,9 @@ class WordPressOrSanctumGuard implements Guard
 {
     private ?Authenticatable $user = null;
 
+    /** The owner's own account while they are viewing the site as a customer (see App\Services\Admin\Impersonation). */
+    private ?Authenticatable $realUser = null;
+
     private bool $resolved = false;
 
     /** Same per-request cache-busting reasoning as WordPressSessionGuard. */
@@ -79,8 +83,32 @@ class WordPressOrSanctumGuard implements Guard
 
         $this->resolved = true;
         $this->resolvedForRequestId = $requestId;
+        $this->realUser = null;
 
-        return $this->user = $this->resolveViaSanctumToken($request) ?? $this->cookieGuard->user();
+        $viaToken = $this->resolveViaSanctumToken($request);
+        $user = $viaToken ?? $this->cookieGuard->user();
+
+        // An owner viewing the site as a customer (never through an API token,
+        // and never on the admin pages, which always see the owner themselves).
+        if ($viaToken === null && $user !== null && $request->cookies->has(Impersonation::COOKIE) && ! $request->is('admin', 'admin/*', 'livewire/*')) {
+            $target = app(Impersonation::class)->targetFor($request, $user);
+
+            if ($target !== null) {
+                $this->realUser = $user;
+
+                return $this->user = $target;
+            }
+        }
+
+        return $this->user = $user;
+    }
+
+    /** The signed-in person themselves: the owner, even while they are viewing as a customer. */
+    public function realUser(): ?Authenticatable
+    {
+        $this->user();
+
+        return $this->realUser ?? $this->user;
     }
 
     private function resolveViaSanctumToken(Request $request): ?Authenticatable

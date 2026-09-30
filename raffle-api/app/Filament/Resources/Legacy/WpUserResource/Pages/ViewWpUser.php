@@ -7,6 +7,7 @@ use App\Models\Admin\CustomerNote;
 use App\Models\Admin\CustomerTag;
 use App\Models\UserEngagement;
 use App\Services\Admin\CustomerSupportTools;
+use App\Services\Admin\Impersonation;
 use App\Services\Admin\CustomerTimeline;
 use App\Services\Engagement\BadgeService;
 use App\Services\Engagement\SeasonPass;
@@ -147,6 +148,7 @@ class ViewWpUser extends ViewRecord
             ...WpUserResource::accountActions(table: false),
             $this->supportToolsGroup(),
             $this->badgesGroup(),
+            $this->viewAsCustomerAction(),
         ];
     }
 
@@ -319,11 +321,57 @@ class ViewWpUser extends ViewRecord
             ])
             ->action(fn (array $data) => $this->attempt(fn () => $this->tools()->removeBadge(auth('wordpress')->user(), $this->getRecord(), $data['badge']), 'Badge taken back'));
 
-        return Actions\ActionGroup::make([$award, $remove])
-            ->label('Badges')
+        $perks = Action::make('editPerks')
+            ->label('Give or take back free spins / tokens')
+            ->icon('heroicon-o-gift')
+            ->visible($manage)
+            ->modalHeading('Free spins and free bonus-entry tokens')
+            ->modalDescription(fn () => 'Now: '.(int) (UserEngagement::query()->where('user_id', $this->getRecord()->ID)->value('free_spins') ?? 0).' free spin(s), '.(int) (UserEngagement::query()->where('user_id', $this->getRecord()->ID)->value('bonus_entry_tokens') ?? 0).' bonus token(s). Use a plus number to give and a minus number to take back. Recorded in the audit log.')
+            ->form([
+                Forms\Components\TextInput::make('free_spins')->label('Free spins (+ give, − take back)')->numeric()->integer()->default(0)->minValue(-CustomerSupportTools::MAX_PERK_CHANGE)->maxValue(CustomerSupportTools::MAX_PERK_CHANGE)->required(),
+                Forms\Components\TextInput::make('bonus_entry_tokens')->label('Free bonus-entry tokens (+ give, − take back)')->numeric()->integer()->default(0)->minValue(-CustomerSupportTools::MAX_PERK_CHANGE)->maxValue(CustomerSupportTools::MAX_PERK_CHANGE)->required(),
+                Forms\Components\TextInput::make('reason')->label('Why? (kept in the audit log)')->required()->maxLength(200),
+                Forms\Components\Toggle::make('tell')->label('Tell the customer (inbox message)')->default(true)->helperText('Only used when you are giving, not taking back.'),
+            ])
+            ->action(fn (array $data) => $this->attempt(fn () => $this->tools()->adjustPerks(auth('wordpress')->user(), $this->getRecord(), (int) $data['free_spins'], (int) $data['bonus_entry_tokens'], $data['reason'], (bool) ($data['tell'] ?? false)), 'Perks updated'));
+
+        return Actions\ActionGroup::make([$award, $remove, $perks])
+            ->label('Badges & perks')
             ->icon('heroicon-m-trophy')
             ->button()
             ->color('gray');
+    }
+
+    /** Owners only: see the site exactly as this customer sees it (view-only, 15 minutes, logged). */
+    private function viewAsCustomerAction(): Action
+    {
+        $admin = fn () => auth('wordpress')->user();
+        $allowed = fn () => $admin() instanceof WpUser && app(Impersonation::class)->whyNot($admin(), $this->getRecord()) === null;
+
+        return Action::make('viewAsCustomer')
+            ->label('View as customer')
+            ->icon('heroicon-o-eye')
+            ->color('warning')
+            ->visible($allowed)
+            ->modalHeading(fn () => 'View the site as '.($this->getRecord()->display_name ?: $this->getRecord()->user_login))
+            ->modalDescription('You will see exactly what this customer sees. It is VIEW-ONLY: you can\'t buy, pay, withdraw, change or send anything. It ends by itself after '.Impersonation::MINUTES.' minutes, or when you press Stop. Your admin pages stay yours. The start and end are recorded in the audit log with your reason.')
+            ->modalSubmitActionLabel('View as customer')
+            ->form([
+                Forms\Components\TextInput::make('reason')->label('Why do you need to see their account?')->required()->maxLength(200)->placeholder('e.g. Ticket #123: says the wallet balance looks wrong'),
+                Forms\Components\Checkbox::make('understood')->label('I understand this is logged, and I will not share what I see.')->accepted()->required(),
+            ])
+            ->action(function (array $data) use ($admin) {
+                try {
+                    $cookie = app(Impersonation::class)->start($admin(), $this->getRecord(), $data['reason'], request());
+                } catch (\RuntimeException $e) {
+                    Notification::make()->title('Not done')->body($e->getMessage())->danger()->persistent()->send();
+
+                    return;
+                }
+
+                \Illuminate\Support\Facades\Cookie::queue($cookie);
+                $this->redirect('/profile');
+            });
     }
 
     /** Badges the customer has earned, and the ones still locked. */

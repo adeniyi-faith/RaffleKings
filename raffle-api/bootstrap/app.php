@@ -7,6 +7,7 @@ use App\Http\Middleware\EnsureGrowthFeatureOn;
 use App\Http\Middleware\EnsureNotOnBreak;
 use App\Http\Middleware\EnsureUserIsAdministrator;
 use App\Http\Middleware\HandleInertiaRequests;
+use App\Http\Middleware\LimitImpersonationToViewing;
 use App\Http\Middleware\MaintenanceMode;
 use App\Http\Middleware\RememberDevice;
 use App\Http\Middleware\SecurityHeaders;
@@ -40,9 +41,9 @@ return Application::configure(basePath: dirname(__DIR__))
     )
     ->withMiddleware(function (Middleware $middleware): void {
         $middleware->alias(['admin' => EnsureUserIsAdministrator::class, 'feature' => EnsureFeatureOn::class, 'growth' => EnsureGrowthFeatureOn::class, 'not-on-break' => EnsureNotOnBreak::class]);
-        $middleware->web(append: [HandleInertiaRequests::class, MaintenanceMode::class, RememberDevice::class, AttachExtraCookies::class]);
+        $middleware->web(append: [HandleInertiaRequests::class, MaintenanceMode::class, RememberDevice::class, AttachExtraCookies::class, LimitImpersonationToViewing::class]);
         // Maintenance mode (Settings → On / off) covers the API too.
-        $middleware->api(append: [MaintenanceMode::class, TrackApiActions::class]);
+        $middleware->api(append: [MaintenanceMode::class, TrackApiActions::class, LimitImpersonationToViewing::class]);
 
         // Phase 10 security pass: browser security headers everywhere,
         // cross-site request checks on the cookie-signed-in API, and a
@@ -73,6 +74,8 @@ return Application::configure(basePath: dirname(__DIR__))
             // Staff two-step mark: a random token (only its hash is stored),
             // read by both the admin and the API, and the API never decrypts.
             'rk_staff_2fa',
+            // "Viewing as a customer": a signed random token the API must read too.
+            'rk_impersonate',
         ]);
     })
     ->withExceptions(function (Exceptions $exceptions): void {

@@ -2,6 +2,7 @@ import '../css/app.css';
 import { createRoot } from 'react-dom/client';
 import { createInertiaApp } from '@inertiajs/react';
 import SiteNotices from './Components/layout/SiteNotices';
+import ImpersonationBanner from './Components/layout/ImpersonationBanner';
 import MaintenanceBanner from './Components/layout/MaintenanceBanner';
 import StatusBanner from './Components/layout/StatusBanner';
 import CookieBanner from './Components/layout/CookieBanner';
@@ -32,6 +33,8 @@ createInertiaApp({
                 <App {...props}>
                     {({ Component, props: pageProps, key }) => (
                         <>
+                            {/* An owner viewing the site as a customer (view-only). */}
+                            <ImpersonationBanner />
                             {/* Maintenance warnings (Settings → On / off). */}
                             <MaintenanceBanner />
                             {/* The staff's status message (Settings → Backups & status). */}
