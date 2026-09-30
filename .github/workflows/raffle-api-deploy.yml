@@ -200,6 +200,16 @@ jobs:
           script: |
             set -e
             cd ${{ env.DEPLOY_PATH }}
+            # Unpacking replaces thousands of files one by one over ~15
+            # seconds, and each is briefly missing while it's replaced.
+            # Requests in that window crashed ("include(...vendor/...):
+            # Failed to open stream") and admin sign-in failed and reloaded.
+            # "down" makes public/index.php answer with a ready-made "back in
+            # a moment" page BEFORE loading any code, so nobody touches
+            # half-copied files. Payment providers retry their webhooks.
+            # The site comes back up at the end of the deploy, always
+            # (the final "Bring the site back up" step).
+            php artisan down --render="errors::503" --retry=20 || true
             tar xzf deploy.tar.gz
             rm deploy.tar.gz
             # The old saved route list doesn't know this build's new admin
@@ -383,6 +393,7 @@ jobs:
             php artisan route:cache
             php artisan view:cache
             php artisan queue:restart
+            php artisan up
 
       - name: Make sure the scheduler cron job exists
         # Shared hosting can't keep a queue worker running on its own, so
@@ -432,3 +443,17 @@ jobs:
             cd ${{ env.DEPLOY_PATH }}
             php artisan app:health-check || true
             php artisan legacy:migration-status || true
+
+      - name: Bring the site back up
+        # Runs even if an earlier step failed, so a failed deploy can never
+        # leave the site stuck on the "back in a moment" page.
+        if: always()
+        uses: appleboy/ssh-action@master
+        with:
+          host: ${{ secrets.CPANEL_HOST }}
+          username: ${{ secrets.CPANEL_USERNAME }}
+          password: ${{ secrets.CPANEL_PASSWORD }}
+          port: 22
+          script: |
+            cd ${{ env.DEPLOY_PATH }}
+            php artisan up || rm -f storage/framework/down storage/framework/maintenance.php

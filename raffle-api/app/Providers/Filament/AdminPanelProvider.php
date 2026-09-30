@@ -4,6 +4,7 @@ namespace App\Providers\Filament;
 
 use App\Filament\Pages\Auth\AdminLogin;
 use App\Filament\Support\AdminSearch;
+use App\Http\Middleware\AttachExtraCookies;
 use App\Services\Maintenance;
 use App\Support\Formats;
 use Filament\Http\Middleware\Authenticate;
@@ -112,6 +113,7 @@ class AdminPanelProvider extends PanelProvider
             ->middleware([
                 EncryptCookies::class,
                 AddQueuedCookiesToResponse::class,
+                AttachExtraCookies::class,
                 StartSession::class,
                 ShareErrorsFromSession::class,
                 VerifyCsrfToken::class,

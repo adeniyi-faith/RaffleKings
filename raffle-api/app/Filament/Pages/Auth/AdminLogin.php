@@ -2,6 +2,7 @@
 
 namespace App\Filament\Pages\Auth;
 
+use App\Http\Middleware\AttachExtraCookies;
 use App\Models\Admin\LoginEvent;
 use App\Models\Legacy\WpUser;
 use App\Services\AdminAuditLogService;
@@ -131,8 +132,12 @@ class AdminLogin extends Login
         $cookies = app(WordPressCookieFactory::class);
         $name = app('wordpress.auth_cookie_name');
         Cookie::queue($cookies->make($name, $result['cookie']['value'], $result['cookie']['expiration']));
+
+        // NOT Cookie::queue: it keeps one cookie per name and path, so these
+        // same-named "delete the old copy" cookies used to replace the login
+        // cookie above, and sign-in just reloaded the page.
         foreach ($cookies->forgetLeftovers($name, $request->getHost()) as $leftover) {
-            Cookie::queue($leftover);
+            AttachExtraCookies::add($leftover);
         }
 
         Filament::auth()->setUser($user);
