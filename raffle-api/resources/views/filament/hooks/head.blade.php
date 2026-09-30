@@ -104,6 +104,9 @@
         min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
         font-size: 15px; font-weight: 600; color: rgb(var(--gray-950));
     }
+    .rk-card-who { display: flex; align-items: center; gap: 10px; min-width: 0; }
+    .rk-card-avatar { flex: none; width: 36px; height: 36px; border-radius: 9999px; object-fit: cover; background: rgb(var(--gray-200)); }
+    .rk-card-top:has(.rk-card-avatar) { align-items: center; }
     .rk-card-amount { flex: none; font-size: 15px; font-weight: 700; font-variant-numeric: tabular-nums; color: rgb(var(--gray-950)); }
     .rk-card-body {
         font-size: 14px; line-height: 20px; color: rgb(var(--gray-800));
