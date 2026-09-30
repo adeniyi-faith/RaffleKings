@@ -1,9 +1,23 @@
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { Head, Link, router, usePage } from '@inertiajs/react';
-import { Clock, Trophy, Gift, Zap, Lock, ArrowRight, ArrowLeft, TrendingUp, Eye, ShieldCheck, Star, ChevronDown } from 'lucide-react';
+import {
+    ArrowLeft,
+    ChevronRight,
+    Clock,
+    Eye,
+    Gift,
+    Lock,
+    Megaphone,
+    ShieldCheck,
+    Star,
+    Ticket,
+    Trophy,
+    Zap,
+} from 'lucide-react';
 import { Card } from '../../Components/ui/Card';
-import ProgressBar from '../../Components/ui/ProgressBar';
-import TicketBundleSelector from '../../Components/raffles/TicketBundleSelector';
+import BottomSheet from '../../Components/ui/BottomSheet';
+import TicketPickerSheet from '../../Components/raffles/TicketPickerSheet';
+import RaffleOdds from '../../Components/raffles/RaffleOdds';
 import { useCountdown } from '../../hooks/useCountdown';
 import { useLiveRaffle } from '../../hooks/useLiveRaffle';
 import { useTicketPriceQuotes } from '../../hooks/useTicketPriceQuotes';
@@ -11,39 +25,44 @@ import { useTicketPriceQuote } from '../../hooks/useTicketPriceQuote';
 import { formatNaira } from '../../lib/format';
 import { track } from '../../lib/analytics';
 import { isOn, useSite } from '../../lib/site';
-import RaffleOdds from '../../Components/raffles/RaffleOdds';
 import PausedNotice from '../../Components/layout/PausedNotice';
 import BoostPanel from '../../Components/social/BoostPanel';
 
 const DEFAULT_QUANTITIES = [1, 2, 3, 5, 10];
+// The most a single order can hold when neither the raffle nor the site sets a
+// limit: a sanity ceiling, so the amount box can't be given a silly number.
+const SANE_CEILING = 1000;
 
+const TONES = {
+    indigo: 'bg-indigo-50 text-indigo-600 dark:bg-indigo-900/30 dark:text-indigo-300',
+    emerald: 'bg-emerald-50 text-emerald-600 dark:bg-emerald-900/30 dark:text-emerald-300',
+    amber: 'bg-amber-50 text-amber-600 dark:bg-amber-900/30 dark:text-amber-300',
+};
+
+/**
+ * The raffle page: one prize card, one big button to choose tickets, and three
+ * folded rows (prizes and chances, how the draw works, boost and share) that
+ * open as sheets. Choosing tickets keeps everything the old page had: the
+ * bundle buttons with their discounts, and any amount up to the limit.
+ */
 export default function RaffleShow({ raffle, drawInfo = null }) {
     const { auth } = usePage().props;
     const site = useSite();
     const FIXED_QUANTITIES = site.ticket_bundles?.length ? site.ticket_bundles : DEFAULT_QUANTITIES;
-    const bulkMin = Math.max(Math.max(...FIXED_QUANTITIES), site.big_order_above || 10) + 1;
     // Raffle Rules Engine: members-only / new-players-only raffles say so up front.
     const notEligible = drawInfo?.not_eligible ?? null;
     const salesPaused = ! isOn(site, 'ticket_sales') || !! notEligible;
     const [selectedQty, setSelectedQty] = useState(FIXED_QUANTITIES.includes(3) ? 3 : FIXED_QUANTITIES[Math.min(1, FIXED_QUANTITIES.length - 1)]);
-    const [bulkQty, setBulkQty] = useState(Math.max(15, bulkMin));
+    const [sheet, setSheet] = useState(null); // null | 'tickets' | 'prizes' | 'how' | 'boost'
+    const closeSheet = useCallback(() => setSheet(null), []);
 
-    const { quotes } = useTicketPriceQuotes(raffle.id, FIXED_QUANTITIES);
-    const { quote: bulkQuote } = useTicketPriceQuote(raffle.id, bulkQty);
-    const activeQuote = quotes[selectedQty] || (selectedQty === bulkQty ? bulkQuote : null);
-
-    // Counts down to the exact moment sales stop (end of the expiry day,
-    // Lagos time) — counting to the bare date used to show "Closed" a
-    // whole day early.
+    // Counts down to the exact moment sales stop (end of the expiry day, Lagos time).
     const timeLeft = useCountdown(raffle.ends_at);
 
-    // Item 30: a live sold/remaining count and an honest "N viewing"
-    // number — replacing the audit's fabricated per-raffle "viewing
-    // count" (raffles.php) with a real one, sourced the instant anyone,
-    // anywhere, actually buys a ticket for this raffle.
+    // A live sold/remaining count and an honest "N viewing" number, sourced the
+    // instant anyone, anywhere, actually buys a ticket for this raffle.
     const { soldTickets, remainingTickets, isClosed: liveClosed, viewerCount } = useLiveRaffle(raffle.id, raffle, !! auth.user);
-    // Closes on screen the moment the countdown runs out or the last
-    // ticket sells, without a reload; the reason shown follows suit.
+    // Closes on screen the moment the countdown runs out or the last ticket sells.
     const endedWhileWatching = timeLeft === 'Closed';
     const isClosed = liveClosed || endedWhileWatching;
     const closedReason = raffle.is_closed
@@ -55,6 +74,22 @@ export default function RaffleShow({ raffle, drawInfo = null }) {
             : null;
     const progressPct = raffle.max_tickets > 0 ? Math.min(100, Math.round((soldTickets / raffle.max_tickets) * 100)) : 0;
 
+    // The most one order can hold: the tickets left, and the admin's order limit if there is one.
+    const orderLimit = raffle.max_per_order ?? null;
+    const maxAllowed = Math.max(1, Math.min(remainingTickets, orderLimit ?? SANE_CEILING, SANE_CEILING));
+    const bundles = useMemo(() => FIXED_QUANTITIES.filter((q) => q <= maxAllowed), [FIXED_QUANTITIES.join(','), maxAllowed]);
+
+    // If a limit or a sale changes what is allowed, bring the choice back inside it.
+    useEffect(() => {
+        if (selectedQty > maxAllowed) {
+            setSelectedQty(maxAllowed);
+        }
+    }, [maxAllowed, selectedQty]);
+
+    const { quotes } = useTicketPriceQuotes(raffle.id, bundles);
+    const { quote: customQuote } = useTicketPriceQuote(raffle.id, selectedQty);
+    const activeQuote = quotes[selectedQty] ?? customQuote;
+
     // Someone opened this raffle.
     useEffect(() => {
         track('raffle_viewed', { raffle_id: raffle.id, title: raffle.title });
@@ -65,244 +100,262 @@ export default function RaffleShow({ raffle, drawInfo = null }) {
             return;
         }
 
-        const qty = selectedQty;
-        track('buy_tickets_clicked', { raffle_id: raffle.id, quantity: qty, logged_in: Boolean(auth.user) });
-        const params = new URLSearchParams({ raffle_id: raffle.id, qty: String(qty) });
+        track('buy_tickets_clicked', { raffle_id: raffle.id, quantity: selectedQty, logged_in: Boolean(auth.user) });
+        const params = new URLSearchParams({ raffle_id: raffle.id, qty: String(selectedQty) });
 
         // Guests go straight to the numbers too: they pick first and are asked to
         // sign in at checkout, where their numbers are held for them.
         router.visit(`/raffles/${raffle.id}/numbers?${params}`);
     }
 
+    const closedTitle = closedReason === 'sold_out' ? 'Sold out' : closedReason === 'ended' ? 'Raffle ended' : closedReason === 'cancelled' ? 'Raffle cancelled' : 'Raffle closed';
+    const hasRules = drawInfo?.rules?.length > 0;
+    const bonus = drawInfo && (drawInfo.bonus_entries > 0 || drawInfo.tier_bonus > 0);
+
     return (
         <>
             <Head title={raffle.title} />
-            <div className="min-h-screen bg-app-bg pb-28 dark:bg-dark-bg">
+            <div className="min-h-screen bg-app-bg pb-10 dark:bg-dark-bg">
                 <div className="sticky top-0 z-40 flex items-center gap-3 border-b border-gray-100 bg-white/95 px-5 py-4 backdrop-blur-md dark:border-dark-border dark:bg-dark-bg/95">
-                    <Link href="/raffles" className="-ml-1 p-1 text-gray-400 hover:text-gray-600 dark:hover:text-white">
+                    <Link href="/raffles" className="-ml-1 p-1 text-gray-400 hover:text-gray-600 dark:hover:text-white" aria-label="Back to raffles">
                         <ArrowLeft className="h-5 w-5" />
                     </Link>
                     <h2 className="truncate pr-4 text-lg font-bold text-gray-900 dark:text-white">{raffle.title}</h2>
                 </div>
 
-                <section className="p-5 pb-2">
-                    <div
+                <main className="mx-auto max-w-lg space-y-3 px-4 pt-4">
+                    {! isClosed && <PausedNotice feature="ticket_sales" />}
+                    {! isClosed && notEligible && (
+                        <div className="flex items-start gap-3 rounded-xl border border-amber-200 bg-amber-50 p-3 dark:border-amber-900/40 dark:bg-amber-900/20">
+                            <Lock className="mt-0.5 h-4 w-4 flex-shrink-0 text-amber-600 dark:text-amber-400" />
+                            <p className="text-xs leading-relaxed text-amber-800 dark:text-amber-300">{notEligible}</p>
+                        </div>
+                    )}
+
+                    {/* The prize */}
+                    <section
                         className={[
-                            'relative overflow-hidden rounded-3xl p-6 text-center text-white shadow-xl transition-all duration-500',
+                            'relative overflow-hidden rounded-3xl p-6 text-white shadow-xl',
                             isClosed
-                                ? 'bg-gradient-to-br from-gray-700 to-gray-900'
-                                : 'bg-gradient-to-br from-green-600 to-emerald-800 shadow-green-900/20',
+                                ? 'bg-gradient-to-br from-gray-600 to-gray-900 shadow-gray-900/20'
+                                : 'bg-gradient-to-br from-emerald-600 via-emerald-700 to-teal-800 shadow-emerald-900/25',
                         ].join(' ')}
                     >
-                        <div className="absolute right-0 top-0 h-40 w-40 -translate-y-1/2 translate-x-1/2 rounded-full bg-white/10 blur-3xl" />
+                        <div className="pointer-events-none absolute -right-12 -top-12 h-48 w-48 rounded-full bg-white/10 blur-2xl" aria-hidden="true" />
+                        <div className="pointer-events-none absolute -bottom-16 -left-10 h-40 w-40 rounded-full bg-teal-300/10 blur-2xl" aria-hidden="true" />
 
-                        <div className="mb-3 flex flex-wrap items-center justify-center gap-2">
+                        <div className="relative flex flex-wrap items-center gap-2">
+                            {isClosed && (
+                                <span className="rounded-full bg-red-500/90 px-3 py-1 text-[11px] font-bold">{closedTitle}</span>
+                            )}
                             {raffle.is_flash && ! isClosed && (
-                                <span className="flex items-center gap-1 rounded-full bg-fuchsia-600 px-3 py-1 text-[10px] font-black uppercase tracking-widest text-yellow-200 shadow-sm">
+                                <span className="flex items-center gap-1 rounded-full bg-fuchsia-500/90 px-3 py-1 text-[11px] font-bold">
                                     <Zap className="h-3 w-3 fill-current" /> Flash raffle
                                 </span>
                             )}
-                            <span
-                                className={[
-                                    'rounded-full px-3 py-1 text-[10px] font-bold shadow-sm',
-                                    isClosed ? 'bg-red-600 text-white' : 'animate-pulse bg-yellow-400 text-green-900',
-                                ].join(' ')}
-                            >
-                                {isClosed ? 'RAFFLE CLOSED' : 'LIVE POOL ACTIVE'}
-                            </span>
                             {! isClosed && timeLeft && (
-                                <span className="flex items-center gap-1 rounded-full border border-white/20 bg-black/30 px-3 py-1 text-[10px] font-bold text-white backdrop-blur-md">
+                                <span className="flex items-center gap-1 rounded-full bg-black/25 px-3 py-1 text-[11px] font-bold backdrop-blur-sm">
                                     <Clock className="h-3 w-3" /> {timeLeft}
                                 </span>
                             )}
-                            {viewerCount !== null && (
-                                <span className="flex items-center gap-1 rounded-full border border-white/20 bg-black/30 px-3 py-1 text-[10px] font-bold text-white backdrop-blur-md">
+                            {viewerCount !== null && ! isClosed && (
+                                <span className="flex items-center gap-1 rounded-full bg-black/25 px-3 py-1 text-[11px] font-bold backdrop-blur-sm">
                                     <Eye className="h-3 w-3" /> {viewerCount} viewing
                                 </span>
                             )}
                         </div>
 
-                        <p className="mb-1 text-xs font-medium uppercase tracking-wide text-green-100">Grand Prize</p>
-                        <h1 className="mb-2 text-3xl font-extrabold leading-tight tracking-tight">{raffle.grand_prize}</h1>
-
-                        {isClosed ? (
-                            <div className="mb-6 inline-flex items-center gap-1.5 rounded-lg border border-white/20 bg-black/20 px-3 py-1.5 backdrop-blur-sm">
-                                <span className="text-xs text-gray-200">
-                                    {closedReason === 'sold_out' ? 'Every ticket was claimed' : closedReason === 'ended' ? 'Ticket sales have finished' : closedReason === 'cancelled' ? 'Cancelled: every ticket refunded' : 'No longer taking entries'}
-                                </span>
-                            </div>
-                        ) : (
-                            <div className="mb-6 inline-flex items-center gap-1.5 rounded-lg border border-green-400/30 bg-green-900/30 px-3 py-1.5 backdrop-blur-sm">
-                                <TrendingUp className="h-3 w-3 text-green-300" />
-                                <span className="text-xs text-green-100">
-                                    More Tickets = <span className="font-bold text-white">More Wins</span>
-                                </span>
-                            </div>
-                        )}
-
-                        <div className="mb-2 h-2 w-full overflow-hidden rounded-full bg-black/20">
-                            <div
-                                className="h-full rounded-full bg-yellow-400 shadow-[0_0_10px_rgba(250,204,21,0.6)] transition-all duration-500"
-                                style={{ width: `${progressPct}%` }}
-                            />
+                        <div className="relative mt-5 flex items-center gap-3">
+                            <span className="flex h-11 w-11 flex-none items-center justify-center rounded-2xl bg-white/15 backdrop-blur-sm">
+                                <Trophy className="h-6 w-6 text-amber-300" aria-hidden="true" />
+                            </span>
+                            <p className="text-xs font-semibold uppercase tracking-widest text-emerald-100">Grand prize</p>
                         </div>
-                        <div className="flex justify-between text-[10px] font-medium text-green-100 opacity-90">
-                            <span>{soldTickets} Sold</span>
-                            <span>{remainingTickets} Left</span>
-                        </div>
-                    </div>
-                </section>
+                        <h1 className="relative mt-2 text-3xl font-extrabold leading-tight tracking-tight">{raffle.grand_prize}</h1>
+                        <p className="relative mt-1 text-sm font-medium text-emerald-100">{formatNaira(raffle.price)} a ticket</p>
 
-                <section className="px-5 py-4">
-                    <Card className="space-y-5">
-                        <h3 className="border-b border-gray-100 pb-3 text-sm font-bold text-gray-900 dark:border-gray-700 dark:text-white">
-                            What You Can Win
-                        </h3>
-                        <div className="flex items-center gap-4">
-                            <div className="flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-full border border-yellow-200 bg-yellow-100 text-yellow-600 shadow-sm dark:border-yellow-700/50 dark:bg-yellow-900/30 dark:text-yellow-500">
-                                <Trophy className="h-5 w-5" />
+                        <div className="relative mt-5">
+                            <div className="h-2 w-full overflow-hidden rounded-full bg-black/25" role="progressbar" aria-valuenow={progressPct} aria-valuemin={0} aria-valuemax={100} aria-label="Tickets sold">
+                                <div className="h-full rounded-full bg-amber-300 transition-all duration-500" style={{ width: `${progressPct}%` }} />
                             </div>
-                            <div className="flex-1">
-                                <p className="text-sm font-bold text-gray-800 dark:text-white">{raffle.grand_prize}</p>
-                                <p className="text-xs text-gray-500 dark:text-gray-400">The Grand Prize Winner</p>
+                            <div className="mt-1.5 flex justify-between text-[11px] font-medium tabular-nums text-emerald-100">
+                                <span>{soldTickets.toLocaleString()} sold</span>
+                                <span>{remainingTickets.toLocaleString()} left</span>
                             </div>
-                        </div>
-
-                        {raffle.prize_list.length > 0 && (
-                            <div className="space-y-3 pt-2">
-                                {raffle.prize_list.map((prize, i) => (
-                                    <div key={i} className="flex items-center gap-3">
-                                        <div className="flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-full bg-gray-50 dark:bg-gray-700">
-                                            <Gift className="h-4 w-4 text-gray-500 dark:text-gray-300" />
-                                        </div>
-                                        <p className="text-sm text-gray-700 dark:text-gray-300">{prize}</p>
-                                    </div>
-                                ))}
-                            </div>
-                        )}
-
-{! isClosed && <PausedNotice feature="ticket_sales" className="mt-3" />}
-{! isClosed && notEligible && (
-                        <div className="mt-2 flex items-start gap-3 rounded-xl border border-amber-200 bg-amber-50 p-3 dark:border-amber-900/40 dark:bg-amber-900/20">
-                            <Lock className="mt-0.5 h-4 w-4 flex-shrink-0 text-amber-600 dark:text-amber-400" />
-                            <p className="text-xs leading-relaxed text-amber-800 dark:text-amber-300">{notEligible}</p>
-                        </div>
-                        )}
-{! isClosed && raffle.max_tickets > 0 && (
-                        <RaffleOdds raffleId={raffle.id} quantity={selectedQty} className="mt-2" />
-                        )}
-                    </Card>
-                </section>
-
-                {auth.user && ! isClosed && (
-                    <section className="px-5 pb-2">
-                        <BoostPanel raffleId={raffle.id} raffleTitle={raffle.title} />
-                    </section>
-                )}
-
-                {drawInfo?.rules?.length > 0 && (
-                    <section className="px-5 pb-2 text-left">
-                        <HowThisDrawWorks drawInfo={drawInfo} />
-                    </section>
-                )}
-
-                {isClosed ? (
-                    <section className="px-5 py-10 text-center">
-                        <div className="mx-auto mb-5 flex h-20 w-20 items-center justify-center rounded-full border-4 border-gray-50 bg-gray-100 shadow-inner dark:border-gray-800 dark:bg-dark-card">
-                            <Lock className="h-10 w-10 text-gray-400 dark:text-gray-500" />
-                        </div>
-                        <h3 className="mb-2 text-2xl font-black text-gray-900 dark:text-white">
-                            {closedReason === 'sold_out' ? 'Sold Out' : closedReason === 'ended' ? 'Raffle Ended' : closedReason === 'cancelled' ? 'Raffle Cancelled' : 'Raffle Closed'}
-                        </h3>
-                        <p className="mx-auto mb-6 max-w-xs text-sm text-gray-500 dark:text-gray-400">
-                            {closedReason === 'sold_out'
-                                ? 'Every ticket for this raffle has been claimed.'
-                                : closedReason === 'ended'
-                                  ? 'Ticket sales for this raffle have finished.'
-                                  : closedReason === 'cancelled'
-                                    ? 'This raffle was cancelled. Everyone who bought tickets got their money back in full, where they paid from.'
-                                    : 'This raffle is no longer taking entries.'}{' '}
-                            {closedReason !== 'cancelled' && 'Winners appear in the Hall of Fame once the draw is done.'}
-                        </p>
-                        <div className="mx-auto flex max-w-xs flex-col gap-3">
-                            <Link
-                                href="/hall-of-fame"
-                                className="rounded-xl bg-app-primary py-3.5 text-sm font-bold text-white shadow-lg shadow-blue-500/30 transition-transform active:scale-[0.98]"
-                            >
-                                See the winners
-                            </Link>
-                            <Link
-                                href="/raffles"
-                                className="rounded-xl border border-gray-200 py-3.5 text-sm font-bold text-gray-700 transition-transform active:scale-[0.98] dark:border-gray-700 dark:text-gray-200"
-                            >
-                                Browse open raffles
-                            </Link>
                         </div>
                     </section>
-                ) : (
-                    <section className="px-5 py-4">
-                        <TicketBundleSelector
-                            quantities={FIXED_QUANTITIES}
-                            bulkMin={bulkMin}
-                            quotes={quotes}
-                            selected={selectedQty}
-                            onSelect={setSelectedQty}
-                            bulkQty={bulkQty}
-                            onBulkQtyChange={(qty) => {
-                                setBulkQty(qty);
-                                setSelectedQty(qty);
-                            }}
-                            bulkQuote={bulkQuote}
+
+                    {/* The one thing to do */}
+                    {isClosed ? (
+                        <section className="rounded-3xl border border-gray-100 bg-white p-6 text-center dark:border-gray-800 dark:bg-dark-card">
+                            <div className="mx-auto mb-3 flex h-14 w-14 items-center justify-center rounded-full bg-gray-100 dark:bg-gray-800">
+                                <Lock className="h-7 w-7 text-gray-400 dark:text-gray-500" />
+                            </div>
+                            <h3 className="mb-1 text-xl font-black text-gray-900 dark:text-white">{closedTitle}</h3>
+                            <p className="mx-auto mb-5 max-w-xs text-sm text-gray-500 dark:text-gray-400">
+                                {closedReason === 'sold_out'
+                                    ? 'Every ticket for this raffle has been claimed.'
+                                    : closedReason === 'ended'
+                                      ? 'Ticket sales for this raffle have finished.'
+                                      : closedReason === 'cancelled'
+                                        ? 'This raffle was cancelled. Everyone who bought tickets got their money back in full, where they paid from.'
+                                        : 'This raffle is no longer taking entries.'}{' '}
+                                {closedReason !== 'cancelled' && 'Winners appear in the Hall of Fame once the draw is done.'}
+                            </p>
+                            <div className="mx-auto flex max-w-xs flex-col gap-3">
+                                <Link href="/hall-of-fame" className="rounded-xl bg-app-primary py-3.5 text-sm font-bold text-white shadow-lg shadow-blue-500/30 transition-transform active:scale-[0.98]">
+                                    See the winners
+                                </Link>
+                                <Link href="/raffles" className="rounded-xl border border-gray-200 py-3.5 text-sm font-bold text-gray-700 transition-transform active:scale-[0.98] dark:border-gray-700 dark:text-gray-200">
+                                    Browse open raffles
+                                </Link>
+                            </div>
+                        </section>
+                    ) : (
+                        <button
+                            type="button"
+                            onClick={() => setSheet('tickets')}
+                            disabled={salesPaused}
+                            className="flex w-full items-center justify-center gap-2.5 rounded-2xl bg-app-primary py-4 text-base font-extrabold text-white shadow-lg shadow-blue-500/30 transition-transform active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-50"
+                        >
+                            <Ticket className="h-5 w-5" aria-hidden="true" /> Get tickets
+                        </button>
+                    )}
+
+                    {/* The details, one tap away */}
+                    <InfoRow
+                        icon={Trophy}
+                        tone="indigo"
+                        title="Prizes and your chances"
+                        subtitle={raffle.winner_count > 1 ? `${raffle.winner_count} prizes to win` : 'The grand prize'}
+                        onClick={() => setSheet('prizes')}
+                    />
+                    {hasRules && (
+                        <InfoRow
+                            icon={ShieldCheck}
+                            tone="emerald"
+                            title="How this draw works"
+                            subtitle="Random and checkable"
+                            badge={bonus ? 'Bonus entries' : null}
+                            onClick={() => setSheet('how')}
                         />
-                    </section>
-                )}
+                    )}
+                    {auth.user && ! isClosed && (
+                        <InfoRow icon={Megaphone} tone="amber" title="Boost and share" subtitle="Earn bonus entries with friends" onClick={() => setSheet('boost')} />
+                    )}
+                </main>
             </div>
 
-            {! isClosed && (
-                <div className="fixed bottom-0 left-0 z-50 w-full border-t border-gray-100 bg-white/95 p-4 shadow-[0_-5px_20px_rgba(0,0,0,0.05)] backdrop-blur-md dark:border-dark-border dark:bg-dark-bg/95">
-                    <div className="mx-auto flex max-w-md items-center gap-4">
-                        <div className="flex-1">
-                            <p className="text-[10px] font-medium uppercase tracking-wide text-gray-400 dark:text-gray-500">
-                                Total ({selectedQty} Tickets)
-                            </p>
-                            <p className="text-xl font-bold text-gray-900 dark:text-white">
-                                {activeQuote ? formatNaira(activeQuote.discounted) : '…'}
-                            </p>
+            <BottomSheet open={sheet === 'tickets'} onClose={closeSheet} title="Choose your tickets">
+                <TicketPickerSheet
+                    raffleId={raffle.id}
+                    bundles={bundles}
+                    quotes={quotes}
+                    selectedQty={selectedQty}
+                    onSelect={setSelectedQty}
+                    customQuote={customQuote}
+                    maxAllowed={maxAllowed}
+                    orderLimit={orderLimit}
+                    remaining={remainingTickets}
+                    total={activeQuote ? activeQuote.discounted : null}
+                    disabled={salesPaused || ! activeQuote}
+                    onProceed={handleProceed}
+                />
+            </BottomSheet>
+
+            <BottomSheet open={sheet === 'prizes'} onClose={closeSheet} title="Prizes and your chances">
+                <div className="space-y-4">
+                    <div className="flex items-center gap-3 rounded-2xl border border-amber-100 bg-amber-50 p-3 dark:border-amber-900/30 dark:bg-amber-900/15">
+                        <span className="flex h-10 w-10 flex-none items-center justify-center rounded-full bg-amber-100 text-amber-600 dark:bg-amber-900/40 dark:text-amber-300">
+                            <Trophy className="h-5 w-5" />
+                        </span>
+                        <div>
+                            <p className="text-sm font-bold text-gray-900 dark:text-white">{raffle.grand_prize}</p>
+                            <p className="text-xs text-gray-500 dark:text-gray-400">The grand prize</p>
                         </div>
-                        <button
-                            onClick={handleProceed}
-                            disabled={salesPaused}
-                            className="flex flex-[2] items-center justify-center gap-2 rounded-xl bg-app-primary py-3.5 text-sm font-bold text-white shadow-lg shadow-blue-500/30 transition-transform active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-50"
-                        >
-                            Select Numbers <ArrowRight className="h-4 w-4" />
-                        </button>
                     </div>
+
+                    {/* While the chances list is showing it already lists every prize level, so the plain list is only for finished raffles and one-prize raffles. */}
+                    {raffle.prize_list.length > 0 && (isClosed || raffle.winner_count <= 1) && (
+                        <ul className="space-y-2.5">
+                            {raffle.prize_list.map((prize, i) => (
+                                <li key={i} className="flex items-center gap-3">
+                                    <span className="flex h-8 w-8 flex-none items-center justify-center rounded-full bg-gray-100 text-gray-500 dark:bg-gray-700 dark:text-gray-300">
+                                        <Gift className="h-4 w-4" />
+                                    </span>
+                                    <span className="text-sm text-gray-700 dark:text-gray-300">{prize}</span>
+                                </li>
+                            ))}
+                        </ul>
+                    )}
+
+                    {! isClosed && raffle.max_tickets > 0 && (
+                        <>
+                            <div>
+                                <p className="mb-2 text-xs font-bold uppercase tracking-wide text-gray-400 dark:text-gray-500">See your chances with</p>
+                                <div className="flex flex-wrap gap-2" role="group" aria-label="Number of tickets">
+                                    {bundles.map((q) => (
+                                        <button
+                                            key={q}
+                                            type="button"
+                                            onClick={() => setSelectedQty(q)}
+                                            aria-pressed={selectedQty === q}
+                                            className={[
+                                                'min-w-[3rem] rounded-xl border px-3 py-2 text-sm font-bold tabular-nums transition-colors',
+                                                selectedQty === q ? 'border-amber-400 bg-amber-100 text-amber-950 dark:bg-amber-900/30 dark:text-amber-100' : 'border-gray-200 text-gray-700 dark:border-gray-700 dark:text-gray-200',
+                                            ].join(' ')}
+                                        >
+                                            {q}
+                                        </button>
+                                    ))}
+                                </div>
+                            </div>
+                            <RaffleOdds raffleId={raffle.id} quantity={selectedQty} defaultOpen />
+                        </>
+                    )}
                 </div>
-            )}
+            </BottomSheet>
+
+            <BottomSheet open={sheet === 'how'} onClose={closeSheet} title="How this draw works">
+                {drawInfo && <DrawRules drawInfo={drawInfo} />}
+            </BottomSheet>
+
+            <BottomSheet open={sheet === 'boost'} onClose={closeSheet} title="Boost and share">
+                {auth.user && ! isClosed && <BoostPanel raffleId={raffle.id} raffleTitle={raffle.title} />}
+            </BottomSheet>
         </>
+    );
+}
+
+function InfoRow({ icon: Icon, tone, title, subtitle, badge = null, onClick }) {
+    return (
+        <button
+            type="button"
+            onClick={onClick}
+            className="flex w-full items-center gap-3 rounded-2xl border border-gray-100 bg-white p-3.5 text-left transition-colors hover:border-gray-200 active:scale-[0.99] dark:border-gray-800 dark:bg-dark-card dark:hover:border-gray-700"
+        >
+            <span className={`flex h-10 w-10 flex-none items-center justify-center rounded-xl ${TONES[tone]}`}>
+                <Icon className="h-5 w-5" aria-hidden="true" />
+            </span>
+            <span className="min-w-0 flex-1">
+                <span className="flex items-center gap-2 text-sm font-bold text-gray-900 dark:text-white">
+                    {title}
+                    {badge && <span className="rounded-full bg-amber-100 px-2 py-0.5 text-[10px] font-extrabold text-amber-800 dark:bg-amber-900/40 dark:text-amber-200">{badge}</span>}
+                </span>
+                <span className="block truncate text-xs text-gray-500 dark:text-gray-400">{subtitle}</span>
+            </span>
+            <ChevronRight className="h-5 w-5 flex-none text-gray-300 dark:text-gray-600" aria-hidden="true" />
+        </button>
     );
 }
 
 // "How this draw works": the raffle's published draw rules, plus the
 // customer's own loyalty bonus entries when the raffle gives them.
-function HowThisDrawWorks({ drawInfo }) {
-    const [open, setOpen] = useState(false);
-
+function DrawRules({ drawInfo }) {
     return (
-        <Card className="!p-0">
-            <button
-                type="button"
-                onClick={() => setOpen((v) => ! v)}
-                className="flex w-full items-center gap-3 p-4 text-left"
-                aria-expanded={open}
-            >
-                <ShieldCheck className="h-5 w-5 flex-shrink-0 text-green-600 dark:text-green-400" />
-                <span className="flex-1 text-sm font-bold text-gray-900 dark:text-white">How this draw works</span>
-                <ChevronDown className={`h-4 w-4 text-gray-400 transition-transform ${open ? 'rotate-180' : ''}`} />
-            </button>
-
+        <div className="space-y-3">
             {(drawInfo.bonus_entries > 0 || drawInfo.tier_bonus > 0) && (
-                <div className="mx-4 mb-3 flex items-start gap-2 rounded-xl border border-yellow-200 bg-yellow-50 p-3 text-xs text-yellow-900 dark:border-yellow-800/50 dark:bg-yellow-900/20 dark:text-yellow-200">
+                <div className="flex items-start gap-2 rounded-xl border border-yellow-200 bg-yellow-50 p-3 text-xs text-yellow-900 dark:border-yellow-800/50 dark:bg-yellow-900/20 dark:text-yellow-200">
                     <Star className="mt-0.5 h-4 w-4 flex-shrink-0 fill-current text-yellow-500" />
                     <p>
                         {drawInfo.bonus_entries > 0
@@ -311,17 +364,14 @@ function HowThisDrawWorks({ drawInfo }) {
                     </p>
                 </div>
             )}
-
-            {open && (
-                <div className="border-t border-gray-100 px-4 pb-4 pt-3 dark:border-gray-700">
-                    <ul className="list-disc space-y-1.5 pl-4 text-xs leading-relaxed text-gray-600 dark:text-gray-300">
-                        {drawInfo.rules.map((line, i) => (
-                            <li key={i}>{line}</li>
-                        ))}
-                    </ul>
-                    <p className="mt-3 text-[11px] text-gray-400">These rules are locked in before the draw and are part of what the Verify page checks.</p>
-                </div>
-            )}
-        </Card>
+            <Card className="!p-4">
+                <ul className="list-disc space-y-1.5 pl-4 text-sm leading-relaxed text-gray-600 dark:text-gray-300">
+                    {drawInfo.rules.map((line, i) => (
+                        <li key={i}>{line}</li>
+                    ))}
+                </ul>
+            </Card>
+            <p className="text-[11px] text-gray-400">These rules are locked in before the draw and are part of what the Verify page checks.</p>
+        </div>
     );
 }

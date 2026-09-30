@@ -16,4 +16,13 @@ return [
 
     // The tax is due on this day of the month after the one it covers.
     'due_day' => (int) env('GAMING_TAX_DUE_DAY', 21),
+
+    // Printed on the PDF return. Leave empty to print only the site name.
+    'business_name' => env('GAMING_TAX_BUSINESS_NAME', ''),
+    'tax_id' => env('GAMING_TAX_TAX_ID', ''),
+
+    // Reminders that a return is due (App\Services\GamingTaxReminders).
+    'remind' => (bool) env('GAMING_TAX_REMIND', true),
+    // How many days before the due date to remind staff. Also reminded on the day, and when overdue.
+    'remind_days' => [7, 3, 1],
 ];

@@ -33,4 +33,9 @@ return [
         'consolation_min_tickets' => 0,
         'consolation_points' => 0,
     ],
+
+    // Staff setting up a raffle are warned when its prizes are worth more than
+    // it can take in. It is a heads-up only: it never stops them saving. Turn
+    // it off for planned loss-leader raffles.
+    'warn_prizes_exceed_sales' => (bool) env('RAFFLES_WARN_PRIZES_EXCEED_SALES', true),
 ];

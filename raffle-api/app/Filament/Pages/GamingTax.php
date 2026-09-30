@@ -6,6 +6,8 @@ use App\Filament\Concerns\GuardedByStaffRole;
 use App\Filament\Concerns\RunsAdminActions;
 use App\Models\GamingTaxPeriod;
 use App\Services\AdminAuditLogService;
+use App\Services\GamingTaxReminders;
+use App\Services\GamingTaxReturnPdf;
 use App\Services\GamingTaxService;
 use App\Services\Reports\ReportExporter;
 use Filament\Actions\Action;
@@ -44,6 +46,28 @@ class GamingTax extends Page
     protected static ?int $navigationSort = 6;
 
     protected static string $view = 'filament.pages.gaming-tax';
+
+    /** The number of months that are due soon or overdue, on the menu. */
+    public static function getNavigationBadge(): ?string
+    {
+        if (! static::canAccess()) {
+            return null;
+        }
+
+        $count = app(GamingTaxReminders::class)->badge()['count'];
+
+        return $count > 0 ? (string) $count : null;
+    }
+
+    public static function getNavigationBadgeColor(): string|array|null
+    {
+        return app(GamingTaxReminders::class)->badge()['danger'] ? 'danger' : 'warning';
+    }
+
+    public static function getNavigationBadgeTooltip(): ?string
+    {
+        return 'Months whose gaming tax is due soon or overdue';
+    }
 
     #[Url(as: 'month')]
     public string $month = '';
@@ -95,6 +119,7 @@ class GamingTax extends Page
         return [
             'statement' => $this->statement(),
             'attention' => $service->attention($this->month),
+            'reminders' => array_values(array_filter(app(GamingTaxReminders::class)->attention(), fn ($a) => $a['severity'] !== 'info')),
             'rows' => array_map(fn (string $m) => $service->statement($m), $months),
             'months' => $months,
             'label' => fn (string $m) => Carbon::createFromFormat('!Y-m', $m)->format('F Y'),
@@ -161,12 +186,32 @@ class GamingTax extends Page
                 ->form([Forms\Components\Textarea::make('reason')->label('Why?')->required()->rows(2)->maxLength(300)])
                 ->action(fn (array $data) => static::attempt(fn () => $this->service()->reopen(static::admin(), $this->month, $data['reason']), 'Month reopened')),
 
+            Action::make('downloadReturn')
+                ->label('Download return (PDF)')
+                ->icon('heroicon-o-document-arrow-down')
+                ->color('gray')
+                ->action(fn () => $this->downloadReturn()),
+
             Action::make('download')
                 ->label('Download spreadsheet')
                 ->icon('heroicon-o-arrow-down-tray')
                 ->color('gray')
                 ->action(fn () => $this->download()),
         ];
+    }
+
+    /** The printable return for the month on screen. */
+    public function downloadReturn(): StreamedResponse
+    {
+        $pdf = app(GamingTaxReturnPdf::class);
+        $month = $this->month;
+        $bytes = $pdf->render($month);
+
+        app(AdminAuditLogService::class)->record(static::admin(), 'report.downloaded', 'report', 0, ['report' => 'Gaming tax return (PDF)', 'month' => $month, 'status' => $this->statement()['status']]);
+
+        return response()->streamDownload(function () use ($bytes) {
+            echo $bytes;
+        }, $pdf->filename($month), ['Content-Type' => 'application/pdf']);
     }
 
     /** Every listed month, one row each, as a spreadsheet. */

@@ -132,6 +132,15 @@ class TicketPurchaseService
             throw new InvalidArgumentException($reason.' No money has been taken.');
         }
 
+        // Order size limit (Settings → Raffles & pricing → Order size, or this raffle's own).
+        if (($raffle['max_per_order'] ?? null) && count($ticketNumbers) > $raffle['max_per_order']) {
+            throw new InvalidArgumentException(sprintf(
+                'You can buy at most %d ticket%s in one order for this raffle. No money has been taken.',
+                $raffle['max_per_order'],
+                $raffle['max_per_order'] === 1 ? '' : 's',
+            ));
+        }
+
         if (abs($unitPrice - $raffle['price']) > 0.001) {
             throw new InvalidArgumentException('The ticket price for this raffle has changed. Please go back and review your order before paying.');
         }
