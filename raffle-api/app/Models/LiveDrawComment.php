@@ -3,6 +3,7 @@
 namespace App\Models;
 
 use App\Models\Legacy\WpUser;
+use App\Services\Engagement\PlayerProfiles;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
@@ -29,7 +30,9 @@ class LiveDrawComment extends Model
             'id' => $this->id,
             'raffle_id' => $this->raffle_id,
             'user_id' => $this->user_id,
-            'user_name' => $this->user?->display_name ?: $this->user?->user_login,
+            'user_name' => PlayerProfiles::nameOf($this->user, 'Someone'),
+            // Set only when that person has a public profile card to open.
+            'profile' => app(PlayerProfiles::class)->pathFor($this->user),
             'body' => $this->body,
             'created_at' => $this->created_at?->toIso8601String(),
         ];

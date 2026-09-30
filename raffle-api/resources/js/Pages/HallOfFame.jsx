@@ -4,6 +4,7 @@ import { Crown, Play, Trophy } from 'lucide-react';
 import LoadError from '../Components/ui/LoadError';
 import BottomNav from '../Components/layout/BottomNav';
 import Header from '../Components/layout/Header';
+import PlayerName from '../Components/ui/PlayerName';
 
 // Rebuild of winners.php (item 27) against GET /api/hall-of-fame
 // (HallOfFameController). Preserved faithfully: the sticky header with
@@ -151,7 +152,7 @@ export default function HallOfFame() {
                                                     <Crown className="h-3 w-3 fill-current text-yellow-500" />
                                                 </div>
                                             </div>
-                                            <h4 className="text-sm font-bold text-gray-900 dark:text-white">{winner.name}</h4>
+                                            <h4 className="text-sm font-bold text-gray-900 dark:text-white"><PlayerName name={winner.name} profile={winner.profile} /></h4>
                                             <div className="mt-3 w-full rounded-lg border border-gray-100 bg-gray-50 py-2 dark:border-gray-800 dark:bg-dark-bg">
                                                 <p className="mb-0.5 text-[9px] font-bold uppercase text-gray-400">Winning Ticket</p>
                                                 <p className="font-mono text-base font-bold tracking-widest text-gray-800 dark:text-gray-200">
@@ -191,7 +192,7 @@ export default function HallOfFame() {
                                     />
                                     <div className="min-w-0 flex-1">
                                         <div className="mb-1 flex items-center justify-between">
-                                            <h4 className="truncate pr-2 text-sm font-bold text-gray-900 dark:text-white">{winner.name}</h4>
+                                            <h4 className="truncate pr-2 text-sm font-bold text-gray-900 dark:text-white"><PlayerName name={winner.name} profile={winner.profile} /></h4>
                                             <span className="shrink-0 whitespace-nowrap rounded border border-gray-200 bg-gray-100 px-2 py-0.5 font-mono text-[10px] font-bold text-gray-600 dark:border-gray-600 dark:bg-gray-700 dark:text-gray-300">
                                                 {ticketLabel(winner.ticket)}
                                             </span>

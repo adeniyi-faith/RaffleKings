@@ -129,4 +129,85 @@ class PlayerProfilesTest extends TestCase
 
         return $user;
     }
+
+    public function test_winners_on_the_hall_of_fame_link_to_their_card_unless_it_is_private(): void
+    {
+        $user = $this->player('lucky_one');
+        \App\Models\Legacy\RaffleWinner::create([
+            'raffle_id' => 900, 'user_id' => $user->ID, 'ticket_number' => 42, 'prize_name' => 'Cash', 'prize_rank' => 1,
+            'prize_cash_value' => 5000, 'is_credited' => false, 'is_visible' => true,
+        ]);
+
+        $this->getJson('/api/hall-of-fame')->assertJsonPath('recent.0.name', 'lucky_one')->assertJsonPath('recent.0.profile', '/player/lucky_one');
+
+        app(PlayerProfiles::class)->update($user->ID, ['visibility' => 'private']);
+        $this->getJson('/api/hall-of-fame')->assertJsonPath('recent.0.profile', null);
+    }
+
+    public function test_live_chat_comments_and_revealed_winners_carry_the_link(): void
+    {
+        $user = $this->player('chatty');
+        $raffle = \App\Models\Raffle::create(['legacy_post_id' => 901, 'title' => 'Live', 'price' => 100, 'max_tickets' => 10, 'status' => 'published']);
+        $comment = \App\Models\LiveDrawComment::create(['raffle_id' => $raffle->id, 'user_id' => $user->ID, 'body' => 'hello']);
+
+        $this->assertSame('chatty', $comment->fresh()->toBroadcastArray()['user_name']);
+        $this->assertSame('/player/chatty', $comment->fresh()->toBroadcastArray()['profile']);
+
+        app(PlayerProfiles::class)->update($user->ID, ['visibility' => 'private']);
+        $this->assertNull($comment->fresh()->toBroadcastArray()['profile']);
+
+        $winner = \App\Models\Legacy\RaffleWinner::create([
+            'raffle_id' => 901, 'user_id' => $this->player('reveal_me')->ID, 'ticket_number' => 3, 'prize_name' => 'Cash', 'prize_rank' => 1,
+            'prize_cash_value' => 1000, 'is_credited' => false, 'is_visible' => true,
+        ]);
+        $payload = app(\App\Services\LiveDrawService::class)->winnerPayload($winner);
+        $this->assertSame('reveal_me', $payload['name']);
+        $this->assertSame('/player/reveal_me', $payload['profile']);
+    }
+
+    public function test_the_card_shows_how_many_different_raffles_they_have_played(): void
+    {
+        $user = $this->player('regular');
+        $txn = \App\Models\Legacy\RaffleTransaction::create(['user_id' => $user->ID, 'claimed_amount' => 100, 'status' => 'verified_final', 'type' => 'ticket_purchase_wallet']);
+
+        foreach ([[5, 1], [5, 2], [6, 1]] as [$raffle, $number]) { // two tickets in raffle 5, one in raffle 6
+            \App\Models\Legacy\RaffleEntry::create(['user_id' => $user->ID, 'raffle_id' => $raffle, 'ticket_number' => $number, 'txn_id' => $txn->id]);
+        }
+
+        $this->assertSame(2, app(PlayerProfiles::class)->card('regular')['raffles_entered']);
+    }
+
+    public function test_a_shared_card_link_previews_with_the_players_name_and_badge_count(): void
+    {
+        $user = $this->player('sharer');
+        app(BadgeService::class)->award($user->ID, 'first_ticket');
+
+        $html = $this->get('/player/sharer')->getContent();
+
+        $this->assertStringContainsString('<meta property="og:title" content="sharer on', $html);
+        $this->assertStringContainsString('1 badges collected', $html);
+    }
+
+    public function test_a_private_or_unknown_card_previews_generically_and_never_confirms_the_account(): void
+    {
+        $user = $this->player('hidden_one');
+        app(PlayerProfiles::class)->update($user->ID, ['visibility' => 'private']);
+
+        $html = $this->get('/player/hidden_one')->getContent();
+
+        // The address the visitor typed is echoed either way; nothing about the account is.
+        $this->assertStringNotContainsString('hidden_one on', $html);
+        $this->assertStringNotContainsString('badges collected', $html);
+        $this->assertStringNotContainsString('raffles played', $html);
+    }
+
+    public function test_the_privacy_panel_gives_the_link_and_username_to_share(): void
+    {
+        $user = $this->actingAsWordPressUser();
+
+        $this->getJson('/api/badges')
+            ->assertJsonPath('privacy.username', $user->user_login)
+            ->assertJsonPath('privacy.path', '/player/'.rawurlencode($user->user_login))
+            ->assertJsonPath('privacy.url', url('/player/'.rawurlencode($user->user_login)));
+    }
 }

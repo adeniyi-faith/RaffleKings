@@ -132,13 +132,11 @@ class WinnerStories
         return [
             'stories' => $stories->map(function (WinnerStory $s) use ($users, $winners, $titles, $mine) {
                 $u = $users->get($s->user_id);
-                $name = trim((string) ($u?->user_login ?: $u?->display_name));
-
                 return [
                     'id' => $s->id,
-                    'name' => $name === '' ? 'A winner' : $name,
+                    'name' => PlayerProfiles::nameOf($u, 'A winner'),
                     // Set only when that winner has a public profile card to open.
-                    'profile' => $u && app(PlayerProfiles::class)->isPublic($u) ? '/player/'.rawurlencode($u->user_login) : null,
+                    'profile' => app(PlayerProfiles::class)->pathFor($u),
                     'avatar' => $u?->metaValue('profile_pic_url') ?: null,
                     'showcase' => $u ? $this->badges->showcase($u->ID) : [],
                     'prize' => $winners->get($s->raffle_winner_id)?->prize_name,

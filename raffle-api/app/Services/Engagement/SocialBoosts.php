@@ -75,9 +75,7 @@ class SocialBoosts
      */
     private function firstName(?WpUser $user): string
     {
-        $name = trim((string) ($user?->user_login ?: $user?->display_name));
-
-        return $name === '' ? 'A friend' : $name;
+        return PlayerProfiles::nameOf($user, 'A friend');
     }
 
     /** What the raffle page and the purchase success screen show a signed-in customer. */
@@ -195,7 +193,8 @@ class SocialBoosts
         return [
             'code' => $link->code,
             'url' => url("/u/{$link->code}"),
-            'owner' => $this->firstName(WpUser::find($link->user_id)),
+            'owner' => $this->firstName($owner = WpUser::find($link->user_id)),
+            'owner_profile' => app(PlayerProfiles::class)->pathFor($owner),
             'owner_id' => $link->user_id,
             'taps' => min($link->taps_needed, $link->taps()->count()),
             'needed' => $link->taps_needed,
@@ -324,7 +323,7 @@ class SocialBoosts
             'members' => $members->map(fn ($m) => [
                 'name' => $this->firstName($users->get($m->user_id)),
                 // Set only when that player has a public profile card to open.
-                'profile' => ($u = $users->get($m->user_id)) && app(PlayerProfiles::class)->isPublic($u) ? '/player/'.rawurlencode($u->user_login) : null,
+                'profile' => app(PlayerProfiles::class)->pathFor($users->get($m->user_id)),
                 'is_captain' => $m->user_id === $team->captain_id,
                 'is_you' => $viewerId !== null && $m->user_id === $viewerId,
             ])->values()->all(),

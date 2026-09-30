@@ -4,6 +4,7 @@ import { Head, Link, usePage } from '@inertiajs/react';
 import { ArrowLeft, MessageCircle, PlayCircle, Radio, RotateCcw, Send, ShieldCheck, Trophy, Zap } from 'lucide-react';
 import { echoOrNull } from '../../lib/echo';
 import { isOn, useSite } from '../../lib/site';
+import PlayerName from '../../Components/ui/PlayerName';
 import { track } from '../../lib/analytics';
 
 const REACTIONS = [
@@ -354,7 +355,7 @@ export default function LiveDrawShow({ raffle }) {
                                                 <div className="min-w-0 flex-1">
                                                     <h4 className="truncate text-sm font-black">
                                                         <span className="mr-1.5 text-white/40">#{r.winner.prize_rank}</span>
-                                                        {r.winner.name}
+                                                        <PlayerName name={r.winner.name} profile={r.winner.profile} />
                                                     </h4>
                                                     <div className="mt-1 flex flex-wrap gap-1">
                                                         <span className="inline-block rounded-md bg-green-600/20 px-2 py-0.5 text-[9px] font-black uppercase tracking-tighter text-green-500">
@@ -424,7 +425,7 @@ export default function LiveDrawShow({ raffle }) {
                         )}
                         {comments.map((c) => (
                             <p key={c.id} className="text-xs text-white/80">
-                                <span className="font-bold text-red-400">{c.user_name ?? 'Someone'}:</span> {c.body}
+                                <span className="font-bold text-red-400"><PlayerName name={c.user_name ?? 'Someone'} profile={c.profile} />:</span> {c.body}
                             </p>
                         ))}
                         <div ref={commentsEndRef} />

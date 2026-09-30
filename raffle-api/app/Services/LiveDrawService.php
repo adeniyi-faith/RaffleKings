@@ -14,6 +14,7 @@ use App\Models\LiveDrawReaction;
 use App\Models\LiveDrawReveal;
 use App\Models\Raffle;
 use App\Models\RaffleDraw;
+use App\Services\Engagement\PlayerProfiles;
 use App\Support\Live;
 use Illuminate\Support\Facades\DB;
 use RuntimeException;
@@ -119,7 +120,7 @@ class LiveDrawService
                 'scheduled_at' => $raffle->live_draw_scheduled_at?->toIso8601String(),
                 'started_at' => $raffle->live_draw_started_at?->toIso8601String(),
                 'winners' => (int) ($revealCounts[$raffle->id] ?? 0),
-                'top_winner' => $topUser ? ($topUser->display_name ?: $topUser->user_login) : null,
+                'top_winner' => $topUser ? PlayerProfiles::nameOf($topUser) : null,
                 'theme_color' => $raffle->live_draw_theme_color,
             ];
         };
@@ -144,6 +145,7 @@ class LiveDrawService
         return LiveDrawComment::query()
             ->where('raffle_id', $raffle->id)
             ->whereNull('hidden_at') // removed by a moderator (item 45)
+            ->with('user')
             ->latest('id')
             ->limit($limit)
             ->get()
@@ -267,11 +269,12 @@ class LiveDrawService
     public function winnerPayload(RaffleWinner $winner): array
     {
         $user = WpUser::find($winner->user_id);
-        $name = $user ? ($user->display_name ?: $user->user_login) : 'Lucky Winner';
+        $name = PlayerProfiles::nameOf($user, 'Lucky Winner');
 
         return [
             'id' => $winner->id,
             'name' => $name,
+            'profile' => app(PlayerProfiles::class)->pathFor($user),
             'avatar' => HallOfFameController::avatar($user?->metaValue('profile_pic_url'), $name),
             'ticket_number' => $winner->ticket_number,
             'prize_name' => $winner->prize_name,
