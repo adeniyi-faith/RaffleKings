@@ -11,6 +11,15 @@
 @endphp
 
 <x-filament-panels::page>
+    @foreach (array_slice($reminders, 0, 3) as $r)
+        <div class="flex flex-wrap items-center justify-between gap-2 rounded-xl px-4 py-3 text-sm ring-1 {{ $r['severity'] === 'overdue' ? 'bg-danger-50 text-danger-800 ring-danger-500/20 dark:bg-danger-500/10 dark:text-danger-200 dark:ring-danger-400/20' : 'bg-amber-50 text-amber-900 ring-amber-500/20 dark:bg-amber-500/10 dark:text-amber-200 dark:ring-amber-400/20' }}">
+            <span><strong>{{ $r['headline'] }}.</strong> {{ $r['next_step'] }} Tax {{ '₦'.number_format($r['tax_due']) }}, due {{ \Illuminate\Support\Carbon::parse($r['due_on'])->format('j M Y') }}.</span>
+            @if ($r['period'] !== $month)
+                <button type="button" wire:click="selectMonth('{{ $r['period'] }}')" class="font-medium underline">Open</button>
+            @endif
+        </div>
+    @endforeach
+
     <div class="flex flex-wrap items-center justify-between gap-3">
         <div class="flex flex-wrap items-center gap-2" aria-label="Where this month is">
             @foreach ($steps as $key => $name)
