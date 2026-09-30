@@ -27,6 +27,11 @@ function prizeName(prize, fallback) {
     return /^\d+(\.\d+)?$/.test(digits) ? `₦${Number(digits).toLocaleString('en-NG')}` : text;
 }
 
+/** A player sharing their own profile card, with its link inside. */
+export function profileShareText({ username, url }) {
+    return `Check out my RaffleKings profile, ${username}! See my badges and join me for a chance to win cash prizes:\n${url}`;
+}
+
 /** The Team Up invite message, with its link inside. */
 export function teamInviteText({ prize, raffleTitle, url, bonusEntries = 1 }) {
     const name = prizeName(prize, raffleTitle);

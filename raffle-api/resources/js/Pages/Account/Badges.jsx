@@ -6,6 +6,7 @@ import LoadError from '../../Components/ui/LoadError';
 import { apiPost } from '../../lib/api';
 import { useApi } from '../../lib/useApi';
 import BottomNav from '../../Components/layout/BottomNav';
+import ShareProfile from '../../Components/ui/ShareProfile';
 
 // Phase 11: every badge, earned or still to earn, and up to three pinned
 // to the customer's profile.
@@ -128,10 +129,17 @@ export default function Badges() {
                                         <input type="checkbox" checked={privacy.show_wins} onChange={(e) => changePrivacy({ show_wins: e.target.checked })} className="mt-0.5" />
                                         <span>Show my wins on my profile (the win badges and how many times I've won). Off by default.</span>
                                     </label>
-                                    {privacy.visibility === 'everyone' && (
-                                        <Link href={privacy.path} className="mt-3 inline-block text-xs font-bold text-app-primary">
-                                            See my public profile
-                                        </Link>
+                                    {privacy.visibility === 'everyone' ? (
+                                        <>
+                                            <Link href={privacy.path} className="mt-3 inline-block text-xs font-bold text-app-primary">
+                                                See my public profile
+                                            </Link>
+                                            <div className="mt-2 rounded-xl bg-gradient-to-r from-fuchsia-600 to-indigo-600 p-2">
+                                                <ShareProfile username={privacy.username} url={privacy.url} from="my_badges" />
+                                            </div>
+                                        </>
+                                    ) : (
+                                        <p className="mt-3 text-xs text-gray-500 dark:text-gray-400">Your profile is private, so a shared link would not open. Choose "Everyone can see it" to share it.</p>
                                     )}
                                 </div>
                             )}

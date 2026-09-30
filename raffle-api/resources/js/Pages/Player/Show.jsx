@@ -5,6 +5,7 @@ import PageTop from '../../Components/ui/PageTop';
 import BottomNav from '../../Components/layout/BottomNav';
 import { resolveAvatar } from '../../lib/avatar';
 import { track } from '../../lib/analytics';
+import ShareProfile from '../../Components/ui/ShareProfile';
 
 // A player's public card: username, picture and badges. Never money or private details.
 // A private profile and a username that doesn't exist look the same on purpose.
@@ -53,6 +54,9 @@ export default function PlayerShow({ profile, is_you: isYou = false }) {
                             <p className="mt-1 flex items-center justify-center gap-1 text-xs text-white/80">
                                 <Calendar className="h-3 w-3" /> Member since {profile.member_since}
                             </p>
+                        )}
+                        {isYou && (
+                            <ShareProfile username={profile.username} url={`${window.location.origin}/player/${encodeURIComponent(profile.username)}`} from="my_profile" className="mt-4" />
                         )}
                         {profile.showcase.length > 0 && (
                             <div className="mt-4 flex items-center justify-center gap-3">
