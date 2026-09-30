@@ -14,6 +14,7 @@ use App\Services\Engagement\FreeSpinGifts;
 use App\Services\Engagement\Perks;
 use App\Services\Engagement\PlayerProfiles;
 use App\Services\GoldenBoxService;
+use App\Services\Reminders\ReminderService;
 use App\Services\LiveDrawService;
 use App\Services\PointsService;
 use App\Services\RaffleReadService;
@@ -26,6 +27,7 @@ use App\Support\PageMeta;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Route;
+use Illuminate\Support\Facades\URL;
 use Inertia\Inertia;
 
 // Homepage (faithfully rebuilt to match the legacy index.php: hero
@@ -189,6 +191,8 @@ Route::get('/checkout', function (Request $request, RaffleReadService $raffles) 
     // Item 46: remembered so a customer who leaves without paying can be
     // offered the Golden Box on the raffle list.
     app(GoldenBoxService::class)->rememberCheckout(Auth::guard('wordpress')->user(), $found, $numbers);
+    // Reminders: "you left tickets in checkout" (only while switched on).
+    app(ReminderService::class)->rememberCheckout(Auth::guard('wordpress')->user(), $found, $numbers);
 
     return Inertia::render('Checkout/Index', [
         'raffle' => $found,
@@ -438,3 +442,15 @@ if (app()->environment(['local', 'testing'])) {
         ]);
     });
 }
+
+// Reminders: the "stop reminders" link in every reminder email. Signed, so
+// it works without logging in and can't be made for someone else.
+Route::get('/reminders/unsubscribe/{user}', function (Request $request, int $user) {
+    app(ReminderService::class)->setOptedOut($user, ! $request->boolean('undo'));
+
+    return Inertia::render('RemindersUnsubscribed', [
+        'stopped' => ! $request->boolean('undo'),
+        'undoUrl' => URL::signedRoute('reminders.unsubscribe', ['user' => $user, 'undo' => 1]),
+        'stopUrl' => URL::signedRoute('reminders.unsubscribe', ['user' => $user]),
+    ]);
+})->middleware('signed')->name('reminders.unsubscribe');
