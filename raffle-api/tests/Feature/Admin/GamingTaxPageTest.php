@@ -166,4 +166,21 @@ class GamingTaxPageTest extends TestCase
 
         Livewire::test(GamingTax::class)->assertActionVisible('downloadReturn');
     }
+
+    public function test_if_the_pdf_maker_breaks_the_button_still_hands_over_a_printable_page_and_says_why(): void
+    {
+        $this->actingAsAdministrator();
+
+        $this->mock(\App\Services\GamingTaxReturnPdf::class, function ($mock) {
+            $mock->shouldReceive('render')->andThrow(new \RuntimeException('No writable folder'));
+            $mock->shouldReceive('html')->andReturn('<html><body>Gaming tax return</body></html>');
+            $mock->shouldReceive('filename')->andReturn('gaming-tax-return-2026-09.pdf');
+        });
+
+        Livewire::test(GamingTax::class)
+            ->call('selectMonth', '2026-09')
+            ->callAction('downloadReturn')
+            ->assertFileDownloaded('gaming-tax-return-2026-09.html')
+            ->assertNotified('The PDF could not be made on this server');
+    }
 }

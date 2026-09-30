@@ -12,6 +12,7 @@ use App\Services\GamingTaxService;
 use App\Services\Reports\ReportExporter;
 use Filament\Actions\Action;
 use Filament\Forms;
+use Filament\Notifications\Notification;
 use Filament\Pages\Page;
 use Illuminate\Support\Carbon;
 use Livewire\Attributes\Url;
@@ -205,13 +206,33 @@ class GamingTax extends Page
     {
         $pdf = app(GamingTaxReturnPdf::class);
         $month = $this->month;
-        $bytes = $pdf->render($month);
+        $status = $this->statement()['status'];
 
-        app(AdminAuditLogService::class)->record(static::admin(), 'report.downloaded', 'report', 0, ['report' => 'Gaming tax return (PDF)', 'month' => $month, 'status' => $this->statement()['status']]);
+        try {
+            $bytes = $pdf->render($month);
+            $name = $pdf->filename($month);
+            $type = 'application/pdf';
+            $what = 'Gaming tax return (PDF)';
+        } catch (\Throwable $e) {
+            // Never a bare "500": say what went wrong (staff only see this), keep a record, and still hand over
+            // the return as a web page that any browser can print or save as PDF.
+            report($e);
+            Notification::make()->danger()->persistent()
+                ->title('The PDF could not be made on this server')
+                ->body('You are getting the same return as a web page instead: open it and use Print, then Save as PDF. Tell the developer: '.class_basename($e).': '.\Illuminate\Support\Str::limit($e->getMessage(), 220))
+                ->send();
+
+            $bytes = $pdf->html($month);
+            $name = str_replace('.pdf', '.html', $pdf->filename($month));
+            $type = 'text/html; charset=UTF-8';
+            $what = 'Gaming tax return (web page)';
+        }
+
+        app(AdminAuditLogService::class)->record(static::admin(), 'report.downloaded', 'report', 0, ['report' => $what, 'month' => $month, 'status' => $status]);
 
         return response()->streamDownload(function () use ($bytes) {
             echo $bytes;
-        }, $pdf->filename($month), ['Content-Type' => 'application/pdf']);
+        }, $name, ['Content-Type' => $type]);
     }
 
     /** Every listed month, one row each, as a spreadsheet. */
