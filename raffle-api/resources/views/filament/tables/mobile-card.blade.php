@@ -2,7 +2,20 @@
 <div class="rk-card">
     @if (filled($card['title'] ?? null) || filled($card['amount'] ?? null))
         <div class="rk-card-top">
-            <span class="rk-card-title">{{ $card['title'] ?? '' }}</span>
+            <span class="rk-card-who">
+                @if (filled($card['avatar'] ?? null))
+                    <img
+                        src="{{ $card['avatar'] }}"
+                        alt=""
+                        class="rk-card-avatar"
+                        loading="lazy"
+                        @if (filled($card['avatar_fallback'] ?? null))
+                            onerror="this.onerror=null;this.src='{{ $card['avatar_fallback'] }}'"
+                        @endif
+                    >
+                @endif
+                <span class="rk-card-title">{{ $card['title'] ?? '' }}</span>
+            </span>
             @if (filled($card['amount'] ?? null))
                 <span class="rk-card-amount">{{ $card['amount'] }}</span>
             @endif

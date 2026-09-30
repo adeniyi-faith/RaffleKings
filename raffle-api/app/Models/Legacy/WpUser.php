@@ -297,8 +297,65 @@ class WpUser extends LegacyModel implements Authenticatable, FilamentUser, HasAv
      */
     public function getFilamentAvatarUrl(): ?string
     {
-        $url = trim((string) $this->metaValue('profile_pic_url'));
+        return $this->profilePictureUrl();
+    }
+
+    /**
+     * The customer's uploaded profile picture (the `profile_pic_url` usermeta,
+     * set by an upload on either site), or null if they never added one or the
+     * saved value isn't a plain web address. Reads a preloaded `meta` relation
+     * when the list already has it, so a table of customers doesn't make one
+     * extra query per row.
+     */
+    public function profilePictureUrl(): ?string
+    {
+        $url = $this->relationLoaded('meta')
+            ? $this->meta->firstWhere('meta_key', 'profile_pic_url')?->meta_value
+            : $this->metaValue('profile_pic_url');
+
+        $url = trim((string) $url);
 
         return $url !== '' && (str_starts_with($url, 'https://') || str_starts_with($url, 'http://') || str_starts_with($url, '/')) ? $url : null;
+    }
+
+    /**
+     * A round picture for a customer with no photo (or whose photo no longer
+     * loads): their initials on a colour that stays the same for that customer.
+     * A self-contained image, so it needs no other site.
+     */
+    public function initialsAvatarUrl(): string
+    {
+        $name = trim((string) ($this->display_name ?: $this->user_login));
+        $words = preg_split('/[\s._-]+/u', $name, -1, PREG_SPLIT_NO_EMPTY) ?: [];
+        $initials = mb_strtoupper(mb_substr($words[0] ?? '?', 0, 1).(count($words) > 1 ? mb_substr(end($words), 0, 1) : ''));
+        $colours = ['#2563eb', '#7c3aed', '#db2777', '#dc2626', '#d97706', '#059669', '#0891b2', '#4f46e5'];
+        $colour = $colours[((int) $this->ID) % count($colours)];
+
+        $svg = '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 80 80"><rect width="80" height="80" fill="'.$colour.'"/>'
+            .'<text x="50%" y="50%" dy=".35em" text-anchor="middle" font-family="Arial,Helvetica,sans-serif" font-size="32" font-weight="700" fill="#fff">'
+            .htmlspecialchars($initials, ENT_XML1 | ENT_QUOTES, 'UTF-8').'</text></svg>';
+
+        return 'data:image/svg+xml;base64,'.base64_encode($svg);
+    }
+
+    /** The photo if there is one, otherwise the initials picture. */
+    public function avatarOrInitialsUrl(): string
+    {
+        return $this->profilePictureUrl() ?? $this->initialsAvatarUrl();
+    }
+
+    /**
+     * Attributes for an <img> of this customer's picture: if the saved photo
+     * can't be loaded (an old address that no longer exists), it swaps to the
+     * initials picture instead of showing a broken image.
+     *
+     * @return array<string, string>
+     */
+    public function avatarImgAttributes(): array
+    {
+        return [
+            'loading' => 'lazy',
+            'onerror' => "this.onerror=null;this.src='".$this->initialsAvatarUrl()."'",
+        ];
     }
 }

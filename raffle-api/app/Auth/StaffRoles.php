@@ -29,7 +29,7 @@ final class StaffRoles
         'manager' => [
             'label' => 'Manager',
             'description' => 'Everything except Settings and staff roles.',
-            'abilities' => ['money.view', 'money.pay', 'customers.view', 'customers.manage', 'support', 'chat', 'raffles', 'content', 'messages', 'reports', 'system'],
+            'abilities' => ['money.view', 'money.pay', 'customers.view', 'customers.manage', 'customers.support', 'support', 'chat', 'raffles', 'content', 'messages', 'reports', 'system'],
         ],
         'finance' => [
             'label' => 'Finance',
@@ -38,8 +38,8 @@ final class StaffRoles
         ],
         'support' => [
             'label' => 'Support',
-            'description' => 'Support tickets, customers (look only), ticket lookup, re-checking payments and chat. Can\'t pay out or change balances.',
-            'abilities' => ['support', 'customers.view', 'payments.view', 'payments.recheck', 'chat'],
+            'description' => 'Support tickets, customers (look, reset a password, sign a customer out, message them), ticket lookup, re-checking payments and chat. Can\'t pay out or change balances.',
+            'abilities' => ['support', 'customers.view', 'customers.support', 'payments.view', 'payments.recheck', 'chat'],
         ],
         'content' => [
             'label' => 'Content',
