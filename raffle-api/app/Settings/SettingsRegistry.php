@@ -122,6 +122,14 @@ final class SettingsRegistry
                             new Setting('services.flutterwave.secret_hash', 'Webhook secret hash', 'secret', 'Any secret phrase. Type the same one in Flutterwave\'s webhook settings. It proves payment messages really come from Flutterwave.'),
                         ],
                     ],
+                    'Gaming tax' => [
+                        'description' => 'How the monthly gaming tax is worked out (Finance → Gaming tax). It is charged on a month\'s ticket sales minus the prizes won that month. A month keeps the rate and rule it was locked with, so changing these only affects months not yet locked.',
+                        'settings' => [
+                            new Setting('gaming_tax.rate', 'Tax rate', 'percent', 'In percent. Confirm the right rate with your accountant.', rules: ['required', 'numeric', 'min:0', 'max:100']),
+                            new Setting('gaming_tax.shortfall', 'If prizes were worth more than sales in a month', 'select', 'Zero: that month owes no tax and the shortfall is forgotten. Carry forward: the shortfall is taken off the next month\'s taxable amount.', ['zero' => 'That month owes no tax (shortfall forgotten)', 'carry_forward' => 'Carry the shortfall into next month']),
+                            new Setting('gaming_tax.due_day', 'Tax is due on this day of the next month', 'int', 'For the reminder on the Gaming tax page. Confirm the right day with your accountant.', rules: ['required', 'integer', 'min:1', 'max:28']),
+                        ],
+                    ],
                 ],
             ],
 
