@@ -57,6 +57,7 @@ class AdminAuditLogResource extends Resource
         'tutorial.hidden' => 'Tutorial hidden',
         'tutorial.deleted' => 'Tutorial deleted',
         'settings.reset' => 'Setting put back to the server value',
+        'settings.undone' => 'Settings history: change undone',
         'withdrawal.paid' => 'Withdrawal marked paid',
         'withdrawal.rejected' => 'Withdrawal rejected & refunded',
         'deposit.approved' => 'Bank-transfer top-up approved',

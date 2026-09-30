@@ -540,6 +540,14 @@ class Settings extends Page implements HasForms
         return $warnings;
     }
 
+    protected function getHeaderActions(): array
+    {
+        return [
+            Action::make('history')->label('History and undo')->icon('heroicon-o-clock')->color('gray')
+                ->url(fn () => \App\Filament\Resources\SettingChangeResource::getUrl()),
+        ];
+    }
+
     protected function getFormActions(): array
     {
         return [

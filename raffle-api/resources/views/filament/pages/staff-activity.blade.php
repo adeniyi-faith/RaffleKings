@@ -1,5 +1,5 @@
 <x-filament-panels::page>
-    <div class="grid grid-cols-1 gap-4 lg:grid-cols-3">
+    <div class="rk-stats" style="grid-template-columns:repeat(auto-fit,minmax(min(100%,260px),1fr))">
         <div class="rounded-xl bg-white p-4 shadow-sm ring-1 ring-gray-950/5 dark:bg-gray-900 dark:ring-white/10">
             <p class="text-xs font-medium text-gray-500 dark:text-gray-400">Two-step sign-in</p>
             <p class="mt-1 text-lg font-semibold {{ $twoStep ? 'text-success-600' : 'text-warning-600' }}">{{ $twoStep ? 'On' : 'Off' }}</p>
