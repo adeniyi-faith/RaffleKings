@@ -163,16 +163,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
     <script>
         lucide.createIcons();
 
-        // Where to send someone back to after signing in (e.g. their checkout).
-        // Only plain on-site pages are allowed, never another website.
-        function getSafeReturn() {
-            const raw = new URLSearchParams(window.location.search).get('return') || '';
-            if (!raw || raw.startsWith('//') || /^[a-z][a-z0-9+.-]*:/i.test(raw)) return '';
-            const path = raw.split('?')[0].replace(/^\//, '');
-            if (!path || path.includes('..') || !/^[A-Za-z0-9_\-\/\.]+$/.test(path)) return '';
-            return raw.replace(/^\//, '');
-        }
-
         // Check for Redirect param on load
         document.addEventListener('DOMContentLoaded', () => {
             const urlParams = new URLSearchParams(window.location.search);
@@ -182,10 +172,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
             if (redirect === 'cart') {
                 const link = document.getElementById('register-link');
                 link.href = 'register.php?redirect=cart';
-            }
-            const returnTo = getSafeReturn();
-            if (returnTo) {
-                document.getElementById('register-link').href = 'register.php?return=' + encodeURIComponent(returnTo);
             }
 
             // Handle Pre-filled Email
@@ -249,11 +235,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
                     const urlParams = new URLSearchParams(window.location.search);
                     const redirect = urlParams.get('redirect');
 
-                    const returnTo = getSafeReturn();
-
-                    if (returnTo) {
-                        window.location.href = returnTo;
-                    } else if (redirect === 'cart') {
+                    if (redirect === 'cart') {
                         // Check if specific checkout data exists
                         if(localStorage.getItem('pendingCheckout')) {
                             try {
