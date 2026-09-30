@@ -1,6 +1,6 @@
 import { useEffect } from 'react';
 import { Head, Link } from '@inertiajs/react';
-import { Award, Calendar, Flame, Lock, Trophy } from 'lucide-react';
+import { Award, Calendar, Flame, Lock, Ticket, Trophy } from 'lucide-react';
 import PageTop from '../../Components/ui/PageTop';
 import BottomNav from '../../Components/layout/BottomNav';
 import { resolveAvatar } from '../../lib/avatar';
@@ -70,7 +70,8 @@ export default function PlayerShow({ profile, is_you: isYou = false }) {
                         </p>
                     )}
 
-                    <div className="grid grid-cols-3 gap-3 text-center">
+                    <div className={`grid gap-3 text-center ${profile.wins !== null ? 'grid-cols-2' : 'grid-cols-3'}`}>
+                        <Stat icon={Ticket} value={profile.raffles_entered} label="Raffles played" />
                         <Stat icon={Award} value={`${profile.badges.length}/${profile.badge_total}`} label="Badges" />
                         <Stat icon={Flame} value={profile.streak} label="Day streak" />
                         {profile.wins !== null && <Stat icon={Trophy} value={profile.wins} label="Wins" />}
