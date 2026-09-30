@@ -126,6 +126,27 @@ final class OddsCalculator
     }
 
     /**
+     * The odds for several ticket counts at once, keyed by count. The raffle page
+     * sends these along with the page so the chances show the moment it opens.
+     *
+     * @param  list<int>  $quantities
+     * @return array<int, array>
+     */
+    public function forQuantities(Raffle $raffle, array $quantities): array
+    {
+        $tiers = $this->tiersOf($raffle);
+        $out = [];
+
+        foreach (array_unique(array_map('intval', $quantities)) as $q) {
+            if ($q >= 1) {
+                $out[$q] = $this->forTiers($tiers, (int) $raffle->max_tickets, $q);
+            }
+        }
+
+        return $out;
+    }
+
+    /**
      * The one-line check shown to staff while they set prizes up: what the
      * prizes cost against what the raffle can take in, and the tax on the rest.
      *
