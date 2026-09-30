@@ -6,7 +6,8 @@ import { useEffect, useState } from 'react';
 // hand in JavaScript (TD-20). This calls the server's own price-quote
 // endpoint instead, so the displayed price can never drift from
 // TicketPricingService, the one place that math actually lives.
-export function useTicketPriceQuote(raffleId, quantity) {
+// promoCode: a code typed at checkout; the server says what it takes off.
+export function useTicketPriceQuote(raffleId, quantity, promoCode = null) {
     const [quote, setQuote] = useState(null);
     const [loading, setLoading] = useState(false);
     const [error, setError] = useState(null);
@@ -22,7 +23,10 @@ export function useTicketPriceQuote(raffleId, quantity) {
         setLoading(true);
         setError(null);
 
-        fetch(`/api/raffles/${raffleId}/price-quote?quantity=${quantity}`, {
+        const params = new URLSearchParams({ quantity: String(quantity) });
+        if (promoCode) params.set('promo_code', promoCode);
+
+        fetch(`/api/raffles/${raffleId}/price-quote?${params}`, {
             signal: controller.signal,
             credentials: 'same-origin',
             headers: { Accept: 'application/json' },
@@ -42,7 +46,7 @@ export function useTicketPriceQuote(raffleId, quantity) {
             .finally(() => setLoading(false));
 
         return () => controller.abort();
-    }, [raffleId, quantity, version]);
+    }, [raffleId, quantity, promoCode, version]);
 
     // Ask again, e.g. after the server says the price changed (a Golden
     // Box discount ran out while the page was open).

@@ -14,6 +14,7 @@ class ReferralStats extends StatsOverviewWidget
     protected function getStats(): array
     {
         $top = ReferralCommission::query()
+            ->where('status', 'paid')
             ->selectRaw('referrer_user_id, COUNT(*) as friends, SUM(commission_amount) as earned')
             ->groupBy('referrer_user_id')
             ->orderByDesc('earned')
@@ -24,10 +25,10 @@ class ReferralStats extends StatsOverviewWidget
         // Signed up with someone's link but haven't topped up yet — the
         // commission for these is still to come.
         $referredTotal = WpUserMeta::query()->where('meta_key', 'referred_by')->where('meta_value', '!=', '')->count();
-        $paidCount = ReferralCommission::query()->count();
+        $paidCount = ReferralCommission::query()->where('status', 'paid')->count();
 
         return [
-            Stat::make('Commissions paid', '₦'.number_format((float) ReferralCommission::query()->sum('commission_amount')))
+            Stat::make('Commissions paid', '₦'.number_format((float) ReferralCommission::query()->where('status', 'paid')->sum('commission_amount')))
                 ->description($paidCount.' referred friend(s) have topped up'),
             Stat::make('Referred, not topped up yet', (string) max(0, $referredTotal - $paidCount))
                 ->description('Signed up with a referral link'),

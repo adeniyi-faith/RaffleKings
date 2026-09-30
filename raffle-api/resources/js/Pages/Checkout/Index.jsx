@@ -9,6 +9,7 @@ import {
     Gift,
     PlusCircle,
     RefreshCw,
+    Tag,
     Share2,
     ShieldCheck,
     Ticket,
@@ -41,8 +42,11 @@ function checkoutPath() {
     return url.pathname + url.search;
 }
 
-export default function CheckoutIndex({ raffle, ticketNumbers, qty, minimumDeposit = 100 }) {
-    const { quote, loading: quoteLoading, refresh: refreshQuote } = useTicketPriceQuote(raffle.id, qty);
+export default function CheckoutIndex({ raffle, ticketNumbers, qty, minimumDeposit = 100, promoEnabled = false, savedPromo = null }) {
+    // Promo codes (only while switched on). A code given at sign-up is filled in.
+    const [promoCode, setPromoCode] = useState(savedPromo || null);
+    const { quote, loading: quoteLoading, refresh: refreshQuote } = useTicketPriceQuote(raffle.id, qty, promoCode);
+    const promo = quote?.promo ?? null;
 
     // Item 30: an honest "N viewing" count and live remaining-ticket
     // number, replacing checkout.php's hardcoded "3 other people are
@@ -152,6 +156,7 @@ export default function CheckoutIndex({ raffle, ticketNumbers, qty, minimumDepos
                     submitted_amount: price,
                     funding_source: coverWithWinnings ? 'wallet' : selected,
                     use_winnings_for_shortfall: coverWithWinnings,
+                    promo_code: promo ? promo.code : null,
                     idempotency_key: idempotencyKey.current,
                 }),
             });
@@ -232,6 +237,16 @@ export default function CheckoutIndex({ raffle, ticketNumbers, qty, minimumDepos
                     {deposit && <DepositResult deposit={deposit} />}
 
                     {golden && <GoldenBoxApplied golden={golden} onEnded={refreshQuote} />}
+
+                    {promoEnabled && (
+                        <PromoCodeBox
+                            promo={promo}
+                            error={promoCode && quote && ! quoteLoading ? quote.promo_error : null}
+                            checking={Boolean(promoCode) && quoteLoading}
+                            onApply={(code) => setPromoCode(code)}
+                            onRemove={() => setPromoCode(null)}
+                        />
+                    )}
 
                     <div className="mb-6 rounded-2xl border border-gray-100 bg-white p-5 shadow-sm dark:border-gray-800 dark:bg-dark-card">
                         <div className="mb-4 flex items-center justify-between border-b border-gray-50 pb-2 dark:border-gray-700">
@@ -418,6 +433,60 @@ function ShortfallPanel({ shortfall, winningsGap, method, winningsCanCover, othe
             <p className="mt-2 text-[11px] text-orange-700/80 dark:text-orange-400/80">
                 After paying on Paystack you'll come straight back here to finish.
             </p>
+        </div>
+    );
+}
+
+// "Have a promo code?" — the server checks it and says what it takes off.
+function PromoCodeBox({ promo, error, checking, onApply, onRemove }) {
+    const [open, setOpen] = useState(false);
+    const [text, setText] = useState('');
+
+    if (promo) {
+        return (
+            <div className="mb-4 flex items-center justify-between gap-3 rounded-2xl border border-green-200 bg-green-50 p-3 text-green-800 dark:border-green-900/40 dark:bg-green-900/20 dark:text-green-300">
+                <div className="flex items-center gap-2">
+                    <Tag className="h-4 w-4 flex-shrink-0" />
+                    <p className="text-sm">
+                        <span className="font-black">{promo.code}</span>: {promo.summary}. You save {formatNaira(promo.savings)}.
+                    </p>
+                </div>
+                <button type="button" onClick={onRemove} className="text-xs font-bold underline">
+                    Remove
+                </button>
+            </div>
+        );
+    }
+
+    if (! open && ! error) {
+        return (
+            <button type="button" onClick={() => setOpen(true)} className="mb-4 flex items-center gap-1.5 text-xs font-bold text-app-primary">
+                <Tag className="h-3.5 w-3.5" /> Have a promo code?
+            </button>
+        );
+    }
+
+    return (
+        <div className="mb-4">
+            <form
+                className="flex gap-2"
+                onSubmit={(e) => {
+                    e.preventDefault();
+                    if (text.trim()) onApply(text.trim().toUpperCase());
+                }}
+            >
+                <input
+                    value={text}
+                    onChange={(e) => setText(e.target.value.toUpperCase())}
+                    placeholder="Promo code"
+                    maxLength={40}
+                    className="min-w-0 flex-1 rounded-xl border border-gray-200 bg-white px-3 py-2.5 text-sm font-bold uppercase text-gray-900 outline-none focus:border-app-primary dark:border-gray-700 dark:bg-dark-card dark:text-white"
+                />
+                <button type="submit" disabled={checking || ! text.trim()} className="rounded-xl bg-app-primary px-4 text-sm font-bold text-white disabled:opacity-50">
+                    {checking ? 'Checking…' : 'Apply'}
+                </button>
+            </form>
+            {error && <p className="mt-2 text-xs font-medium text-red-600 dark:text-red-400">{error}</p>}
         </div>
     );
 }
