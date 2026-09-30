@@ -46,6 +46,11 @@ class TicketPriceQuoteController extends Controller
         ]);
 
         $quantity = (int) $data['quantity'];
+
+        if (($found['max_per_order'] ?? null) && $quantity > $found['max_per_order']) {
+            return response()->json(['message' => 'You can buy at most '.$found['max_per_order'].' tickets in one order for this raffle.', 'max_per_order' => $found['max_per_order']], 422);
+        }
+
         $unitPrice = (float) $found['price'];
         $original = $quantity * $unitPrice;
         $bulkPrice = $this->pricing->calculate($quantity, $unitPrice);

@@ -68,6 +68,13 @@ class RaffleResource extends Resource
                     ->required()
                     ->numeric()
                     ->minValue(1),
+                Forms\Components\TextInput::make('max_per_order')
+                    ->label('Most tickets in one order')
+                    ->numeric()
+                    ->integer()
+                    ->minValue(1)
+                    ->placeholder(fn () => ($site = (int) config('pricing.max_tickets_per_order')) > 0 ? "Site limit: {$site}" : 'No limit')
+                    ->helperText('Stops very large orders for this raffle. Leave empty to follow the site-wide limit in Settings.'),
                 Forms\Components\TextInput::make('grand_prize')
                     ->maxLength(255),
                 Forms\Components\Select::make('prize_type')

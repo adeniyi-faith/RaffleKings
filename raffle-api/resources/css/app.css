@@ -229,3 +229,13 @@
 .rk-article hr { border-color: var(--color-gray-200, #e5e7eb); margin: 2em 0; }
 .rk-article table { width: 100%; border-collapse: collapse; font-size: 0.9em; display: block; overflow-x: auto; }
 .rk-article th, .rk-article td { border: 1px solid var(--color-gray-200, #e5e7eb); padding: 0.5em 0.75em; text-align: left; }
+
+/* Bottom sheets (Components/ui/BottomSheet): slide up from the bottom edge. */
+@keyframes rk-sheet-up {
+    from { transform: translateY(28px); opacity: 0; }
+    to { transform: none; opacity: 1; }
+}
+.rk-sheet { animation: rk-sheet-up 0.22s ease-out; }
+@media (prefers-reduced-motion: reduce) {
+    .rk-sheet { animation: none; }
+}

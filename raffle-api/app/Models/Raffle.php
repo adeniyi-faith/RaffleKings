@@ -38,6 +38,7 @@ class Raffle extends Model
         'excerpt',
         'price',
         'max_tickets',
+        'max_per_order',
         'grand_prize',
         'expiry',
         'status',
@@ -70,6 +71,7 @@ class Raffle extends Model
         'refunded_total' => 'float',
         'price' => 'decimal:2',
         'public_id' => 'integer',
+        'max_per_order' => 'integer',
         'max_tickets' => 'integer',
         'expiry' => 'date',
         'is_live_draw_enabled' => 'boolean',
@@ -77,6 +79,23 @@ class Raffle extends Model
         'live_draw_scheduled_at' => 'datetime',
         'live_draw_started_at' => 'datetime',
     ];
+
+    /**
+     * The most tickets one order can hold in this raffle: its own limit if it
+     * has one, otherwise the site-wide limit, otherwise none (null).
+     */
+    public function orderLimit(): ?int
+    {
+        $own = (int) $this->max_per_order;
+
+        if ($own > 0) {
+            return $own;
+        }
+
+        $site = (int) config('pricing.max_tickets_per_order', 0);
+
+        return $site > 0 ? $site : null;
+    }
 
     public function prizeTiers(): HasMany
     {

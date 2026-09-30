@@ -84,6 +84,22 @@ class ViewWpUser extends ViewRecord
         Notification::make()->title('Note deleted')->success()->send();
     }
 
+    /** One tab strip: Overview first, then Money, Tickets, Top-ups, Withdrawals, Referrals, Support, Admin actions. */
+    public function hasCombinedRelationManagerTabsWithContent(): bool
+    {
+        return true;
+    }
+
+    public function getContentTabLabel(): ?string
+    {
+        return 'Overview';
+    }
+
+    public function getContentTabIcon(): ?string
+    {
+        return 'heroicon-m-user-circle';
+    }
+
     public function getTitle(): string
     {
         return $this->getRecord()->display_name ?: $this->getRecord()->user_login;
@@ -100,6 +116,9 @@ class ViewWpUser extends ViewRecord
             .' onerror="'.e($user->avatarImgAttributes()['onerror']).'"'
             .' style="flex:none;width:56px;height:56px;border-radius:9999px;object-fit:cover">'
             .'<span style="min-width:0;overflow-wrap:anywhere">'.e($this->getTitle()).'</span>'
+            .($user->isBanned()
+                ? '<span style="flex:none;font-size:12px;font-weight:600;padding:2px 10px;border-radius:9999px;background:rgb(var(--danger-50));color:rgb(var(--danger-700))">Banned</span>'
+                : '<span style="flex:none;font-size:12px;font-weight:600;padding:2px 10px;border-radius:9999px;background:rgb(var(--success-50));color:rgb(var(--success-700))">Active</span>')
             .'</span>'
         );
     }
@@ -111,45 +130,150 @@ class ViewWpUser extends ViewRecord
         return '@'.$user->user_login.' · #'.$user->ID.' · '.$user->user_email;
     }
 
+    /**
+     * The header is three buttons: Adjust balance, Message, and Actions. The
+     * Actions button opens a menu of everything else, grouped by what it is
+     * for (see menuGroups). Every action is still registered here, in a
+     * group that is not shown, so the menu can open it and its permission
+     * rules still apply.
+     */
     protected function getHeaderActions(): array
     {
-        return [
-            // Staff notes and tags: any staff member who can see the customer.
-            Action::make('addNote')
-                ->label('Add note')
-                ->icon('heroicon-o-pencil-square')
-                ->color('gray')
-                ->form([
-                    Forms\Components\Textarea::make('body')->label('Note (staff only, customers never see it)')->required()->rows(4)->maxLength(2000),
-                    Forms\Components\Toggle::make('pinned')->label('Pin to the top of their page'),
-                ])
-                ->action(function (array $data) {
-                    $user = $this->getRecord();
-                    CustomerNote::create(['user_id' => $user->ID, 'author_id' => auth('wordpress')->id(), 'body' => $data['body'], 'pinned' => (bool) ($data['pinned'] ?? false)]);
-                    app(AdminAuditLogService::class)->record(auth('wordpress')->user(), 'customer.note_added', \App\Models\Legacy\WpUser::class, $user->ID, ['note' => mb_strimwidth($data['body'], 0, 200, '…')]);
-                    Notification::make()->title('Note saved')->success()->send();
-                }),
-            Action::make('tags')
-                ->label('Tags')
-                ->icon('heroicon-o-tag')
-                ->color('gray')
-                ->fillForm(fn () => ['tags' => CustomerTag::query()->where('user_id', $this->getRecord()->ID)->orderBy('tag')->pluck('tag')->all()])
-                ->form([
-                    Forms\Components\TagsInput::make('tags')
-                        ->label('Tags (staff only)')
-                        ->suggestions(fn () => CustomerTag::inUse())
-                        ->placeholder('e.g. VIP, watch closely')
-                        ->splitKeys(['Tab', ',']),
-                ])
-                ->action(function (array $data) {
-                    $changes = WpUserResource::setTags($this->getRecord()->ID, $data['tags'] ?? []);
-                    Notification::make()->title($changes ? 'Tags saved' : 'No change')->success()->send();
-                }),
-            ...WpUserResource::accountActions(table: false),
-            $this->supportToolsGroup(),
-            $this->badgesGroup(),
-            $this->viewAsCustomerAction(),
+        $account = WpUserResource::accountActions(table: false);
+        $adjust = $account[0]->icon('heroicon-o-banknotes');
+        $care = $account[1]->getActions();
+        $support = $this->supportActions();
+        $message = $support['messageCustomer']->label('Message')->icon('heroicon-o-chat-bubble-left-ellipsis')->color('gray');
+        unset($support['messageCustomer']);
+
+        $registry = [
+            ...$support,
+            ...$this->rewardActions(),
+            'addNote' => $this->addNoteAction(),
+            'tags' => $this->tagsAction(),
+            ...$care,
+            'viewAsCustomer' => $this->viewAsCustomerAction(),
         ];
+
+        return [
+            $adjust,
+            $message,
+            Action::make('actionsMenu')
+                ->label('Actions')
+                ->icon('heroicon-m-squares-2x2')
+                ->color('primary')
+                ->slideOver()
+                ->modalWidth('md')
+                ->modalHeading('Customer actions')
+                ->modalContent(fn () => view('filament.customer-actions', ['groups' => $this->menuGroups()]))
+                ->modalSubmitAction(false)
+                ->modalCancelActionLabel('Close'),
+            Actions\ActionGroup::make(array_values($registry))
+                ->label('All actions')
+                ->extraAttributes(['class' => 'rk-action-registry', 'style' => 'display:none', 'aria-hidden' => 'true']),
+        ];
+    }
+
+    private function addNoteAction(): Action
+    {
+        return Action::make('addNote')
+            ->label('Add note')
+            ->icon('heroicon-o-pencil-square')
+            ->color('gray')
+            ->form([
+                Forms\Components\Textarea::make('body')->label('Note (staff only, customers never see it)')->required()->rows(4)->maxLength(2000),
+                Forms\Components\Toggle::make('pinned')->label('Pin to the top of their page'),
+            ])
+            ->action(function (array $data) {
+                $user = $this->getRecord();
+                CustomerNote::create(['user_id' => $user->ID, 'author_id' => auth('wordpress')->id(), 'body' => $data['body'], 'pinned' => (bool) ($data['pinned'] ?? false)]);
+                app(AdminAuditLogService::class)->record(auth('wordpress')->user(), 'customer.note_added', \App\Models\Legacy\WpUser::class, $user->ID, ['note' => mb_strimwidth($data['body'], 0, 200, '…')]);
+                Notification::make()->title('Note saved')->success()->send();
+            });
+    }
+
+    private function tagsAction(): Action
+    {
+        return Action::make('tags')
+            ->label('Tags')
+            ->icon('heroicon-o-tag')
+            ->color('gray')
+            ->fillForm(fn () => ['tags' => CustomerTag::query()->where('user_id', $this->getRecord()->ID)->orderBy('tag')->pluck('tag')->all()])
+            ->form([
+                Forms\Components\TagsInput::make('tags')
+                    ->label('Tags (staff only)')
+                    ->suggestions(fn () => CustomerTag::inUse())
+                    ->placeholder('e.g. VIP, watch closely')
+                    ->splitKeys(['Tab', ',']),
+            ])
+            ->action(function (array $data) {
+                $changes = WpUserResource::setTags($this->getRecord()->ID, $data['tags'] ?? []);
+                Notification::make()->title($changes ? 'Tags saved' : 'No change')->success()->send();
+            });
+    }
+
+    /**
+     * What the Actions menu offers: heading, icon, then each action's name,
+     * icon, label and one line of help. Only actions this staff member may use
+     * are listed, so Support never sees the money items.
+     */
+    private const MENU = [
+        'Help the customer' => ['heroicon-o-lifebuoy', [
+            'resetPassword' => ['heroicon-o-key', 'Reset password', 'Email a code, or set a temporary one'],
+            'signOutEverywhere' => ['heroicon-o-arrow-right-start-on-rectangle', 'Sign out of all devices', 'They sign in again everywhere'],
+            'editDetails' => ['heroicon-o-identification', 'Edit name, email, phone', 'The old email gets a notice'],
+            'muteInChat' => ['heroicon-o-speaker-x-mark', 'Mute in live chat', 'For an hour up to for good'],
+            'unmuteInChat' => ['heroicon-o-speaker-wave', 'Unmute in live chat', 'They can chat again'],
+        ]],
+        'Money and rewards' => ['heroicon-o-banknotes', [
+            'editPerks' => ['heroicon-o-gift', 'Free spins and tokens', 'Give or take back'],
+            'awardBadge' => ['heroicon-o-plus-circle', 'Give a badge', 'The customer is told'],
+            'removeBadge' => ['heroicon-o-minus-circle', 'Take a badge back', 'For one given by mistake'],
+        ]],
+        'Notes' => ['heroicon-o-pencil-square', [
+            'addNote' => ['heroicon-o-pencil-square', 'Add note', 'Only staff see it'],
+            'tags' => ['heroicon-o-tag', 'Tags', 'For example VIP or watch closely'],
+        ]],
+        'Care' => ['heroicon-o-shield-check', [
+            'restrictions' => ['heroicon-o-shield-exclamation', 'Restrictions', 'Block withdrawals or transfers'],
+            'ban' => ['heroicon-o-no-symbol', 'Ban customer', 'Logs them out until unbanned', 'danger'],
+            'unban' => ['heroicon-o-check-circle', 'Unban customer', 'They can sign in again'],
+        ]],
+        'Owner only' => ['heroicon-o-lock-closed', [
+            'viewAsCustomer' => ['heroicon-o-eye', 'View as customer', 'View-only, 15 minutes, logged'],
+        ]],
+    ];
+
+    /** @return list<array{heading: string, icon: string, items: list<array{name: string, icon: string, label: string, help: string, danger: bool}>}> */
+    public function menuGroups(): array
+    {
+        $byName = [];
+
+        foreach ($this->getCachedHeaderActions() as $action) {
+            foreach ($action instanceof Actions\ActionGroup ? $action->getFlatActions() : [$action] as $child) {
+                $byName[$child->getName()] = $child;
+            }
+        }
+
+        $groups = [];
+
+        foreach (self::MENU as $heading => [$icon, $items]) {
+            $listed = [];
+
+            foreach ($items as $name => $spec) {
+                $action = $byName[$name] ?? null;
+
+                if ($action && $action->isVisible()) {
+                    $listed[] = ['name' => $name, 'icon' => $spec[0], 'label' => $spec[1], 'help' => $spec[2], 'danger' => ($spec[3] ?? null) === 'danger'];
+                }
+            }
+
+            if ($listed !== []) {
+                $groups[] = ['heading' => $heading, 'icon' => $icon, 'items' => $listed];
+            }
+        }
+
+        return $groups;
     }
 
     private function tools(): CustomerSupportTools
@@ -177,8 +301,8 @@ class ViewWpUser extends ViewRecord
         return ! $this->tools()->isStaffAccount($this->getRecord());
     }
 
-    /** Password reset, sign-out, contact details, messages and chat mute. */
-    private function supportToolsGroup(): Actions\ActionGroup
+    /** Password reset, sign-out, contact details, messages and chat mute. @return array<string, Action> */
+    private function supportActions(): array
     {
         $support = fn () => WpUserResource::staffCan('customers.support') && $this->customerOnly();
         $manage = fn () => WpUserResource::staffCan('customers.manage') && $this->customerOnly();
@@ -284,15 +408,18 @@ class ViewWpUser extends ViewRecord
             ->requiresConfirmation()
             ->action(fn () => $this->attempt(fn () => app(ChatModerationService::class)->unmute(auth('wordpress')->user(), $this->getRecord()->ID), 'Unmuted'));
 
-        return Actions\ActionGroup::make([$reset, $signOut, $details, $message, $mute, $unmute])
-            ->label('Support tools')
-            ->icon('heroicon-m-lifebuoy')
-            ->button()
-            ->color('info');
+        return [
+            'resetPassword' => $reset,
+            'signOutEverywhere' => $signOut,
+            'editDetails' => $details,
+            'messageCustomer' => $message,
+            'muteInChat' => $mute,
+            'unmuteInChat' => $unmute,
+        ];
     }
 
-    /** Give a badge, or take one back. */
-    private function badgesGroup(): Actions\ActionGroup
+    /** Give or take back a badge, free spins and tokens. @return array<string, Action> */
+    private function rewardActions(): array
     {
         $manage = fn () => WpUserResource::staffCan('customers.manage');
         $catalog = fn () => collect(app(BadgeService::class)->catalog());
@@ -305,7 +432,7 @@ class ViewWpUser extends ViewRecord
             ->modalDescription('The customer is told they earned it. It is recorded in the audit log.')
             ->form([
                 Forms\Components\Select::make('badge')->label('Badge')->required()
-                    ->options(fn () => $catalog()->except($earned())->mapWithKeys(fn ($b, $key) => [$key => $b['emoji'].' '.$b['name']])->all()),
+                    ->options(fn () => $catalog()->except($earned())->mapWithKeys(fn ($b, $key) => [$key => $b['name']])->all()),
             ])
             ->action(fn (array $data) => $this->attempt(fn () => $this->tools()->awardBadge(auth('wordpress')->user(), $this->getRecord(), $data['badge']), 'Badge given'));
 
@@ -317,7 +444,7 @@ class ViewWpUser extends ViewRecord
             ->modalDescription('For a badge given by mistake. Earning it again later (if it is one they can earn) gives it back.')
             ->form([
                 Forms\Components\Select::make('badge')->label('Badge')->required()
-                    ->options(fn () => $catalog()->only($earned())->mapWithKeys(fn ($b, $key) => [$key => $b['emoji'].' '.$b['name']])->all()),
+                    ->options(fn () => $catalog()->only($earned())->mapWithKeys(fn ($b, $key) => [$key => $b['name']])->all()),
             ])
             ->action(fn (array $data) => $this->attempt(fn () => $this->tools()->removeBadge(auth('wordpress')->user(), $this->getRecord(), $data['badge']), 'Badge taken back'));
 
@@ -335,11 +462,7 @@ class ViewWpUser extends ViewRecord
             ])
             ->action(fn (array $data) => $this->attempt(fn () => $this->tools()->adjustPerks(auth('wordpress')->user(), $this->getRecord(), (int) $data['free_spins'], (int) $data['bonus_entry_tokens'], $data['reason'], (bool) ($data['tell'] ?? false)), 'Perks updated'));
 
-        return Actions\ActionGroup::make([$award, $remove, $perks])
-            ->label('Badges & perks')
-            ->icon('heroicon-m-trophy')
-            ->button()
-            ->color('gray');
+        return ['awardBadge' => $award, 'removeBadge' => $remove, 'editPerks' => $perks];
     }
 
     /** Owners only: see the site exactly as this customer sees it (view-only, 15 minutes, logged). */

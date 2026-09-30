@@ -37,7 +37,7 @@ export default function RaffleOdds({ raffleId, quantity, defaultOpen = false, cl
                 <span className="flex-1 text-xs leading-snug text-blue-800 dark:text-blue-300">
                     <span className="block font-bold">Your chance of winning something with {tickets}</span>
                     <span className="block opacity-80">
-                        {odds.any.one_in ? `About 1 in ${odds.any.one_in.toLocaleString()}` : ''}{odds.any.one_in && odds.tiers.length > 1 ? ' · ' : ''}{odds.tiers.length > 1 ? 'tap for each prize' : ''}
+                        {odds.any.one_in >= 2 ? `About 1 in ${odds.any.one_in.toLocaleString()}` : ''}{odds.any.one_in >= 2 && odds.tiers.length > 1 ? ' · ' : ''}{odds.tiers.length > 1 ? 'tap for each prize' : ''}
                     </span>
                 </span>
                 <span className="text-xl font-extrabold tabular-nums text-blue-700 dark:text-blue-300" aria-live="polite">{odds.any.percent}</span>

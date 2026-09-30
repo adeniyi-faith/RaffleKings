@@ -154,6 +154,11 @@ Route::get('/raffles/{raffle}/numbers', function (Request $request, int $raffle,
 
     $qty = max(1, (int) $request->query('qty', 1));
 
+    // Order size limit: a link with a bigger number is brought down to the limit.
+    if ($found['max_per_order'] && $qty > $found['max_per_order']) {
+        $qty = $found['max_per_order'];
+    }
+
     $taken = RaffleEntry::where('raffle_id', $raffle)->pluck('ticket_number')->map(fn ($n) => (int) $n)->values();
 
     // Numbers another player is holding for a few minutes (a guest's own
@@ -202,6 +207,7 @@ Route::get('/checkout', function (Request $request, RaffleReadService $raffles) 
     $numbers = array_values(array_filter(array_map('intval', explode(',', (string) $request->query('numbers', '')))));
 
     abort_if(count($numbers) !== $qty, 422, 'Selected ticket numbers do not match the chosen quantity.');
+    abort_if($found['max_per_order'] && $qty > $found['max_per_order'], 422, 'You can buy at most '.$found['max_per_order'].' tickets in one order for this raffle.');
 
     if (! $userId) {
         return Inertia::render('Checkout/GuestGate', [

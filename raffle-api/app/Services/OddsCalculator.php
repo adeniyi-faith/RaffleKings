@@ -99,7 +99,8 @@ final class OddsCalculator
         return [
             'pool' => $pool,
             'quantity' => $quantity,
-            'any' => ['probability' => round($any, 6), 'percent' => self::percent($any), 'one_in' => $any > 0 ? max(1, (int) round(1 / $any)) : null],
+            // "1 in N" only reads sensibly when a win is less likely than not; above 50% the percentage says it better.
+            'any' => ['probability' => round($any, 6), 'percent' => self::percent($any), 'one_in' => $any > 0 && $any <= 0.5 ? max(2, (int) round(1 / $any)) : null],
             'tiers' => $out,
             'winners_total' => $winnersTotal,
             'prize_total' => round($prizeTotal, 2),
