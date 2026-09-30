@@ -18,6 +18,7 @@ class RaffleNotOnSaleException extends RuntimeException
             'ended' => 'This raffle has ended, so tickets are no longer on sale. No money has been taken.',
             'sold_out' => 'This raffle has sold out. No money has been taken.',
             'closed' => 'This raffle is closed, so tickets are no longer on sale. No money has been taken.',
+            'cancelled' => 'This raffle was cancelled and everyone who bought tickets has been refunded. No money has been taken.',
             default => "This raffle isn't available. No money has been taken.",
         });
     }

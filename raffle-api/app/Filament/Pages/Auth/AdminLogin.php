@@ -2,6 +2,7 @@
 
 namespace App\Filament\Pages\Auth;
 
+use App\Models\Admin\LoginEvent;
 use App\Models\Legacy\WpUser;
 use App\Services\AdminAuditLogService;
 use App\Services\Auth\LoginService;
@@ -107,7 +108,7 @@ class AdminLogin extends Login
         }
 
         try {
-            $result = app(LoginService::class)->login(trim($data['login']), $data['password'], $request->ip(), $request->userAgent());
+            $result = app(LoginService::class)->login(trim($data['login']), $data['password'], $request->ip(), $request->userAgent(), place: 'admin', recordSuccess: false);
         } catch (ValidationException $e) {
             throw ValidationException::withMessages(['data.login' => collect($e->errors())->flatten()->first()]);
         }
@@ -116,6 +117,8 @@ class AdminLogin extends Login
         $user = $result['user'];
 
         if ($user->staffRole() === null) {
+            LoginEvent::record($user->ID, trim($data['login']), false, 'admin', 'not_staff');
+
             // Right password, but a customer account: don't sign them in here.
             $parts = explode('|', $result['cookie']['value']);
             if (! empty($parts[2])) {
@@ -134,6 +137,8 @@ class AdminLogin extends Login
 
         Filament::auth()->setUser($user);
         session()->regenerate();
+
+        LoginEvent::record($user->ID, trim($data['login']), true, 'admin');
 
         app(AdminAuditLogService::class)->record($user, 'staff.signed_in', WpUser::class, $user->ID, [
             'ip' => $request->ip(),

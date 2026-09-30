@@ -6,7 +6,9 @@ use App\Filament\Concerns\GuardedByStaffRole;
 use App\Filament\Resources\Legacy\WpUserResource\Pages;
 use App\Filament\Resources\Legacy\WpUserResource\RelationManagers;
 use App\Filament\Support\MobileCard;
+use App\Models\Admin\CustomerTag;
 use App\Models\Legacy\WpUser;
+use App\Services\AdminAuditLogService;
 use App\Services\UserManagementService;
 use Filament\Actions;
 use Filament\Forms;
@@ -227,6 +229,37 @@ class WpUserResource extends Resource
             // the row stays one line of buttons on a phone.
             $group::make([$ban, $unban, $restrictions])->label('More')->icon('heroicon-m-ellipsis-vertical')->button()->color('gray'),
         ];
+    }
+
+    /**
+     * Replaces a customer's staff tags. Audit-logged.
+     *
+     * @param  list<string>  $tags
+     * @return bool whether anything changed
+     */
+    public static function setTags(int $userId, array $tags): bool
+    {
+        $wanted = collect($tags)->map(fn ($t) => CustomerTag::clean((string) $t))->filter()->unique(fn ($t) => mb_strtolower($t))->values();
+        $current = CustomerTag::query()->where('user_id', $userId)->pluck('tag');
+
+        $removed = $current->reject(fn ($t) => $wanted->contains(fn ($w) => mb_strtolower($w) === mb_strtolower($t)))->values();
+        $added = $wanted->reject(fn ($w) => $current->contains(fn ($t) => mb_strtolower($w) === mb_strtolower($t)))->values();
+
+        if ($removed->isEmpty() && $added->isEmpty()) {
+            return false;
+        }
+
+        CustomerTag::query()->where('user_id', $userId)->whereIn('tag', $removed)->delete();
+        foreach ($added as $tag) {
+            CustomerTag::query()->firstOrCreate(['user_id' => $userId, 'tag' => $tag], ['added_by' => auth('wordpress')->id(), 'created_at' => now()]);
+        }
+
+        app(AdminAuditLogService::class)->record(auth('wordpress')->user(), 'customer.tags_changed', WpUser::class, $userId, [
+            'added' => $added->all(),
+            'removed' => $removed->all(),
+        ]);
+
+        return true;
     }
 
     public static function getRelations(): array

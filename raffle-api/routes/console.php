@@ -94,3 +94,10 @@ Schedule::call(function () {
         }
     }
 })->everyFiveMinutes()->name('uptime-heartbeat');
+
+// Cancelled raffles: restart any refunds that stopped part-way (the job
+// is locked, so this never runs two at once and never refunds twice).
+Schedule::call(function () {
+    \App\Models\Raffle::query()->where('refund_status', 'refunding')->pluck('id')
+        ->each(fn ($id) => \App\Jobs\RefundCancelledRaffle::dispatch($id));
+})->everyFiveMinutes()->name('raffle-refund-watchdog');
