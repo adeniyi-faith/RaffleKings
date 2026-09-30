@@ -118,8 +118,8 @@ class Downloads extends Page implements HasForms
             fputcsv($out, $exporter->headings($report));
 
             foreach ($exporter->rows($report, $from, $to) as $row) {
-                // Cells starting with = + - @ are formulas in Excel; quote them so a customer's name can't run one.
-                fputcsv($out, array_map(fn ($v) => is_string($v) && preg_match('/^[=+\-@]/', $v) ? "'".$v : $v, $row));
+                // A customer's name can't run as a spreadsheet formula.
+                fputcsv($out, array_map(ReportExporter::safeCell(...), $row));
             }
 
             fclose($out);
