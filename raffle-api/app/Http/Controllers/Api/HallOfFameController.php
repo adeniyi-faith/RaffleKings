@@ -7,6 +7,7 @@ use App\Models\Legacy\RaffleWinner;
 use App\Models\Legacy\WpUser;
 use App\Models\Legacy\WpUserMeta;
 use App\Models\Raffle;
+use App\Services\Engagement\PlayerProfiles;
 use Illuminate\Http\JsonResponse;
 
 /**
@@ -52,11 +53,13 @@ class HallOfFameController extends Controller
                 ? '₦'.number_format((float) $w->prize_cash_value)
                 : $w->prize_name;
 
-            $name = $user ? ($user->display_name ?: $user->user_login) : 'Lucky Winner';
+            $name = PlayerProfiles::nameOf($user, 'Lucky Winner');
 
             return [
                 'id' => $w->id,
                 'name' => $name,
+                // Set only when that winner has a public profile card to open.
+                'profile' => app(PlayerProfiles::class)->pathFor($user),
                 // Item 48: the winner's own profile picture, or the same
                 // cartoon avatar they see on their profile (lib/avatar.js).
                 'avatar' => self::avatar($pictures->get($w->user_id), $name),
