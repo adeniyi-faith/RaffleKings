@@ -54,7 +54,7 @@ final class CustomerTimeline
     public function for(WpUser $user, ?string $kind = null, int $limit = 50): array
     {
         $sources = [
-            'money' => fn () => $this->money($user->ID),
+            'money' => fn () => $this->moneyEvents($user->ID),
             'tickets' => fn () => $this->tickets($user->ID)->merge($this->wins($user->ID)),
             'withdrawals' => fn () => $this->withdrawals($user->ID),
             'points' => fn () => $this->points($user->ID),
@@ -93,7 +93,7 @@ final class CustomerTimeline
         ];
     }
 
-    private function money(int $userId): Collection
+    private function moneyEvents(int $userId): Collection
     {
         return WalletLedgerEntry::query()->where('user_id', $userId)
             // Ticket purchases are shown with their numbers under "tickets".

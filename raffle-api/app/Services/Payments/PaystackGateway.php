@@ -78,6 +78,9 @@ class PaystackGateway implements PaymentGateway
             currency: $data['currency'] ?? 'NGN',
             gatewayTransactionId: isset($data['id']) ? (string) $data['id'] : null,
             rawStatus: $status,
+            // With "customer pays the fees" on in Paystack, `amount` includes
+            // Paystack's fee and `requested_amount` is what we asked for.
+            requestedAmount: isset($data['requested_amount']) ? ((float) $data['requested_amount']) / 100 : null,
         );
     }
 

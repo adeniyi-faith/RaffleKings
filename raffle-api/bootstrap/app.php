@@ -1,6 +1,7 @@
 <?php
 
 use App\Http\Middleware\AssignRequestId;
+use App\Http\Middleware\AttachExtraCookies;
 use App\Http\Middleware\EnsureFeatureOn;
 use App\Http\Middleware\EnsureGrowthFeatureOn;
 use App\Http\Middleware\EnsureNotOnBreak;
@@ -39,7 +40,7 @@ return Application::configure(basePath: dirname(__DIR__))
     )
     ->withMiddleware(function (Middleware $middleware): void {
         $middleware->alias(['admin' => EnsureUserIsAdministrator::class, 'feature' => EnsureFeatureOn::class, 'growth' => EnsureGrowthFeatureOn::class, 'not-on-break' => EnsureNotOnBreak::class]);
-        $middleware->web(append: [HandleInertiaRequests::class, MaintenanceMode::class, RememberDevice::class]);
+        $middleware->web(append: [HandleInertiaRequests::class, MaintenanceMode::class, RememberDevice::class, AttachExtraCookies::class]);
         // Maintenance mode (Settings → On / off) covers the API too.
         $middleware->api(append: [MaintenanceMode::class, TrackApiActions::class]);
 
