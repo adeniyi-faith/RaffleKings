@@ -23,7 +23,7 @@ final class StaffRoles
     public const ROLES = [
         'owner' => [
             'label' => 'Owner',
-            'description' => 'Everything, including Settings and staff roles.',
+            'description' => 'Everything, including Settings, staff roles and viewing the site as a customer.',
             'abilities' => ['*'],
         ],
         'manager' => [

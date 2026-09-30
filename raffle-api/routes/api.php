@@ -54,6 +54,20 @@ Route::get('/raffles/{raffle}', [RaffleController::class, 'show']);
 // Public — the taken ticket numbers for the number-selection grid (item 25).
 Route::get('/raffles/{raffle}/tickets', [RaffleController::class, 'tickets']);
 
+// Ends an owner's "view as customer" session (see App\Services\Admin\Impersonation).
+// Reachable while viewing (the view-only rule lets exactly this one through).
+Route::post('/impersonation/stop', function (\Illuminate\Http\Request $request, \App\Services\Admin\Impersonation $impersonation) {
+    $real = \Illuminate\Support\Facades\Auth::guard('wordpress')->realUser();
+    $targetId = \App\Services\Admin\Impersonation::current($request)['target_id'] ?? null;
+    $cookie = $impersonation->stop($request, $real instanceof \App\Models\Legacy\WpUser ? $real : null);
+
+    return response()->json([
+        'redirect' => $targetId
+            ? \App\Filament\Resources\Legacy\WpUserResource::getUrl('view', ['record' => $targetId])
+            : '/admin',
+    ])->withCookie($cookie);
+});
+
 // Public — hold picked numbers for a few minutes while the player signs in
 // and pays (guests included, by a token their browser keeps).
 Route::post('/raffles/{raffle}/holds', [NumberHoldController::class, 'store'])->middleware('throttle:30,1');
