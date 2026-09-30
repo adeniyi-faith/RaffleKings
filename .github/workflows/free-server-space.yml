@@ -1,0 +1,115 @@
+name: Free Server Space (one-off cleanup)
+
+# The server ran out of disk space and the cPanel login isn't available, so
+# this does the cleanup over the same SSH login the deploys use
+# (environment: production, secrets CPANEL_HOST / CPANEL_USERNAME /
+# CPANEL_PASSWORD).
+#
+# It deletes ONLY these things, by exact name -- nothing else is touched:
+#   1. _wordpress-legacy-backup/  the archived copy of the old WordPress site
+#      (the deploy moved it there). Refuses to run unless the new app is
+#      really in place and the folder really looks like the old site.
+#   2. Log files: storage/logs/*.log and cPanel's own error_log files.
+#   3. Database backup files in storage/app/backups. The newest one is kept
+#      until a fresh backup has been made successfully, so there is never a
+#      moment with no backup at all; then the older copy is removed too.
+#
+# It prints how big each thing was, and the disk use before and after.
+# Run it from the Actions tab and type DELETE to confirm.
+on:
+  workflow_dispatch:
+    inputs:
+      confirm:
+        description: 'Type DELETE to permanently remove the old-site copy, the logs and the database backups'
+        required: true
+        type: string
+
+env:
+  DEPLOY_PATH: /home2/worldin6/public_html/rafflekings.com.ng
+
+jobs:
+  free-space:
+    if: ${{ inputs.confirm == 'DELETE' }}
+    runs-on: ubuntu-latest
+    environment: production
+    steps:
+      - name: Delete the old-site copy, logs and backups
+        uses: appleboy/ssh-action@master
+        with:
+          host: ${{ secrets.CPANEL_HOST }}
+          username: ${{ secrets.CPANEL_USERNAME }}
+          password: ${{ secrets.CPANEL_PASSWORD }}
+          port: 22
+          command_timeout: 30m
+          script: |
+            set -u
+            cd "${{ env.DEPLOY_PATH }}" || { echo "Site folder not found - stopping."; exit 1; }
+            ROOT="$(pwd)"
+
+            echo "=== Disk use BEFORE ==="
+            du -sh "$ROOT" 2>/dev/null
+            (quota -s 2>/dev/null || true)
+            echo
+
+            # Safety: only continue when the NEW app is what's live here.
+            if [ ! -f artisan ] || [ -f wp-config.php ]; then
+              echo "The new app is not in place here (no artisan file, or an old wp-config.php is still on top). Stopping without deleting anything."
+              exit 1
+            fi
+
+            echo "=== 1. Old WordPress copy ==="
+            LEG="$ROOT/_wordpress-legacy-backup"
+            if [ -L "$LEG" ]; then
+              echo "$LEG is a shortcut, not a folder. Leaving it alone."
+            elif [ -d "$LEG" ]; then
+              if [ -f "$LEG/wp-config.php" ] || [ -d "$LEG/wp-content" ]; then
+                echo "Size: $(du -sh "$LEG" 2>/dev/null | cut -f1)"
+                rm -rf -- "$LEG" && echo "Deleted _wordpress-legacy-backup." || echo "Could not fully delete it (see above)."
+              else
+                echo "$LEG does not look like the old WordPress site. Leaving it alone."
+              fi
+            else
+              echo "Not there (already deleted)."
+            fi
+            echo
+
+            echo "=== 2. Log files ==="
+            if [ -d storage/logs ]; then
+              echo "storage/logs size: $(du -sh storage/logs 2>/dev/null | cut -f1)"
+              find storage/logs -type f -name '*.log' -delete
+            fi
+            # cPanel's own error_log files (top folder, public/ and one level below)
+            find . -maxdepth 3 -type f -name 'error_log' -not -path './vendor/*' -not -path './node_modules/*' -print -delete
+            echo "Logs cleared."
+            echo
+
+            echo "=== 3. Database backups ==="
+            BK=storage/app/backups
+            if [ -d "$BK" ]; then
+              echo "Backups folder size: $(du -sh "$BK" 2>/dev/null | cut -f1)"
+              NEWEST="$(ls -1t "$BK"/backup-*.sql.gz 2>/dev/null | head -n 1)"
+              # Unfinished/partial files and every backup except the newest go now.
+              find "$BK" -type f -name '*.part' -delete
+              for f in "$BK"/backup-*.sql.gz; do
+                [ -e "$f" ] || continue
+                [ "$f" = "$NEWEST" ] || rm -f -- "$f"
+              done
+              # Make a fresh backup; only once it works is the last old one removed.
+              if php artisan backup:run; then
+                LATEST="$(ls -1t "$BK"/backup-*.sql.gz 2>/dev/null | head -n 1)"
+                if [ -n "$NEWEST" ] && [ -n "$LATEST" ] && [ "$LATEST" != "$NEWEST" ]; then
+                  rm -f -- "$NEWEST" && echo "Fresh backup made; the previous one was deleted."
+                else
+                  echo "No new backup file appeared, so the previous one was kept for safety."
+                fi
+              else
+                echo "The fresh backup did not work, so the newest old backup was KEPT for safety."
+              fi
+            else
+              echo "No backups folder."
+            fi
+            echo
+
+            echo "=== Disk use AFTER ==="
+            du -sh "$ROOT" 2>/dev/null
+            (quota -s 2>/dev/null || true)

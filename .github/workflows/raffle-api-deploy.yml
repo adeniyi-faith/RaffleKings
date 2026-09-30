@@ -276,7 +276,10 @@ jobs:
             BCRYPT_ROUNDS=12
 
             LOG_CHANNEL=stack
-            LOG_STACK=single
+            # One file per day, keeping only the last 7 days, so the log can't
+            # grow without limit and fill the disk again.
+            LOG_STACK=daily
+            LOG_DAILY_DAYS=7
             LOG_LEVEL=error
 
             DB_CONNECTION=mysql
