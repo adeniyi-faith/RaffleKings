@@ -3,6 +3,7 @@
 namespace App\Providers\Filament;
 
 use App\Filament\Pages\Auth\AdminLogin;
+use App\Filament\Support\AdminSearch;
 use App\Services\Maintenance;
 use App\Support\Formats;
 use Filament\Http\Middleware\Authenticate;
@@ -84,6 +85,9 @@ class AdminPanelProvider extends PanelProvider
             ->spa()
             ->sidebarCollapsibleOnDesktop()
             ->sidebarWidth('17rem')
+            // The top search box finds actions, screens, settings and records
+            // (App\Filament\Support\AdminSearch), not only customers.
+            ->globalSearch(AdminSearch::class)
             ->globalSearchKeyBindings(['command+k', 'ctrl+k'])
             // Phone layout: styles + "menu starts closed", and the bottom
             // tab bar (resources/views/filament/hooks).

@@ -34,6 +34,19 @@ class RaffleResource extends Resource
 
     protected static ?string $navigationGroup = 'Raffles';
 
+    // Found by title or number from the admin's top search box.
+    protected static ?string $recordTitleAttribute = 'title';
+
+    public static function getGloballySearchableAttributes(): array
+    {
+        return ['title', 'public_id'];
+    }
+
+    public static function getGlobalSearchResultDetails(\Illuminate\Database\Eloquent\Model $record): array
+    {
+        return ['Raffle' => '#'.$record->public_id.' · '.$record->status];
+    }
+
     public static function form(Form $form): Form
     {
         return $form
