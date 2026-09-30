@@ -88,12 +88,14 @@ class WpUserResource extends Resource
     public static function table(Table $table): Table
     {
         return $table
-            ->modifyQueryUsing(fn ($query) => $query->with('wallet'))
+            ->modifyQueryUsing(fn ($query) => $query->with(['wallet', 'meta' => fn ($q) => $q->where('meta_key', 'profile_pic_url')]))
             ->defaultSort('ID', 'desc')
             ->recordUrl(fn (WpUser $record) => static::getUrl('view', ['record' => $record]))
             ->columns([
                 // Phone: each row is one card (App\Filament\Support\MobileCard).
                 MobileCard::make(fn (WpUser $record) => [
+                    'avatar' => $record->avatarOrInitialsUrl(),
+                    'avatar_fallback' => $record->initialsAvatarUrl(),
                     'title' => $record->display_name ?: $record->user_login,
                     'amount' => '₦'.number_format((float) $record->wallet?->wallet_balance),
                     'lines' => [
@@ -106,6 +108,12 @@ class WpUserResource extends Resource
                     ],
                 ]),
                 ...MobileCard::desktop([
+                    Tables\Columns\ImageColumn::make('profile_picture')
+                        ->label('')
+                        ->circular()
+                        ->size(40)
+                        ->state(fn (WpUser $record) => $record->avatarOrInitialsUrl())
+                        ->extraImgAttributes(fn (WpUser $record) => $record->avatarImgAttributes()),
                     Tables\Columns\TextColumn::make('display_name')
                         ->label('Customer')
                         ->description(fn (WpUser $record) => '@'.$record->user_login.' · #'.$record->ID)
