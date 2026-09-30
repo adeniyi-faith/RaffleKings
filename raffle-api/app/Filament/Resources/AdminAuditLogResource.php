@@ -43,6 +43,13 @@ class AdminAuditLogResource extends Resource
         'staff.role_changed' => 'Staff role changed',
         'staff.signed_in' => 'Signed in to the admin',
         'broadcast.sent' => 'Message sent to customers',
+        'broadcast.scheduled' => 'Message scheduled for later',
+        'broadcast.rescheduled' => 'Scheduled message moved to another time',
+        'broadcast.sent_early' => 'Scheduled message sent early',
+        'broadcast.resumed' => 'Message carried on after an error',
+        'broadcast.cancelled' => 'Message cancelled or stopped',
+        'staff.two_step_on' => 'Two-step staff sign-in switched on',
+        'staff.two_step_off' => 'Two-step staff sign-in switched off',
         'tutorial.created' => 'Tutorial written',
         'tutorial.updated' => 'Tutorial edited',
         'site_page.updated' => 'Terms or About page edited',
@@ -109,7 +116,7 @@ class AdminAuditLogResource extends Resource
         return false;
     }
 
-    private static function details(AdminAuditLog $record): string
+    public static function details(AdminAuditLog $record): string
     {
         return collect($record->context ?? [])
             ->map(fn ($v, $k) => str_replace('_', ' ', $k).': '.(is_scalar($v) || $v === null ? var_export($v, true) : json_encode($v)))

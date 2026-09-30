@@ -89,7 +89,7 @@ final class SettingsStore
      * @param  array<string, mixed>  $values  config value per key (already converted with Setting::fromForm)
      * @return list<string> labels of the settings that changed
      */
-    public static function save(array $values, WpUser $admin): array
+    public static function save(array $values, ?WpUser $admin): array
     {
         $changed = [];
         $auditChanges = [];
@@ -118,7 +118,7 @@ final class SettingsStore
                 } else {
                     AppSetting::query()->updateOrCreate(['key' => $key], [
                         'value' => self::encode($setting, $value),
-                        'updated_by' => $admin->ID,
+                        'updated_by' => $admin?->ID,
                     ]);
                 }
 
@@ -131,7 +131,10 @@ final class SettingsStore
 
         if ($changed !== []) {
             self::refresh();
-            app(AdminAuditLogService::class)->record($admin, 'settings.updated', 'settings', 0, ['changes' => $auditChanges]);
+
+            if ($admin) {
+                app(AdminAuditLogService::class)->record($admin, 'settings.updated', 'settings', 0, ['changes' => $auditChanges]);
+            }
         }
 
         return $changed;

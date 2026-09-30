@@ -83,6 +83,7 @@ final class StaffRoles
         Filament\Pages\Settings::class => 'settings',
         Filament\Pages\TrackedEvents::class => 'settings',
         Filament\Resources\StaffResource::class => 'staff',
+        Filament\Pages\StaffActivity::class => 'staff',
         // Growth: codes and affiliates give money away, so payout staff only.
         Filament\Resources\PromoCodeResource::class => 'money.pay',
         Filament\Resources\AffiliateResource::class => 'money.pay',

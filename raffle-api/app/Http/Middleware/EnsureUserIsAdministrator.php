@@ -3,6 +3,7 @@
 namespace App\Http\Middleware;
 
 use App\Models\Legacy\WpUser;
+use App\Services\Auth\StaffTwoStep;
 use Closure;
 use Illuminate\Http\Request;
 use Symfony\Component\HttpFoundation\Response;
@@ -23,6 +24,12 @@ class EnsureUserIsAdministrator
 
         if (! $user || ! $user->isAdministrator()) {
             return response()->json(['message' => 'This action requires administrator access.'], 403);
+        }
+
+        // The admin API is as powerful as the admin screens, so with two-step
+        // sign-in on it needs the emailed code too, not only a password.
+        if (StaffTwoStep::required($request, $user)) {
+            return response()->json(['message' => 'Sign in to the admin with your emailed code first.'], 403);
         }
 
         return $next($request);

@@ -109,3 +109,8 @@ Schedule::call(function () {
     $messages->startDue();
     $messages->resumeStalled();
 })->everyMinute()->name('scheduled-messages')->withoutOverlapping(5);
+
+// Staff two-step sign-in: forget "passed the code" marks that have run out.
+Schedule::call(fn () => app(\App\Services\Auth\StaffTwoStep::class)->prune())
+    ->daily()
+    ->name('staff-two-step-prune');
