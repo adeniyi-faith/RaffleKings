@@ -43,6 +43,19 @@ class PromoCodeResource extends Resource
 
     protected static ?string $modelLabel = 'promo code';
 
+    // Found by code or campaign from the admin's top search box.
+    protected static ?string $recordTitleAttribute = 'code';
+
+    public static function getGloballySearchableAttributes(): array
+    {
+        return ['code', 'campaign'];
+    }
+
+    public static function getGlobalSearchResultDetails(\Illuminate\Database\Eloquent\Model $record): array
+    {
+        return ['Gives' => $record->summary()];
+    }
+
     public static function getNavigationBadge(): ?string
     {
         return Features::navigationBadge('promo_codes');

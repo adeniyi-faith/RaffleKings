@@ -12,7 +12,16 @@ class BankAccount extends Model
         'name_verified_at', 'paystack_recipient_code',
     ];
 
-    protected $casts = ['is_primary' => 'boolean', 'name_verified_at' => 'datetime'];
+    protected $casts = ['is_primary' => 'boolean', 'name_verified_at' => 'datetime', 'removed_at' => 'datetime'];
+
+    /**
+     * Accounts the customer still has. A removed one that already received
+     * a withdrawal is kept (the withdrawal points at it) but hidden.
+     */
+    public function scopeActive($query)
+    {
+        return $query->whereNull('removed_at');
+    }
 
     // Paystack's id for this account is only for the server.
     protected $hidden = ['paystack_recipient_code'];
