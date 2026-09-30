@@ -83,6 +83,21 @@ class ViewWpUser extends ViewRecord
         return $this->getRecord()->display_name ?: $this->getRecord()->user_login;
     }
 
+    /** The customer's name with their profile picture beside it. */
+    public function getHeading(): string|\Illuminate\Contracts\Support\Htmlable
+    {
+        $user = $this->getRecord();
+
+        return new \Illuminate\Support\HtmlString(
+            '<span style="display:flex;align-items:center;gap:14px;min-width:0">'
+            .'<img src="'.e($user->avatarOrInitialsUrl()).'" alt="" width="56" height="56"'
+            .' onerror="'.e($user->avatarImgAttributes()['onerror']).'"'
+            .' style="flex:none;width:56px;height:56px;border-radius:9999px;object-fit:cover">'
+            .'<span style="min-width:0;overflow-wrap:anywhere">'.e($this->getTitle()).'</span>'
+            .'</span>'
+        );
+    }
+
     public function getSubheading(): ?string
     {
         $user = $this->getRecord();
