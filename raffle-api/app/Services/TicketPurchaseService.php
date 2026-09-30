@@ -56,6 +56,7 @@ class TicketPurchaseService
         private readonly RaffleRulesService $rules,
         private readonly ResponsiblePlayService $play,
         private readonly PromoCodeService $promos,
+        private readonly NumberHoldService $holds,
     ) {}
 
     /**
@@ -152,6 +153,10 @@ class TicketPurchaseService
         if ($outOfRange !== []) {
             throw new InvalidArgumentException('Ticket numbers must be between 1 and '.$raffle['max_tickets'].'.');
         }
+
+        // Numbers another player is holding for their own checkout can't be
+        // paid for by someone else (they are held for a few minutes only).
+        $this->holds->assertNotHeldByOthers($raffleId, $ticketNumbers, $user->ID);
 
         // Promo code: its discount comes off the price after any bulk or
         // Golden Box discount. An invalid code is refused outright rather
@@ -274,6 +279,9 @@ class TicketPurchaseService
             });
 
             $this->goldenBox->markCompleted($user->ID);
+
+            // The numbers are sold now; the hold on them has done its job.
+            $this->holds->release($raffleId, $ticketNumbers, $user->ID, null);
 
             // Both fire AFTER the transaction commits — never inside it,
             // so a receipt or a live update can't go out for a purchase

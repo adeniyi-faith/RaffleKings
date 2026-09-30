@@ -17,6 +17,7 @@ import {
     XCircle,
 } from 'lucide-react';
 import { useLiveRaffle } from '../../hooks/useLiveRaffle';
+import { useNumberHold } from '../../hooks/useNumberHold';
 import { useTicketPriceQuote } from '../../hooks/useTicketPriceQuote';
 import { useTimeLeft } from '../../hooks/useTimeLeft';
 import { formatNaira } from '../../lib/format';
@@ -26,6 +27,8 @@ import { track } from '../../lib/analytics';
 import { refreshBalances, useBalances } from '../../lib/balances';
 import PausedNotice from '../../Components/layout/PausedNotice';
 import Confetti from '../../Components/ui/Confetti';
+import HoldCountdown from '../../Components/raffles/HoldCountdown';
+import { HoldExpiredNotice, NumbersTakenNotice } from '../../Components/raffles/HoldNotices';
 
 function generateIdempotencyKey() {
     return typeof crypto !== 'undefined' && crypto.randomUUID
@@ -66,6 +69,11 @@ export default function CheckoutIndex({ raffle, ticketNumbers, qty, minimumDepos
     const [purchase, setPurchase] = useState(null);
     const [deposit, setDeposit] = useState(null); // a top-up we just came back from
     const idempotencyKey = useRef(generateIdempotencyKey());
+
+    // The numbers are held for a few minutes while the customer pays. This also
+    // takes over a hold started as a guest, and catches numbers taken in the
+    // meantime (e.g. while they were signing in).
+    const hold = useNumberHold(raffle.id, ticketNumbers, status !== 'success');
 
     const price = quote?.discounted ?? 0;
     const golden = quote?.golden_box ?? null;
@@ -170,9 +178,13 @@ export default function CheckoutIndex({ raffle, ticketNumbers, qty, minimumDepos
                 if (response.status === 409 && data.unavailable_numbers) {
                     setTakenNumbers(data.unavailable_numbers);
                     throw new Error(
-                        data.unavailable_numbers.length === 1
-                            ? `Number ${data.unavailable_numbers[0]} was just taken by someone else. Nothing was charged.`
-                            : `Numbers ${data.unavailable_numbers.join(', ')} were just taken by someone else. Nothing was charged.`,
+                        data.held
+                            ? (data.unavailable_numbers.length === 1
+                                ? `Number ${data.unavailable_numbers[0]} is being held by another player right now. Nothing was charged.`
+                                : `Numbers ${data.unavailable_numbers.join(', ')} are being held by another player right now. Nothing was charged.`)
+                            : (data.unavailable_numbers.length === 1
+                                ? `Number ${data.unavailable_numbers[0]} was just taken by someone else. Nothing was charged.`
+                                : `Numbers ${data.unavailable_numbers.join(', ')} were just taken by someone else. Nothing was charged.`),
                     );
                 }
 
@@ -230,7 +242,10 @@ export default function CheckoutIndex({ raffle, ticketNumbers, qty, minimumDepos
                         <ArrowLeft className="h-6 w-6" />
                     </button>
                     <h2 className="text-lg font-black tracking-tight text-gray-900 dark:text-white">Secure Checkout</h2>
-                    <ShieldCheck className="ml-auto h-4 w-4 text-app-primary" />
+                    <div className="ml-auto flex items-center gap-3">
+                        {hold.phase === 'held' && status !== 'success' && <HoldCountdown seconds={hold.secondsLeft} />}
+                        <ShieldCheck className="h-4 w-4 text-app-primary" />
+                    </div>
                 </header>
 
                 <div className="mx-auto max-w-lg p-5">
@@ -388,6 +403,13 @@ export default function CheckoutIndex({ raffle, ticketNumbers, qty, minimumDepos
                     </button>
                 )}
             </div>
+
+            {status !== 'success' && hold.phase === 'unavailable' && (
+                <NumbersTakenNotice raffleId={raffle.id} qty={qty} ticketNumbers={ticketNumbers} unavailable={hold.unavailable} />
+            )}
+            {status !== 'success' && hold.phase === 'expired' && (
+                <HoldExpiredNotice raffleId={raffle.id} qty={qty} ticketNumbers={ticketNumbers} onRetry={hold.retry} retrying={hold.retrying} />
+            )}
 
             {busy && <ProcessingModal />}
             {status === 'success' && <SuccessModal raffle={raffle} amount={price} numbers={purchase?.ticket_numbers ?? ticketNumbers} bonusEntries={purchase?.bonus_entries ?? 0} />}

@@ -19,6 +19,7 @@ use App\Services\Growth\PromoCodeService;
 use App\Services\Reminders\ReminderService;
 use App\Services\LiveDrawService;
 use App\Services\PointsService;
+use App\Services\NumberHoldService;
 use App\Services\RaffleReadService;
 use App\Services\RaffleRulesService;
 use App\Services\ReferralCommissionService;
@@ -133,22 +134,21 @@ Route::get('/raffles/{raffle}', function (int $raffle, RaffleReadService $raffle
     ]);
 });
 
-// Number selection — requires a real login (item 25 fix: this used to be
-// gated by a client-side `localStorage.getItem('token')` check that was
-// always null, so it silently misrouted every user, logged in or not, to
-// the registration page instead of checkout). Anyone not authenticated
-// via the real `wordpress` guard is bounced to /login with a redirect
-// back here, not deep into the flow with nothing to show for it.
-Route::get('/raffles/{raffle}/numbers', function (Request $request, int $raffle, RaffleReadService $raffles) {
-    if (Auth::guard('wordpress')->guest()) {
-        return redirect('/login?redirect='.urlencode($request->fullUrl()));
-    }
+// Number selection — open to guests too, so anyone can see and pick numbers
+// before they have an account. (It used to bounce guests to /login, so a
+// visitor never even got to see the numbers.) Guests are asked to sign in
+// at checkout, where their picks are held for a few minutes and they are
+// sent straight back after signing in. Members-only / new-players-only
+// raffle rules are checked here for signed-in customers and again at
+// payment, which is what actually enforces them.
+Route::get('/raffles/{raffle}/numbers', function (Request $request, int $raffle, RaffleReadService $raffles, NumberHoldService $holds) {
+    $userId = Auth::guard('wordpress')->id();
 
     $found = $raffles->find($raffle);
     abort_if(! $found, 404);
 
     // Closed, ended or sold out: the raffle page itself explains which.
-    if ($found['is_closed'] || app(RaffleRulesService::class)->whyNotEligible(Auth::guard('wordpress')->id(), $raffle)) {
+    if ($found['is_closed'] || ($userId && app(RaffleRulesService::class)->whyNotEligible($userId, $raffle))) {
         return redirect("/raffles/{$raffle}");
     }
 
@@ -156,8 +156,15 @@ Route::get('/raffles/{raffle}/numbers', function (Request $request, int $raffle,
 
     $taken = RaffleEntry::where('raffle_id', $raffle)->pluck('ticket_number')->map(fn ($n) => (int) $n)->values();
 
+    // Numbers another player is holding for a few minutes (a guest's own
+    // holds are picked up by the page itself, which knows the guest's token).
+    $held = $holds->heldByOthers($raffle, $userId ? (int) $userId : null, null);
+
     // Coming back from checkout (e.g. "Change numbers", or a number was
-    // taken while paying) keeps the picks that are still free.
+    // taken while paying) keeps the picks that are still free. Held numbers
+    // are kept here on purpose: a guest's own held numbers look "held" to the
+    // server until the page sends the guest's token, and the page drops any
+    // that really belong to someone else as soon as it knows.
     $takenSet = array_flip($taken->all());
     $preselected = collect(explode(',', (string) $request->query('numbers', '')))
         ->map(fn ($n) => (int) $n)
@@ -170,23 +177,24 @@ Route::get('/raffles/{raffle}/numbers', function (Request $request, int $raffle,
         'raffle' => $found,
         'qty' => $qty,
         'takenNumbers' => $taken,
+        'heldNumbers' => $held,
         'maxTickets' => $found['max_tickets'],
         'preselected' => $preselected,
     ]);
 });
 
-// Checkout (item 25) — same real-login guard as number selection.
+// Checkout (item 25). A guest gets a sign-in page for the same order instead
+// of the payment page: their numbers are held for a few minutes and they come
+// straight back here after signing in or signing up.
 Route::get('/checkout', function (Request $request, RaffleReadService $raffles) {
-    if (Auth::guard('wordpress')->guest()) {
-        return redirect('/login?redirect='.urlencode($request->fullUrl()));
-    }
+    $userId = Auth::guard('wordpress')->id();
 
     $raffleId = (int) $request->query('raffle_id');
     $found = $raffles->find($raffleId);
 
     abort_if(! $found, 404);
 
-    if ($found['is_closed'] || app(RaffleRulesService::class)->whyNotEligible(Auth::guard('wordpress')->id(), $raffleId)) {
+    if ($found['is_closed'] || ($userId && app(RaffleRulesService::class)->whyNotEligible($userId, $raffleId))) {
         return redirect("/raffles/{$raffleId}");
     }
 
@@ -194,6 +202,16 @@ Route::get('/checkout', function (Request $request, RaffleReadService $raffles) 
     $numbers = array_values(array_filter(array_map('intval', explode(',', (string) $request->query('numbers', '')))));
 
     abort_if(count($numbers) !== $qty, 422, 'Selected ticket numbers do not match the chosen quantity.');
+
+    if (! $userId) {
+        return Inertia::render('Checkout/GuestGate', [
+            'raffle' => $found,
+            'qty' => $qty,
+            'ticketNumbers' => $numbers,
+            // Where to come back to after signing in (the same order, same numbers).
+            'returnTo' => $request->getRequestUri(),
+        ]);
+    }
 
     // Item 46: remembered so a customer who leaves without paying can be
     // offered the Golden Box on the raffle list.
