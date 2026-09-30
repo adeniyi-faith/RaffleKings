@@ -6,6 +6,8 @@ use App\Http\Controllers\LegacyRedirectController;
 use App\Models\Deposit;
 use App\Models\Legacy\RaffleEntry;
 use App\Models\Raffle;
+use App\Services\OddsCalculator;
+use App\Services\TicketPricingService;
 use App\Models\SitePage;
 use App\Services\Auth\RegistrationService;
 use App\Services\Auth\TurnstileVerifier;
@@ -131,6 +133,10 @@ Route::get('/raffles/{raffle}', function (int $raffle, RaffleReadService $raffle
     return Inertia::render('Raffles/Show', [
         'raffle' => $found,
         'drawInfo' => app(RaffleRulesService::class)->forRafflePage($raffle, Auth::guard('wordpress')->id()),
+        // The chances for the usual ticket counts, so they show at once instead of after a round trip.
+        'odds' => ($model = Raffle::query()->with('prizeTiers')->where('public_id', $raffle)->first())
+            ? app(OddsCalculator::class)->forQuantities($model, [...range(1, 20), 25, 30, 40, 50, 75, 100, ...app(TicketPricingService::class)->bundleQuantities()])
+            : (object) [],
     ]);
 });
 

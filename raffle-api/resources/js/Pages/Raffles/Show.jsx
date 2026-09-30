@@ -20,6 +20,7 @@ import BottomSheet from '../../Components/ui/BottomSheet';
 import TicketPickerSheet from '../../Components/raffles/TicketPickerSheet';
 import RaffleOdds from '../../Components/raffles/RaffleOdds';
 import { useCountdown } from '../../hooks/useCountdown';
+import { seedRaffleOdds } from '../../hooks/useRaffleOdds';
 import { useLiveRaffle } from '../../hooks/useLiveRaffle';
 import { useTicketPriceQuotes } from '../../hooks/useTicketPriceQuotes';
 import { useTicketPriceQuote } from '../../hooks/useTicketPriceQuote';
@@ -47,8 +48,10 @@ const TONES = {
  * open as sheets. Choosing tickets keeps everything the old page had: the
  * bundle buttons with their discounts, and any amount up to the limit.
  */
-export default function RaffleShow({ raffle, drawInfo = null }) {
+export default function RaffleShow({ raffle, drawInfo = null, odds = null }) {
     const { auth } = usePage().props;
+    // Put the chances that came with the page where the odds boxes can find them, before they draw.
+    useMemo(() => seedRaffleOdds(raffle.id, odds), [raffle.id, odds]);
     const site = useSite();
     const FIXED_QUANTITIES = site.ticket_bundles?.length ? site.ticket_bundles : DEFAULT_QUANTITIES;
     // Raffle Rules Engine: members-only / new-players-only raffles say so up front.

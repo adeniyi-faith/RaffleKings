@@ -3,12 +3,32 @@ import { useEffect, useState } from 'react';
 // The chance of winning each prize level for a number of tickets, from the
 // server's own calculator (App\Services\OddsCalculator), so the page never
 // works the maths out itself and can't disagree with the admin or the API.
+//
+// The raffle page sends the chances for the usual ticket counts along with the
+// page (seedRaffleOdds), and every answer is remembered here, so they show
+// straight away. Only an unusual count (say 37 tickets) asks the server.
+const cache = new Map();
+
+export function seedRaffleOdds(raffleId, byQuantity) {
+    Object.entries(byQuantity ?? {}).forEach(([qty, odds]) => cache.set(`${raffleId}:${qty}`, odds));
+}
+
 export function useRaffleOdds(raffleId, quantity) {
-    const [odds, setOdds] = useState(null);
+    const key = `${raffleId}:${quantity}`;
+    const [odds, setOdds] = useState(() => cache.get(key) ?? null);
     const [failed, setFailed] = useState(false);
 
     useEffect(() => {
         if (! raffleId || ! quantity || quantity < 1) {
+            return undefined;
+        }
+
+        const known = cache.get(key);
+
+        if (known) {
+            setOdds(known);
+            setFailed(false);
+
             return undefined;
         }
 
@@ -22,6 +42,7 @@ export function useRaffleOdds(raffleId, quantity) {
             })
                 .then((res) => (res.ok ? res.json() : Promise.reject(new Error('odds'))))
                 .then((data) => {
+                    cache.set(key, data);
                     setOdds(data);
                     setFailed(false);
                 })
@@ -36,7 +57,7 @@ export function useRaffleOdds(raffleId, quantity) {
             clearTimeout(timer);
             controller.abort();
         };
-    }, [raffleId, quantity]);
+    }, [raffleId, quantity, key]);
 
     return { odds, failed };
 }

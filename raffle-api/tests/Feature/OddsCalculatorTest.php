@@ -240,4 +240,16 @@ class OddsCalculatorTest extends TestCase
         $this->assertNull($all['any']['one_in']);
         $this->assertSame('76%', $many['any']['percent']);
     }
+
+    public function test_the_raffle_page_arrives_with_the_chances_already_worked_out(): void
+    {
+        $this->createRaffle(['public_id' => 41, 'price' => '100', 'max' => '200']);
+
+        $this->get('/raffles/41')->assertOk()->assertInertia(fn ($page) => $page
+            ->has('odds.1')
+            ->has('odds.3')
+            ->has('odds.10')
+            ->where('odds.3.quantity', 3)
+            ->has('odds.3.any.percent'));
+    }
 }
