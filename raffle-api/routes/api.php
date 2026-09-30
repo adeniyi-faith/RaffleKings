@@ -77,6 +77,9 @@ Route::delete('/raffles/{raffle}/holds', [NumberHoldController::class, 'destroy'
 // duplicate TicketPricingService's formula by hand (audit TD-20).
 Route::get('/raffles/{raffle}/price-quote', [TicketPriceQuoteController::class, 'show']);
 
+// Public — the chance of winning each prize level for a number of tickets.
+Route::get('/raffles/{raffle}/odds', [RaffleController::class, 'odds']);
+
 // Public — anyone can see a draw's commitment/verification, real proof
 // unlike the legacy "verification hash" (see DrawController's docblock).
 // {raffle} here binds to the NATIVE App\Models\Raffle (item 10), not the
