@@ -12,6 +12,7 @@ use App\Services\DailyClaimService;
 use App\Services\Maintenance;
 use App\Services\PointsBoost;
 use App\Services\TicketPricingService;
+use App\Support\Features;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Inertia\Middleware;
@@ -96,6 +97,8 @@ class HandleInertiaRequests extends Middleware
                 'links' => array_filter(config('site.links', [])),
                 'switches' => config('site.switches'),
                 'paused_message' => config('site.paused_message'),
+                // Settings → On / off → New features. Off = the page hides it.
+                'features' => Features::all(),
                 // The analytics part of the Privacy Policy page (Settings → Consent & privacy).
                 'privacy' => [
                     'controller' => config('services.analytics.controller_name'),

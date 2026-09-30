@@ -2,8 +2,10 @@
 
 namespace App\Services;
 
+use App\Exceptions\PaymentGatewayException;
 use App\Models\BankAccount;
 use App\Models\Legacy\WpUser;
+use App\Services\Payments\PaystackApi;
 use Illuminate\Database\Eloquent\Collection;
 use Illuminate\Support\Facades\DB;
 use InvalidArgumentException;
@@ -22,6 +24,8 @@ use RuntimeException;
 class BankAccountService
 {
     private const MAX_ACCOUNTS_PER_USER = 2;
+
+    public function __construct(private readonly PaystackApi $paystack) {}
 
     public function list(WpUser $user): Collection
     {
@@ -46,18 +50,72 @@ class BankAccountService
             throw new InvalidArgumentException('Enter the account name as it appears at the bank.');
         }
 
-        return DB::transaction(function () use ($user, $bankName, $accountNumber, $accountName) {
+        return $this->create($user, ['bank_name' => $bankName, 'account_number' => $accountNumber, 'account_name' => $accountName]);
+    }
+
+    /**
+     * Bank-name check (Settings → On / off → New features): asks Paystack
+     * which name the bank holds for this number, before anything is saved.
+     *
+     * @return array{bank_code: string, bank_name: string, account_number: string, account_name: string}
+     *
+     * @throws InvalidArgumentException when the bank or number is wrong
+     * @throws PaymentGatewayException when Paystack can't be asked right now
+     */
+    public function lookUp(string $bankCode, string $accountNumber): array
+    {
+        if (! preg_match('/^[0-9]{10}$/', $accountNumber)) {
+            throw new InvalidArgumentException('Nigerian account numbers must be exactly 10 digits.');
+        }
+
+        $bankName = $this->paystack->bankName($bankCode);
+
+        if (! $bankName) {
+            throw new InvalidArgumentException('Choose your bank from the list.');
+        }
+
+        $accountName = $this->paystack->resolveAccountName($accountNumber, $bankCode);
+
+        if (! $accountName) {
+            throw new InvalidArgumentException("{$bankName} has no account {$accountNumber}. Check the number and the bank.");
+        }
+
+        return [
+            'bank_code' => $bankCode,
+            'bank_name' => mb_substr($bankName, 0, 100),
+            'account_number' => $accountNumber,
+            'account_name' => mb_substr($accountName, 0, 80),
+        ];
+    }
+
+    /**
+     * Saves an account whose name Paystack has just confirmed. The name is
+     * the bank's, never what the customer typed.
+     *
+     * @throws InvalidArgumentException|PaymentGatewayException see lookUp()
+     * @throws RuntimeException if the user already has the maximum number of accounts
+     */
+    public function addVerified(WpUser $user, string $bankCode, string $accountNumber): BankAccount
+    {
+        return $this->create($user, $this->lookUp($bankCode, $accountNumber) + ['name_verified_at' => now()]);
+    }
+
+    /** @param  array<string, mixed>  $attributes */
+    private function create(WpUser $user, array $attributes): BankAccount
+    {
+        return DB::transaction(function () use ($user, $attributes) {
             $existingCount = BankAccount::query()->where('user_id', $user->ID)->lockForUpdate()->count();
 
             if ($existingCount >= self::MAX_ACCOUNTS_PER_USER) {
                 throw new RuntimeException('Maximum of '.self::MAX_ACCOUNTS_PER_USER.' bank accounts allowed.');
             }
 
-            return BankAccount::create([
+            if (BankAccount::query()->where('user_id', $user->ID)->where('account_number', $attributes['account_number'])->exists()) {
+                throw new RuntimeException('This account is already saved.');
+            }
+
+            return BankAccount::create($attributes + [
                 'user_id' => $user->ID,
-                'bank_name' => $bankName,
-                'account_number' => $accountNumber,
-                'account_name' => $accountName,
                 'is_primary' => $existingCount === 0,
             ]);
         });

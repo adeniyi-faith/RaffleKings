@@ -157,6 +157,9 @@ Route::middleware('auth:wordpress')->group(function () {
 
     Route::get('/bank-accounts', [BankAccountController::class, 'index']);
     Route::post('/bank-accounts', [BankAccountController::class, 'store'])->middleware('throttle:money');
+    // Bank-name check (Settings → On / off → New features).
+    Route::get('/banks', [BankAccountController::class, 'banks'])->middleware('growth:bank_name_check');
+    Route::post('/bank-accounts/look-up', [BankAccountController::class, 'lookUp'])->middleware(['growth:bank_name_check', 'throttle:10,1']);
     Route::patch('/bank-accounts/{bankAccount}/primary', [BankAccountController::class, 'setPrimary'])->middleware('throttle:money');
     Route::delete('/bank-accounts/{bankAccount}', [BankAccountController::class, 'destroy'])->middleware('throttle:money');
 

@@ -170,18 +170,19 @@ class WithdrawalService
      *
      * @throws RuntimeException if the request isn't pending
      */
-    public function markPaid(WpUser $admin, WithdrawalRequest $withdrawal): WithdrawalRequest
+    public function markPaid(WpUser $admin, WithdrawalRequest $withdrawal, bool $viaPaystack = false): WithdrawalRequest
     {
-        $this->guardPending($withdrawal);
+        $this->guardPending($withdrawal, $viaPaystack);
 
-        DB::transaction(function () use ($withdrawal) {
-            $this->guardPending(WithdrawalRequest::query()->whereKey($withdrawal->id)->lockForUpdate()->firstOrFail());
+        DB::transaction(function () use ($withdrawal, $viaPaystack) {
+            $this->guardPending(WithdrawalRequest::query()->whereKey($withdrawal->id)->lockForUpdate()->firstOrFail(), $viaPaystack);
             $withdrawal->update(['status' => 'paid']);
         });
 
         $this->auditLog->record($admin, 'withdrawal.paid', WithdrawalRequest::class, $withdrawal->id, [
             'amount_sent' => (float) $withdrawal->amount_to_send,
             'user_id' => $withdrawal->user_id,
+            'method' => $viaPaystack ? 'paystack' : 'by hand',
         ]);
 
         $withdrawal->user->notify(new WithdrawalProcessed($withdrawal, 'paid'));
@@ -243,11 +244,22 @@ class WithdrawalService
         return $withdrawal;
     }
 
-    /** @throws RuntimeException if the request isn't pending */
-    private function guardPending(WithdrawalRequest $withdrawal): void
+    /**
+     * @param  bool  $viaPaystack  Paystack itself confirming its own payout (PayoutService)
+     *
+     * @throws RuntimeException if the request isn't pending, or Paystack is still sending it
+     */
+    private function guardPending(WithdrawalRequest $withdrawal, bool $viaPaystack = false): void
     {
         if ($withdrawal->status !== 'pending') {
             throw new RuntimeException("Withdrawal #{$withdrawal->id} is not pending (status: {$withdrawal->status}).");
+        }
+
+        // Automatic payouts: while Paystack is sending the money, paying it
+        // by hand would pay twice and rejecting would refund money already
+        // on its way.
+        if (! $viaPaystack && $withdrawal->payout_status === 'sending') {
+            throw new RuntimeException("Paystack is still sending withdrawal #{$withdrawal->id}. Wait for it to finish (or fail) first.");
         }
     }
 

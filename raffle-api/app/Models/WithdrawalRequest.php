@@ -15,12 +15,21 @@ class WithdrawalRequest extends Model
         'amount_to_send',
         'status',
         'legacy_transaction_id',
+        // Automatic payouts (App\Services\PayoutService).
+        'payout_status',
+        'payout_reference',
+        'payout_transfer_code',
+        'payout_error',
+        'payout_attempts',
+        'payout_started_at',
+        'payout_started_by',
     ];
 
     protected $casts = [
         'requested_amount' => 'decimal:2',
         'fee_amount' => 'decimal:2',
         'amount_to_send' => 'decimal:2',
+        'payout_started_at' => 'datetime',
     ];
 
     public function user()

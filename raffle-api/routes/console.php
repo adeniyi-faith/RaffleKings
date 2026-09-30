@@ -47,3 +47,14 @@ Schedule::call(fn () => app(RedEnvelopes::class)->refundExpired())
     ->everyMinute()
     ->name('red-envelope-refunds')
     ->withoutOverlapping(5);
+
+// Automatic payouts: ask Paystack about any payout whose answer never
+// arrived (a timeout or a lost webhook). Does nothing while it's off.
+Schedule::call(function () {
+    if (\App\Support\Features::on('auto_payouts')) {
+        app(\App\Services\PayoutService::class)->checkStuck();
+    }
+})
+    ->everyFiveMinutes()
+    ->name('payout-status-check')
+    ->withoutOverlapping(10);
