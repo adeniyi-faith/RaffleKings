@@ -7,8 +7,14 @@ use App\Filament\Concerns\RunsAdminActions;
 use App\Filament\Resources\WithdrawalRequestResource\Pages;
 use App\Filament\Support\MobileCard;
 use App\Models\WithdrawalRequest;
+use App\Services\PayoutService;
 use App\Services\Risk\FraudWatchService;
 use App\Services\WithdrawalService;
+use App\Support\Features;
+use Filament\Notifications\Notification;
+use Illuminate\Database\Eloquent\Collection;
+use RuntimeException;
+use Throwable;
 use Filament\Forms;
 use Filament\Forms\Form;
 use Filament\Resources\Resource;
@@ -83,6 +89,47 @@ class WithdrawalRequestResource extends Resource
         return static::$warnings[$record->id] ?? null;
     }
 
+    /** Automatic payouts: where Paystack is with this withdrawal, as a badge. */
+    public static function payoutBadge(WithdrawalRequest $record): ?array
+    {
+        return match ($record->payout_status) {
+            'sending' => ['Paystack is sending', 'info'],
+            'failed' => $record->status === 'pending' ? ['Paystack could not send', 'danger'] : null,
+            'reversed' => ['Paystack reversed it', 'danger'],
+            'success' => ['Sent by Paystack', 'success'],
+            default => null,
+        };
+    }
+
+    /** One line under the bank details: Paystack's problem, or why this one is paid by hand. */
+    public static function payoutNote(WithdrawalRequest $record): ?string
+    {
+        if (in_array($record->payout_status, ['failed', 'reversed'], true) && $record->payout_error) {
+            return $record->payout_error;
+        }
+
+        if (Features::on('auto_payouts') && $record->status === 'pending' && $record->payout_status !== 'sending') {
+            $blocker = app(PayoutService::class)->blocker($record);
+
+            return $blocker ? 'Pay by hand: '.$blocker : null;
+        }
+
+        return null;
+    }
+
+    private static function sendWithPaystack(WithdrawalRequest $record): void
+    {
+        try {
+            $message = app(PayoutService::class)->send(static::admin(), $record);
+        } catch (RuntimeException $e) {
+            Notification::make()->title('Not sent')->body($e->getMessage())->danger()->persistent()->send();
+
+            return;
+        }
+
+        Notification::make()->title("Withdrawal #{$record->id}")->body($message)->success()->persistent()->send();
+    }
+
     public static function form(Form $form): Form
     {
         return $form->schema([]);
@@ -101,6 +148,7 @@ class WithdrawalRequestResource extends Resource
                     'lines' => [
                         $record->bankAccount ? "{$record->bankAccount->bank_name} · {$record->bankAccount->account_name}" : 'No bank account on file',
                         (float) $record->fee_amount > 0 ? 'Requested '.static::naira($record->requested_amount).' · fee '.static::naira($record->fee_amount) : null,
+                        static::payoutNote($record),
                     ],
                     'copy' => $record->bankAccount ? ['value' => $record->bankAccount->account_number] : null,
                     'body' => static::warning($record),
@@ -111,6 +159,8 @@ class WithdrawalRequestResource extends Resource
                             default => ['Rejected', 'gray'],
                         },
                         static::warning($record) ? ['Check before paying', 'danger'] : null,
+                        static::payoutBadge($record),
+                        $record->bankAccount?->isVerified() ? ['Name checked', 'success'] : null,
                     ],
                     'meta' => $record->created_at?->diffForHumans(),
                 ]),
@@ -133,14 +183,14 @@ class WithdrawalRequestResource extends Resource
                         ->label('Send to')
                         ->copyable()
                         ->copyMessage('Account number copied')
-                        ->description(fn (WithdrawalRequest $record) => $record->bankAccount
-                            ? "{$record->bankAccount->bank_name} · {$record->bankAccount->account_name}"
-                            : 'No bank account on file'),
+                        ->description(fn (WithdrawalRequest $record) => ($record->bankAccount
+                            ? "{$record->bankAccount->bank_name} · {$record->bankAccount->account_name}".($record->bankAccount->isVerified() ? ' ✓ name checked by the bank' : '')
+                            : 'No bank account on file').(static::payoutNote($record) ? ' · '.static::payoutNote($record) : '')),
                     Tables\Columns\TextColumn::make('created_at')
                         ->label('Requested')
                         ->since()
                         ->sortable()
-                        ->description(fn (WithdrawalRequest $record) => match ($record->status) {
+                        ->description(fn (WithdrawalRequest $record) => static::payoutBadge($record)[0] ?? match ($record->status) {
                             'pending' => 'Waiting to be paid',
                             'paid' => 'Paid',
                             default => 'Rejected',
@@ -157,13 +207,47 @@ class WithdrawalRequestResource extends Resource
             ->actionsPosition(ActionsPosition::BeforeColumns)
             ->actionsColumnLabel('Action')
             ->actions([
+                Tables\Actions\Action::make('sendWithPaystack')
+                    ->hidden(fn () => ! static::staffCan('money.pay') || ! Features::on('auto_payouts'))
+                    ->label('Send with Paystack')
+                    ->icon('heroicon-o-paper-airplane')
+                    ->color('primary')
+                    ->visible(fn (WithdrawalRequest $record) => $record->status === 'pending' && $record->payout_status !== 'sending')
+                    ->disabled(fn (WithdrawalRequest $record) => app(PayoutService::class)->blocker($record) !== null)
+                    ->tooltip(fn (WithdrawalRequest $record) => app(PayoutService::class)->blocker($record))
+                    ->requiresConfirmation()
+                    ->modalHeading('Send this withdrawal with Paystack?')
+                    ->modalDescription(fn (WithdrawalRequest $record) => (static::warning($record) ? '⚠ '.static::warning($record).' ' : '')
+                        .'Paystack sends '.static::naira($record->amount_to_send)
+                        .($record->bankAccount ? " to {$record->bankAccount->account_name}, {$record->bankAccount->bank_name} {$record->bankAccount->account_number}" : '')
+                        .' from your Paystack balance'.(($balance = static::paystackBalance()) !== null ? ' ('.static::naira($balance).' now)' : '')
+                        .'. It is marked paid, and the customer told, only when the bank confirms.')
+                    ->modalSubmitActionLabel('Yes, send it')
+                    ->action(fn (WithdrawalRequest $record) => static::sendWithPaystack($record)),
+                Tables\Actions\Action::make('checkPaystack')
+                    ->hidden(fn () => ! static::staffCan('money.pay'))
+                    ->label('Check with Paystack')
+                    ->icon('heroicon-o-arrow-path')
+                    ->color('gray')
+                    ->visible(fn (WithdrawalRequest $record) => $record->payout_status === 'sending')
+                    ->action(function (WithdrawalRequest $record) {
+                        try {
+                            $message = app(PayoutService::class)->refreshFromPaystack($record);
+                        } catch (Throwable $e) {
+                            Notification::make()->title('Could not check')->body($e->getMessage())->danger()->send();
+
+                            return;
+                        }
+
+                        Notification::make()->title($message ?? 'Still on the way. Paystack hasn\'t finished yet.')->success()->send();
+                    }),
                 Tables\Actions\Action::make('markPaid')
                     // Only staff allowed to move money see this (App\Auth\StaffRoles).
                     ->hidden(fn () => ! static::staffCan('money.pay'))
                     ->label('Mark paid')
                     ->icon('heroicon-o-check-circle')
                     ->color('success')
-                    ->visible(fn (WithdrawalRequest $record) => $record->status === 'pending')
+                    ->visible(fn (WithdrawalRequest $record) => $record->status === 'pending' && $record->payout_status !== 'sending')
                     ->requiresConfirmation()
                     ->modalHeading('Mark this withdrawal as paid?')
                     ->modalDescription(fn (WithdrawalRequest $record) => (static::warning($record) ? '⚠ '.static::warning($record).' ' : '').'Only confirm AFTER you have sent '.static::naira($record->amount_to_send)
@@ -180,7 +264,7 @@ class WithdrawalRequestResource extends Resource
                     ->label('Reject')
                     ->icon('heroicon-o-x-circle')
                     ->color('danger')
-                    ->visible(fn (WithdrawalRequest $record) => $record->status === 'pending')
+                    ->visible(fn (WithdrawalRequest $record) => $record->status === 'pending' && $record->payout_status !== 'sending')
                     ->modalDescription(fn (WithdrawalRequest $record) => 'Refunds '.static::naira((float) $record->amount_to_send + (float) $record->fee_amount).' to the customer\'s winnings. They see the reason below.')
                     ->form([
                         Forms\Components\Textarea::make('reason')
@@ -193,8 +277,49 @@ class WithdrawalRequestResource extends Resource
                         "Withdrawal #{$record->id} rejected and refunded.",
                     )),
             ])
+            ->bulkActions([
+                Tables\Actions\BulkAction::make('sendSelectedWithPaystack')
+                    ->hidden(fn () => ! static::staffCan('money.pay') || ! Features::on('auto_payouts'))
+                    ->label('Send selected with Paystack')
+                    ->icon('heroicon-o-paper-airplane')
+                    ->requiresConfirmation()
+                    ->modalDescription('Each one that can be sent automatically is sent. The rest (bigger than the limit, unchecked bank names, already handled) are skipped and stay in the queue.')
+                    ->modalSubmitActionLabel('Send them')
+                    ->deselectRecordsAfterCompletion()
+                    ->action(function (Collection $records) {
+                        $service = app(PayoutService::class);
+                        $sent = 0;
+                        $skipped = [];
+
+                        foreach ($records as $record) {
+                            try {
+                                $service->send(static::admin(), $record);
+                                $sent++;
+                            } catch (RuntimeException $e) {
+                                $skipped[] = "#{$record->id}: {$e->getMessage()}";
+                            }
+                        }
+
+                        Notification::make()
+                            ->title("{$sent} sent to Paystack, ".count($skipped).' skipped')
+                            ->body(implode("\n", array_slice($skipped, 0, 10)) ?: null)
+                            ->color($skipped ? 'warning' : 'success')
+                            ->persistent()
+                            ->send();
+                    }),
+            ])
             ->emptyStateHeading('No withdrawals waiting')
             ->emptyStateDescription('New withdrawal requests appear here.');
+    }
+
+    /** The Paystack balance payouts come from, or null if it can't be read. */
+    public static function paystackBalance(): ?float
+    {
+        try {
+            return app(\App\Services\Payments\PaystackApi::class)->balance();
+        } catch (Throwable) {
+            return null;
+        }
     }
 
     public static function getPages(): array

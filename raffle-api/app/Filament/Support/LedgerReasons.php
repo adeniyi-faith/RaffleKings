@@ -20,6 +20,8 @@ final class LedgerReasons
         'deposit_bonus' => 'Top-up bonus',
         'transaction_revoked' => 'Reversed by admin',
         'earnings_transfer' => 'Winnings moved to wallet',
+        'promo_bonus' => 'Promo code bonus',
+        'affiliate_commission' => 'Affiliate commission',
     ];
 
     public static function label(?string $reason): string

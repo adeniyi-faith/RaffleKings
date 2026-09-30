@@ -2,10 +2,12 @@
 
 use App\Http\Middleware\AssignRequestId;
 use App\Http\Middleware\EnsureFeatureOn;
+use App\Http\Middleware\EnsureGrowthFeatureOn;
 use App\Http\Middleware\EnsureNotOnBreak;
 use App\Http\Middleware\EnsureUserIsAdministrator;
 use App\Http\Middleware\HandleInertiaRequests;
 use App\Http\Middleware\MaintenanceMode;
+use App\Http\Middleware\RememberDevice;
 use App\Http\Middleware\SecurityHeaders;
 use App\Http\Middleware\TrackApiActions;
 use App\Http\Middleware\VerifyApiOrigin;
@@ -36,8 +38,8 @@ return Application::configure(basePath: dirname(__DIR__))
         ['middleware' => ['web', 'auth:wordpress']],
     )
     ->withMiddleware(function (Middleware $middleware): void {
-        $middleware->alias(['admin' => EnsureUserIsAdministrator::class, 'feature' => EnsureFeatureOn::class, 'not-on-break' => EnsureNotOnBreak::class]);
-        $middleware->web(append: [HandleInertiaRequests::class, MaintenanceMode::class]);
+        $middleware->alias(['admin' => EnsureUserIsAdministrator::class, 'feature' => EnsureFeatureOn::class, 'growth' => EnsureGrowthFeatureOn::class, 'not-on-break' => EnsureNotOnBreak::class]);
+        $middleware->web(append: [HandleInertiaRequests::class, MaintenanceMode::class, RememberDevice::class]);
         // Maintenance mode (Settings → On / off) covers the API too.
         $middleware->api(append: [MaintenanceMode::class, TrackApiActions::class]);
 
@@ -62,6 +64,11 @@ return Application::configure(basePath: dirname(__DIR__))
         // middleware at all, which is why this was never needed there.
         $middleware->encryptCookies(except: [
             'wordpress_logged_in_'.env('WP_COOKIEHASH', ''),
+            // Read by the API (which never decrypts cookies): the affiliate
+            // link a visitor came from, and the browser's own random id
+            // (multi-account protection). Neither is secret.
+            'rk_aff',
+            'rk_did',
         ]);
     })
     ->withExceptions(function (Exceptions $exceptions): void {

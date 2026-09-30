@@ -3,6 +3,7 @@
 namespace App\Services\Monitoring;
 
 use App\Console\Commands\HealthCheck;
+use App\Models\BackupRun;
 use App\Notifications\Channels\OneSignalChannel;
 use App\Services\Maintenance;
 use Illuminate\Support\Facades\Cache;
@@ -35,6 +36,7 @@ final class HealthReport
         $this->checkBackgroundJobs();
         $this->checkMaintenance();
         $this->checkPhpExtensions();
+        $this->checkBackupsAndUptime();
 
         return $this->rows;
     }
@@ -126,6 +128,50 @@ final class HealthReport
         if (config('app.debug') && app()->environment('production')) {
             $this->addCritical('APP_DEBUG', 'Debug mode is on in production, so error pages show internal details to customers.');
         }
+    }
+
+    /** Backups (and whether they're proven to restore), uptime alerts and Sentry. */
+    private function checkBackupsAndUptime(): void
+    {
+        try {
+            $last = BackupRun::query()->where('status', 'ok')->latest('id')->first();
+            $failed = BackupRun::query()->where('status', 'failed')->where('created_at', '>=', now()->subDay())->exists();
+        } catch (Throwable) {
+            return; // not migrated yet
+        }
+
+        if (! config('backups.enabled', true)) {
+            $this->addCritical('Database backups', 'Switched OFF (Settings → Backups & status). If the server fails, the data is gone.');
+        } elseif ($failed) {
+            $this->addCritical('Database backups', 'Last night\'s backup failed. Run `php artisan backup:run` to see why.');
+        } elseif (! $last) {
+            $this->addWarning('Database backups', 'No backup yet. The first runs tonight, or run `php artisan backup:run` now.');
+        } elseif ($last->created_at->lt(now()->subHours(26))) {
+            $this->addCritical('Database backups', 'The last backup is '.$last->created_at->diffForHumans().'. The nightly backup has stopped.');
+        } else {
+            $this->addOk('Database backups', 'Last backup '.$last->created_at->diffForHumans().' ('.round($last->size_bytes / 1048576, 1).' MB).'.($last->sent_offsite ? ' Copy sent to Telegram.' : ''));
+        }
+
+        $tested = BackupRun::query()->whereNotNull('restore_tested_at')->latest('restore_tested_at')->first();
+
+        if (! app(DatabaseBackup::class)->restoreConfigured()) {
+            $this->addWarning('Backup practice restore', 'Not set up, so no backup has been PROVEN to work. Add a practice database in Settings → Backups & status.');
+        } elseif (! $tested) {
+            $this->addWarning('Backup practice restore', 'Not run yet. It runs after tonight\'s backup, or run `php artisan backup:test-restore`.');
+        } elseif (! $tested->restore_ok) {
+            $this->addCritical('Backup practice restore', 'The last practice restore FAILED: '.$tested->restore_message);
+        } elseif ($tested->restore_tested_at->lt(now()->subDays(8))) {
+            $this->addWarning('Backup practice restore', 'Last proven '.$tested->restore_tested_at->diffForHumans().'.');
+        } else {
+            $this->addOk('Backup practice restore', 'Proven '.$tested->restore_tested_at->diffForHumans().': '.$tested->restore_message);
+        }
+
+        if (config('backups.enabled', true) && ! config('backups.send_to_telegram')) {
+            $this->addWarning('Off-site backup copy', 'Backups are only on this server. Turn on "send each backup to Telegram" (Settings → Backups & status), or download them regularly.');
+        }
+
+        $this->optionalSetting('Uptime heartbeat (Settings → Backups & status)', filled(config('monitoring.heartbeat_url')), 'Nobody is told if the site or its cron job stops. Add a healthchecks.io ping URL.');
+        $this->optionalSetting('Sentry error tracking (Settings → Alerts & push)', filled(config('sentry.dsn')), 'Errors are only in the log and Telegram, without full details.');
     }
 
     private function checkMaintenance(): void

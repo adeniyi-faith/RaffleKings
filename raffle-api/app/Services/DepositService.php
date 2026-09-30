@@ -202,7 +202,13 @@ class DepositService
         if ($deposit->status === 'successful') {
             $deposit->user->notify(new DepositConfirmed($deposit));
 
-            if ($referralCommission) {
+            // Affiliates: commission for whoever brought this customer (held a few days).
+            if ($outcome === 'topup_completed') {
+                app(\App\Services\Growth\AffiliateService::class)->recordDeposit($deposit);
+            }
+
+            // A commission held for a multi-account check isn't announced yet.
+            if ($referralCommission && $referralCommission->status !== 'held') {
                 $referrer = WpUser::find($referralCommission->referrer_user_id);
                 $referrer?->notify(new ReferralCommissionEarned($referralCommission));
 

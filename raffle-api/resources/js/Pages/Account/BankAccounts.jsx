@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { Head } from '@inertiajs/react';
-import { ArrowLeft, CreditCard, Lock, PlusCircle, Trash2 } from 'lucide-react';
+import { ArrowLeft, BadgeCheck, CreditCard, Lock, PlusCircle, Trash2 } from 'lucide-react';
 import LoadError from '../../Components/ui/LoadError';
 import { goBack } from '../../lib/nav';
 
@@ -20,12 +20,19 @@ import { goBack } from '../../lib/nav';
 export default function AccountBankAccounts() {
     const [accounts, setAccounts] = useState(null); // null = loading
     const [sheetOpen, setSheetOpen] = useState(false);
-    const [form, setForm] = useState({ bank_name: '', account_number: '', account_name: '' });
+    const [form, setForm] = useState({ bank_name: '', bank_code: '', account_number: '', account_name: '' });
     const [formError, setFormError] = useState('');
     const [saving, setSaving] = useState(false);
 
     // Phase 9: a failed load says so, instead of "no bank accounts yet".
     const [loadFailed, setLoadFailed] = useState(false);
+
+    // Bank-name check (Settings → On / off → New features): the customer
+    // picks the bank and types the number; Paystack gives the name.
+    const [nameCheck, setNameCheck] = useState(false);
+    const [banks, setBanks] = useState(null);
+    const [bankSearch, setBankSearch] = useState('');
+    const [lookUp, setLookUp] = useState({ state: 'idle', name: '' }); // idle | checking | found | error
 
     function loadAccounts() {
         setLoadFailed(false);
@@ -34,7 +41,10 @@ export default function AccountBankAccounts() {
                 if (! res.ok) throw new Error();
                 return res.json();
             })
-            .then((data) => setAccounts(data.accounts || []))
+            .then((data) => {
+                setAccounts(data.accounts || []);
+                setNameCheck(!! data.name_check);
+            })
             .catch(() => {
                 setAccounts(null);
                 setLoadFailed(true);
@@ -42,6 +52,91 @@ export default function AccountBankAccounts() {
     }
 
     useEffect(loadAccounts, []);
+
+    useEffect(() => {
+        if (! nameCheck || ! sheetOpen || banks !== null) return;
+        fetch('/api/banks', { headers: { Accept: 'application/json' } })
+            .then((res) => (res.ok ? res.json() : Promise.reject()))
+            .then((data) => setBanks(data.banks || []))
+            .catch(() => setFormError('We can\'t load the list of banks right now. Please try again in a few minutes.'));
+    }, [nameCheck, sheetOpen, banks]);
+
+    // Asks the bank for the name as soon as a bank and all 10 digits are in.
+    useEffect(() => {
+        if (! nameCheck) return;
+        const accNum = form.account_number.trim();
+        if (! form.bank_code || ! /^\d{10}$/.test(accNum)) {
+            setLookUp({ state: 'idle', name: '' });
+            return;
+        }
+
+        let cancelled = false;
+        setLookUp({ state: 'checking', name: '' });
+        setFormError('');
+        fetch('/api/bank-accounts/look-up', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
+            credentials: 'same-origin',
+            body: JSON.stringify({ bank_code: form.bank_code, account_number: accNum }),
+        })
+            .then(async (res) => {
+                const data = await res.json().catch(() => ({}));
+                if (cancelled) return;
+                if (! res.ok) {
+                    setLookUp({ state: 'error', name: '' });
+                    setFormError(data.message || 'We couldn\'t check this account. Please try again.');
+                    return;
+                }
+                setLookUp({ state: 'found', name: data.account_name });
+            })
+            .catch(() => {
+                if (cancelled) return;
+                setLookUp({ state: 'error', name: '' });
+                setFormError('We couldn\'t check this account. Please try again.');
+            });
+
+        return () => {
+            cancelled = true;
+        };
+    }, [nameCheck, form.bank_code, form.account_number]);
+
+    function resetForm() {
+        setForm({ bank_name: '', bank_code: '', account_number: '', account_name: '' });
+        setBankSearch('');
+        setLookUp({ state: 'idle', name: '' });
+        setFormError('');
+    }
+
+    async function saveVerifiedAccount() {
+        if (lookUp.state !== 'found') {
+            setFormError('Choose your bank and type your 10-digit account number first.');
+            return;
+        }
+
+        setFormError('');
+        setSaving(true);
+
+        try {
+            const response = await fetch('/api/bank-accounts', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
+                credentials: 'same-origin',
+                body: JSON.stringify({ bank_code: form.bank_code, account_number: form.account_number.trim() }),
+            });
+            const data = await response.json();
+            if (! response.ok) throw new Error(data.message || 'Failed to save.');
+
+            setSheetOpen(false);
+            resetForm();
+            loadAccounts();
+        } catch (err) {
+            setFormError(err.message);
+        } finally {
+            setSaving(false);
+        }
+    }
+
+    const shownBanks = (banks || []).filter((b) => b.name.toLowerCase().includes(bankSearch.trim().toLowerCase()));
 
     async function saveAccount() {
         const bankName = form.bank_name.trim();
@@ -79,7 +174,7 @@ export default function AccountBankAccounts() {
             }
 
             setSheetOpen(false);
-            setForm({ bank_name: '', account_number: '', account_name: '' });
+            resetForm();
             loadAccounts();
         } catch (err) {
             setFormError(err.message);
@@ -182,8 +277,11 @@ export default function AccountBankAccounts() {
                                             {acc.bank_name}
                                         </h4>
                                         <p className="font-mono text-xs text-gray-500 dark:text-gray-400">{acc.account_number}</p>
-                                        <p className="mt-0.5 max-w-[150px] truncate text-[10px] font-medium text-gray-400 dark:text-gray-500">
-                                            {acc.account_name}
+                                        <p className="mt-0.5 flex max-w-[170px] items-center gap-1 truncate text-[10px] font-medium text-gray-400 dark:text-gray-500">
+                                            <span className="truncate">{acc.account_name}</span>
+                                            {acc.name_verified_at && (
+                                                <BadgeCheck className="h-3 w-3 flex-shrink-0 text-green-500" aria-label="Name confirmed by the bank" />
+                                            )}
                                         </p>
                                         {! acc.is_primary && (
                                             <button
@@ -242,6 +340,82 @@ export default function AccountBankAccounts() {
                         <div className="flex-1 overflow-y-auto p-6 pt-2">
                             <h3 className="mb-6 text-lg font-bold text-gray-900 dark:text-white">Link Bank Account</h3>
 
+                            {nameCheck ? (
+                            <div className="space-y-5">
+                                <div>
+                                    <label className="mb-2 block text-xs font-bold uppercase tracking-wide text-gray-500 dark:text-gray-400">
+                                        Bank
+                                    </label>
+                                    {form.bank_code ? (
+                                        <button
+                                            type="button"
+                                            onClick={() => setForm((f) => ({ ...f, bank_code: '', bank_name: '' }))}
+                                            className="flex w-full items-center justify-between rounded-xl border border-gray-200 bg-gray-50 px-4 py-3.5 text-left text-sm font-medium text-gray-900 dark:border-gray-700 dark:bg-gray-800 dark:text-white"
+                                        >
+                                            <span className="truncate">{form.bank_name}</span>
+                                            <span className="text-xs font-bold text-app-primary">Change</span>
+                                        </button>
+                                    ) : (
+                                        <>
+                                            <input
+                                                type="search"
+                                                value={bankSearch}
+                                                onChange={(e) => setBankSearch(e.target.value)}
+                                                placeholder="Search: GTBank, OPay, Kuda…"
+                                                className="w-full rounded-xl border border-gray-200 bg-gray-50 px-4 py-3.5 text-sm font-medium text-gray-900 outline-none transition-all placeholder:text-gray-300 focus:border-app-primary focus:ring-2 focus:ring-app-primary/20 dark:border-gray-700 dark:bg-gray-800 dark:text-white dark:placeholder:text-gray-600"
+                                            />
+                                            <div className="mt-2 max-h-48 overflow-y-auto rounded-xl border border-gray-100 dark:border-gray-700">
+                                                {banks === null && <p className="p-3 text-xs text-gray-400">Loading banks…</p>}
+                                                {banks !== null && shownBanks.length === 0 && <p className="p-3 text-xs text-gray-400">No bank matches "{bankSearch}".</p>}
+                                                {shownBanks.map((b) => (
+                                                    <button
+                                                        key={b.code}
+                                                        type="button"
+                                                        onClick={() => setForm((f) => ({ ...f, bank_code: b.code, bank_name: b.name }))}
+                                                        className="block w-full border-b border-gray-50 px-4 py-2.5 text-left text-sm text-gray-800 last:border-0 hover:bg-blue-50 dark:border-gray-800 dark:text-gray-200 dark:hover:bg-blue-900/20"
+                                                    >
+                                                        {b.name}
+                                                    </button>
+                                                ))}
+                                            </div>
+                                        </>
+                                    )}
+                                </div>
+
+                                <div>
+                                    <label className="mb-2 block text-xs font-bold uppercase tracking-wide text-gray-500 dark:text-gray-400">
+                                        Account Number
+                                    </label>
+                                    <input
+                                        type="tel"
+                                        inputMode="numeric"
+                                        maxLength={10}
+                                        value={form.account_number}
+                                        onChange={(e) => setForm((f) => ({ ...f, account_number: e.target.value.replace(/\D/g, '') }))}
+                                        placeholder="0123456789"
+                                        className="w-full rounded-xl border border-gray-200 bg-gray-50 px-4 py-3.5 font-mono text-lg font-medium text-gray-900 outline-none transition-all placeholder:text-gray-300 focus:border-app-primary focus:ring-2 focus:ring-app-primary/20 dark:border-gray-700 dark:bg-gray-800 dark:text-white dark:placeholder:text-gray-600"
+                                    />
+                                </div>
+
+                                <div>
+                                    <label className="mb-2 block text-xs font-bold uppercase tracking-wide text-gray-500 dark:text-gray-400">
+                                        Account Name
+                                    </label>
+                                    <div className="flex min-h-[52px] items-center gap-2 rounded-xl border border-gray-200 bg-gray-50 px-4 py-3 text-sm font-bold uppercase dark:border-gray-700 dark:bg-gray-800">
+                                        {lookUp.state === 'found' && (
+                                            <>
+                                                <BadgeCheck className="h-4 w-4 flex-shrink-0 text-green-500" />
+                                                <span className="text-gray-900 dark:text-white">{lookUp.name}</span>
+                                            </>
+                                        )}
+                                        {lookUp.state === 'checking' && <span className="font-medium normal-case text-gray-400">Checking with your bank…</span>}
+                                        {(lookUp.state === 'idle' || lookUp.state === 'error') && (
+                                            <span className="font-medium normal-case text-gray-400">Filled in by your bank</span>
+                                        )}
+                                    </div>
+                                </div>
+                            </div>
+                            ) : (
                             <div className="space-y-5">
                                 <div>
                                     <label className="mb-2 block text-xs font-bold uppercase tracking-wide text-gray-500 dark:text-gray-400">
@@ -283,9 +457,12 @@ export default function AccountBankAccounts() {
                                     />
                                 </div>
                             </div>
+                            )}
 
                             <p className="mt-5 text-xs text-gray-500 dark:text-gray-400">
-                                Account number must be exactly 10 digits. Names should match your bank record.
+                                {nameCheck
+                                    ? 'Your bank confirms the name, so your winnings can only go to the right account. Check it is yours before saving.'
+                                    : 'Account number must be exactly 10 digits. Names should match your bank record.'}
                             </p>
 
                             {formError && (
@@ -295,8 +472,8 @@ export default function AccountBankAccounts() {
                             )}
 
                             <button
-                                onClick={saveAccount}
-                                disabled={saving}
+                                onClick={nameCheck ? saveVerifiedAccount : saveAccount}
+                                disabled={saving || (nameCheck && lookUp.state !== 'found')}
                                 className="mt-8 flex w-full items-center justify-center gap-2 rounded-xl bg-app-primary py-3.5 font-bold text-white shadow-lg shadow-blue-500/30 transition-all active:scale-[0.98] disabled:opacity-60"
                             >
                                 {saving ? 'Saving…' : 'Save Account'}
