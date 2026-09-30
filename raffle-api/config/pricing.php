@@ -28,6 +28,10 @@ return [
         ['quantity' => 10, 'percent_off' => 45],
     ],
 
+    // Most tickets one order can hold, across every raffle. 0 = no limit.
+    // A raffle can set its own limit instead (Raffles -> the raffle -> Most tickets in one order).
+    'max_tickets_per_order' => 0,
+
     'above_quantity' => 10,
     'above_percent_off' => 50,
 

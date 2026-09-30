@@ -169,6 +169,12 @@ final class SettingsRegistry
                             new Setting('raffles.list_closed_for_days', 'Keep finished raffles on the list for (days)', 'int', 'After this they only appear in the Hall of Fame.', rules: ['required', 'integer', 'min:0', 'max:365']),
                         ],
                     ],
+                    'Order size' => [
+                        'description' => 'Stop very large orders. The limit is checked when someone chooses tickets AND again when they pay, so it cannot be skipped.',
+                        'settings' => [
+                            new Setting('pricing.max_tickets_per_order', 'Most tickets in one order', 'int', 'Across every raffle. 0 means no limit. A single raffle can set its own limit on its edit page.', rules: ['required', 'integer', 'min:0', 'max:100000']),
+                        ],
+                    ],
                     'Bulk discounts' => [
                         'description' => 'The preview at the bottom shows exactly what customers will pay.',
                         'settings' => [

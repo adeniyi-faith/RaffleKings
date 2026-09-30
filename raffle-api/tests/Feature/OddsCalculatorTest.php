@@ -225,4 +225,19 @@ class OddsCalculatorTest extends TestCase
         $this->assertStringNotContainsString('lose money', $text);
         $this->assertStringContainsString('no cash value', $text);
     }
+
+    public function test_one_in_for_any_prize_is_only_given_when_a_win_is_less_likely_than_not(): void
+    {
+        $tiers = [['name' => 'A', 'description' => null, 'value' => 1, 'winners' => 113]];
+        $calc = new OddsCalculator;
+
+        $one = $calc->forTiers($tiers, 1000, 1);   // 11.3%
+        $many = $calc->forTiers($tiers, 1000, 12); // about 76%
+        $all = $calc->forTiers($tiers, 1000, 50);  // 99%+
+
+        $this->assertSame(9, $one['any']['one_in']);
+        $this->assertNull($many['any']['one_in']);
+        $this->assertNull($all['any']['one_in']);
+        $this->assertSame('76%', $many['any']['percent']);
+    }
 }

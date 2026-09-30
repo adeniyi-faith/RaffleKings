@@ -187,6 +187,8 @@ class RaffleReadService
             'excerpt' => $raffle->excerpt,
             'price' => (float) $raffle->price,
             'max_tickets' => (int) $raffle->max_tickets,
+            // Most tickets one order can hold (null = no limit). See Raffle::orderLimit().
+            'max_per_order' => $raffle->orderLimit(),
             'sold_tickets' => $sold,
             'remaining_tickets' => max(0, $raffle->max_tickets - $sold),
             'grand_prize' => $raffle->grand_prize,
