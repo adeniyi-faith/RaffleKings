@@ -100,6 +100,12 @@ class ProvablyFairDrawService
     {
         $legacyRaffleId = $raffle->public_id; // the number every ticket and winner row uses (item 43)
 
+        // A cancelled raffle is never drawn, even while its refunds are
+        // still going out and some tickets remain.
+        if (Raffle::query()->whereKey($raffle->id)->value('cancelled_at')) {
+            throw new NoEligibleEntriesException($raffle->id, "Raffle #{$raffle->public_id} was cancelled and its tickets refunded, so it can't be drawn.");
+        }
+
         $draw = RaffleDraw::query()->where('raffle_id', $raffle->id)->first();
 
         if (! $draw) {

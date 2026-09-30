@@ -2,6 +2,8 @@
 
 namespace App\Filament\Pages\Auth;
 
+use App\Http\Middleware\AttachExtraCookies;
+use App\Models\Admin\LoginEvent;
 use App\Models\Legacy\WpUser;
 use App\Services\AdminAuditLogService;
 use App\Services\Auth\LoginService;
@@ -107,7 +109,7 @@ class AdminLogin extends Login
         }
 
         try {
-            $result = app(LoginService::class)->login(trim($data['login']), $data['password'], $request->ip(), $request->userAgent());
+            $result = app(LoginService::class)->login(trim($data['login']), $data['password'], $request->ip(), $request->userAgent(), place: 'admin', recordSuccess: false);
         } catch (ValidationException $e) {
             throw ValidationException::withMessages(['data.login' => collect($e->errors())->flatten()->first()]);
         }
@@ -116,6 +118,8 @@ class AdminLogin extends Login
         $user = $result['user'];
 
         if ($user->staffRole() === null) {
+            LoginEvent::record($user->ID, trim($data['login']), false, 'admin', 'not_staff');
+
             // Right password, but a customer account: don't sign them in here.
             $parts = explode('|', $result['cookie']['value']);
             if (! empty($parts[2])) {
@@ -128,12 +132,18 @@ class AdminLogin extends Login
         $cookies = app(WordPressCookieFactory::class);
         $name = app('wordpress.auth_cookie_name');
         Cookie::queue($cookies->make($name, $result['cookie']['value'], $result['cookie']['expiration']));
+
+        // NOT Cookie::queue: it keeps one cookie per name and path, so these
+        // same-named "delete the old copy" cookies used to replace the login
+        // cookie above, and sign-in just reloaded the page.
         foreach ($cookies->forgetLeftovers($name, $request->getHost()) as $leftover) {
-            Cookie::queue($leftover);
+            AttachExtraCookies::add($leftover);
         }
 
         Filament::auth()->setUser($user);
         session()->regenerate();
+
+        LoginEvent::record($user->ID, trim($data['login']), true, 'admin');
 
         app(AdminAuditLogService::class)->record($user, 'staff.signed_in', WpUser::class, $user->ID, [
             'ip' => $request->ip(),

@@ -3,6 +3,7 @@
 namespace App\Services\Auth;
 
 use App\Auth\WordPressAuthCookieIssuer;
+use App\Models\Admin\LoginEvent;
 use App\Models\Legacy\WpUser;
 use Illuminate\Validation\ValidationException;
 
@@ -20,12 +21,21 @@ class LoginService
         private readonly WordPressAuthCookieIssuer $cookieIssuer,
     ) {}
 
-    /** @return array{user: WpUser, cookie: array{value: string, expiration: int}} */
-    public function login(string $identifier, string $password, ?string $ip, ?string $userAgent): array
+    /**
+     * Every attempt is recorded (App\Models\Admin\LoginEvent): the
+     * customer timeline and Staff activity show them. $place says where
+     * (site | admin); $recordSuccess = false lets the admin sign-in record
+     * the outcome itself, since a right password can still be refused there.
+     *
+     * @return array{user: WpUser, cookie: array{value: string, expiration: int}}
+     */
+    public function login(string $identifier, string $password, ?string $ip, ?string $userAgent, string $place = 'site', bool $recordSuccess = true): array
     {
         $user = WpUser::where('user_login', $identifier)->orWhere('user_email', $identifier)->first();
 
         if (! $user || ! $this->hasher->check($password, $user->getAuthPassword())) {
+            LoginEvent::record($user?->ID, $identifier, false, $place, 'wrong_password');
+
             throw ValidationException::withMessages(['password' => 'Incorrect username or password.']);
         }
 
@@ -34,10 +44,16 @@ class LoginService
         }
 
         if ($user->isBanned()) {
+            LoginEvent::record($user->ID, $identifier, false, $place, 'banned');
+
             throw ValidationException::withMessages(['password' => 'This account has been suspended.']);
         }
 
         $cookie = $this->cookieIssuer->issue($user, ttlSeconds: 14 * 24 * 60 * 60, ip: $ip, userAgent: $userAgent);
+
+        if ($recordSuccess) {
+            LoginEvent::record($user->ID, $identifier, true, $place);
+        }
 
         return ['user' => $user, 'cookie' => $cookie];
     }
