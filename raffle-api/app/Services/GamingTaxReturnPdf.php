@@ -54,6 +54,12 @@ class GamingTaxReturnPdf
 
     public function render(string $period): string
     {
+        // The PDF maker reads its fonts through PHP's "mbstring" extension. Without it the PDF cannot be made
+        // (the built-in stand-in cannot read font files), so say exactly what to switch on.
+        if (! extension_loaded('mbstring')) {
+            throw new \RuntimeException("PHP's mbstring extension is off on this server. In cPanel open Select PHP Version, tick mbstring, and save.");
+        }
+
         $dir = $this->workDir();
         $html = $this->html($period);
 
