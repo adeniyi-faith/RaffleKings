@@ -334,6 +334,7 @@ class GamingTaxService
                 'status' => 'locked', 'locked_at' => now(), 'locked_by' => $admin->ID,
             ]);
 
+            GamingTaxReminders::forgetBadge();
             $this->audit->record($admin, 'gaming_tax.locked', GamingTaxPeriod::class, $record->id, [
                 'period' => $period, 'sales' => $record->sales, 'refunds' => $record->refunds, 'prizes' => $record->prizes,
                 'taxable' => $record->taxable, 'rate' => $record->rate, 'shortfall_rule' => $record->shortfall_rule, 'tax_due' => $record->tax_due,
@@ -370,6 +371,7 @@ class GamingTaxService
             throw new RuntimeException('Say why you are reopening it.');
         }
 
+        GamingTaxReminders::forgetBadge();
         $this->audit->record($admin, 'gaming_tax.reopened', GamingTaxPeriod::class, $record->id, ['period' => $period, 'reason' => $reason, 'tax_due_was' => $record->tax_due]);
         $record->delete();
     }
@@ -384,6 +386,7 @@ class GamingTaxService
         }
 
         $record->update(['status' => 'filed', 'filed_at' => $filedOn ?? now(), 'filed_by' => $admin->ID, 'filing_reference' => trim($reference) ?: null]);
+        GamingTaxReminders::forgetBadge();
         $this->audit->record($admin, 'gaming_tax.filed', GamingTaxPeriod::class, $record->id, ['period' => $period, 'reference' => $record->filing_reference]);
 
         return $record;
@@ -403,6 +406,7 @@ class GamingTaxService
         }
 
         $record->update(['status' => 'paid', 'paid_at' => $paidOn ?? now(), 'paid_by' => $admin->ID, 'paid_amount' => round($amount, 2), 'payment_reference' => trim($reference) ?: null]);
+        GamingTaxReminders::forgetBadge();
         $this->audit->record($admin, 'gaming_tax.paid', GamingTaxPeriod::class, $record->id, [
             'period' => $period, 'amount' => round($amount, 2), 'tax_due' => $record->tax_due, 'reference' => $record->payment_reference,
         ]);

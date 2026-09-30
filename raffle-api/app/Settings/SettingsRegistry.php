@@ -128,6 +128,10 @@ final class SettingsRegistry
                             new Setting('gaming_tax.rate', 'Tax rate', 'percent', 'In percent. Confirm the right rate with your accountant.', rules: ['required', 'numeric', 'min:0', 'max:100']),
                             new Setting('gaming_tax.shortfall', 'If prizes were worth more than sales in a month', 'select', 'Zero: that month owes no tax and the shortfall is forgotten. Carry forward: the shortfall is taken off the next month\'s taxable amount.', ['zero' => 'That month owes no tax (shortfall forgotten)', 'carry_forward' => 'Carry the shortfall into next month']),
                             new Setting('gaming_tax.due_day', 'Tax is due on this day of the next month', 'int', 'For the reminder on the Gaming tax page. Confirm the right day with your accountant.', rules: ['required', 'integer', 'min:1', 'max:28']),
+                            new Setting('gaming_tax.business_name', 'Business name on the return', 'text', 'Printed at the top of the PDF return. Leave empty to print the site name.', rules: ['nullable', 'max:120']),
+                            new Setting('gaming_tax.tax_id', 'Tax ID on the return', 'text', 'Your tax identification number, printed on the PDF return.', rules: ['nullable', 'max:60']),
+                            new Setting('gaming_tax.remind', 'Remind staff when a return is due', 'bool', 'Emails staff who handle payouts (and messages the staff Telegram chat if it is set up) before a month\'s tax is due, on the day, and when it is overdue.'),
+                            new Setting('gaming_tax.remind_days', 'Remind this many days before the due date', 'tags', 'Type a number of days and press Tab, e.g. 7, 3, 1. Staff are also reminded on the day, and every few days once it is overdue.'),
                         ],
                     ],
                 ],
@@ -155,9 +159,20 @@ final class SettingsRegistry
             'Raffles & pricing' => [
                 'icon' => 'heroicon-o-ticket',
                 'sections' => [
+                    'Raffle setup' => [
+                        'settings' => [
+                            new Setting('raffles.warn_prizes_exceed_sales', 'Warn me when a raffle\'s prizes are worth more than it can take in', 'bool', 'A heads-up on the raffle\'s prize levels table. It never stops you saving. Switch it off for planned loss-leader raffles.'),
+                        ],
+                    ],
                     'Raffle list' => [
                         'settings' => [
                             new Setting('raffles.list_closed_for_days', 'Keep finished raffles on the list for (days)', 'int', 'After this they only appear in the Hall of Fame.', rules: ['required', 'integer', 'min:0', 'max:365']),
+                        ],
+                    ],
+                    'Order size' => [
+                        'description' => 'Stop very large orders. The limit is checked when someone chooses tickets AND again when they pay, so it cannot be skipped.',
+                        'settings' => [
+                            new Setting('pricing.max_tickets_per_order', 'Most tickets in one order', 'int', 'Across every raffle. 0 means no limit. A single raffle can set its own limit on its edit page.', rules: ['required', 'integer', 'min:0', 'max:100000']),
                         ],
                     ],
                     'Bulk discounts' => [

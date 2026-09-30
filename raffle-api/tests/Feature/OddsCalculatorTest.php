@@ -212,4 +212,32 @@ class OddsCalculatorTest extends TestCase
             ->assertSee('Chance with 5 tickets')
             ->assertSee('80% of sales');
     }
+
+    public function test_the_lose_money_warning_can_be_switched_off_and_other_warnings_stay(): void
+    {
+        config(['raffles.warn_prizes_exceed_sales' => false]);
+        $raffle = $this->createRaffle(['public_id' => 25, 'price' => '100', 'max' => '100']);
+        RafflePrizeTier::create(['raffle_id' => $raffle->id, 'tier_name' => 'Big', 'cash_value' => 50000, 'winner_count' => 1, 'rank' => 1]);
+        RafflePrizeTier::create(['raffle_id' => $raffle->id, 'tier_name' => 'Phone', 'cash_value' => 0, 'winner_count' => 1, 'rank' => 2]);
+
+        $text = implode(' ', (new OddsCalculator)->setupSummary($raffle->load('prizeTiers'))['warnings']);
+
+        $this->assertStringNotContainsString('lose money', $text);
+        $this->assertStringContainsString('no cash value', $text);
+    }
+
+    public function test_one_in_for_any_prize_is_only_given_when_a_win_is_less_likely_than_not(): void
+    {
+        $tiers = [['name' => 'A', 'description' => null, 'value' => 1, 'winners' => 113]];
+        $calc = new OddsCalculator;
+
+        $one = $calc->forTiers($tiers, 1000, 1);   // 11.3%
+        $many = $calc->forTiers($tiers, 1000, 12); // about 76%
+        $all = $calc->forTiers($tiers, 1000, 50);  // 99%+
+
+        $this->assertSame(9, $one['any']['one_in']);
+        $this->assertNull($many['any']['one_in']);
+        $this->assertNull($all['any']['one_in']);
+        $this->assertSame('76%', $many['any']['percent']);
+    }
 }

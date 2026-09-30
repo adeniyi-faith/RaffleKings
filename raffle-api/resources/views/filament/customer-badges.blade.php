@@ -11,12 +11,16 @@
         <ul class="grid gap-2 sm:grid-cols-2 xl:grid-cols-3">
             @foreach ($earned as $badge)
                 <li class="flex items-center gap-3 rounded-xl border border-gray-200 bg-white px-3 py-2 dark:border-white/10 dark:bg-white/5">
-                    <span class="text-2xl leading-none" aria-hidden="true">{{ $badge['emoji'] }}</span>
+                    <span class="flex h-9 w-9 flex-none items-center justify-center rounded-lg bg-primary-50 text-primary-600 dark:bg-primary-500/10 dark:text-primary-400">
+                        <x-filament::icon icon="heroicon-o-trophy" class="h-5 w-5" />
+                    </span>
                     <span class="min-w-0">
-                        <span class="block truncate text-sm font-semibold text-gray-950 dark:text-white">
+                        <span class="flex items-center gap-1.5 truncate text-sm font-semibold text-gray-950 dark:text-white">
                             {{ $badge['name'] }}
                             @if ($badge['pinned'])
-                                <span class="ml-1 text-xs font-medium text-primary-600 dark:text-primary-400" title="Pinned to their profile">📌 pinned</span>
+                                <span class="inline-flex items-center gap-0.5 text-xs font-medium text-primary-600 dark:text-primary-400" title="Pinned to their profile">
+                                    <x-filament::icon icon="heroicon-m-bookmark" class="h-3.5 w-3.5" /> Pinned
+                                </span>
                             @endif
                         </span>
                         <span class="block text-xs text-gray-500 dark:text-gray-400">
@@ -31,10 +35,10 @@
     @if ($locked->isNotEmpty())
         <details class="text-sm text-gray-500 dark:text-gray-400">
             <summary class="cursor-pointer select-none">Not earned yet ({{ $locked->count() }})</summary>
-            <ul class="mt-2 grid gap-1 sm:grid-cols-2">
+            <ul class="mt-2 grid gap-1.5 sm:grid-cols-2">
                 @foreach ($locked as $badge)
-                    <li class="flex items-center gap-2 opacity-70">
-                        <span aria-hidden="true">{{ $badge['emoji'] }}</span>
+                    <li class="flex items-center gap-2">
+                        <x-filament::icon icon="heroicon-o-lock-closed" class="h-4 w-4 flex-none opacity-60" />
                         <span>{{ $badge['name'] }} <span class="text-xs">· {{ $badge['description'] }}</span></span>
                     </li>
                 @endforeach
