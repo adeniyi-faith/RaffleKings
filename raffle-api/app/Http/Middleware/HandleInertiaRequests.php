@@ -8,6 +8,7 @@ use App\Models\Legacy\WpUser;
 use App\Models\UserPoints;
 use App\Models\Wallet;
 use App\Services\Auth\TurnstileVerifier;
+use App\Services\Admin\Impersonation;
 use App\Services\Analytics\EventCatalog;
 use App\Services\DailyClaimService;
 use App\Services\Maintenance;
@@ -78,9 +79,17 @@ class HandleInertiaRequests extends Middleware
                         && ! app(DailyClaimService::class)->state($user)['is_claimed_today'],
                 ] : null,
             ],
+            // An owner viewing the site as a customer (App\Services\Admin\Impersonation):
+            // the banner with the Stop button. Null for everyone else.
+            'impersonating' => fn () => ($view = Impersonation::current($request)) && $user ? [
+                'name' => $user->display_name ?: $user->user_login,
+                'expires_at' => \Illuminate\Support\Carbon::createFromTimestamp($view['expires_at'])->toIso8601String(),
+                'seconds_left' => max(0, $view['expires_at'] - now()->getTimestamp()),
+            ] : null,
             // Product analytics (Settings → Analytics). No key = the browser
-            // never loads PostHog at all.
-            'analytics' => fn () => filled(config('services.posthog.project_key')) || filled(config('services.google_analytics.measurement_id')) ? [
+            // never loads PostHog at all. Never while an owner is viewing as a
+            // customer, so their visit isn't counted as the customer's own.
+            'analytics' => fn () => Impersonation::current($request) ? null : (filled(config('services.posthog.project_key')) || filled(config('services.google_analytics.measurement_id')) ? [
                 'key' => config('services.posthog.project_key') ?: null,
                 'host' => config('services.posthog.host'),
                 'recordings' => (bool) config('services.posthog.recordings'),
@@ -91,7 +100,7 @@ class HandleInertiaRequests extends Middleware
                     'required' => (bool) config('services.analytics.require_consent'),
                     'message' => config('services.analytics.consent_message'),
                 ],
-            ] : null,
+            ] : null),
             // Admin-editable (Settings page): contact details, links, the
             // on/off switches and the numbers pages show customers.
             'site' => fn () => [

@@ -13,6 +13,7 @@ use App\Services\AdminAuditLogService;
 use App\Services\Auth\PasswordResetService;
 use App\Services\Auth\WordPressPasswordHasher;
 use App\Services\Engagement\BadgeService;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Notification;
 use Illuminate\Support\Facades\RateLimiter;
 use RuntimeException;
@@ -216,6 +217,72 @@ class CustomerSupportTools
         }
 
         $this->audit->record($admin, 'customer.badge_removed', WpUser::class, $target->ID, ['badge' => $badge]);
+    }
+
+    // ---- Free perks -------------------------------------------------------
+
+    /** The most that can be added or taken in one go, so a typo can't hand out thousands. */
+    public const MAX_PERK_CHANGE = 100;
+
+    /**
+     * Adds to or takes from a customer's free spins and free bonus-entry tokens.
+     * A positive number gives, a negative number takes back. Never goes below zero.
+     *
+     * @return array{free_spins: array{from: int, to: int}, bonus_entry_tokens: array{from: int, to: int}}
+     *
+     * @throws RuntimeException
+     */
+    public function adjustPerks(WpUser $admin, WpUser $target, int $freeSpins, int $bonusTokens, string $reason, bool $tellCustomer = true): array
+    {
+        $reason = trim($reason);
+
+        if ($freeSpins === 0 && $bonusTokens === 0) {
+            throw new RuntimeException('Enter how many to give or take back.');
+        }
+
+        if (abs($freeSpins) > self::MAX_PERK_CHANGE || abs($bonusTokens) > self::MAX_PERK_CHANGE) {
+            throw new RuntimeException('At most '.self::MAX_PERK_CHANGE.' at a time.');
+        }
+
+        if ($reason === '') {
+            throw new RuntimeException('Say why (it is kept in the audit log).');
+        }
+
+        $result = DB::transaction(function () use ($target, $freeSpins, $bonusTokens) {
+            $row = UserEngagement::lockFor($target->ID);
+            $before = ['free_spins' => (int) $row->free_spins, 'bonus_entry_tokens' => (int) $row->bonus_entry_tokens];
+            $after = ['free_spins' => $before['free_spins'] + $freeSpins, 'bonus_entry_tokens' => $before['bonus_entry_tokens'] + $bonusTokens];
+
+            if ($after['free_spins'] < 0 || $after['bonus_entry_tokens'] < 0) {
+                throw new RuntimeException('They only have '.$before['free_spins'].' free spin(s) and '.$before['bonus_entry_tokens'].' bonus token(s), so you can\'t take back more than that.');
+            }
+
+            $row->update($after);
+
+            return [
+                'free_spins' => ['from' => $before['free_spins'], 'to' => $after['free_spins']],
+                'bonus_entry_tokens' => ['from' => $before['bonus_entry_tokens'], 'to' => $after['bonus_entry_tokens']],
+            ];
+        });
+
+        $this->audit->record($admin, 'customer.perks_adjusted', WpUser::class, $target->ID, ['reason' => $reason, 'changes' => $result]);
+
+        if ($tellCustomer && ($freeSpins > 0 || $bonusTokens > 0)) {
+            $gifts = array_filter([
+                $freeSpins > 0 ? $freeSpins.' free spin'.($freeSpins === 1 ? '' : 's') : null,
+                $bonusTokens > 0 ? $bonusTokens.' free bonus entr'.($bonusTokens === 1 ? 'y' : 'ies') : null,
+            ]);
+
+            CustomerMessage::create([
+                'user_id' => $target->ID,
+                'kind' => 'reward',
+                'title' => 'A gift from RaffleKings',
+                'body' => 'We added '.implode(' and ', $gifts).' to your account.',
+                'created_at' => now(),
+            ]);
+        }
+
+        return $result;
     }
 
     // ---- Internals --------------------------------------------------------
