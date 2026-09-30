@@ -488,6 +488,49 @@ final class SettingsRegistry
                 ],
             ],
 
+            'Backups & status' => [
+                'icon' => 'heroicon-o-circle-stack',
+                'sections' => [
+                    'Nightly database backup' => [
+                        'description' => 'A full copy of the database every night, kept on the server (storage/app/backups, never reachable from the web). System → Health shows the last backup and whether it was proven to restore. A failure is sent to your staff Telegram.',
+                        'settings' => [
+                            new Setting('backups.enabled', 'Back up every night', 'bool'),
+                            new Setting('backups.hour', 'At this hour (0-23, business time zone)', 'int', 'Pick a quiet hour.', rules: ['required', 'integer', 'min:0', 'max:23']),
+                            new Setting('backups.keep_days', 'Keep backups for (days)', 'int', rules: ['required', 'integer', 'min:1', 'max:90']),
+                            new Setting('backups.send_to_telegram', 'Also send each backup to the staff Telegram chat', 'bool', 'An off-site copy, so the data survives even if the server is lost. Only files up to 45 MB; bigger ones stay on the server and you get a message. Keep the Telegram group private: the file holds customer data.'),
+                        ],
+                    ],
+                    'Practice restore (proves the backup works)' => [
+                        'description' => 'About 40 minutes after each backup, the copy is loaded into a SEPARATE, EMPTY database and every table\'s rows are counted against the original. In cPanel → MySQL Databases: create a new database (e.g. yourname_restoretest), a new user, and give that user ALL PRIVILEGES on it. Everything in that database is wiped each night, so never use a real one. Leave the host empty to use the same server as the live database.',
+                        'settings' => [
+                            new Setting('backups.restore.database', 'Practice database name', 'text', placeholder: 'yourname_restoretest'),
+                            new Setting('backups.restore.username', 'Its username', 'text'),
+                            new Setting('backups.restore.password', 'Its password', 'secret'),
+                            new Setting('backups.restore.host', 'Its host (usually empty)', 'text', placeholder: 'localhost'),
+                        ],
+                    ],
+                    'Uptime alerts' => [
+                        'description' => 'Two free outside checks, because a site can\'t report that it is down. (1) At uptimerobot.com, add an HTTP monitor for '.rtrim((string) config('app.url'), '/').'/up and it emails or texts you within minutes of the site going down. (2) At healthchecks.io (or Better Stack), create a check with a 5-minute period and paste its ping URL below; the site pings it every 5 minutes, and you are alerted when the pings stop (site down OR the cPanel cron job stopped). Sentry (Alerts & push) catches errors.',
+                        'settings' => [
+                            new Setting('monitoring.heartbeat_url', 'Heartbeat ping URL', 'url', placeholder: 'https://hc-ping.com/…'),
+                        ],
+                    ],
+                    'Status message for customers' => [
+                        'description' => 'Shown on the public /status page (switch it on in On / off → New features), which also lists live which parts of the site are working or paused. Set it back to "All good" when the problem is over.',
+                        'settings' => [
+                            new Setting('status.level', 'How things are', 'select', null, [
+                                'ok' => 'All good (no message)',
+                                'info' => 'Just so you know (blue)',
+                                'degraded' => 'Some things are slow or not working (amber)',
+                                'outage' => 'Major problem (red)',
+                            ]),
+                            new Setting('status.message', 'Message', 'textarea', 'e.g. "Top-ups by card are slow because of a Paystack problem. Your money is safe; payments will show within an hour."', rules: ['nullable', 'max:400']),
+                            new Setting('status.banner', 'Also show it as a banner on every page', 'bool'),
+                        ],
+                    ],
+                ],
+            ],
+
             'Security' => [
                 'icon' => 'heroicon-o-shield-check',
                 'sections' => [
