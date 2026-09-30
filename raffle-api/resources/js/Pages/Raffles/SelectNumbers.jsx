@@ -5,13 +5,19 @@ import { useTicketPriceQuote } from '../../hooks/useTicketPriceQuote';
 import { formatNaira } from '../../lib/format';
 import { echoOrNull } from '../../lib/echo';
 import { track } from '../../lib/analytics';
+import { guestToken, holdNumbers } from '../../lib/numberHolds';
 
-export default function SelectNumbers({ raffle, qty, takenNumbers, maxTickets, preselected = [] }) {
+export default function SelectNumbers({ raffle, qty, takenNumbers, heldNumbers = [], maxTickets, preselected = [] }) {
     const [selected, setSelected] = useState(preselected);
     const [taken, setTaken] = useState(takenNumbers);
+    // Numbers another player is holding for a few minutes (not sold yet). A guest's
+    // own holds are filtered out by the first refresh below, which sends their token.
+    const [held, setHeld] = useState(heldNumbers);
+    const [confirming, setConfirming] = useState(false);
     const [notice, setNotice] = useState(null);
     const noticeTimer = useRef(null);
     const takenSet = useMemo(() => new Set(taken), [taken]);
+    const heldSet = useMemo(() => new Set(held), [held]);
     const { quote } = useTicketPriceQuote(raffle.id, qty);
 
     const numbers = useMemo(() => Array.from({ length: maxTickets }, (_, i) => i + 1), [maxTickets]);
@@ -51,12 +57,40 @@ export default function SelectNumbers({ raffle, qty, takenNumbers, maxTickets, p
             });
         }
 
+        function syncHeld(heldByOthers) {
+            const heldNow = (heldByOthers || []).map(Number);
+            setHeld(heldNow);
+            setSelected((prev) => {
+                const lost = prev.filter((n) => heldNow.includes(n));
+
+                if (lost.length) {
+                    flash(
+                        lost.length === 1
+                            ? `Number ${lost[0]} is being held by another player right now. Please pick another.`
+                            : `Numbers ${lost.join(', ')} are being held by other players right now. Please pick others.`,
+                    );
+                }
+
+                return prev.filter((n) => ! heldNow.includes(n));
+            });
+        }
+
         function refetch() {
-            fetch(`/api/raffles/${raffle.id}/tickets`, { headers: { Accept: 'application/json' } })
+            fetch(`/api/raffles/${raffle.id}/tickets`, {
+                credentials: 'same-origin',
+                headers: { Accept: 'application/json', 'X-Guest-Token': guestToken() },
+            })
                 .then((res) => (res.ok ? res.json() : null))
-                .then((data) => data && markTaken(data.taken_numbers))
+                .then((data) => {
+                    if (data) {
+                        markTaken(data.taken_numbers);
+                        syncHeld(data.held_numbers);
+                    }
+                })
                 .catch(() => {});
         }
+
+        refetch();
 
         const echo = echoOrNull();
         const interval = setInterval(refetch, echo ? 60000 : 10000);
@@ -74,6 +108,11 @@ export default function SelectNumbers({ raffle, qty, takenNumbers, maxTickets, p
     function toggle(n) {
         if (takenSet.has(n)) {
             flash(`Number ${n} is already taken.`);
+            return;
+        }
+
+        if (heldSet.has(n)) {
+            flash(`Number ${n} is being held by another player right now. It may be free again in a few minutes.`);
             return;
         }
 
@@ -96,7 +135,7 @@ export default function SelectNumbers({ raffle, qty, takenNumbers, maxTickets, p
     }
 
     function quickPick() {
-        const available = numbers.filter((n) => ! takenSet.has(n));
+        const available = numbers.filter((n) => ! takenSet.has(n) && ! heldSet.has(n));
 
         for (let i = available.length - 1; i > 0; i--) {
             const j = Math.floor(Math.random() * (i + 1));
@@ -110,7 +149,32 @@ export default function SelectNumbers({ raffle, qty, takenNumbers, maxTickets, p
         setSelected([]);
     }
 
-    function confirm() {
+    async function confirm() {
+        if (confirming) {
+            return;
+        }
+
+        setConfirming(true);
+
+        // Hold the numbers for a few minutes so nobody else can pay for them while
+        // this player signs in and pays. If someone got there first, say so now.
+        const result = await holdNumbers(raffle.id, selected);
+
+        if (result.status === 'unavailable') {
+            const gone = result.unavailable;
+            setTaken((prev) => Array.from(new Set([...prev, ...result.sold])));
+            setHeld((prev) => Array.from(new Set([...prev, ...result.held])));
+            setSelected((prev) => prev.filter((n) => ! gone.includes(n)));
+            flash(
+                gone.length === 1
+                    ? `Number ${gone[0]} was just taken. Please pick another.`
+                    : `Numbers ${gone.join(', ')} were just taken. Please pick others.`,
+            );
+            setConfirming(false);
+            return;
+        }
+
+        // (If the server could not be reached we carry on; checkout tries again.)
         const params = new URLSearchParams({
             raffle_id: raffle.id,
             qty: String(qty),
@@ -118,7 +182,7 @@ export default function SelectNumbers({ raffle, qty, takenNumbers, maxTickets, p
         });
 
         track('checkout_started', { raffle_id: raffle.id, ticket_count: selected.length });
-        router.visit(`/checkout?${params}`);
+        router.visit(`/checkout?${params}`, { onFinish: () => setConfirming(false) });
     }
 
     const remaining = qty - selected.length;
@@ -176,23 +240,29 @@ export default function SelectNumbers({ raffle, qty, takenNumbers, maxTickets, p
                     <span className="flex items-center gap-1.5">
                         <span className="h-3 w-3 rounded border border-red-200 bg-red-50 dark:border-red-900 dark:bg-red-900/20" /> Sold
                     </span>
+                    <span className="flex items-center gap-1.5">
+                        <span className="h-3 w-3 rounded border border-amber-300 bg-amber-50 dark:border-amber-700 dark:bg-amber-900/20" /> Held
+                    </span>
                 </div>
 
                 <div className="mx-auto grid max-w-lg grid-cols-5 gap-2 p-3 pb-32">
                     {numbers.map((n) => {
                         const isTaken = takenSet.has(n);
+                        const isHeld = ! isTaken && heldSet.has(n);
                         const isSelected = selected.includes(n);
 
                         return (
                             <button
                                 key={n}
                                 onClick={() => toggle(n)}
-                                disabled={isTaken}
+                                disabled={isTaken || isHeld}
                                 className={[
                                     'relative flex h-12 w-full select-none items-center justify-center rounded-xl text-sm font-bold transition-all active:scale-90',
                                     isTaken
                                         ? 'cursor-not-allowed border border-red-200 bg-red-50 text-red-400 dark:border-red-900 dark:bg-red-900/20 dark:text-red-400'
-                                        : isSelected
+                                        : isHeld
+                                          ? 'cursor-not-allowed border border-amber-300 bg-amber-50 text-amber-500 dark:border-amber-700 dark:bg-amber-900/20 dark:text-amber-400'
+                                          : isSelected
                                           ? 'scale-105 transform border-yellow-500 bg-yellow-400 text-lg text-gray-900 shadow-lg shadow-yellow-200/50 ring-2 ring-yellow-400 ring-offset-1'
                                           : 'border border-gray-200 bg-gray-50 text-gray-500 hover:bg-gray-100 dark:border-dark-border dark:bg-dark-card dark:text-gray-400 dark:hover:bg-gray-800',
                                 ].join(' ')}
@@ -201,6 +271,11 @@ export default function SelectNumbers({ raffle, qty, takenNumbers, maxTickets, p
                                 {isTaken && (
                                     <span className="absolute bottom-0.5 left-1/2 -translate-x-1/2 text-[8px] font-extrabold tracking-wide text-red-300">
                                         SOLD
+                                    </span>
+                                )}
+                                {isHeld && (
+                                    <span className="absolute bottom-0.5 left-1/2 -translate-x-1/2 text-[8px] font-extrabold tracking-wide text-amber-400">
+                                        HELD
                                     </span>
                                 )}
                             </button>
@@ -222,9 +297,10 @@ export default function SelectNumbers({ raffle, qty, takenNumbers, maxTickets, p
                         </div>
                         <button
                             onClick={confirm}
-                            className="flex items-center gap-2 rounded-xl bg-white px-6 py-3 text-sm font-bold text-gray-900 shadow-lg transition-transform active:scale-95 dark:bg-app-primary dark:text-white"
+                            disabled={confirming}
+                            className="flex items-center gap-2 rounded-xl bg-white px-6 py-3 text-sm font-bold text-gray-900 shadow-lg transition-transform active:scale-95 disabled:opacity-60 dark:bg-app-primary dark:text-white"
                         >
-                            Checkout Now <ArrowRight className="h-4 w-4" />
+                            {confirming ? 'Holding your numbers…' : <>Checkout Now <ArrowRight className="h-4 w-4" /></>}
                         </button>
                     </div>
                 </div>

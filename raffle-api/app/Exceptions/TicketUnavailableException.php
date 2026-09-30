@@ -14,11 +14,17 @@ use RuntimeException;
  */
 class TicketUnavailableException extends RuntimeException
 {
-    /** @param  int[]  $unavailableNumbers */
-    public function __construct(public readonly array $unavailableNumbers)
+    /**
+     * @param  int[]  $unavailableNumbers
+     * @param  bool  $held  true when the numbers are not sold but another player is holding
+     *                      them right now (App\Services\NumberHoldService)
+     */
+    public function __construct(public readonly array $unavailableNumbers, public readonly bool $held = false)
     {
         parent::__construct(
-            'Ticket number(s) no longer available: '.implode(', ', $unavailableNumbers)
+            $held
+                ? 'Another player is holding ticket number(s) '.implode(', ', $unavailableNumbers).' right now.'
+                : 'Ticket number(s) no longer available: '.implode(', ', $unavailableNumbers)
         );
     }
 }

@@ -4,9 +4,11 @@ namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
 use App\Models\Legacy\RaffleEntry;
+use App\Services\NumberHoldService;
 use App\Services\RaffleReadService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Auth;
 
 /**
  * Public raffle-listing/detail endpoints — no auth required, same as the
@@ -14,7 +16,10 @@ use Illuminate\Http\Request;
  */
 class RaffleController extends Controller
 {
-    public function __construct(private readonly RaffleReadService $raffles) {}
+    public function __construct(
+        private readonly RaffleReadService $raffles,
+        private readonly NumberHoldService $holds,
+    ) {}
 
     /**
      * Item 24: search/prize_type/price filters and sort, replacing the
@@ -45,7 +50,7 @@ class RaffleController extends Controller
      * public, since knowing which numbers are gone doesn't require being
      * logged in, the same way seeing the raffle itself doesn't.
      */
-    public function tickets(int $raffle): JsonResponse
+    public function tickets(Request $request, int $raffle): JsonResponse
     {
         $found = $this->raffles->find($raffle);
 
@@ -58,6 +63,13 @@ class RaffleController extends Controller
         return response()->json([
             'max_tickets' => $found['max_tickets'],
             'taken_numbers' => $taken,
+            // Not sold, but another player is holding them for a few minutes.
+            // The caller's own held numbers are left out (they can still use them).
+            'held_numbers' => $this->holds->heldByOthers(
+                $raffle,
+                Auth::guard('wordpress')->id() ? (int) Auth::guard('wordpress')->id() : null,
+                $request->header('X-Guest-Token'),
+            ),
         ]);
     }
 }

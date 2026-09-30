@@ -25,6 +25,7 @@ use App\Http\Controllers\Api\MessageController;
 use App\Http\Controllers\Api\PaymentWebhookController;
 use App\Http\Controllers\Api\ProfileController;
 use App\Http\Controllers\Api\PushDeviceController;
+use App\Http\Controllers\Api\NumberHoldController;
 use App\Http\Controllers\Api\RaffleController;
 use App\Http\Controllers\Api\ReferralController;
 use App\Http\Controllers\Api\RewardsController;
@@ -52,6 +53,11 @@ Route::get('/raffles/{raffle}', [RaffleController::class, 'show']);
 
 // Public — the taken ticket numbers for the number-selection grid (item 25).
 Route::get('/raffles/{raffle}/tickets', [RaffleController::class, 'tickets']);
+
+// Public — hold picked numbers for a few minutes while the player signs in
+// and pays (guests included, by a token their browser keeps).
+Route::post('/raffles/{raffle}/holds', [NumberHoldController::class, 'store'])->middleware('throttle:30,1');
+Route::delete('/raffles/{raffle}/holds', [NumberHoldController::class, 'destroy'])->middleware('throttle:30,1');
 
 // Public — a server-computed price quote, so the frontend never has to
 // duplicate TicketPricingService's formula by hand (audit TD-20).
