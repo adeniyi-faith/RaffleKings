@@ -28,4 +28,9 @@ return [
     // phone browsers and add-ons produce a lot of harmless noise.
     'browser_error_alerts' => (bool) env('ERROR_ALERTS_BROWSER', false),
 
+    // Uptime heartbeat: a URL from an outside monitor (healthchecks.io,
+    // Better Stack…) pinged every 5 minutes by the scheduler. When the
+    // pings stop, that service alerts you. Empty = off.
+    'heartbeat_url' => env('HEARTBEAT_URL'),
+
 ];

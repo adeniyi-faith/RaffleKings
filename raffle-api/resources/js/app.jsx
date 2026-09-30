@@ -3,6 +3,7 @@ import { createRoot } from 'react-dom/client';
 import { createInertiaApp } from '@inertiajs/react';
 import SiteNotices from './Components/layout/SiteNotices';
 import MaintenanceBanner from './Components/layout/MaintenanceBanner';
+import StatusBanner from './Components/layout/StatusBanner';
 import CookieBanner from './Components/layout/CookieBanner';
 // Starts tracking pages visited, for the Back buttons (lib/nav.js).
 import './lib/nav';
@@ -33,6 +34,8 @@ createInertiaApp({
                         <>
                             {/* Maintenance warnings (Settings → On / off). */}
                             <MaintenanceBanner />
+                            {/* The staff's status message (Settings → Backups & status). */}
+                            <StatusBanner />
                             <Component key={key} {...pageProps} />
                             {/* Asks first-time visitors about analytics (Settings → Consent & privacy). */}
                             <CookieBanner />

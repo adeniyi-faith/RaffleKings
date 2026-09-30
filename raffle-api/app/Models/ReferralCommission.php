@@ -14,6 +14,9 @@ class ReferralCommission extends Model
         'commission_amount',
         'commission_rate',
         'deposit_transaction_id',
+        // Multi-account protection: paid | held (waiting for staff) | cancelled.
+        'status',
+        'hold_reason',
     ];
 
     protected $casts = [

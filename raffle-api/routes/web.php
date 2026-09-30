@@ -14,6 +14,9 @@ use App\Services\Engagement\FreeSpinGifts;
 use App\Services\Engagement\Perks;
 use App\Services\Engagement\PlayerProfiles;
 use App\Services\GoldenBoxService;
+use App\Services\Growth\AffiliateService;
+use App\Services\Growth\PromoCodeService;
+use App\Services\Reminders\ReminderService;
 use App\Services\LiveDrawService;
 use App\Services\PointsService;
 use App\Services\RaffleReadService;
@@ -22,10 +25,12 @@ use App\Services\ReferralCommissionService;
 use App\Services\SpinService;
 use App\Services\TaskClaimService;
 use App\Services\TutorialReadService;
+use App\Support\Features;
 use App\Support\PageMeta;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Route;
+use Illuminate\Support\Facades\URL;
 use Inertia\Inertia;
 
 // Homepage (faithfully rebuilt to match the legacy index.php: hero
@@ -71,6 +76,10 @@ Route::get('/register', function (Request $request, RegistrationService $registr
         'turnstileSiteKey' => app(TurnstileVerifier::class)->enabled('register') ? config('services.turnstile.site_key') : null,
         'referralCode' => $code,
         'referrerName' => $referrerName,
+        // Promo codes (Settings → On / off → New features): the box only
+        // shows while they're on; ?promo=CODE links fill it in.
+        'promoEnabled' => Features::on('promo_codes'),
+        'promoCode' => Features::on('promo_codes') && is_string($request->query('promo')) ? PromoCodeService::normalise($request->query('promo')) : null,
         // Item 48: a guest sent here mid-purchase goes back there after
         // signing up (the page only follows a same-site path).
         'redirect' => is_string($request->query('redirect')) ? $request->query('redirect') : null,
@@ -189,12 +198,18 @@ Route::get('/checkout', function (Request $request, RaffleReadService $raffles) 
     // Item 46: remembered so a customer who leaves without paying can be
     // offered the Golden Box on the raffle list.
     app(GoldenBoxService::class)->rememberCheckout(Auth::guard('wordpress')->user(), $found, $numbers);
+    // Reminders: "you left tickets in checkout" (only while switched on).
+    app(ReminderService::class)->rememberCheckout(Auth::guard('wordpress')->user(), $found, $numbers);
 
     return Inertia::render('Checkout/Index', [
         'raffle' => $found,
         'qty' => $qty,
         'ticketNumbers' => $numbers,
         'minimumDeposit' => (float) config('payments.minimum_deposit'),
+        // Promo codes: the box shows only while they're on, and a discount
+        // code the customer got at sign-up is filled in for them.
+        'promoEnabled' => Features::on('promo_codes'),
+        'savedPromo' => Features::on('promo_codes') ? app(PromoCodeService::class)->savedCodeFor(Auth::guard('wordpress')->id()) : null,
     ]);
 });
 
@@ -438,3 +453,56 @@ if (app()->environment(['local', 'testing'])) {
         ]);
     });
 }
+
+// Affiliate links (Settings → On / off → New features): counts the click,
+// remembers the affiliate for 30 days, then opens sign-up (or the home
+// page for someone already logged in). A switched-off feature or unknown
+// link just opens the site.
+Route::get('/go/{code}', function (Request $request, string $code, AffiliateService $affiliates) {
+    $affiliate = $affiliates->findByCode($code);
+
+    if (! $affiliate) {
+        return redirect('/');
+    }
+
+    $affiliates->recordClick($affiliate);
+
+    return redirect(Auth::guard('wordpress')->check() ? '/' : '/register')
+        ->withCookie(cookie(AffiliateService::COOKIE, $affiliate->code, AffiliateService::COOKIE_DAYS * 24 * 60));
+})->middleware('throttle:60,1');
+
+// An affiliate's own earnings page. Hidden (404) while the feature is off
+// or for anyone who isn't an affiliate.
+Route::get('/affiliate', function (Request $request, AffiliateService $affiliates) use ($accountGuard) {
+    if ($redirect = $accountGuard($request)) {
+        return $redirect;
+    }
+
+    $affiliate = Features::on('affiliates')
+        ? \App\Models\Growth\Affiliate::query()->where('user_id', Auth::guard('wordpress')->id())->first()
+        : null;
+
+    abort_unless($affiliate, 404);
+
+    return Inertia::render('Affiliate/Dashboard', ['dashboard' => $affiliates->dashboard($affiliate)]);
+});
+
+// Public status page (Settings → On / off → New features): which parts of
+// the site work right now, and the staff's message. Open during maintenance.
+Route::get('/status', function (\App\Services\Monitoring\StatusBoard $status) {
+    abort_unless(Features::on('status_page'), 404);
+
+    return Inertia::render('Status', ['status' => $status->snapshot()]);
+});
+
+// Reminders: the "stop reminders" link in every reminder email. Signed, so
+// it works without logging in and can't be made for someone else.
+Route::get('/reminders/unsubscribe/{user}', function (Request $request, int $user) {
+    app(ReminderService::class)->setOptedOut($user, ! $request->boolean('undo'));
+
+    return Inertia::render('RemindersUnsubscribed', [
+        'stopped' => ! $request->boolean('undo'),
+        'undoUrl' => URL::signedRoute('reminders.unsubscribe', ['user' => $user, 'undo' => 1]),
+        'stopUrl' => URL::signedRoute('reminders.unsubscribe', ['user' => $user]),
+    ]);
+})->middleware('signed')->name('reminders.unsubscribe');

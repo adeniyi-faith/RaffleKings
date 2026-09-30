@@ -23,6 +23,7 @@ class PurchaseTicketsRequest extends FormRequest
             'funding_source' => ['required', 'string', 'in:wallet,earnings'],
             'idempotency_key' => ['required', 'string', 'min:8', 'max:191'],
             'use_winnings_for_shortfall' => ['sometimes', 'boolean'],
+            'promo_code' => ['nullable', 'string', 'max:40'],
         ];
     }
 }

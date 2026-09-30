@@ -25,6 +25,7 @@ import { HeartHandshake,
     Ticket,
     UserCog,
     Wallet,
+    Megaphone,
 } from 'lucide-react';
 import Header from '../../Components/layout/Header';
 import BottomNav from '../../Components/layout/BottomNav';
@@ -265,6 +266,12 @@ export default function Profile() {
                             <MenuGroup title="Help">
                                 <MenuLink href="/support?new=1" icon={PlusCircle} iconClass="bg-violet-50 text-violet-600 dark:bg-violet-900/30 dark:text-violet-400" title="Submit a support ticket" subtitle="Tell us what's wrong; we reply here and by email" />
                                 <MenuLink href="/support" icon={LifeBuoy} iconClass="bg-sky-50 text-sky-600 dark:bg-sky-900/30 dark:text-sky-400" title="My support tickets" subtitle="See replies and continue a conversation" last />
+                            </MenuGroup>
+                        )}
+
+                        {user?.is_affiliate && (
+                            <MenuGroup title="Affiliate">
+                                <MenuLink href="/affiliate" icon={Megaphone} iconClass="bg-emerald-50 text-emerald-600 dark:bg-emerald-900/30 dark:text-emerald-400" title="Affiliate dashboard" subtitle="Your link, sign-ups and earnings" last />
                             </MenuGroup>
                         )}
 

@@ -3,6 +3,7 @@
 namespace App\Http\Middleware;
 
 use App\Models\CustomerMessage;
+use App\Models\Growth\Affiliate;
 use App\Models\Legacy\WpUser;
 use App\Models\UserPoints;
 use App\Models\Wallet;
@@ -10,8 +11,10 @@ use App\Services\Auth\TurnstileVerifier;
 use App\Services\Analytics\EventCatalog;
 use App\Services\DailyClaimService;
 use App\Services\Maintenance;
+use App\Services\Monitoring\StatusBoard;
 use App\Services\PointsBoost;
 use App\Services\TicketPricingService;
+use App\Support\Features;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Inertia\Middleware;
@@ -69,6 +72,8 @@ class HandleInertiaRequests extends Middleware
                     'balances' => $this->balances($user),
                     // Today's daily reward is waiting: the red dot on the
                     // bottom nav's "My Rewards" (item 47).
+                    // Affiliates: a link to their dashboard on the profile page.
+                    'is_affiliate' => Features::on('affiliates') && Affiliate::query()->where('user_id', $user->ID)->exists(),
                     'reward_ready' => config('site.switches.daily_claim', true) !== false
                         && ! app(DailyClaimService::class)->state($user)['is_claimed_today'],
                 ] : null,
@@ -96,6 +101,10 @@ class HandleInertiaRequests extends Middleware
                 'links' => array_filter(config('site.links', [])),
                 'switches' => config('site.switches'),
                 'paused_message' => config('site.paused_message'),
+                // Settings → On / off → New features. Off = the page hides it.
+                'features' => Features::all(),
+                // Status message banner (Settings → Backups & status).
+                'status_banner' => Features::on('status_page') ? app(StatusBoard::class)->banner() : null,
                 // The analytics part of the Privacy Policy page (Settings → Consent & privacy).
                 'privacy' => [
                     'controller' => config('services.analytics.controller_name'),

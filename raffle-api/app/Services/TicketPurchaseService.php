@@ -13,6 +13,7 @@ use App\Models\Wallet;
 use App\Notifications\TicketPurchaseReceipt;
 use App\Services\Engagement\Perks;
 use App\Services\Engagement\Progress;
+use App\Services\Growth\PromoCodeService;
 use App\Support\Live;
 use Illuminate\Database\UniqueConstraintViolationException;
 use Illuminate\Support\Facades\DB;
@@ -54,6 +55,7 @@ class TicketPurchaseService
         private readonly WinningsTransferService $winnings,
         private readonly RaffleRulesService $rules,
         private readonly ResponsiblePlayService $play,
+        private readonly PromoCodeService $promos,
     ) {}
 
     /**
@@ -71,6 +73,10 @@ class TicketPurchaseService
      *                                            (checkout's "Use winnings to cover it"), in the
      *                                            same transaction as the purchase.
      *
+     * @param  string|null  $promoCode  A promo code typed at checkout (Settings → On / off → New
+     *                                  features). Its discount is worked out here, never trusted
+     *                                  from the request.
+     *
      * @throws InsufficientBalanceException
      * @throws TicketUnavailableException
      * @throws RaffleNotOnSaleException if the raffle is unknown, a draft, closed, ended or sold out
@@ -86,6 +92,7 @@ class TicketPurchaseService
         string $fundingSource,
         string $idempotencyKey,
         bool $coverShortfallFromWinnings = false,
+        ?string $promoCode = null,
     ): RaffleTransaction {
         if (! in_array($fundingSource, ['wallet', 'earnings'], true)) {
             throw new InvalidArgumentException("Unknown funding source: {$fundingSource}");
@@ -146,7 +153,25 @@ class TicketPurchaseService
             throw new InvalidArgumentException('Ticket numbers must be between 1 and '.$raffle['max_tickets'].'.');
         }
 
-        if (! $this->pricing->matchesExpectedPrice($submittedAmount, count($ticketNumbers), $unitPrice, $isGoldenBox)) {
+        // Promo code: its discount comes off the price after any bulk or
+        // Golden Box discount. An invalid code is refused outright rather
+        // than silently charging the full price.
+        $promo = null;
+        $promoDiscount = 0.0;
+
+        if (PromoCodeService::normalise($promoCode) !== '') {
+            ['promo' => $promo, 'discount' => $promoDiscount] = $this->promos->quote(
+                $user,
+                $promoCode,
+                $this->pricing->calculate(count($ticketNumbers), $unitPrice, $isGoldenBox),
+            );
+
+            $expected = round($this->pricing->calculate(count($ticketNumbers), $unitPrice, $isGoldenBox) - $promoDiscount, 2);
+
+            if (abs($submittedAmount - $expected) > 0.01) {
+                throw new InvalidArgumentException(sprintf('With your promo code the price is ₦%s. Please review your order before paying.', number_format($expected, 2)));
+            }
+        } elseif (! $this->pricing->matchesExpectedPrice($submittedAmount, count($ticketNumbers), $unitPrice, $isGoldenBox)) {
             if (! $isGoldenBox && $this->pricing->matchesExpectedPrice($submittedAmount, count($ticketNumbers), $unitPrice, true)
                 && ! $this->pricing->matchesExpectedPrice($submittedAmount, count($ticketNumbers), $unitPrice)) {
                 throw new InvalidArgumentException(sprintf(
@@ -169,7 +194,7 @@ class TicketPurchaseService
             $transaction = DB::transaction(function () use (
                 $user, $raffleId, $ticketNumbers, $submittedAmount,
                 $balanceColumn, $transactionType, $idempotencyKey, $fundingSource,
-                $coverShortfallFromWinnings, $goldenOffer
+                $coverShortfallFromWinnings, $goldenOffer, $promo, $promoDiscount
             ) {
                 // Lock this user's wallet row for the duration of the
                 // transaction — a concurrent purchase or transfer by the
@@ -239,6 +264,12 @@ class TicketPurchaseService
                     throw new InvalidArgumentException('Your Golden Box discount has ended. Please go back and review your order before paying.');
                 }
 
+                // Uses the promo code up; if its last use went a moment ago,
+                // everything above rolls back and nothing is charged.
+                if ($promo) {
+                    $this->promos->redeemInPurchase($promo, $user, $promoDiscount, $transaction->id);
+                }
+
                 return $transaction;
             });
 
@@ -256,6 +287,7 @@ class TicketPurchaseService
                 'amount' => round($submittedAmount, 2),
                 'funding_source' => $fundingSource,
                 'golden_box' => $isGoldenBox,
+                'promo_code' => $promo?->code,
             ]);
 
             return $transaction;

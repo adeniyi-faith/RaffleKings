@@ -5,6 +5,8 @@ namespace App\Services;
 use App\Models\Legacy\WpUser;
 use App\Models\ReferralCommission;
 use App\Models\Wallet;
+use App\Services\Risk\AbuseDetector;
+use App\Support\Features;
 use Illuminate\Support\Facades\DB;
 
 /**
@@ -71,6 +73,24 @@ class ReferralCommissionService
             return null;
         }
 
+        // Multi-account protection: a "friend" who looks like the referrer
+        // themselves (same bank account, phone or browser) doesn't pay out
+        // until staff check it on Fraud watch.
+        $suspicion = Features::on('abuse_detection') ? app(AbuseDetector::class)->linkBetween($referrer->ID, $referee->ID) : null;
+
+        if ($suspicion) {
+            return ReferralCommission::create([
+                'referrer_user_id' => $referrer->ID,
+                'referee_user_id' => $referee->ID,
+                'deposit_amount' => $depositAmount,
+                'commission_amount' => $commission,
+                'commission_rate' => $rate,
+                'deposit_transaction_id' => $depositTransactionId,
+                'status' => 'held',
+                'hold_reason' => mb_substr($suspicion, 0, 200),
+            ]);
+        }
+
         return DB::transaction(function () use ($referrer, $referee, $depositAmount, $commission, $rate, $depositTransactionId) {
             $wallet = Wallet::query()->where('user_id', $referrer->ID)->lockForUpdate()->first()
                 ?? Wallet::create(['user_id' => $referrer->ID, 'wallet_balance' => 0, 'earnings_balance' => 0]);
@@ -113,7 +133,8 @@ class ReferralCommissionService
             ->whereHas('meta', fn ($q) => $q->where('meta_key', 'referred_by')->where('meta_value', $referrer->ID))
             ->pluck('ID');
 
-        $paid = ReferralCommission::query()->whereIn('referee_user_id', $refereeIds)->get();
+        // A commission held by multi-account protection isn't paid (yet).
+        $paid = ReferralCommission::query()->whereIn('referee_user_id', $refereeIds)->where('status', 'paid')->get();
         $paidRefereeIds = $paid->pluck('referee_user_id');
 
         return [
@@ -122,5 +143,53 @@ class ReferralCommissionService
             'paid_count' => $paidRefereeIds->count(),
             'pending_count' => $refereeIds->count() - $paidRefereeIds->count(),
         ];
+    }
+
+    /**
+     * Staff checked a held commission (Fraud watch) and it's fine: pay it now.
+     *
+     * @return bool false if it was no longer held
+     */
+    public function releaseHeld(ReferralCommission $commission): bool
+    {
+        $paid = DB::transaction(function () use ($commission) {
+            $locked = ReferralCommission::query()->whereKey($commission->id)->lockForUpdate()->first();
+
+            if (! $locked || $locked->status !== 'held') {
+                return false;
+            }
+
+            $wallet = Wallet::query()->where('user_id', $locked->referrer_user_id)->lockForUpdate()->first()
+                ?? Wallet::create(['user_id' => $locked->referrer_user_id, 'wallet_balance' => 0, 'earnings_balance' => 0]);
+
+            $wallet->earnings_balance = (float) $wallet->earnings_balance + (float) $locked->commission_amount;
+            $wallet->save();
+
+            $this->ledger->recordCredit(
+                userId: $locked->referrer_user_id,
+                balanceType: 'earnings',
+                amount: (float) $locked->commission_amount,
+                reason: 'referral_commission',
+                referenceType: 'raffle_transaction',
+                referenceId: $locked->deposit_transaction_id,
+                description: "Referral commission for user #{$locked->referee_user_id}'s first deposit (checked by staff).",
+            );
+
+            $locked->update(['status' => 'paid']);
+
+            return true;
+        });
+
+        if ($paid) {
+            WpUser::find($commission->referrer_user_id)?->notify(new \App\Notifications\ReferralCommissionEarned($commission->refresh()));
+        }
+
+        return $paid;
+    }
+
+    /** Staff decided a held commission was abuse: it is never paid. */
+    public function cancelHeld(ReferralCommission $commission): bool
+    {
+        return (bool) ReferralCommission::query()->whereKey($commission->id)->where('status', 'held')->update(['status' => 'cancelled', 'updated_at' => now()]);
     }
 }

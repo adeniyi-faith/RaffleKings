@@ -81,6 +81,18 @@ final class SettingsRegistry
                             new Setting('site.paused_message', 'Message shown when something is paused', 'textarea', rules: ['required', 'max:200']),
                         ],
                     ],
+                    'New features' => [
+                        'description' => 'Each starts OFF. While off, customers don\'t see it at all (no greyed-out buttons) and nothing runs in the background. The staff screens stay in the menu marked "Off", so you can set things up before switching on. Their numbers and keys are on the other tabs.',
+                        'settings' => [
+                            new Setting('features.bank_name_check', 'Bank-name check (Paystack)', 'bool', 'Customers pick their bank from a list and Paystack fills in the account name. Stops most wrong-account payouts. Needs the Paystack secret key.'),
+                            new Setting('features.auto_payouts', 'Automatic payouts (Paystack transfers)', 'bool', 'Adds "Send with Paystack" to Withdrawals: one tap sends the money and marks it paid when the bank confirms. Needs the bank-name check, and Transfers enabled on your Paystack account. Settings → Withdrawals has the limits.'),
+                            new Setting('features.reminders', 'Reminders (push, email, WhatsApp)', 'bool', '"This raffle ends in 1 hour" and "You left tickets in checkout". Settings → Reminders.'),
+                            new Setting('features.promo_codes', 'Promo codes', 'bool', 'A code box at sign-up and checkout. Create codes under Growth → Promo codes.'),
+                            new Setting('features.affiliates', 'Affiliate links', 'bool', 'Influencers get their own link and earnings page. Add them under Growth → Affiliates.'),
+                            new Setting('features.abuse_detection', 'Multi-account protection', 'bool', 'Holds referral and affiliate rewards when two accounts share a phone, device or bank account, until staff check them on Fraud watch.'),
+                            new Setting('features.status_page', 'Public status page', 'bool', 'A /status page showing which parts of the site are working, with your message. Settings → Alerts & push → Status page.'),
+                        ],
+                    ],
                 ],
             ],
 
@@ -121,6 +133,12 @@ final class SettingsRegistry
                             new Setting('withdrawals.minimum_amount', 'Smallest withdrawal', 'money', rules: ['required', 'numeric', 'min:0']),
                             new Setting('withdrawals.verification_deposit_threshold', 'One-time verification applies below this lifetime top-up total', 'money', 'Customers who have topped up less than this in total pay the verification fee once, from their first withdrawal. Set 0 to switch the fee off.', rules: ['required', 'numeric', 'min:0']),
                             new Setting('withdrawals.verification_fee', 'One-time verification fee', 'money', rules: ['required', 'numeric', 'min:0']),
+                        ],
+                    ],
+                    'Automatic payouts (Paystack)' => [
+                        'description' => 'Switched on in On / off → New features. Before switching on, in your Paystack dashboard: (1) make sure Transfers are enabled for your business, (2) Settings → Preferences → untick "Confirm transfers before sending" (the OTP step), so the site can send without a code, (3) keep enough money in your Paystack balance. Paystack\'s transfer messages arrive on the same webhook URL as top-ups. Only accounts whose name Paystack confirmed (bank-name check) can be paid this way; older accounts are paid by hand as before.',
+                        'settings' => [
+                            new Setting('withdrawals.auto_payout_max', 'Biggest withdrawal sent automatically', 'money', 'Bigger ones show "pay by hand". 0 = no limit.', rules: ['required', 'numeric', 'min:0']),
                         ],
                     ],
                 ],
@@ -280,6 +298,46 @@ final class SettingsRegistry
                 ],
             ],
 
+            'Reminders' => [
+                'icon' => 'heroicon-o-clock',
+                'sections' => [
+                    'What to send' => [
+                        'description' => 'Switched on in On / off → New features. Checked every 5 minutes. The same reminder never goes twice, and every email has a one-tap "stop reminders" link. People on a responsible-play break never get them.',
+                        'settings' => [
+                            new Setting('reminders.raffle_ending.enabled', '"This raffle ends soon"', 'bool'),
+                            new Setting('reminders.raffle_ending.minutes_before', 'Send it this many minutes before sales close', 'int', rules: ['required', 'integer', 'min:10', 'max:1440']),
+                            new Setting('reminders.raffle_ending.audience', 'Send it to', 'select', null, [
+                                'entrants' => 'People with tickets in that raffle',
+                                'entrants_and_checkout' => 'Them, plus people who left it in checkout (recommended)',
+                                'recent_players' => 'Anyone who played in the last 30 days',
+                            ]),
+                            new Setting('reminders.abandoned_checkout.enabled', '"You left tickets in checkout"', 'bool'),
+                            new Setting('reminders.abandoned_checkout.after_minutes', 'Send it this many minutes after they left', 'int', rules: ['required', 'integer', 'min:5', 'max:720']),
+                        ],
+                    ],
+                    'How and how often' => [
+                        'settings' => [
+                            new Setting('reminders.channels.push', 'By push notification', 'bool', 'Only reaches people who turned notifications on (Settings → Alerts & push → OneSignal).'),
+                            new Setting('reminders.channels.email', 'By email', 'bool'),
+                            new Setting('reminders.channels.whatsapp', 'By WhatsApp', 'bool', 'Needs the WhatsApp section below. Uses the phone number on the customer\'s profile.'),
+                            new Setting('reminders.max_per_day', 'Most reminders one person gets in 24 hours', 'int', rules: ['required', 'integer', 'min:1', 'max:10']),
+                            new Setting('reminders.quiet_from', 'Quiet hours start (hour, 0-23)', 'int', 'Business time zone. Nothing is sent in quiet hours.', rules: ['required', 'integer', 'min:0', 'max:23']),
+                            new Setting('reminders.quiet_until', 'Quiet hours end (hour, 0-23)', 'int', 'Same number as the start = no quiet hours.', rules: ['required', 'integer', 'min:0', 'max:23']),
+                        ],
+                    ],
+                    'WhatsApp (Meta WhatsApp Business)' => [
+                        'description' => 'In Meta Business → WhatsApp Manager: add your number, then from the app\'s WhatsApp → API Setup copy the Phone number ID and a permanent access token (System user token). Create two message templates and wait for Meta to approve them. Each template\'s body uses {{1}} for the customer\'s name, {{2}} for the raffle and {{3}} for the link, e.g. "Hi {{1}}, {{2}} ends in 1 hour. Get your tickets: {{3}}". Meta charges per message.',
+                        'settings' => [
+                            new Setting('reminders.whatsapp.phone_number_id', 'Phone number ID', 'text', placeholder: '123456789012345'),
+                            new Setting('reminders.whatsapp.access_token', 'Access token', 'secret'),
+                            new Setting('reminders.whatsapp.language', 'Template language code', 'text', 'As set on the templates, e.g. en or en_US.', rules: ['required', 'max:10']),
+                            new Setting('reminders.whatsapp.templates.raffle_ending', 'Template name: raffle ends soon', 'text', rules: ['required', 'max:100']),
+                            new Setting('reminders.whatsapp.templates.abandoned_checkout', 'Template name: left in checkout', 'text', rules: ['required', 'max:100']),
+                        ],
+                    ],
+                ],
+            ],
+
             'Email' => [
                 'icon' => 'heroicon-o-envelope',
                 'sections' => [
@@ -425,6 +483,49 @@ final class SettingsRegistry
                             new Setting('broadcasting.connections.pusher.key', 'key', 'text', 'The public key (safe to show in the browser).', placeholder: 'a1b2c3d4e5f6a7b8c9d0'),
                             new Setting('broadcasting.connections.pusher.secret', 'secret', 'secret'),
                             new Setting('broadcasting.connections.pusher.options.cluster', 'cluster', 'text', 'Where the app lives, e.g. eu or mt1. Shown next to the keys.', placeholder: 'eu', rules: ['nullable', 'regex:/^[a-z0-9-]{2,10}$/']),
+                        ],
+                    ],
+                ],
+            ],
+
+            'Backups & status' => [
+                'icon' => 'heroicon-o-circle-stack',
+                'sections' => [
+                    'Nightly database backup' => [
+                        'description' => 'A full copy of the database every night, kept on the server (storage/app/backups, never reachable from the web). System → Health shows the last backup and whether it was proven to restore. A failure is sent to your staff Telegram.',
+                        'settings' => [
+                            new Setting('backups.enabled', 'Back up every night', 'bool'),
+                            new Setting('backups.hour', 'At this hour (0-23, business time zone)', 'int', 'Pick a quiet hour.', rules: ['required', 'integer', 'min:0', 'max:23']),
+                            new Setting('backups.keep_days', 'Keep backups for (days)', 'int', rules: ['required', 'integer', 'min:1', 'max:90']),
+                            new Setting('backups.send_to_telegram', 'Also send each backup to the staff Telegram chat', 'bool', 'An off-site copy, so the data survives even if the server is lost. Only files up to 45 MB; bigger ones stay on the server and you get a message. Keep the Telegram group private: the file holds customer data.'),
+                        ],
+                    ],
+                    'Practice restore (proves the backup works)' => [
+                        'description' => 'About 40 minutes after each backup, the copy is loaded into a SEPARATE, EMPTY database and every table\'s rows are counted against the original. In cPanel → MySQL Databases: create a new database (e.g. yourname_restoretest), a new user, and give that user ALL PRIVILEGES on it. Everything in that database is wiped each night, so never use a real one. Leave the host empty to use the same server as the live database.',
+                        'settings' => [
+                            new Setting('backups.restore.database', 'Practice database name', 'text', placeholder: 'yourname_restoretest'),
+                            new Setting('backups.restore.username', 'Its username', 'text'),
+                            new Setting('backups.restore.password', 'Its password', 'secret'),
+                            new Setting('backups.restore.host', 'Its host (usually empty)', 'text', placeholder: 'localhost'),
+                        ],
+                    ],
+                    'Uptime alerts' => [
+                        'description' => 'Two free outside checks, because a site can\'t report that it is down. (1) At uptimerobot.com, add an HTTP monitor for '.rtrim((string) config('app.url'), '/').'/up and it emails or texts you within minutes of the site going down. (2) At healthchecks.io (or Better Stack), create a check with a 5-minute period and paste its ping URL below; the site pings it every 5 minutes, and you are alerted when the pings stop (site down OR the cPanel cron job stopped). Sentry (Alerts & push) catches errors.',
+                        'settings' => [
+                            new Setting('monitoring.heartbeat_url', 'Heartbeat ping URL', 'url', placeholder: 'https://hc-ping.com/…'),
+                        ],
+                    ],
+                    'Status message for customers' => [
+                        'description' => 'Shown on the public /status page (switch it on in On / off → New features), which also lists live which parts of the site are working or paused. Set it back to "All good" when the problem is over.',
+                        'settings' => [
+                            new Setting('status.level', 'How things are', 'select', null, [
+                                'ok' => 'All good (no message)',
+                                'info' => 'Just so you know (blue)',
+                                'degraded' => 'Some things are slow or not working (amber)',
+                                'outage' => 'Major problem (red)',
+                            ]),
+                            new Setting('status.message', 'Message', 'textarea', 'e.g. "Top-ups by card are slow because of a Paystack problem. Your money is safe; payments will show within an hour."', rules: ['nullable', 'max:400']),
+                            new Setting('status.banner', 'Also show it as a banner on every page', 'bool'),
                         ],
                     ],
                 ],

@@ -7,6 +7,7 @@ use App\Models\Deposit;
 use App\Models\Legacy\WpUser;
 use App\Models\WalletLedgerEntry;
 use App\Models\WithdrawalRequest;
+use App\Support\Features;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Collection;
 
@@ -176,6 +177,18 @@ final class FraudWatchService
 
         foreach ($this->quickCashOuts(90, $user->ID) as $cashOut) {
             $flags[] = ['type' => 'quick_cashout', 'text' => $cashOut['reason']];
+        }
+
+        // Multi-account protection: the same phone number or browser.
+        if (Features::on('abuse_detection')) {
+            $detector = app(AbuseDetector::class);
+
+            foreach (['shared_phone' => [$detector->sharedPhones(), 'Same phone number as: '], 'shared_device' => [$detector->sharedDevices(), 'Used on the same phone or computer as: ']] as $type => [$groups, $text]) {
+                foreach ($groups->filter(fn ($g) => in_array($user->ID, $g['user_ids'], true)) as $group) {
+                    $others = collect($group['user_ids'])->reject(fn ($id) => $id === $user->ID);
+                    $flags[] = ['type' => $type, 'text' => $text.WpUser::query()->whereIn('ID', $others)->pluck('user_login')->implode(', ').'.'];
+                }
+            }
         }
 
         return $flags;

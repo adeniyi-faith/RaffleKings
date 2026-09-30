@@ -50,6 +50,7 @@ class TicketPurchaseController extends Controller
                 fundingSource: $request->string('funding_source')->toString(),
                 idempotencyKey: $request->string('idempotency_key')->toString(),
                 coverShortfallFromWinnings: $request->boolean('use_winnings_for_shortfall'),
+                promoCode: $request->string('promo_code')->toString() ?: null,
             );
         } catch (InsufficientBalanceException $e) {
             return response()->json([
