@@ -534,6 +534,12 @@ final class SettingsRegistry
             'Security' => [
                 'icon' => 'heroicon-o-shield-check',
                 'sections' => [
+                    'Staff sign-in' => [
+                        'description' => 'Protects the admin if a staff password is ever guessed or stolen. With this on, the right password is not enough: we email a 6-digit code that must be typed in too. Everyone signed in now is asked to sign in again. It needs working email (Settings → Email). If email ever breaks and nobody can get in, ask whoever looks after the server to run: php artisan staff:two-step off',
+                        'settings' => [
+                            new Setting('security.staff_two_step', 'Ask staff for an emailed code when they sign in', 'bool'),
+                        ],
+                    ],
                     'Bot protection (Cloudflare Turnstile)' => [
                         'description' => 'A quick "are you human?" check that stops robots creating fake accounts or guessing passwords. Get both keys free at dash.cloudflare.com → Turnstile → Add widget (add your site\'s domain). The check only switches on when BOTH keys are filled in.',
                         'settings' => [

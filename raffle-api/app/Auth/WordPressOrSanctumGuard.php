@@ -4,6 +4,7 @@ namespace App\Auth;
 
 use App\Models\Legacy\WpUser;
 use App\Services\Auth\LoginService;
+use App\Services\Auth\StaffTwoStep;
 use App\Services\Auth\WordPressCookieFactory;
 use Illuminate\Contracts\Auth\Authenticatable;
 use Illuminate\Contracts\Auth\Guard;
@@ -149,6 +150,11 @@ class WordPressOrSanctumGuard implements Guard
                     app(LoginService::class)->logout($user, $parts[2]);
                 }
             }
+        }
+
+        if ($user instanceof WpUser) {
+            // Signing out also takes away this browser's "passed the emailed code" mark.
+            Cookie::queue(app(StaffTwoStep::class)->forgetVerified($request, $user));
         }
 
         $cookies = app(WordPressCookieFactory::class);

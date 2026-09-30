@@ -30,9 +30,9 @@ final class ReportExporter
         'signups' => 'New customers',
     ];
 
-    private const SALE_TYPES = ['ticket_purchase_wallet', 'ticket_purchase_earnings', 'ticket_purchase'];
+    public const SALE_TYPES = ['ticket_purchase_wallet', 'ticket_purchase_earnings', 'ticket_purchase'];
 
-    private const DONE = ['verified_final', 'completed'];
+    public const DONE = ['verified_final', 'completed'];
 
     /** @return array{0: Carbon, 1: Carbon} UTC range covering the given business days */
     public static function range(string $from, string $to): array
@@ -43,6 +43,12 @@ final class ReportExporter
             Carbon::parse($from, $tz)->startOfDay()->utc(),
             Carbon::parse($to, $tz)->endOfDay()->utc(),
         ];
+    }
+
+    /** A spreadsheet cell that can't run as a formula: cells starting with = + - @ are formulas in Excel, so they get quoted. */
+    public static function safeCell(mixed $value): mixed
+    {
+        return is_string($value) && preg_match('/^[=+\-@]/', $value) ? "'".$value : $value;
     }
 
     /** @return list<string> */

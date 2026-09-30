@@ -5,7 +5,10 @@ namespace App\Filament\Resources;
 use App\Filament\Concerns\GuardedByStaffRole;
 use App\Filament\Resources\BroadcastResource\Pages;
 use App\Filament\Support\MobileCard;
+use App\Models\Admin\CustomerTag;
 use App\Models\Broadcast;
+use App\Models\Growth\Affiliate;
+use App\Models\Growth\PromoCode;
 use App\Models\Legacy\RaffleNotificationTemplate;
 use App\Models\Legacy\RaffleSiteNotice;
 use App\Models\Legacy\WpUser;
@@ -26,7 +29,9 @@ use Illuminate\Support\HtmlString;
  * Site → Message customers (item 45b): write once, send to a group — on
  * the site (the message bell), by email and/or as a phone notification.
  * Pick who: everyone, a raffle's buyers, lapsed players, people with
- * money or winnings sitting unused, or one customer.
+ * money or winnings sitting unused, one customer, a group built by
+ * combining filters, or the customers ticked on the Customers list. A
+ * message can go now or at a chosen time.
  */
 class BroadcastResource extends Resource
 {
@@ -36,6 +41,9 @@ class BroadcastResource extends Resource
     {
         return static::staffCanOpen();
     }
+
+    /** Where a ticked-customers list waits for the message form (see WpUserResource's bulk action). */
+    public const TICKED_CACHE_PREFIX = 'broadcast-ticked:';
 
     protected static ?string $model = Broadcast::class;
 
@@ -61,15 +69,56 @@ class BroadcastResource extends Resource
         return false;
     }
 
-    /** @return array<string, mixed> */
-    public static function audienceOptions(Get $get): array
+    /**
+     * The audience settings from the form (or the saved form state).
+     *
+     * @param  Get|array<string, mixed>  $source
+     * @return array<string, mixed>
+     */
+    public static function audienceOptions(Get|array $source): array
     {
+        $value = fn (string $key) => $source instanceof Get ? $source($key) : ($source[$key] ?? null);
+
         return array_filter([
-            'raffle_id' => $get('raffle_id'),
-            'days' => $get('days'),
-            'min_amount' => $get('min_amount'),
-            'user_id' => $get('user_id'),
+            'raffle_id' => $value('raffle_id'),
+            'days' => $value('days'),
+            'min_amount' => $value('min_amount'),
+            'user_id' => $value('user_id'),
+            'user_ids' => array_map('intval', (array) $value('user_ids')),
+            'filters' => Audience::cleanFilters((array) $value('filters')),
         ], fn ($v) => filled($v));
+    }
+
+    /** The boxes for "Build my own group". Each one that's filled in must match. */
+    private static function filterFields(): array
+    {
+        $number = fn (string $key, string $label, ?string $suffix = null) => Forms\Components\TextInput::make("filters.{$key}")->label($label)
+            ->numeric()->minValue(1)->suffix($suffix)->live(onBlur: true);
+
+        return [
+            Forms\Components\Placeholder::make('filters_help')->hiddenLabel()->columnSpanFull()
+                ->content('Fill in any of these. A customer must match every box you fill in. Leave a box empty to ignore it.'),
+            Forms\Components\Fieldset::make('When they joined and played')->columns(['md' => 2])->schema([
+                $number('joined_within_days', 'Joined in the last', 'days'),
+                $number('joined_before_days', 'Joined more than', 'days ago'),
+                $number('played_within_days', 'Bought tickets in the last', 'days'),
+                $number('not_played_for_days', 'Has bought before, but not in the last', 'days'),
+                Forms\Components\Toggle::make('filters.never_bought')->label('Only people who never bought a ticket')->live(),
+                Forms\Components\Select::make('filters.raffle_id')->label('Bought tickets in this raffle')->options(fn () => TicketResource::raffleOptions())->searchable()->live(),
+            ]),
+            Forms\Components\Fieldset::make('Money')->columns(['md' => 3])->schema([
+                Forms\Components\TextInput::make('filters.min_wallet')->label('Spending wallet at least')->prefix('₦')->numeric()->minValue(1)->live(onBlur: true),
+                Forms\Components\TextInput::make('filters.min_winnings')->label('Winnings at least')->prefix('₦')->numeric()->minValue(1)->live(onBlur: true),
+                Forms\Components\TextInput::make('filters.min_spent')->label('Spent on tickets, at least')->prefix('₦')->numeric()->minValue(1)->live(onBlur: true),
+            ]),
+            Forms\Components\Fieldset::make('Labels and where they came from')->columns(['md' => 2])->schema([
+                Forms\Components\Select::make('filters.tags')->label('Has any of these tags')->multiple()->options(fn () => array_combine(CustomerTag::inUse(), CustomerTag::inUse()))->live(),
+                Forms\Components\Select::make('filters.exclude_tags')->label('Doesn\'t have any of these tags')->multiple()->options(fn () => array_combine(CustomerTag::inUse(), CustomerTag::inUse()))->live(),
+                Forms\Components\Select::make('filters.promo_code_id')->label('Signed up with promo code')->options(fn () => PromoCode::query()->orderBy('code')->pluck('code', 'id'))->searchable()->live(),
+                Forms\Components\Select::make('filters.affiliate_id')->label('Brought by affiliate')->options(fn () => Affiliate::query()->orderBy('name')->pluck('name', 'id'))->searchable()->live(),
+                Forms\Components\Toggle::make('filters.push_only')->label('Only people who turned on phone notifications')->live(),
+            ]),
+        ];
     }
 
     public static function form(Form $form): Form
@@ -90,11 +139,21 @@ class BroadcastResource extends Resource
                             ->limit(20)->get()->mapWithKeys(fn (WpUser $u) => [$u->ID => ($u->display_name ?: $u->user_login).' · '.$u->user_email]))
                         ->getOptionLabelUsing(fn ($value) => WpUser::find($value)?->user_email)
                         ->visible(fn (Get $get) => $get('audience') === 'one')->live(),
+                    Forms\Components\Group::make(static::filterFields())->columnSpanFull()
+                        ->visible(fn (Get $get) => $get('audience') === 'custom'),
+                    Forms\Components\Hidden::make('user_ids')->default([]),
+                    Forms\Components\Placeholder::make('ticked')->label('Customers you ticked')
+                        ->visible(fn (Get $get) => $get('audience') === 'selected')
+                        ->content(fn (Get $get) => count((array) $get('user_ids')) > 0
+                            ? number_format(count((array) $get('user_ids'))).' customers from the Customers list. This exact list is the only group that gets the message.'
+                            : new HtmlString('No customers picked yet. On the <b>Customers</b> list, tick the customers you want, then choose <b>Message these customers</b>.')),
+                    Forms\Components\Toggle::make('is_promotion')->label('This is a promotion')->default(true)->live()
+                        ->helperText('Leaves out customers who tapped "stop reminders". Turn it off for something they must know, like a cancelled raffle.'),
                     Forms\Components\Placeholder::make('reach')->label('This will reach')
                         ->content(function (Get $get) {
-                            $count = app(Audience::class)->count((string) $get('audience'), static::audienceOptions($get));
+                            $count = app(Audience::class)->count((string) $get('audience'), static::audienceOptions($get), (bool) $get('is_promotion'));
 
-                            return new HtmlString('<span class="text-lg font-semibold">'.number_format($count).'</span> customer'.($count === 1 ? '' : 's').' <span class="text-gray-500">(banned accounts and staff left out)</span>');
+                            return new HtmlString('<span class="text-lg font-semibold">'.number_format($count).'</span> customer'.($count === 1 ? '' : 's').' <span class="text-gray-500">(banned accounts and staff left out'.($get('is_promotion') ? ', and anyone who stopped reminders' : '').')</span>');
                         }),
                     Forms\Components\CheckboxList::make('channels')->label('Send by')
                         ->options(Broadcast::CHANNELS)
@@ -132,6 +191,14 @@ class BroadcastResource extends Resource
                     Forms\Components\TextInput::make('template_name')->label('Save it as')->placeholder('e.g. Weekend promo')->maxLength(50)->dehydrated(false)
                         ->visible(fn (Get $get) => $get('save_template'))->required(fn (Get $get) => $get('save_template')),
                 ]),
+                Forms\Components\Section::make('When')->schema([
+                    Forms\Components\Radio::make('when')->options(['now' => 'Send it now', 'later' => 'Send it at a time I choose'])->default('now')->inline()->live()->dehydrated(false),
+                    Forms\Components\DateTimePicker::make('scheduled_at')->label('Send at')->seconds(false)
+                        ->timezone(config('raffles.timezone'))
+                        ->minDate(now())
+                        ->helperText('In '.config('raffles.timezone').' time. It goes out within a minute of this time. You can change or cancel it until then.')
+                        ->visible(fn (Get $get) => $get('when') === 'later')->required(fn (Get $get) => $get('when') === 'later')->live(),
+                ]),
             ]),
             Forms\Components\Section::make('Preview')->columnSpan(['lg' => 1])->schema([
                 Forms\Components\Placeholder::make('preview')->hiddenLabel()->content(fn (Get $get) => view('filament.broadcast-preview', [
@@ -151,20 +218,38 @@ class BroadcastResource extends Resource
             ->columns([
                 MobileCard::make(fn (Broadcast $b) => [
                     'title' => $b->title,
-                    'lines' => [app(Audience::class)->describe($b->audience, $b->audience_options ?? []), number_format($b->recipients_count).' customers · '.static::channelList($b)],
+                    'lines' => [app(Audience::class)->describe($b->audience, $b->audience_options ?? []), static::reach($b).' · '.static::channelList($b)],
                     'badges' => [static::status($b)],
                     'meta' => ($b->sent_at ?? $b->created_at)?->diffForHumans(),
                 ]),
                 ...MobileCard::desktop([
-                    Tables\Columns\TextColumn::make('created_at')->label('Sent')->dateTime('j M Y, H:i')->description(fn (Broadcast $b) => 'by '.($b->sender?->display_name ?: 'unknown')),
+                    Tables\Columns\TextColumn::make('created_at')->label('Written')->dateTime('j M Y, H:i')->description(fn (Broadcast $b) => 'by '.($b->sender?->display_name ?: 'unknown')),
                     Tables\Columns\TextColumn::make('title')->weight('bold')->limit(50)->description(fn (Broadcast $b) => app(Audience::class)->describe($b->audience, $b->audience_options ?? [])),
-                    Tables\Columns\TextColumn::make('recipients_count')->label('Customers')->wholeNumber(),
+                    Tables\Columns\TextColumn::make('recipients_count')->label('Customers')->state(fn (Broadcast $b) => static::reach($b)),
                     Tables\Columns\TextColumn::make('channels')->label('By')->state(fn (Broadcast $b) => static::channelList($b)),
                     Tables\Columns\TextColumn::make('status')->badge()->state(fn (Broadcast $b) => static::status($b)[0])->color(fn (Broadcast $b) => static::status($b)[1]),
                 ]),
             ])
+            ->filters([
+                Tables\Filters\SelectFilter::make('status')->options([
+                    'scheduled' => 'Scheduled', 'sending' => 'Sending', 'sent' => 'Sent', 'failed' => 'Stopped with an error', 'cancelled' => 'Cancelled',
+                ]),
+            ])
             ->emptyStateHeading('No messages sent yet')
             ->emptyStateDescription('Tell customers about a new raffle, a promotion, or remind them about winnings waiting.');
+    }
+
+    /** "1,240 customers", or "about 1,240 customers" until it has been sent. */
+    public static function reach(Broadcast $b): string
+    {
+        $n = in_array($b->status, ['scheduled', 'sent'], true) ? $b->recipients_count : $b->delivered_count;
+        $text = number_format($n).' customer'.($n === 1 ? '' : 's');
+
+        return match ($b->status) {
+            'scheduled' => 'about '.$text,
+            'sending' => $text.' so far',
+            default => $text,
+        };
     }
 
     public static function channelList(Broadcast $b): string
@@ -177,7 +262,9 @@ class BroadcastResource extends Resource
         return match ($b->status) {
             'sent' => ['Sent', 'success'],
             'failed' => ['Stopped with an error', 'danger'],
-            default => ['Sending…', 'warning'],
+            'cancelled' => ['Cancelled', 'gray'],
+            'scheduled' => ['Scheduled for '.$b->scheduled_at?->timezone(config('raffles.timezone'))->format('j M, H:i'), 'info'],
+            default => ['Sending… '.number_format($b->delivered_count).' so far', 'warning'],
         };
     }
 
@@ -186,15 +273,22 @@ class BroadcastResource extends Resource
         return $infolist->schema([
             Components\Section::make()->columns(['default' => 2, 'md' => 4])->schema([
                 Components\TextEntry::make('status')->badge()->state(fn (Broadcast $b) => static::status($b)[0])->color(fn (Broadcast $b) => static::status($b)[1]),
-                Components\TextEntry::make('recipients_count')->label('Customers')->wholeNumber(),
+                Components\TextEntry::make('recipients_count')->label('Customers')->state(fn (Broadcast $b) => static::reach($b)),
+                Components\TextEntry::make('skipped')->label('Left out (stopped reminders)')
+                    ->state(fn (Broadcast $b) => $b->is_promotion ? number_format($b->skipped_count) : 'Not a promotion')
+                    ->visible(fn (Broadcast $b) => $b->status === 'sent'),
+                Components\TextEntry::make('problem')->label('What went wrong')->state(fn (Broadcast $b) => $b->error)
+                    ->visible(fn (Broadcast $b) => filled($b->error))->columnSpanFull()->color('danger'),
                 Components\TextEntry::make('read')->label('Read on the site')
                     ->state(fn (Broadcast $b) => in_array('inbox', $b->channels, true)
                         ? number_format($b->inboxMessages()->whereNotNull('read_at')->count()).' of '.number_format($b->inboxMessages()->count())
                         : 'Not sent to the site'),
                 Components\TextEntry::make('channels')->label('Sent by')->state(fn (Broadcast $b) => static::channelList($b)),
                 Components\TextEntry::make('audience')->label('To')->state(fn (Broadcast $b) => app(Audience::class)->describe($b->audience, $b->audience_options ?? []))->columnSpan(2),
-                Components\TextEntry::make('sender.display_name')->label('Sent by'),
-                Components\TextEntry::make('created_at')->label('When')->dateTime('j M Y, H:i'),
+                Components\TextEntry::make('sender.display_name')->label('Written by'),
+                Components\TextEntry::make('created_at')->label('Written')->dateTime('j M Y, H:i'),
+                Components\TextEntry::make('scheduled_at')->label('Goes out at')->dateTime('j M Y, H:i')->timezone(config('raffles.timezone'))->visible(fn (Broadcast $b) => $b->scheduled_at !== null),
+                Components\TextEntry::make('sent_at')->label('Finished')->dateTime('j M Y, H:i')->timezone(config('raffles.timezone'))->visible(fn (Broadcast $b) => $b->sent_at !== null),
             ]),
             Components\Section::make('Message')->schema([
                 Components\TextEntry::make('title')->hiddenLabel()->weight('bold'),
