@@ -1,0 +1,55 @@
+name: Server Disk Report (read-only)
+
+# Finds out what is actually using the hosting account's space. It only
+# LOOKS: it lists sizes and names, and changes or deletes nothing. Run it
+# from the Actions tab any time; it uses the same server login as the
+# deploys (environment: production).
+on:
+  workflow_dispatch: {}
+
+env:
+  DEPLOY_PATH: /home2/worldin6/public_html/rafflekings.com.ng
+
+jobs:
+  report:
+    runs-on: ubuntu-latest
+    environment: production
+    steps:
+      - name: Measure, don't touch
+        uses: appleboy/ssh-action@master
+        with:
+          host: ${{ secrets.CPANEL_HOST }}
+          username: ${{ secrets.CPANEL_USERNAME }}
+          password: ${{ secrets.CPANEL_PASSWORD }}
+          port: 22
+          command_timeout: 25m
+          script: |
+            set -u
+            echo "=== Whole account (home folder) ==="
+            du -sh ~ 2>/dev/null
+            (quota -s 2>/dev/null || echo "(quota command not available)")
+            df -h ~ 2>/dev/null | tail -n 2
+            echo
+            echo "=== Biggest things in the home folder ==="
+            du -sk ~/* ~/.[!.]* 2>/dev/null | sort -rn | head -25 | awk '{printf "%8.1f MB  %s\n", $1/1024, $2}'
+            echo
+            echo "=== Biggest things in public_html ==="
+            du -sk ~/public_html/* ~/public_html/.[!.]* 2>/dev/null | sort -rn | head -15 | awk '{printf "%8.1f MB  %s\n", $1/1024, $2}'
+            echo
+            echo "=== Inside the site folder ==="
+            cd "${{ env.DEPLOY_PATH }}" 2>/dev/null && du -sk ./* ./.[!.]* 2>/dev/null | sort -rn | head -20 | awk '{printf "%8.1f MB  %s\n", $1/1024, $2}'
+            echo
+            echo "=== Inside storage/ (the new app's own files) ==="
+            du -sk storage/* storage/app/* storage/framework/* 2>/dev/null | sort -rn | head -12 | awk '{printf "%8.1f MB  %s\n", $1/1024, $2}'
+            echo
+            echo "=== Files bigger than 20 MB anywhere in the account (name and size only) ==="
+            find ~ -xdev -type f -size +20M -printf '%s %p\n' 2>/dev/null | sort -rn | head -30 | awk '{printf "%8.1f MB  %s\n", $1/1048576, $2}'
+            echo
+            echo "=== How many files each top-level folder holds (hosting plans also cap the file count) ==="
+            for d in ~/* ~/.[!.]*; do [ -e "$d" ] && echo "$(find "$d" -xdev 2>/dev/null | wc -l) $d"; done | sort -rn | head -12
+            echo
+            echo "=== Is the nightly scheduler set up? (cron lines mentioning artisan) ==="
+            (crontab -l 2>/dev/null | grep -i artisan | sed -E 's/(token|key|secret)=[^ &]*/\1=***/Ig') || true
+            echo
+            echo "=== Database size (the new app's own view) ==="
+            cd "${{ env.DEPLOY_PATH }}" 2>/dev/null && (php artisan db:show --counts 2>&1 | head -60) || echo "(could not read)"
