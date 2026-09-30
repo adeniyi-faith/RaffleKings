@@ -70,6 +70,9 @@ return Application::configure(basePath: dirname(__DIR__))
             // (multi-account protection). Neither is secret.
             'rk_aff',
             'rk_did',
+            // Staff two-step mark: a random token (only its hash is stored),
+            // read by both the admin and the API, and the API never decrypts.
+            'rk_staff_2fa',
         ]);
     })
     ->withExceptions(function (Exceptions $exceptions): void {

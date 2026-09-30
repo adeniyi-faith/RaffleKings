@@ -5,6 +5,7 @@ namespace App\Providers\Filament;
 use App\Filament\Pages\Auth\AdminLogin;
 use App\Filament\Support\AdminSearch;
 use App\Http\Middleware\AttachExtraCookies;
+use App\Http\Middleware\RequireStaffTwoStep;
 use App\Services\Maintenance;
 use App\Support\Formats;
 use Filament\Http\Middleware\Authenticate;
@@ -123,6 +124,12 @@ class AdminPanelProvider extends PanelProvider
             ])
             ->authMiddleware([
                 Authenticate::class,
-            ]);
+            ])
+            // Staff who never typed the emailed code (when two-step sign-in
+            // is on) go back to sign in. Persistent: also checked on every
+            // click inside a page, not just when a page first loads.
+            ->authMiddleware([
+                RequireStaffTwoStep::class,
+            ], isPersistent: true);
     }
 }

@@ -4,6 +4,7 @@ namespace App\Filament\Pages;
 
 use App\Filament\Concerns\GuardedByStaffRole;
 use App\Filament\Concerns\RunsAdminActions;
+use App\Services\Auth\StaffTwoStep;
 use App\Services\Maintenance;
 use App\Services\TicketPricingService;
 use App\Settings\ConnectionTester;
@@ -464,7 +465,23 @@ class Settings extends Page implements HasForms
             }
         }
 
+        // Two-step sign-in is only switched on once email is proven to work.
+        $twoStepKey = StaffTwoStep::SETTING;
+        $turningOnTwoStep = ($values[$twoStepKey] ?? false) && ! config($twoStepKey);
+        if ($turningOnTwoStep) {
+            unset($values[$twoStepKey]); // handled below, after the other settings are saved
+        }
+
         $changed = SettingsStore::save($values, static::admin());
+
+        if ($turningOnTwoStep) {
+            if ($problem = app(StaffTwoStep::class)->turnOn(static::admin())) {
+                Notification::make()->title('Two-step sign-in not switched on')->body($problem)->danger()->persistent()->send();
+            } else {
+                $changed[] = 'Staff two-step sign-in';
+            }
+        }
+
         $this->fillForm();
 
         if ($changed === []) {

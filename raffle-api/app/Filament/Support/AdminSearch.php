@@ -61,6 +61,7 @@ class AdminSearch implements GlobalSearchProvider
         ['Add a daily prediction', Resources\PredictionResource::class, 'create', 'prediction quiz football question'],
         ['Approve a winner story', Resources\WinnerStoryResource::class, 'index', 'story testimonial photo video'],
         ['Add a staff member or change a role', Resources\StaffResource::class, 'index', 'staff admin team role permission access'],
+        ['See who signed in and what staff changed', Pages\StaffActivity::class, 'index', 'staff activity sign in login failed password guess two-step 2fa code security team'],
         ['See who changed what (audit log)', Resources\AdminAuditLogResource::class, 'index', 'audit log history who changed'],
         ['Money reports', Pages\MoneyReports::class, 'index', 'money report profit loss income kept revenue top-ups withdrawals prizes refunds by day week month raffle'],
         ['Download reports', Pages\Downloads::class, 'index', 'export csv excel report download statement'],
