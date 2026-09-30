@@ -4,7 +4,9 @@ namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
 use App\Models\Legacy\RaffleEntry;
+use App\Models\Raffle;
 use App\Services\NumberHoldService;
+use App\Services\OddsCalculator;
 use App\Services\RaffleReadService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -71,5 +73,23 @@ class RaffleController extends Controller
                 $request->header('X-Guest-Token'),
             ),
         ]);
+    }
+
+    /**
+     * The chance of winning each prize level, for a number of tickets. Public,
+     * like the raffle itself. The odds assume every ticket sells; fewer sold
+     * only improves them (see App\Services\OddsCalculator).
+     */
+    public function odds(Request $request, OddsCalculator $odds, int $raffle): JsonResponse
+    {
+        $model = Raffle::query()->with('prizeTiers')->where('public_id', $raffle)->where('status', '!=', 'draft')->first();
+
+        if (! $model) {
+            return response()->json(['message' => 'Raffle not found.'], 404);
+        }
+
+        $quantity = max(1, min(10000, (int) $request->query('quantity', 1)));
+
+        return response()->json(['raffle_id' => $raffle, ...$odds->forRaffle($model, $quantity)]);
     }
 }
