@@ -5,6 +5,7 @@ namespace App\Services;
 use App\Exceptions\PaymentGatewayException;
 use App\Models\BankAccount;
 use App\Models\Legacy\WpUser;
+use App\Models\WithdrawalRequest;
 use App\Services\Payments\PaystackApi;
 use Illuminate\Database\Eloquent\Collection;
 use Illuminate\Support\Facades\DB;
@@ -29,7 +30,7 @@ class BankAccountService
 
     public function list(WpUser $user): Collection
     {
-        return BankAccount::query()->where('user_id', $user->ID)->orderByDesc('is_primary')->get();
+        return BankAccount::query()->active()->where('user_id', $user->ID)->orderByDesc('is_primary')->get();
     }
 
     /**
@@ -104,13 +105,13 @@ class BankAccountService
     private function create(WpUser $user, array $attributes): BankAccount
     {
         return DB::transaction(function () use ($user, $attributes) {
-            $existingCount = BankAccount::query()->where('user_id', $user->ID)->lockForUpdate()->count();
+            $existingCount = BankAccount::query()->active()->where('user_id', $user->ID)->lockForUpdate()->count();
 
             if ($existingCount >= self::MAX_ACCOUNTS_PER_USER) {
                 throw new RuntimeException('Maximum of '.self::MAX_ACCOUNTS_PER_USER.' bank accounts allowed.');
             }
 
-            if (BankAccount::query()->where('user_id', $user->ID)->where('account_number', $attributes['account_number'])->exists()) {
+            if (BankAccount::query()->active()->where('user_id', $user->ID)->where('account_number', $attributes['account_number'])->exists()) {
                 throw new RuntimeException('This account is already saved.');
             }
 
@@ -127,7 +128,7 @@ class BankAccountService
     public function setPrimary(WpUser $user, int $accountId): BankAccount
     {
         return DB::transaction(function () use ($user, $accountId) {
-            $account = BankAccount::query()->where('user_id', $user->ID)->whereKey($accountId)->lockForUpdate()->first();
+            $account = BankAccount::query()->active()->where('user_id', $user->ID)->whereKey($accountId)->lockForUpdate()->first();
 
             if (! $account) {
                 throw new RuntimeException('Bank account not found.');
@@ -147,21 +148,34 @@ class BankAccountService
      * primary.
      *
      * @throws RuntimeException if the account doesn't belong to this user
+     * @throws InvalidArgumentException while a withdrawal to it is still waiting to be paid
      */
     public function delete(WpUser $user, int $accountId): void
     {
         DB::transaction(function () use ($user, $accountId) {
-            $account = BankAccount::query()->where('user_id', $user->ID)->whereKey($accountId)->lockForUpdate()->first();
+            $account = BankAccount::query()->active()->where('user_id', $user->ID)->whereKey($accountId)->lockForUpdate()->first();
 
             if (! $account) {
                 throw new RuntimeException('Bank account not found.');
             }
 
+            if (WithdrawalRequest::query()->where('bank_account_id', $account->id)->where('status', 'pending')->exists()) {
+                throw new InvalidArgumentException('A withdrawal to this account is still being paid. You can remove it once that withdrawal is paid or declined.');
+            }
+
             $wasPrimary = $account->is_primary;
-            $account->delete();
+
+            // An account that already received a withdrawal is the record of
+            // where that money went, so it's hidden rather than deleted. The
+            // database refuses to delete it, which used to show "Failed to delete".
+            if (WithdrawalRequest::query()->where('bank_account_id', $account->id)->exists()) {
+                $account->forceFill(['removed_at' => now(), 'is_primary' => false])->save();
+            } else {
+                $account->delete();
+            }
 
             if ($wasPrimary) {
-                BankAccount::query()->where('user_id', $user->ID)->oldest('id')->first()?->update(['is_primary' => true]);
+                BankAccount::query()->active()->where('user_id', $user->ID)->oldest('id')->first()?->update(['is_primary' => true]);
             }
         });
     }

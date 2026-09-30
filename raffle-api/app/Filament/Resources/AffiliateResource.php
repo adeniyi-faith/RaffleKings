@@ -43,6 +43,14 @@ class AffiliateResource extends Resource
 
     protected static ?string $modelLabel = 'affiliate';
 
+    // Found by name or link from the admin's top search box.
+    protected static ?string $recordTitleAttribute = 'name';
+
+    public static function getGloballySearchableAttributes(): array
+    {
+        return ['name', 'code'];
+    }
+
     public static function getNavigationBadge(): ?string
     {
         return Features::navigationBadge('affiliates');

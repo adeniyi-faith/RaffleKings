@@ -105,6 +105,8 @@ class BankAccountController extends Controller
 
         try {
             $this->bankAccounts->delete($user, $bankAccount);
+        } catch (InvalidArgumentException $e) {
+            return response()->json(['message' => $e->getMessage()], 409);
         } catch (RuntimeException $e) {
             return response()->json(['message' => $e->getMessage()], 404);
         }

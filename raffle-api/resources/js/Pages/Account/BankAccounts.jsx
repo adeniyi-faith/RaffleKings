@@ -187,11 +187,19 @@ export default function AccountBankAccounts() {
         if (! window.confirm('Are you sure you want to remove this account?')) return;
 
         try {
-            const response = await fetch(`/api/bank-accounts/${id}`, { method: 'DELETE', credentials: 'same-origin' });
-            if (! response.ok && response.status !== 204) throw new Error();
+            const response = await fetch(`/api/bank-accounts/${id}`, {
+                method: 'DELETE',
+                headers: { Accept: 'application/json' },
+                credentials: 'same-origin',
+            });
+            if (! response.ok && response.status !== 204) {
+                // Say why (e.g. a withdrawal to it is still being paid).
+                const data = await response.json().catch(() => ({}));
+                throw new Error(data.message || 'We couldn\'t remove this account. Please try again.');
+            }
             loadAccounts();
-        } catch {
-            window.alert('Failed to delete.');
+        } catch (err) {
+            window.alert(err.message || 'We couldn\'t remove this account. Please try again.');
         }
     }
 

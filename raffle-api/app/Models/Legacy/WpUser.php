@@ -13,6 +13,7 @@ use App\Models\Wallet;
 use App\Models\WalletLedgerEntry;
 use App\Models\WithdrawalRequest;
 use Filament\Models\Contracts\FilamentUser;
+use Filament\Models\Contracts\HasAvatar;
 use Filament\Models\Contracts\HasName;
 use Filament\Panel;
 use Illuminate\Contracts\Auth\Authenticatable;
@@ -45,7 +46,7 @@ use Laravel\Sanctum\HasApiTokens;
  * LoginController/RegisterController, which now issue one alongside the
  * existing WordPress cookie on every successful login.
  */
-class WpUser extends LegacyModel implements Authenticatable, FilamentUser, HasName
+class WpUser extends LegacyModel implements Authenticatable, FilamentUser, HasAvatar, HasName
 {
     use HasApiTokens, Notifiable;
 
@@ -285,5 +286,19 @@ class WpUser extends LegacyModel implements Authenticatable, FilamentUser, HasNa
     public function getFilamentName(): string
     {
         return $this->display_name ?: $this->user_login;
+    }
+
+    // -- Filament\Models\Contracts\HasAvatar ----------------------------
+
+    /**
+     * The staff member's own profile picture in the admin's top bar (the
+     * same one they upload on Edit Profile). Null keeps Filament's
+     * initials circle.
+     */
+    public function getFilamentAvatarUrl(): ?string
+    {
+        $url = trim((string) $this->metaValue('profile_pic_url'));
+
+        return $url !== '' && (str_starts_with($url, 'https://') || str_starts_with($url, 'http://') || str_starts_with($url, '/')) ? $url : null;
     }
 }
