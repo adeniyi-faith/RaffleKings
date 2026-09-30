@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 import { Head, Link, router, usePage } from '@inertiajs/react';
 import {
     ArrowLeft,
+    ArrowRight,
     ChevronRight,
     Clock,
     Eye,
@@ -37,6 +38,7 @@ const TONES = {
     indigo: 'bg-indigo-50 text-indigo-600 dark:bg-indigo-900/30 dark:text-indigo-300',
     emerald: 'bg-emerald-50 text-emerald-600 dark:bg-emerald-900/30 dark:text-emerald-300',
     amber: 'bg-amber-50 text-amber-600 dark:bg-amber-900/30 dark:text-amber-300',
+    hot: 'bg-white/25 text-white',
 };
 
 /**
@@ -216,9 +218,9 @@ export default function RaffleShow({ raffle, drawInfo = null }) {
                             type="button"
                             onClick={() => setSheet('tickets')}
                             disabled={salesPaused}
-                            className="flex w-full items-center justify-center gap-2.5 rounded-2xl bg-app-primary py-4 text-base font-extrabold text-white shadow-lg shadow-blue-500/30 transition-transform active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-50"
+                            className="rk-shine relative flex w-full items-center justify-center gap-2.5 overflow-hidden rounded-2xl bg-gradient-to-r from-amber-400 via-orange-500 to-rose-500 py-4 text-lg font-black text-white shadow-lg shadow-orange-500/40 transition-transform active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-50"
                         >
-                            <Ticket className="h-5 w-5" aria-hidden="true" /> Get tickets
+                            <Ticket className="h-6 w-6" aria-hidden="true" /> Get tickets <ArrowRight className="h-5 w-5" aria-hidden="true" />
                         </button>
                     )}
 
@@ -236,12 +238,12 @@ export default function RaffleShow({ raffle, drawInfo = null }) {
                             tone="emerald"
                             title="How this draw works"
                             subtitle="Random and checkable"
-                            badge={bonus ? 'Bonus entries' : null}
+                            cta={bonus ? 'Bonus' : null}
                             onClick={() => setSheet('how')}
                         />
                     )}
                     {auth.user && ! isClosed && (
-                        <InfoRow icon={Megaphone} tone="amber" title="Boost and share" subtitle="Earn bonus entries with friends" onClick={() => setSheet('boost')} />
+                        <InfoRow icon={Megaphone} tone="hot" title="Boost and share" subtitle="Invite friends, earn free bonus entries" cta="Free" onClick={() => setSheet('boost')} />
                     )}
                 </main>
             </div>
@@ -320,31 +322,40 @@ export default function RaffleShow({ raffle, drawInfo = null }) {
                 {drawInfo && <DrawRules drawInfo={drawInfo} />}
             </BottomSheet>
 
-            <BottomSheet open={sheet === 'boost'} onClose={closeSheet} title="Boost and share">
+            <BottomSheet open={sheet === 'boost'} onClose={closeSheet} title="Boost and share" keepMounted>
                 {auth.user && ! isClosed && <BoostPanel raffleId={raffle.id} raffleTitle={raffle.title} />}
             </BottomSheet>
         </>
     );
 }
 
-function InfoRow({ icon: Icon, tone, title, subtitle, badge = null, onClick }) {
+function InfoRow({ icon: Icon, tone, title, subtitle, cta = null, onClick }) {
+    const hot = tone === 'hot';
+
     return (
         <button
             type="button"
             onClick={onClick}
-            className="flex w-full items-center gap-3 rounded-2xl border border-gray-100 bg-white p-3.5 text-left transition-colors hover:border-gray-200 active:scale-[0.99] dark:border-gray-800 dark:bg-dark-card dark:hover:border-gray-700"
+            className={[
+                'flex w-full items-center gap-3 rounded-2xl p-3.5 text-left transition-transform active:scale-[0.99]',
+                hot
+                    ? 'bg-gradient-to-r from-fuchsia-600 via-purple-600 to-indigo-600 text-white shadow-lg shadow-purple-500/30'
+                    : 'border border-gray-100 bg-white hover:border-gray-200 dark:border-gray-800 dark:bg-dark-card dark:hover:border-gray-700',
+            ].join(' ')}
         >
             <span className={`flex h-10 w-10 flex-none items-center justify-center rounded-xl ${TONES[tone]}`}>
                 <Icon className="h-5 w-5" aria-hidden="true" />
             </span>
             <span className="min-w-0 flex-1">
-                <span className="flex items-center gap-2 text-sm font-bold text-gray-900 dark:text-white">
-                    {title}
-                    {badge && <span className="rounded-full bg-amber-100 px-2 py-0.5 text-[10px] font-extrabold text-amber-800 dark:bg-amber-900/40 dark:text-amber-200">{badge}</span>}
-                </span>
-                <span className="block truncate text-xs text-gray-500 dark:text-gray-400">{subtitle}</span>
+                <span className={`block text-sm font-bold ${hot ? 'text-white' : 'text-gray-900 dark:text-white'}`}>{title}</span>
+                <span className={`block text-xs ${hot ? 'text-white/85' : 'truncate text-gray-500 dark:text-gray-400'}`}>{subtitle}</span>
             </span>
-            <ChevronRight className="h-5 w-5 flex-none text-gray-300 dark:text-gray-600" aria-hidden="true" />
+            {cta && (
+                <span className={`flex-none whitespace-nowrap rounded-full px-2.5 py-1 text-[11px] font-extrabold ${hot ? 'bg-yellow-300 text-purple-900' : 'bg-amber-100 text-amber-800 dark:bg-amber-900/40 dark:text-amber-200'}`}>
+                    {cta}
+                </span>
+            )}
+            <ChevronRight className={`h-5 w-5 flex-none ${hot ? 'text-white/80' : 'text-gray-300 dark:text-gray-600'}`} aria-hidden="true" />
         </button>
     );
 }

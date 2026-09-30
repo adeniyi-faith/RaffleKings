@@ -28,6 +28,15 @@ use Illuminate\Support\Facades\Notification;
  */
 class GamingTaxReminders
 {
+
+    /** 1st, 2nd, 3rd, 21st... Plain PHP, because the server has no "intl" extension. */
+    public static function ordinal(int $n): string
+    {
+        $suffix = ($n % 100 >= 11 && $n % 100 <= 13) ? 'th' : (['th', 'st', 'nd', 'rd', 'th', 'th', 'th', 'th', 'th', 'th'][$n % 10]);
+
+        return $n.$suffix;
+    }
+
     /** How far back to look for months that still need attention. */
     private const MONTHS_BACK = 6;
 
