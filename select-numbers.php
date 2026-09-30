@@ -1,11 +1,3 @@
-<?php
-// Boot WordPress just to learn whether this visitor is signed in (the site
-// uses a login cookie, which plain HTML pages cannot read).
-define('RK_FRONTEND_APP', true);
-define('WP_USE_THEMES', false);
-require_once(__DIR__ . '/wp/wp-load.php');
-$rk_logged_in = is_user_logged_in();
-?>
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -21,8 +13,6 @@ $rk_logged_in = is_user_logged_in();
 
     <!-- Google Fonts -->
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
-
-    <script src="assets/js/holds.js?v=1"></script>
 
     <!-- Config (Inlined for Preview) -->
     <script>
@@ -206,8 +196,6 @@ $rk_logged_in = is_user_logged_in();
         let targetQty = 0;
         let maxPool = 1000;
         let takenNumbers = [];
-        let heldByOthers = []; // numbers another player is holding right now (not sold yet)
-        const isLoggedIn = <?php echo $rk_logged_in ? 'true' : 'false'; ?>;
 
         document.addEventListener('DOMContentLoaded', async () => {
             lucide.createIcons();
@@ -252,7 +240,7 @@ $rk_logged_in = is_user_logged_in();
                     const pData = JSON.parse(pending);
                     if (pData.raffle_id == selection.raffleId && pData.qty == targetQty && pData.numbers) {
                         const savedNums = pData.numbers.split(',').map(Number);
-                        selectedNumbers = savedNums.filter(n => !takenNumbers.includes(n) && !heldByOthers.includes(n));
+                        selectedNumbers = savedNums.filter(n => !takenNumbers.includes(n));
 
                         if(selectedNumbers.length < savedNums.length) {
                              showToast("Some of your numbers were just sold!");
@@ -267,8 +255,10 @@ $rk_logged_in = is_user_logged_in();
 
         // *** THE TRAP LOGIC ***
         function checkWalletStatus() {
-            // Guests can pick numbers freely; Checkout asks them to sign in.
-            if (!isLoggedIn) return;
+            // Only checks if token exists (User logged in)
+            const token = localStorage.getItem('token');
+            // Note: If no token, we assume guest and let them pick, but Checkout will redirect to Register
+            if (!token) return;
 
             const wallet = parseFloat(localStorage.getItem('walletBalance')) || 0;
             const earnings = parseFloat(localStorage.getItem('earningsBalance')) || 0;
@@ -300,14 +290,6 @@ $rk_logged_in = is_user_logged_in();
         }
 
         async function fetchTakenNumbers(raffleId) {
-            // *** BEST SOURCE: sold numbers + numbers other players are holding ***
-            const live = await RKHolds.status(raffleId);
-            if (live) {
-                takenNumbers = live.sold;
-                heldByOthers = live.heldByOthers;
-                return;
-            }
-
             try {
                 // *** REAL FETCH FIRST ***
                 const res = await fetch(`ajax-router.php?action=get_raffle&id=${encodeURIComponent(raffleId)}`);
@@ -339,13 +321,11 @@ $rk_logged_in = is_user_logged_in();
             const selectedClass = "h-12 w-full rounded-xl bg-yellow-400 border-yellow-500 text-gray-900 text-lg font-bold flex items-center justify-center shadow-lg shadow-yellow-200/50 transform scale-105 transition-all ring-2 ring-offset-1 ring-yellow-400 select-none relative";
 
             for (let i = 1; i <= maxPool; i++) {
-                const isHeld = heldByOthers.includes(i);
-                const isTaken = takenNumbers.includes(i) || isHeld;
+                const isTaken = takenNumbers.includes(i);
                 const isSelected = selectedNumbers.includes(i);
                 const takenClass = isTaken ? 'taken-number' : '';
                 const initialClass = isSelected ? selectedClass : (baseClass + ' ' + takenClass);
-                const clickAction = isHeld ? `showToast('Number ${i} is being held by another player right now')`
-                    : (isTaken ? `showToast('Number ${i} is already sold!')` : `toggleNumber(${i}, this)`);
+                const clickAction = isTaken ? `showToast('Number ${i} is already sold!')` : `toggleNumber(${i}, this)`;
 
                 html += `<button onclick="${clickAction}" id="btn-${i}" class="${initialClass}">${i}</button>`;
             }
@@ -388,7 +368,7 @@ $rk_logged_in = is_user_logged_in();
 
             const availablePool = [];
             for(let i=1; i<=maxPool; i++) {
-                if(!takenNumbers.includes(i) && !heldByOthers.includes(i) && !selectedNumbers.includes(i)) {
+                if(!takenNumbers.includes(i) && !selectedNumbers.includes(i)) {
                     availablePool.push(i);
                 }
             }
@@ -451,37 +431,19 @@ $rk_logged_in = is_user_logged_in();
             setTimeout(() => { toast.classList.add('opacity-0', 'translate-y-2'); }, 2000);
         }
 
-        async function confirmSelection() {
+        function confirmSelection() {
             if (selectedNumbers.length < targetQty) {
                 showToast(`Please pick ${targetQty} numbers!`);
                 return;
             }
 
             const btn = document.getElementById('confirm-btn');
-            const originalBtnHtml = btn.innerHTML;
             btn.innerHTML = '<i data-lucide="loader-2" class="w-4 h-4 animate-spin"></i> Processing...';
             btn.disabled = true;
             lucide.createIcons();
 
-            // Hold the numbers for 10 minutes so nobody else can grab them while
-            // this player signs in and pays. If someone got there first, say so now.
-            const held = await RKHolds.hold(selection.raffleId, selectedNumbers);
-            if (held.status === 'unavailable') {
-                const gone = held.unavailable;
-                await fetchTakenNumbers(selection.raffleId); // refresh which are sold vs. held
-                gone.forEach(n => { if (!takenNumbers.includes(n) && !heldByOthers.includes(n)) heldByOthers.push(n); });
-                selectedNumbers = selectedNumbers.filter(n => !gone.includes(n));
-                generateGrid();
-                updateState();
-                btn.innerHTML = originalBtnHtml;
-                btn.disabled = false;
-                lucide.createIcons();
-                showToast(`Number${gone.length > 1 ? 's' : ''} ${gone.join(', ')} just got taken. Please pick ${gone.length > 1 ? 'replacements' : 'another'}.`);
-                return;
-            }
-            // (If the server could not be reached we still carry on; checkout tries again.)
-
             const numbersStr = selectedNumbers.join(',');
+            const isLoggedIn = localStorage.getItem('token');
 
             const checkoutData = {
                 amount: selection.totalPrice,
@@ -490,14 +452,17 @@ $rk_logged_in = is_user_logged_in();
                 raffle_id: selection.raffleId,
                 raffleId: selection.raffleId,
                 price: selection.totalPrice,
-                qty: targetQty,
-                timestamp: Date.now()
+                qty: targetQty
             };
             localStorage.setItem('pendingCheckout', JSON.stringify(checkoutData));
 
-            // Everyone goes to checkout. Guests are asked to sign in there and
-            // are sent straight back afterwards.
-            window.location.href = `checkout.php?amount=${selection.totalPrice}&tickets=${targetQty}&numbers=${numbersStr}&raffle_id=${selection.raffleId}`;
+            setTimeout(() => {
+                if (isLoggedIn) {
+                    window.location.href = `checkout.php?amount=${selection.totalPrice}&tickets=${targetQty}&numbers=${numbersStr}&raffle_id=${selection.raffleId}`;
+                } else {
+                    window.location.href = `register-special.php?amount=${selection.totalPrice}&tickets=${targetQty}&numbers=${numbersStr}&raffle_id=${selection.raffleId}`;
+                }
+            }, 500);
         }
     </script>
 </body>

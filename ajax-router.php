@@ -271,10 +271,6 @@ $routes = [
     'get_settings' => ['public' => true, 'method' => 'GET', 'callback' => 'rk_ajax_site_settings'],
     'get_raffles' => ['public' => true, 'method' => 'GET', 'callback' => 'rk_ajax_get_raffles'],
     'get_raffle' => ['public' => true, 'method' => 'GET', 'callback' => 'rk_ajax_get_raffle'],
-    // Number holds (10-minute reservation while a player signs in and pays)
-    'number_status' => ['public' => true, 'method' => 'GET', 'callback' => 'rk_holds_handle_status'],
-    'hold_numbers' => ['public' => true, 'method' => 'POST', 'callback' => 'rk_holds_handle_hold'],
-    'release_holds' => ['public' => true, 'method' => 'POST', 'callback' => 'rk_holds_handle_release'],
     'hall_of_fame' => ['public' => true, 'method' => 'GET', 'callback' => 'rk_get_hall_of_fame'],
     'get_hall_of_fame' => ['public' => true, 'method' => 'GET', 'callback' => 'rk_get_hall_of_fame'],
     'draw_results' => ['public' => true, 'method' => 'GET', 'callback' => fn() => rk_get_draw_results(rk_ajax_request('GET', '/raffle/v1/draw/results'))],

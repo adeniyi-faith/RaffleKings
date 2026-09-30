@@ -278,12 +278,6 @@
                 const link = document.getElementById('login-link');
                 link.href = 'login.php?redirect=cart';
             }
-
-            // Keep the "take me back to checkout" link when they switch to Login.
-            const returnTo = urlParams.get('return');
-            if (returnTo) {
-                document.getElementById('login-link').href = 'login.php?return=' + encodeURIComponent(returnTo);
-            }
         });
 
         // Slider Logic
