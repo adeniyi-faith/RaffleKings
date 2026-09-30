@@ -250,6 +250,12 @@ function rk_handle_payment_ai($request) {
         }
     }
     
+    // Numbers another player is holding (their 10-minute checkout window) can't be paid for.
+    if ($raffle_id > 0 && $numbers_str !== '' && function_exists('rk_holds_check_for_payment')) {
+        $hold_check = rk_holds_check_for_payment($raffle_id, $numbers_str, $user_id);
+        if (is_wp_error($hold_check)) return $hold_check;
+    }
+
     global $wpdb; 
     $table_txn = $wpdb->prefix . 'raffle_transactions';
     $table_entries = $wpdb->prefix . 'raffle_entries';
@@ -588,6 +594,11 @@ function rk_handle_payment_ai($request) {
     }
     $wpdb->insert($table_txn, $txn_insert_data);
     $txn_id = $wpdb->insert_id;
+
+    // Receipt is now waiting for review: keep this payer's numbers safe meanwhile.
+    if ($type === 'ticket_purchase' && $raffle_id > 0 && !empty($numbers_str) && function_exists('rk_holds_extend_for_pending_bank')) {
+        rk_holds_extend_for_pending_bank($raffle_id, $numbers_str, $user_id);
+    }
 
     // Needed so the admin "NEEDS REVIEW" note (last_txn_ai_notes) actually shows
     // why this one wasn't auto-verified — this call was missing entirely before.

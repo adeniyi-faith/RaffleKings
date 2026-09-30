@@ -47,6 +47,7 @@ $rk_logged_in = is_user_logged_in();
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
     <!-- Configuration -->
     <script src="config.js"></script>
+    <script src="assets/js/holds.js?v=1"></script>
 
     <style>
         * { -webkit-tap-highlight-color: transparent; }
@@ -76,7 +77,10 @@ $rk_logged_in = is_user_logged_in();
             <i data-lucide="arrow-left" class="w-6 h-6"></i>
         </button>
         <h2 class="text-lg font-black text-gray-900 dark:text-white tracking-tight">Secure Checkout</h2>
-        <div class="ml-auto">
+        <div class="ml-auto flex items-center gap-3">
+            <div id="hold-timer" class="hidden items-center gap-1.5 bg-red-50 dark:bg-red-900/20 text-red-600 dark:text-red-400 border border-red-100 dark:border-red-900/40 px-2.5 py-1 rounded-full text-xs font-black tabular-nums" title="Your numbers are held for you until the timer runs out">
+                <i data-lucide="timer" class="w-3.5 h-3.5"></i><span id="hold-timer-text">10:00</span>
+            </div>
             <i data-lucide="lock" class="w-4 h-4 text-app-primary"></i>
         </div>
     </header>
@@ -323,8 +327,9 @@ $rk_logged_in = is_user_logged_in();
                 <div class="bg-yellow-50 dark:bg-yellow-900/20 border border-yellow-100 dark:border-yellow-900/40 rounded-xl p-3 flex items-start gap-3">
                     <div class="mt-0.5 text-yellow-600"><i data-lucide="alert-triangle" class="w-4 h-4"></i></div>
                     <p class="text-xs text-yellow-800 dark:text-yellow-300 leading-snug">
-                        We&rsquo;ll keep these numbers for you and bring you straight back here after you sign in.
-                        <span class="font-bold">But don&rsquo;t wait</span> &mdash; your numbers are not locked until you pay, so if you delay, someone else can take them.
+                        <span id="gate-hold-line" class="hidden">We&rsquo;re holding these numbers for you for <span id="gate-timer" class="font-black tabular-nums">10:00</span>.</span>
+                        <span id="gate-nohold-line">We&rsquo;ll bring you straight back here after you sign in.</span>
+                        <span class="font-bold">Sign in before the timer runs out</span> &mdash; after that, your numbers go back to the pool and someone else can take them.
                     </p>
                 </div>
                 <a id="gate-register" href="register.php" class="w-full bg-green-600 hover:bg-green-700 text-white font-bold py-3.5 rounded-xl shadow-lg shadow-green-200 dark:shadow-none flex items-center justify-center gap-2 active:scale-95 transition-transform">
@@ -334,6 +339,44 @@ $rk_logged_in = is_user_logged_in();
                     I already have an account
                 </a>
                 <a href="raffles.php" class="block text-center text-xs text-gray-400 hover:text-gray-600 py-1">Not now</a>
+            </div>
+        </div>
+    </div>
+
+    <!-- Some numbers were taken by someone else -->
+    <div id="taken-panel" class="hidden fixed inset-0 z-[95] bg-black/85 backdrop-blur-sm flex items-center justify-center p-4">
+        <div class="bg-white dark:bg-dark-card w-full max-w-sm rounded-3xl overflow-hidden shadow-2xl border border-gray-100 dark:border-gray-800">
+            <div class="bg-red-600 px-5 py-4 text-center">
+                <h2 class="text-xl font-black text-white tracking-tight">Oh no, too slow! &#128533;</h2>
+                <p class="text-red-100 text-xs font-medium mt-0.5">Some of your numbers were taken</p>
+            </div>
+            <div class="p-5 space-y-4 text-center">
+                <div>
+                    <p class="text-[10px] uppercase font-bold tracking-widest text-gray-400 mb-2">No longer available</p>
+                    <div id="taken-numbers" class="flex flex-wrap justify-center gap-2"></div>
+                </div>
+                <p class="text-xs text-gray-500 dark:text-gray-400 leading-snug">Someone else bought or is holding these while you were away. Your other numbers are still selected &mdash; just pick replacements.</p>
+                <a href="select-numbers.php" class="w-full bg-green-600 hover:bg-green-700 text-white font-bold py-3.5 rounded-xl shadow-lg shadow-green-200 dark:shadow-none flex items-center justify-center gap-2 active:scale-95 transition-transform">
+                    Pick replacement numbers <i data-lucide="arrow-right" class="w-4 h-4"></i>
+                </a>
+            </div>
+        </div>
+    </div>
+
+    <!-- The 10-minute hold ran out -->
+    <div id="expired-panel" class="hidden fixed inset-0 z-[95] bg-black/85 backdrop-blur-sm flex items-center justify-center p-4">
+        <div class="bg-white dark:bg-dark-card w-full max-w-sm rounded-3xl overflow-hidden shadow-2xl border border-gray-100 dark:border-gray-800">
+            <div class="bg-gray-900 px-5 py-4 text-center">
+                <h2 class="text-xl font-black text-white tracking-tight">Time&rsquo;s up &#8987;</h2>
+                <p class="text-gray-300 text-xs font-medium mt-0.5">Your numbers were released</p>
+            </div>
+            <div class="p-5 space-y-3 text-center">
+                <p class="text-xs text-gray-500 dark:text-gray-400 leading-snug">The 10 minutes ran out. If nobody has taken your numbers yet, you can grab them back right now.</p>
+                <p id="expired-msg" class="hidden text-xs font-bold text-red-600"></p>
+                <button id="expired-retry" onclick="retryHold()" class="w-full bg-green-600 hover:bg-green-700 text-white font-bold py-3.5 rounded-xl shadow-lg shadow-green-200 dark:shadow-none flex items-center justify-center gap-2 active:scale-95 transition-transform">
+                    Get my numbers back
+                </button>
+                <a href="select-numbers.php" class="block text-center text-xs text-gray-400 hover:text-gray-600 py-1">Pick different numbers</a>
             </div>
         </div>
     </div>
@@ -514,8 +557,12 @@ $rk_logged_in = is_user_logged_in();
         document.addEventListener('DOMContentLoaded', async () => {
             const token = localStorage.getItem('token');
 
+            // Hold the numbers (and, for someone who just signed in, take over the hold
+            // they started as a guest). This is also the check that none were taken meanwhile.
+            const holdResult = await ensureHold();
+
             if (!isLoggedIn) {
-                showGuestGate();
+                if (holdResult !== 'unavailable') showGuestGate();
                 await verifyRealPrice(); // price is public, so the page behind the gate is still right
                 return;
             }
@@ -555,6 +602,103 @@ $rk_logged_in = is_user_logged_in();
                 }
             } catch(e) { console.error("Error fetching balance", e); }
         });
+
+        // ---- 10-minute number hold ----
+        let holdTimerId = null;
+        let holdDeadline = 0;
+
+        function fmtClock(sec) {
+            const m = Math.floor(sec / 60), r = sec % 60;
+            return m + ':' + String(r).padStart(2, '0');
+        }
+
+        function numberChips(list) {
+            return list.map(n =>
+                `<span class="min-w-[2.5rem] h-10 px-2 rounded-xl bg-gray-100 dark:bg-gray-800 text-gray-400 line-through font-black text-sm flex items-center justify-center">${String(n).replace(/[^0-9]/g, '')}</span>`
+            ).join('');
+        }
+
+        function showTakenPanel(gone) {
+            document.getElementById('guest-gate').classList.add('hidden');
+            document.getElementById('taken-numbers').innerHTML = numberChips(gone);
+            // Keep the still-available numbers selected for the number picker.
+            try {
+                const pending = JSON.parse(localStorage.getItem('pendingCheckout') || 'null');
+                if (pending) {
+                    pending.numbers = numbers.filter(n => !gone.includes(Number(n))).join(',');
+                    localStorage.setItem('pendingCheckout', JSON.stringify(pending));
+                }
+            } catch (e) {}
+            document.getElementById('taken-panel').classList.remove('hidden');
+            stopHoldTimer();
+            if (typeof lucide !== 'undefined') lucide.createIcons();
+        }
+
+        function stopHoldTimer() {
+            if (holdTimerId) clearInterval(holdTimerId);
+            holdTimerId = null;
+            const pill = document.getElementById('hold-timer');
+            if (pill) { pill.classList.add('hidden'); pill.classList.remove('flex'); }
+        }
+
+        function startHoldTimer(secondsLeft) {
+            stopHoldTimer();
+            holdDeadline = Date.now() + secondsLeft * 1000;
+            const pill = document.getElementById('hold-timer');
+            pill.classList.remove('hidden'); pill.classList.add('flex');
+            document.getElementById('gate-hold-line').classList.remove('hidden');
+            document.getElementById('gate-nohold-line').classList.add('hidden');
+
+            const tick = () => {
+                const left = Math.max(0, Math.round((holdDeadline - Date.now()) / 1000));
+                const text = fmtClock(left);
+                document.getElementById('hold-timer-text').innerText = text;
+                document.getElementById('gate-timer').innerText = text;
+                pill.classList.toggle('animate-pulse', left <= 120);
+                if (left <= 0) {
+                    stopHoldTimer();
+                    document.getElementById('guest-gate').classList.add('hidden');
+                    document.getElementById('expired-msg').classList.add('hidden');
+                    document.getElementById('expired-panel').classList.remove('hidden');
+                }
+            };
+            tick();
+            holdTimerId = setInterval(tick, 1000);
+        }
+
+        // Returns 'held', 'unavailable' or 'skipped' (nothing to hold / server unreachable).
+        async function ensureHold() {
+            if (!raffleId || numbers.length === 0) return 'skipped';
+            const r = await RKHolds.hold(raffleId, numbers);
+            if (r.status === 'held') {
+                if (r.secondsLeft > 0) startHoldTimer(r.secondsLeft);
+                return 'held';
+            }
+            if (r.status === 'unavailable') {
+                showTakenPanel(r.unavailable);
+                return 'unavailable';
+            }
+            return 'skipped'; // could not reach the server: don't block the player
+        }
+
+        async function retryHold() {
+            const btn = document.getElementById('expired-retry');
+            btn.disabled = true;
+            const r = await RKHolds.hold(raffleId, numbers);
+            btn.disabled = false;
+            if (r.status === 'held') {
+                document.getElementById('expired-panel').classList.add('hidden');
+                startHoldTimer(r.secondsLeft || 600);
+                if (!isLoggedIn) document.getElementById('guest-gate').classList.remove('hidden');
+            } else if (r.status === 'unavailable') {
+                document.getElementById('expired-panel').classList.add('hidden');
+                showTakenPanel(r.unavailable);
+            } else {
+                const msg = document.getElementById('expired-msg');
+                msg.innerText = 'Could not reach the server. Please try again.';
+                msg.classList.remove('hidden');
+            }
+        }
 
         // Visitors who are not signed in: remember their numbers, ask them to sign in
         // or sign up, and send them back to this exact checkout page afterwards.
