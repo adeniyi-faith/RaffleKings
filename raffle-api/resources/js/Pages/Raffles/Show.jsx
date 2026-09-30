@@ -133,7 +133,7 @@ export default function RaffleShow({ raffle, drawInfo = null }) {
                         {isClosed ? (
                             <div className="mb-6 inline-flex items-center gap-1.5 rounded-lg border border-white/20 bg-black/20 px-3 py-1.5 backdrop-blur-sm">
                                 <span className="text-xs text-gray-200">
-                                    {closedReason === 'sold_out' ? 'Every ticket was claimed' : closedReason === 'ended' ? 'Ticket sales have finished' : 'No longer taking entries'}
+                                    {closedReason === 'sold_out' ? 'Every ticket was claimed' : closedReason === 'ended' ? 'Ticket sales have finished' : closedReason === 'cancelled' ? 'Cancelled: every ticket refunded' : 'No longer taking entries'}
                                 </span>
                             </div>
                         ) : (
@@ -217,15 +217,17 @@ export default function RaffleShow({ raffle, drawInfo = null }) {
                             <Lock className="h-10 w-10 text-gray-400 dark:text-gray-500" />
                         </div>
                         <h3 className="mb-2 text-2xl font-black text-gray-900 dark:text-white">
-                            {closedReason === 'sold_out' ? 'Sold Out' : closedReason === 'ended' ? 'Raffle Ended' : 'Raffle Closed'}
+                            {closedReason === 'sold_out' ? 'Sold Out' : closedReason === 'ended' ? 'Raffle Ended' : closedReason === 'cancelled' ? 'Raffle Cancelled' : 'Raffle Closed'}
                         </h3>
                         <p className="mx-auto mb-6 max-w-xs text-sm text-gray-500 dark:text-gray-400">
                             {closedReason === 'sold_out'
                                 ? 'Every ticket for this raffle has been claimed.'
                                 : closedReason === 'ended'
                                   ? 'Ticket sales for this raffle have finished.'
-                                  : 'This raffle is no longer taking entries.'}{' '}
-                            Winners appear in the Hall of Fame once the draw is done.
+                                  : closedReason === 'cancelled'
+                                    ? 'This raffle was cancelled. Everyone who bought tickets got their money back in full, where they paid from.'
+                                    : 'This raffle is no longer taking entries.'}{' '}
+                            {closedReason !== 'cancelled' && 'Winners appear in the Hall of Fame once the draw is done.'}
                         </p>
                         <div className="mx-auto flex max-w-xs flex-col gap-3">
                             <Link

@@ -92,6 +92,7 @@ class TransactionResource extends Resource
             'pending', 'manual_review' => 'Waiting',
             'rejected' => 'Rejected / reversed',
             'reversed' => 'Reversed',
+            'refunded' => 'Refunded (raffle cancelled)',
             default => ucfirst(str_replace('_', ' ', $status)),
         };
     }

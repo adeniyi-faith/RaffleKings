@@ -76,7 +76,7 @@ export default function RaffleCard({ raffle }) {
             >
                 <div className="pointer-events-none absolute inset-0 z-20 flex items-center justify-center">
                     <span className="-rotate-12 transform rounded-xl border-4 border-white bg-red-600/90 px-6 py-2 text-lg font-black tracking-widest text-white shadow-xl backdrop-blur-sm dark:border-dark-card">
-                        {raffle.closed_reason === 'ended' ? 'ENDED' : raffle.closed_reason === 'sold_out' || ! raffle.closed_reason ? 'SOLD OUT' : 'CLOSED'}
+                        {raffle.closed_reason === 'ended' ? 'ENDED' : raffle.closed_reason === 'cancelled' ? 'CANCELLED' : raffle.closed_reason === 'sold_out' || ! raffle.closed_reason ? 'SOLD OUT' : 'CLOSED'}
                     </span>
                 </div>
                 <div className="relative z-10 mb-4 flex items-start justify-between opacity-50">

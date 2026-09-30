@@ -8,6 +8,7 @@ use App\Filament\Resources\RaffleResource\RelationManagers\PrizeTiersRelationMan
 use App\Filament\Support\MobileCard;
 use App\Models\Raffle;
 use App\Services\LiveDrawService;
+use App\Services\RaffleCancellationService;
 use App\Filament\Support\AiAssist;
 use Filament\Forms;
 use Filament\Forms\Form;
@@ -200,6 +201,16 @@ class RaffleResource extends Resource
         return $state === 'On sale' ? 'success' : ($state === 'Draft' ? 'gray' : 'warning');
     }
 
+    /** A cancelled raffle: refunds in progress, or done. */
+    public static function refundBadge(Raffle $record): ?array
+    {
+        return match ($record->refund_status) {
+            'refunding' => ['Cancelled · refunding ('.$record->refunded_customers.' done)', 'warning'],
+            'refunded' => ['Cancelled · '.$record->refunded_customers.' refunded', 'danger'],
+            default => null,
+        };
+    }
+
     public static function table(Table $table): Table
     {
         return $table
@@ -215,6 +226,7 @@ class RaffleResource extends Resource
                     'badges' => [
                         [static::salesState($record), static::salesColor(static::salesState($record))],
                         $record->is_live_draw_enabled ? ['Live draw · '.$record->live_draw_status, 'info'] : null,
+                        static::refundBadge($record),
                     ],
                 ]),
                 ...MobileCard::desktop([
@@ -230,8 +242,8 @@ class RaffleResource extends Resource
                     Tables\Columns\TextColumn::make('sales')
                         ->label('Sales')
                         ->badge()
-                        ->state(fn (Raffle $record): string => static::salesState($record))
-                        ->color(fn ($state): string => static::salesColor((string) $state)),
+                        ->state(fn (Raffle $record): string => static::refundBadge($record)[0] ?? static::salesState($record))
+                        ->color(fn (Raffle $record, $state): string => static::refundBadge($record)[1] ?? static::salesColor((string) $state)),
                     Tables\Columns\TextColumn::make('expiry')->label('Last day')->date('j M Y')->placeholder('No end date')->sortable(),
                     Tables\Columns\TextColumn::make('live_draw')
                         ->label('Live draw')
@@ -274,6 +286,42 @@ class RaffleResource extends Resource
                             } catch (RuntimeException $e) {
                                 Notification::make()->title('Could not start reveal')->body($e->getMessage())->danger()->send();
                             }
+                        }),
+                    // Cancel and refund every ticket (App\Services\RaffleCancellationService).
+                    Tables\Actions\Action::make('cancelAndRefund')
+                        ->label('Cancel and refund')
+                        ->icon('heroicon-o-receipt-refund')
+                        ->color('danger')
+                        ->hidden(fn () => ! static::staffCan('money.pay'))
+                        ->visible(fn (Raffle $record) => $record->cancelled_at === null && in_array($record->status, Raffle::PUBLIC_STATUSES, true))
+                        ->modalHeading(fn (Raffle $record) => "Cancel \"{$record->title}\" and refund everyone?")
+                        ->modalDescription(function (Raffle $record) {
+                            if ($why = app(RaffleCancellationService::class)->blocker($record)) {
+                                return $why;
+                            }
+
+                            $customers = $record->entries()->distinct()->count('user_id');
+
+                            return "Ticket sales stop now and can't be reopened. {$customers} customer(s) with ".$record->entries()->count().' ticket(s) get back exactly what they paid, to where they paid from, within a few minutes. Each is told by message and email. This can\'t be undone.';
+                        })
+                        ->form([
+                            Forms\Components\Textarea::make('reason')
+                                ->label('Reason (customers see it)')
+                                ->placeholder('e.g. The prize supplier could not deliver, so we cancelled this raffle.')
+                                ->required()
+                                ->maxLength(300),
+                        ])
+                        ->modalSubmitActionLabel('Cancel and refund everyone')
+                        ->action(function (Raffle $record, array $data) {
+                            try {
+                                app(RaffleCancellationService::class)->cancel(auth('wordpress')->user(), $record, $data['reason']);
+                            } catch (RuntimeException $e) {
+                                Notification::make()->title('Not cancelled')->body($e->getMessage())->danger()->persistent()->send();
+
+                                return;
+                            }
+
+                            Notification::make()->title('Raffle cancelled. Refunds are going out now.')->body('Progress shows on the raffle list.')->success()->send();
                         }),
                 ])->label('More')->icon('heroicon-m-ellipsis-vertical')->button()->color('gray'),
             ])

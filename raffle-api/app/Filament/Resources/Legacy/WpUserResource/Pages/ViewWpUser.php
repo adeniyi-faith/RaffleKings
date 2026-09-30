@@ -3,6 +3,13 @@
 namespace App\Filament\Resources\Legacy\WpUserResource\Pages;
 
 use App\Filament\Resources\Legacy\WpUserResource;
+use App\Models\Admin\CustomerNote;
+use App\Models\Admin\CustomerTag;
+use App\Services\Admin\CustomerTimeline;
+use App\Services\AdminAuditLogService;
+use Filament\Actions\Action;
+use Filament\Forms;
+use Filament\Notifications\Notification;
 use App\Models\Legacy\RaffleEntry;
 use App\Models\Legacy\WpUser;
 use App\Models\Legacy\WpUserMeta;
@@ -33,6 +40,44 @@ class ViewWpUser extends ViewRecord
     /** @var array<string, mixed>|null */
     private ?array $summary = null;
 
+    /** Customer timeline: which kind of events, and how many to show. */
+    public string $timelineKind = '';
+
+    public int $timelineLimit = 50;
+
+    /** @return list<array<string, mixed>> */
+    public function timelineEvents(): array
+    {
+        return app(CustomerTimeline::class)->for($this->getRecord(), $this->timelineKind ?: null, $this->timelineLimit);
+    }
+
+    public function moreTimeline(): void
+    {
+        $this->timelineLimit = min(1000, $this->timelineLimit + 100);
+    }
+
+    public function updatedTimelineKind(): void
+    {
+        $this->timelineLimit = 50;
+    }
+
+    public function togglePin(int $noteId): void
+    {
+        abort_unless(WpUserResource::staffCan('customers.view'), 403);
+        $note = CustomerNote::query()->where('user_id', $this->getRecord()->ID)->findOrFail($noteId);
+        $note->update(['pinned' => ! $note->pinned]);
+    }
+
+    public function deleteNote(int $noteId): void
+    {
+        $note = CustomerNote::query()->where('user_id', $this->getRecord()->ID)->findOrFail($noteId);
+        // Only the author, or someone who can manage customers, removes a note.
+        abort_unless($note->author_id === auth('wordpress')->id() || WpUserResource::staffCan('customers.manage'), 403);
+        $note->delete();
+        app(AdminAuditLogService::class)->record(auth('wordpress')->user(), 'customer.note_deleted', \App\Models\Legacy\WpUser::class, $this->getRecord()->ID, ['note' => mb_strimwidth($note->body, 0, 200, '…')]);
+        Notification::make()->title('Note deleted')->success()->send();
+    }
+
     public function getTitle(): string
     {
         return $this->getRecord()->display_name ?: $this->getRecord()->user_login;
@@ -47,7 +92,40 @@ class ViewWpUser extends ViewRecord
 
     protected function getHeaderActions(): array
     {
-        return WpUserResource::accountActions(table: false);
+        return [
+            // Staff notes and tags: any staff member who can see the customer.
+            Action::make('addNote')
+                ->label('Add note')
+                ->icon('heroicon-o-pencil-square')
+                ->color('gray')
+                ->form([
+                    Forms\Components\Textarea::make('body')->label('Note (staff only, customers never see it)')->required()->rows(4)->maxLength(2000),
+                    Forms\Components\Toggle::make('pinned')->label('Pin to the top of their page'),
+                ])
+                ->action(function (array $data) {
+                    $user = $this->getRecord();
+                    CustomerNote::create(['user_id' => $user->ID, 'author_id' => auth('wordpress')->id(), 'body' => $data['body'], 'pinned' => (bool) ($data['pinned'] ?? false)]);
+                    app(AdminAuditLogService::class)->record(auth('wordpress')->user(), 'customer.note_added', \App\Models\Legacy\WpUser::class, $user->ID, ['note' => mb_strimwidth($data['body'], 0, 200, '…')]);
+                    Notification::make()->title('Note saved')->success()->send();
+                }),
+            Action::make('tags')
+                ->label('Tags')
+                ->icon('heroicon-o-tag')
+                ->color('gray')
+                ->fillForm(fn () => ['tags' => CustomerTag::query()->where('user_id', $this->getRecord()->ID)->orderBy('tag')->pluck('tag')->all()])
+                ->form([
+                    Forms\Components\TagsInput::make('tags')
+                        ->label('Tags (staff only)')
+                        ->suggestions(fn () => CustomerTag::inUse())
+                        ->placeholder('e.g. VIP, watch closely')
+                        ->splitKeys(['Tab', ',']),
+                ])
+                ->action(function (array $data) {
+                    $changes = WpUserResource::setTags($this->getRecord()->ID, $data['tags'] ?? []);
+                    Notification::make()->title($changes ? 'Tags saved' : 'No change')->success()->send();
+                }),
+            ...WpUserResource::accountActions(table: false),
+        ];
     }
 
     /** One set of queries for the whole summary. */
@@ -107,6 +185,15 @@ class ViewWpUser extends ViewRecord
                         ->state($s('flags'))
                         ->schema([Components\TextEntry::make('text')->hiddenLabel()->color('danger')])
                         ->contained(false),
+                ]),
+
+            Components\Section::make('Staff notes & tags')
+                ->icon('heroicon-o-pencil-square')
+                ->description('Only staff see these. Add them with the buttons at the top.')
+                ->visible(fn (WpUser $record) => CustomerNote::query()->where('user_id', $record->ID)->exists() || CustomerTag::query()->where('user_id', $record->ID)->exists())
+                ->collapsible()
+                ->schema([
+                    Components\ViewEntry::make('notes')->hiddenLabel()->view('filament.customer-notes'),
                 ]),
 
             Components\Section::make('Balances')
@@ -179,6 +266,14 @@ class ViewWpUser extends ViewRecord
                             Components\TextEntry::make('bank_name')->hiddenLabel()->formatStateUsing(fn ($state, $record) => "{$state} · {$record->account_name}"),
                         ])
                         ->placeholder('No bank account saved'),
+                ]),
+
+            Components\Section::make('Timeline')
+                ->icon('heroicon-o-clock')
+                ->description('Everything that happened to this customer, newest first.')
+                ->collapsible()
+                ->schema([
+                    Components\ViewEntry::make('timeline')->hiddenLabel()->view('filament.customer-timeline'),
                 ]),
         ]);
     }
