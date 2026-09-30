@@ -5,8 +5,13 @@ namespace App\Filament\Resources\Legacy\WpUserResource\Pages;
 use App\Filament\Resources\Legacy\WpUserResource;
 use App\Models\Admin\CustomerNote;
 use App\Models\Admin\CustomerTag;
+use App\Models\UserEngagement;
+use App\Services\Admin\CustomerSupportTools;
 use App\Services\Admin\CustomerTimeline;
+use App\Services\Engagement\BadgeService;
+use App\Services\Engagement\SeasonPass;
 use App\Services\AdminAuditLogService;
+use Filament\Actions;
 use Filament\Actions\Action;
 use Filament\Forms;
 use Filament\Notifications\Notification;
@@ -140,7 +145,191 @@ class ViewWpUser extends ViewRecord
                     Notification::make()->title($changes ? 'Tags saved' : 'No change')->success()->send();
                 }),
             ...WpUserResource::accountActions(table: false),
+            $this->supportToolsGroup(),
+            $this->badgesGroup(),
         ];
+    }
+
+    private function tools(): CustomerSupportTools
+    {
+        return app(CustomerSupportTools::class);
+    }
+
+    /** Runs a support tool and turns a refusal into a plain message, not an error page. */
+    private function attempt(callable $run, string $done): void
+    {
+        try {
+            $run();
+        } catch (\RuntimeException $e) {
+            Notification::make()->title('Not done')->body($e->getMessage())->danger()->persistent()->send();
+
+            return;
+        }
+
+        Notification::make()->title($done)->success()->send();
+    }
+
+    /** Not offered on a staff account (support must never be able to take over an admin). */
+    private function customerOnly(): bool
+    {
+        return ! $this->tools()->isStaffAccount($this->getRecord());
+    }
+
+    /** Password reset, sign-out, contact details, messages and chat mute. */
+    private function supportToolsGroup(): Actions\ActionGroup
+    {
+        $support = fn () => WpUserResource::staffCan('customers.support') && $this->customerOnly();
+        $manage = fn () => WpUserResource::staffCan('customers.manage') && $this->customerOnly();
+        $reason = fn () => Forms\Components\TextInput::make('reason')->label('Why? (kept in the audit log)')->required()->maxLength(200)->placeholder('e.g. Customer called support, locked out');
+
+        $reset = Action::make('resetPassword')
+            ->label('Reset password')
+            ->icon('heroicon-o-key')
+            ->visible($support)
+            ->modalHeading('Reset this customer\'s password')
+            ->modalDescription('Use this when the customer contacts support and cannot get in. They are told by email that support changed their password.')
+            ->modalSubmitActionLabel('Reset password')
+            ->form([
+                Forms\Components\Radio::make('method')
+                    ->label('How?')
+                    ->options([
+                        'code' => 'Email them a reset code. They choose their own new password (safest).',
+                        'temp' => 'Set a temporary password now. I will tell them what it is.',
+                    ])
+                    ->default('code')
+                    ->required(),
+                $reason(),
+            ])
+            ->action(function (array $data) {
+                $user = $this->getRecord();
+
+                if ($data['method'] === 'code') {
+                    $this->attempt(fn () => $this->tools()->sendResetCode(auth('wordpress')->user(), $user, $data['reason']), 'Reset code emailed to '.$user->user_email);
+
+                    return;
+                }
+
+                try {
+                    $password = $this->tools()->setTemporaryPassword(auth('wordpress')->user(), $user, $data['reason']);
+                } catch (\RuntimeException $e) {
+                    Notification::make()->title('Not done')->body($e->getMessage())->danger()->persistent()->send();
+
+                    return;
+                }
+
+                Notification::make()
+                    ->title('Temporary password set. Copy it now.')
+                    ->body(new \Illuminate\Support\HtmlString(
+                        'Tell the customer this password, and ask them to change it after signing in. It is not saved anywhere and will not be shown again.'
+                        .'<div style="margin-top:8px;font-family:monospace;font-size:1.25rem;font-weight:700;user-select:all;overflow-wrap:anywhere">'.e($password).'</div>'
+                    ))
+                    ->success()
+                    ->persistent()
+                    ->send();
+            });
+
+        $signOut = Action::make('signOutEverywhere')
+            ->label('Sign out of all devices')
+            ->icon('heroicon-o-arrow-right-start-on-rectangle')
+            ->visible($support)
+            ->requiresConfirmation()
+            ->modalDescription('They will have to sign in again on every phone and browser. Their password stays the same.')
+            ->action(fn () => $this->attempt(fn () => $this->tools()->signOutEverywhere(auth('wordpress')->user(), $this->getRecord()), 'Signed out everywhere'));
+
+        $details = Action::make('editDetails')
+            ->label('Edit name, email, phone')
+            ->icon('heroicon-o-identification')
+            ->visible($manage)
+            ->modalDescription('Changing the email also sends a notice to the OLD address. Both are kept in the audit log.')
+            ->fillForm(fn (WpUser $record) => ['name' => $record->display_name, 'email' => $record->user_email, 'phone' => $record->metaValue('phone')])
+            ->form([
+                Forms\Components\TextInput::make('name')->label('Name')->required()->maxLength(100),
+                Forms\Components\TextInput::make('email')->label('Email')->email()->required()->maxLength(100),
+                Forms\Components\TextInput::make('phone')->label('Phone')->tel()->maxLength(30),
+            ])
+            ->action(function (array $data) {
+                $changes = [];
+                $this->attempt(function () use ($data, &$changes) {
+                    $changes = $this->tools()->updateDetails(auth('wordpress')->user(), $this->getRecord(), $data);
+                }, 'Saved');
+            });
+
+        $message = Action::make('messageCustomer')
+            ->label('Send a message')
+            ->icon('heroicon-o-chat-bubble-left-ellipsis')
+            ->visible(fn () => (WpUserResource::staffCan('customers.support') || WpUserResource::staffCan('messages')))
+            ->modalDescription('Goes to this customer\'s inbox (the bell) as a message from support.')
+            ->form([
+                Forms\Components\TextInput::make('title')->required()->maxLength(150),
+                Forms\Components\Textarea::make('body')->label('Message')->required()->rows(4)->maxLength(2000),
+            ])
+            ->action(fn (array $data) => $this->attempt(fn () => $this->tools()->sendMessage(auth('wordpress')->user(), $this->getRecord(), $data['title'], $data['body']), 'Message sent'));
+
+        $mute = Action::make('muteInChat')
+            ->label('Mute in live chat')
+            ->icon('heroicon-o-speaker-x-mark')
+            ->visible(fn () => WpUserResource::staffCan('chat') && ! app(ChatModerationService::class)->isMuted($this->getRecord()->ID) && $this->customerOnly())
+            ->form([
+                Forms\Components\Select::make('hours')->label('For how long?')->required()
+                    ->options(['1' => '1 hour', '24' => '24 hours', '168' => '7 days', 'forever' => 'Until I unmute them']),
+            ])
+            ->action(fn (array $data) => $this->attempt(fn () => app(ChatModerationService::class)->mute(auth('wordpress')->user(), $this->getRecord()->ID, $data['hours'] === 'forever' ? null : (int) $data['hours']), 'Muted in chat'));
+
+        $unmute = Action::make('unmuteInChat')
+            ->label('Unmute in live chat')
+            ->icon('heroicon-o-speaker-wave')
+            ->visible(fn () => WpUserResource::staffCan('chat') && app(ChatModerationService::class)->isMuted($this->getRecord()->ID))
+            ->requiresConfirmation()
+            ->action(fn () => $this->attempt(fn () => app(ChatModerationService::class)->unmute(auth('wordpress')->user(), $this->getRecord()->ID), 'Unmuted'));
+
+        return Actions\ActionGroup::make([$reset, $signOut, $details, $message, $mute, $unmute])
+            ->label('Support tools')
+            ->icon('heroicon-m-lifebuoy')
+            ->button()
+            ->color('info');
+    }
+
+    /** Give a badge, or take one back. */
+    private function badgesGroup(): Actions\ActionGroup
+    {
+        $manage = fn () => WpUserResource::staffCan('customers.manage');
+        $catalog = fn () => collect(app(BadgeService::class)->catalog());
+        $earned = fn () => \App\Models\UserBadge::query()->where('user_id', $this->getRecord()->ID)->pluck('badge')->all();
+
+        $award = Action::make('awardBadge')
+            ->label('Give a badge')
+            ->icon('heroicon-o-plus-circle')
+            ->visible($manage)
+            ->modalDescription('The customer is told they earned it. It is recorded in the audit log.')
+            ->form([
+                Forms\Components\Select::make('badge')->label('Badge')->required()
+                    ->options(fn () => $catalog()->except($earned())->mapWithKeys(fn ($b, $key) => [$key => $b['emoji'].' '.$b['name']])->all()),
+            ])
+            ->action(fn (array $data) => $this->attempt(fn () => $this->tools()->awardBadge(auth('wordpress')->user(), $this->getRecord(), $data['badge']), 'Badge given'));
+
+        $remove = Action::make('removeBadge')
+            ->label('Take a badge back')
+            ->icon('heroicon-o-minus-circle')
+            ->color('danger')
+            ->visible($manage)
+            ->modalDescription('For a badge given by mistake. Earning it again later (if it is one they can earn) gives it back.')
+            ->form([
+                Forms\Components\Select::make('badge')->label('Badge')->required()
+                    ->options(fn () => $catalog()->only($earned())->mapWithKeys(fn ($b, $key) => [$key => $b['emoji'].' '.$b['name']])->all()),
+            ])
+            ->action(fn (array $data) => $this->attempt(fn () => $this->tools()->removeBadge(auth('wordpress')->user(), $this->getRecord(), $data['badge']), 'Badge taken back'));
+
+        return Actions\ActionGroup::make([$award, $remove])
+            ->label('Badges')
+            ->icon('heroicon-m-trophy')
+            ->button()
+            ->color('gray');
+    }
+
+    /** Badges the customer has earned, and the ones still locked. */
+    public function badgeList(): array
+    {
+        return app(BadgeService::class)->forUser($this->getRecord()->ID);
     }
 
     /** One set of queries for the whole summary. */
@@ -245,6 +434,40 @@ class ViewWpUser extends ViewRecord
 
                             return ($limit === null ? 'None' : $naira($limit)).' · spent '.$naira($state['spent'][$period]);
                         }))->values()->all(),
+                ]),
+
+            Components\Section::make('Badges')
+                ->icon('heroicon-o-trophy')
+                ->description(function () {
+                    $all = $this->badgeList();
+                    $got = count(array_filter($all, fn ($b) => $b['earned_at']));
+
+                    return "{$got} of ".count($all).' earned. Give or take back a badge with the Badges button at the top.';
+                })
+                ->collapsible()
+                ->schema([
+                    Components\ViewEntry::make('badges')->hiddenLabel()->view('filament.customer-badges')->state(fn () => $this->badgeList()),
+                ]),
+
+            Components\Section::make('Perks & progress')
+                ->icon('heroicon-o-sparkles')
+                ->columns(['default' => 2, 'md' => 4])
+                ->collapsible()
+                ->schema([
+                    Components\TextEntry::make('free_spins')->label('Free spins')
+                        ->state(fn (WpUser $record) => number_format((int) (UserEngagement::query()->where('user_id', $record->ID)->value('free_spins') ?? 0))),
+                    Components\TextEntry::make('bonus_tokens')->label('Free bonus-entry tokens')
+                        ->state(fn (WpUser $record) => number_format((int) (UserEngagement::query()->where('user_id', $record->ID)->value('bonus_entry_tokens') ?? 0))),
+                    Components\TextEntry::make('season')->label('Season Pass')
+                        ->state(function (WpUser $record) {
+                            $pass = app(SeasonPass::class)->state($record->ID);
+
+                            return 'Level '.$pass['level'].' · '.number_format($pass['xp']).' XP';
+                        })
+                        ->helperText(fn () => 'Season '.app(SeasonPass::class)->current()['number']),
+                    Components\TextEntry::make('referral_code')->label('Referral code')
+                        ->state(fn (WpUser $record) => $record->metaValue('rk_referral_code') ?: $record->user_login)
+                        ->copyable(),
                 ]),
 
             Components\Section::make('Lifetime')
