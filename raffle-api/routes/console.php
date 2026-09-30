@@ -70,6 +70,14 @@ Schedule::call(fn () => app(\App\Services\NumberHoldService::class)->pruneExpire
     ->name('number-holds-prune')
     ->withoutOverlapping(10);
 
+// Gaming tax: reminds staff when a month needs locking, filing or paying.
+// Does nothing while switched off in Settings → Payments → Gaming tax, and
+// never before 9am business time. Each reminder is sent once.
+Schedule::call(fn () => app(\App\Services\GamingTaxReminders::class)->sendDue())
+    ->hourly()
+    ->name('gaming-tax-reminders')
+    ->withoutOverlapping(10);
+
 // Affiliates: earnings past their hold are paid into the affiliate's winnings.
 Schedule::call(fn () => app(\App\Services\Growth\AffiliateService::class)->releaseDue())
     ->hourly()

@@ -138,7 +138,7 @@ final class OddsCalculator
         $tax = GamingTaxService::work($sales, 0, $prizes, 0, (float) config('gaming_tax.rate', 2.5), 'zero')['tax_due'];
         $warnings = [];
 
-        if ($sales > 0 && $prizes > $sales) {
+        if (config('raffles.warn_prizes_exceed_sales', true) && $sales > 0 && $prizes > $sales) {
             $warnings[] = 'The prizes are worth more than the raffle can take in, so it would lose money.';
         }
 

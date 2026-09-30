@@ -148,4 +148,22 @@ class GamingTaxPageTest extends TestCase
 
         Livewire::test(GamingTax::class)->assertSee('Settings → Payments → Gaming tax');
     }
+
+    public function test_the_pdf_return_downloads_for_the_month_on_screen(): void
+    {
+        $this->actingAsAdministrator();
+
+        Livewire::test(GamingTax::class)
+            ->callAction('downloadReturn')
+            ->assertFileDownloaded('gaming-tax-return-2026-09.pdf');
+
+        $this->assertSame('Gaming tax return (PDF)', \App\Models\AdminAuditLog::where('action', 'report.downloaded')->latest('id')->first()->context['report']);
+    }
+
+    public function test_anyone_who_can_see_finance_can_download_the_return(): void
+    {
+        $this->asRole('finance');
+
+        Livewire::test(GamingTax::class)->assertActionVisible('downloadReturn');
+    }
 }
