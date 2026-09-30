@@ -61,6 +61,8 @@ class TicketPurchaseController extends Controller
             return response()->json([
                 'message' => $e->getMessage(),
                 'unavailable_numbers' => $e->unavailableNumbers,
+                // true = not sold, but another player is holding them right now
+                'held' => $e->held,
             ], 409);
         } catch (RaffleNotOnSaleException $e) {
             return response()->json([

@@ -192,6 +192,14 @@
         .fi-header { gap: 12px; }
         .fi-page > section { row-gap: 20px; }
         .fi-ta-header-toolbar { padding: 10px 12px; }
+
+        /* The filter button's number badge normally hangs half outside the
+           button's top-right corner, where the table card's rounded edge
+           cuts it off (the "1" looked clipped). Keep it inside the button. */
+        .fi-ta-header-toolbar .fi-icon-btn-badge-ctn {
+            inset-inline-start: auto; inset-inline-end: 0; top: 0;
+            transform: none;
+        }
     }
 
     /* Bottom sheets: on a phone, confirm/reason pop-ups rise from the bottom, within thumb reach. */
