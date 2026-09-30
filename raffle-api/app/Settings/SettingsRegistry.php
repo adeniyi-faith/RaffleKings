@@ -298,6 +298,46 @@ final class SettingsRegistry
                 ],
             ],
 
+            'Reminders' => [
+                'icon' => 'heroicon-o-clock',
+                'sections' => [
+                    'What to send' => [
+                        'description' => 'Switched on in On / off → New features. Checked every 5 minutes. The same reminder never goes twice, and every email has a one-tap "stop reminders" link. People on a responsible-play break never get them.',
+                        'settings' => [
+                            new Setting('reminders.raffle_ending.enabled', '"This raffle ends soon"', 'bool'),
+                            new Setting('reminders.raffle_ending.minutes_before', 'Send it this many minutes before sales close', 'int', rules: ['required', 'integer', 'min:10', 'max:1440']),
+                            new Setting('reminders.raffle_ending.audience', 'Send it to', 'select', null, [
+                                'entrants' => 'People with tickets in that raffle',
+                                'entrants_and_checkout' => 'Them, plus people who left it in checkout (recommended)',
+                                'recent_players' => 'Anyone who played in the last 30 days',
+                            ]),
+                            new Setting('reminders.abandoned_checkout.enabled', '"You left tickets in checkout"', 'bool'),
+                            new Setting('reminders.abandoned_checkout.after_minutes', 'Send it this many minutes after they left', 'int', rules: ['required', 'integer', 'min:5', 'max:720']),
+                        ],
+                    ],
+                    'How and how often' => [
+                        'settings' => [
+                            new Setting('reminders.channels.push', 'By push notification', 'bool', 'Only reaches people who turned notifications on (Settings → Alerts & push → OneSignal).'),
+                            new Setting('reminders.channels.email', 'By email', 'bool'),
+                            new Setting('reminders.channels.whatsapp', 'By WhatsApp', 'bool', 'Needs the WhatsApp section below. Uses the phone number on the customer\'s profile.'),
+                            new Setting('reminders.max_per_day', 'Most reminders one person gets in 24 hours', 'int', rules: ['required', 'integer', 'min:1', 'max:10']),
+                            new Setting('reminders.quiet_from', 'Quiet hours start (hour, 0-23)', 'int', 'Business time zone. Nothing is sent in quiet hours.', rules: ['required', 'integer', 'min:0', 'max:23']),
+                            new Setting('reminders.quiet_until', 'Quiet hours end (hour, 0-23)', 'int', 'Same number as the start = no quiet hours.', rules: ['required', 'integer', 'min:0', 'max:23']),
+                        ],
+                    ],
+                    'WhatsApp (Meta WhatsApp Business)' => [
+                        'description' => 'In Meta Business → WhatsApp Manager: add your number, then from the app\'s WhatsApp → API Setup copy the Phone number ID and a permanent access token (System user token). Create two message templates and wait for Meta to approve them. Each template\'s body uses {{1}} for the customer\'s name, {{2}} for the raffle and {{3}} for the link, e.g. "Hi {{1}}, {{2}} ends in 1 hour. Get your tickets: {{3}}". Meta charges per message.',
+                        'settings' => [
+                            new Setting('reminders.whatsapp.phone_number_id', 'Phone number ID', 'text', placeholder: '123456789012345'),
+                            new Setting('reminders.whatsapp.access_token', 'Access token', 'secret'),
+                            new Setting('reminders.whatsapp.language', 'Template language code', 'text', 'As set on the templates, e.g. en or en_US.', rules: ['required', 'max:10']),
+                            new Setting('reminders.whatsapp.templates.raffle_ending', 'Template name: raffle ends soon', 'text', rules: ['required', 'max:100']),
+                            new Setting('reminders.whatsapp.templates.abandoned_checkout', 'Template name: left in checkout', 'text', rules: ['required', 'max:100']),
+                        ],
+                    ],
+                ],
+            ],
+
             'Email' => [
                 'icon' => 'heroicon-o-envelope',
                 'sections' => [

@@ -230,6 +230,12 @@ class WpUser extends LegacyModel implements Authenticatable, FilamentUser, HasNa
         return $this->metaValue('rk_onesignal_id') ?: null;
     }
 
+    /** The phone number from Edit Profile (reminders by WhatsApp). */
+    public function routeNotificationForWhatsApp(): ?string
+    {
+        return $this->metaValue('phone') ?: null;
+    }
+
     // -- Staff roles (App\Auth\StaffRoles) -------------------------------
 
     /** Worked out once per request. */

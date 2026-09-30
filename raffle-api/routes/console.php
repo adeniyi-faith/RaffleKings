@@ -58,3 +58,7 @@ Schedule::call(function () {
     ->everyFiveMinutes()
     ->name('payout-status-check')
     ->withoutOverlapping(10);
+
+// Reminders ("raffle ends soon", "you left tickets in checkout").
+// Does nothing while switched off in Settings → On / off → New features.
+Schedule::command('reminders:send')->everyFiveMinutes()->withoutOverlapping(10);
