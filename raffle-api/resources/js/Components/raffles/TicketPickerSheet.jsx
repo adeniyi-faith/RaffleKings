@@ -5,6 +5,16 @@ import RaffleOdds from './RaffleOdds';
 
 const POPULAR = 3;
 
+// The bundle names players already know. Any size an admin adds that is not
+// listed here gets a plain "Bundle discount" label.
+const LABELS = {
+    1: 'Starter',
+    2: 'Double chances',
+    3: 'Most popular',
+    5: 'Massive savings applied',
+    10: 'Unfair advantage',
+};
+
 function savingPercent(quote) {
     if (! quote || ! (quote.original > quote.discounted)) {
         return 0;
@@ -68,11 +78,12 @@ export default function TicketPickerSheet({
         <div className="space-y-4">
             <div>
                 <p className="mb-2 text-xs font-bold uppercase tracking-wide text-gray-400 dark:text-gray-500">Bundles</p>
-                <div className="grid grid-cols-3 gap-2" role="group" aria-label="Ticket bundles">
+                <div className="space-y-2" role="group" aria-label="Ticket bundles">
                     {bundles.map((qty) => {
                         const quote = quotes[qty];
                         const save = savingPercent(quote);
                         const on = selectedQty === qty;
+                        const popular = qty === POPULAR;
 
                         return (
                             <button
@@ -81,20 +92,28 @@ export default function TicketPickerSheet({
                                 onClick={() => onSelect(qty)}
                                 aria-pressed={on}
                                 className={[
-                                    'relative flex flex-col items-center rounded-2xl border-2 px-2 py-3 text-center transition-all active:scale-[0.97]',
+                                    'relative flex w-full items-center gap-3 rounded-2xl border-2 px-4 py-3 text-left transition-all active:scale-[0.99]',
                                     on
                                         ? 'border-amber-400 bg-amber-50 shadow-sm dark:bg-amber-900/20'
-                                        : 'border-gray-200 bg-white hover:border-blue-200 dark:border-gray-700 dark:bg-dark-bg',
+                                        : popular
+                                          ? 'border-amber-200 bg-amber-50/40 dark:border-amber-900/40 dark:bg-dark-bg'
+                                          : 'border-gray-200 bg-white hover:border-blue-200 dark:border-gray-700 dark:bg-dark-bg',
                                 ].join(' ')}
                             >
-                                {qty === POPULAR && (
-                                    <span className="absolute -top-2 flex items-center gap-0.5 rounded-full bg-amber-400 px-2 py-0.5 text-[10px] font-extrabold text-amber-950">
-                                        <Star className="h-2.5 w-2.5 fill-current" aria-hidden="true" /> Popular
+                                                                <span className="flex-1">
+                                    <span className="block font-extrabold text-gray-900 dark:text-white">{qty} {qty === 1 ? 'ticket' : 'tickets'}</span>
+                                    <span className="flex items-center gap-1 text-xs font-semibold text-blue-600 dark:text-blue-400">
+                                        {popular && <Star className="h-3 w-3 fill-amber-400 text-amber-500" aria-hidden="true" />}
+                                        {LABELS[qty] ?? 'Bundle discount'}
                                     </span>
-                                )}
-                                <span className="text-xl font-extrabold tabular-nums text-gray-900 dark:text-white">{qty}</span>
-                                <span className="text-[11px] font-medium tabular-nums text-gray-500 dark:text-gray-400">{quote ? formatNaira(quote.discounted) : '…'}</span>
-                                <span className="h-4 text-[10px] font-extrabold text-emerald-600 dark:text-emerald-400">{save > 0 ? `Save ${save}%` : ''}</span>
+                                </span>
+                                <span className="flex flex-col items-end">
+                                    {quote && quote.original > quote.discounted && (
+                                        <span className="text-xs text-gray-400 line-through tabular-nums">{formatNaira(quote.original)}</span>
+                                    )}
+                                    <span className="font-extrabold tabular-nums text-gray-900 dark:text-white">{quote ? formatNaira(quote.discounted) : '…'}</span>
+                                    {save > 0 && <span className="text-[10px] font-extrabold text-emerald-600 dark:text-emerald-400">Save {save}%</span>}
+                                </span>
                             </button>
                         );
                     })}
