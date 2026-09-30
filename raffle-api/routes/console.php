@@ -68,3 +68,29 @@ Schedule::call(fn () => app(\App\Services\Growth\AffiliateService::class)->relea
     ->hourly()
     ->name('affiliate-payouts')
     ->withoutOverlapping(30);
+
+// Nightly database backup, then a practice restore into the separate
+// practice database to prove it works (Settings → Backups & status).
+Schedule::command('backup:run')
+    ->dailyAt(sprintf('%02d:00', (int) config('backups.hour', 3)))
+    ->timezone(config('raffles.timezone'))
+    ->when(fn () => (bool) config('backups.enabled', true))
+    ->withoutOverlapping(120);
+Schedule::command('backup:test-restore')
+    ->dailyAt(sprintf('%02d:40', (int) config('backups.hour', 3)))
+    ->timezone(config('raffles.timezone'))
+    ->when(fn () => (bool) config('backups.enabled', true) && app(\App\Services\Monitoring\DatabaseBackup::class)->restoreConfigured())
+    ->withoutOverlapping(120);
+
+// Uptime heartbeat: an outside service (healthchecks.io, Better Stack…)
+// expects this ping every few minutes and alerts you when it stops, which
+// catches both "site down" and "cron job stopped".
+Schedule::call(function () {
+    if ($url = config('monitoring.heartbeat_url')) {
+        try {
+            \Illuminate\Support\Facades\Http::timeout(10)->get($url);
+        } catch (\Throwable) {
+            // The outside service alerts on the missing ping; nothing to do here.
+        }
+    }
+})->everyFiveMinutes()->name('uptime-heartbeat');

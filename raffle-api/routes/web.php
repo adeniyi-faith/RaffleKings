@@ -487,6 +487,14 @@ Route::get('/affiliate', function (Request $request, AffiliateService $affiliate
     return Inertia::render('Affiliate/Dashboard', ['dashboard' => $affiliates->dashboard($affiliate)]);
 });
 
+// Public status page (Settings → On / off → New features): which parts of
+// the site work right now, and the staff's message. Open during maintenance.
+Route::get('/status', function (\App\Services\Monitoring\StatusBoard $status) {
+    abort_unless(Features::on('status_page'), 404);
+
+    return Inertia::render('Status', ['status' => $status->snapshot()]);
+});
+
 // Reminders: the "stop reminders" link in every reminder email. Signed, so
 // it works without logging in and can't be made for someone else.
 Route::get('/reminders/unsubscribe/{user}', function (Request $request, int $user) {

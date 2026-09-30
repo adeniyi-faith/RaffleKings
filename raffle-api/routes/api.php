@@ -43,6 +43,10 @@ use Illuminate\Support\Facades\Route;
 // Phase 10 monitoring: JavaScript errors from the site's own pages.
 Route::post('/client-errors', [ClientErrorController::class, 'store'])->middleware('throttle:10,1');
 
+// Public status (Settings → On / off → New features), e.g. for a status widget.
+Route::get('/status', fn (\App\Services\Monitoring\StatusBoard $status) => response()->json($status->snapshot()))
+    ->middleware('growth:status_page');
+
 Route::get('/raffles', [RaffleController::class, 'index']);
 Route::get('/raffles/{raffle}', [RaffleController::class, 'show']);
 

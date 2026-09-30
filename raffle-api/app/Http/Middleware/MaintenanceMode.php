@@ -25,6 +25,8 @@ class MaintenanceMode
         'api/webhooks/*', 'api/deposits/callback',
         'login', 'api/auth/login', 'api/auth/logout', 'api/me',
         'up',
+        // The public status page says what's happening during maintenance.
+        'status', 'api/status',
     ];
 
     public function handle(Request $request, Closure $next): Response

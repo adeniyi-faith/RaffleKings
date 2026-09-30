@@ -11,6 +11,7 @@ use App\Services\Auth\TurnstileVerifier;
 use App\Services\Analytics\EventCatalog;
 use App\Services\DailyClaimService;
 use App\Services\Maintenance;
+use App\Services\Monitoring\StatusBoard;
 use App\Services\PointsBoost;
 use App\Services\TicketPricingService;
 use App\Support\Features;
@@ -102,6 +103,8 @@ class HandleInertiaRequests extends Middleware
                 'paused_message' => config('site.paused_message'),
                 // Settings → On / off → New features. Off = the page hides it.
                 'features' => Features::all(),
+                // Status message banner (Settings → Backups & status).
+                'status_banner' => Features::on('status_page') ? app(StatusBoard::class)->banner() : null,
                 // The analytics part of the Privacy Policy page (Settings → Consent & privacy).
                 'privacy' => [
                     'controller' => config('services.analytics.controller_name'),
