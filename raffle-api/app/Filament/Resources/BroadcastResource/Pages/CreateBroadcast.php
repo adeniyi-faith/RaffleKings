@@ -11,6 +11,7 @@ use Filament\Actions\Action;
 use Filament\Notifications\Notification;
 use Filament\Resources\Pages\CreateRecord;
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Str;
 use Throwable;
 
@@ -34,32 +35,45 @@ class CreateBroadcast extends CreateRecord
             'link_label' => $state['link_label'] ?? null,
             'channels' => array_values($state['channels'] ?? []),
             'audience' => $state['audience'],
-            'audience_options' => array_filter([
-                'raffle_id' => $state['raffle_id'] ?? null,
-                'days' => $state['days'] ?? null,
-                'min_amount' => $state['min_amount'] ?? null,
-                'user_id' => $state['user_id'] ?? null,
-            ], fn ($v) => filled($v)),
+            'audience_options' => BroadcastResource::audienceOptions($state),
+            'is_promotion' => (bool) ($state['is_promotion'] ?? false),
+            'scheduled_at' => ($state['when'] ?? 'now') === 'later' ? ($state['scheduled_at'] ?? null) : null,
         ];
+    }
+
+    /** The Customers list hands over its ticked customers as a saved list (see WpUserResource). */
+    public function mount(): void
+    {
+        parent::mount();
+
+        if ($token = request()->query('list')) {
+            $ids = array_map('intval', (array) Cache::get(BroadcastResource::TICKED_CACHE_PREFIX.$token, []));
+
+            if ($ids !== []) {
+                $this->form->fill(['audience' => 'selected', 'user_ids' => $ids]);
+            }
+        }
     }
 
     private function recipients(): int
     {
         $p = $this->payload($this->data + ['title' => '', 'body' => '']);
 
-        return app(Audience::class)->count((string) $p['audience'], $p['audience_options']);
+        return app(Audience::class)->count((string) $p['audience'], $p['audience_options'], $p['is_promotion']);
     }
 
     protected function getCreateFormAction(): Action
     {
         return parent::getCreateFormAction()
-            ->label('Send')
+            ->label(fn () => ($this->data['when'] ?? 'now') === 'later' ? 'Schedule' : 'Send')
             ->icon('heroicon-o-paper-airplane')
             ->submit(null)
             ->requiresConfirmation()
-            ->modalHeading(fn () => 'Send to '.number_format($this->recipients()).' customers?')
-            ->modalDescription('This can\'t be undone. Emails and notifications go out over the next few minutes.')
-            ->modalSubmitActionLabel('Yes, send it')
+            ->modalHeading(fn () => (($this->data['when'] ?? 'now') === 'later' ? 'Schedule for ' : 'Send to ').number_format($this->recipients()).' customers?')
+            ->modalDescription(fn () => ($this->data['when'] ?? 'now') === 'later'
+                ? 'It goes out at the time you chose. Until then you can change the time or cancel it. The group is worked out again when it goes out, so the number can change.'
+                : 'This can\'t be undone. Emails and notifications go out over the next few minutes.')
+            ->modalSubmitActionLabel(fn () => ($this->data['when'] ?? 'now') === 'later' ? 'Yes, schedule it' : 'Yes, send it')
             ->action('create');
     }
 
@@ -97,12 +111,12 @@ class CreateBroadcast extends CreateRecord
             );
         }
 
-        return app(BroadcastService::class)->send($this->payload($data), static::admin());
+        return app(BroadcastService::class)->send($this->payload($data + ['when' => $raw['when'] ?? 'now', 'is_promotion' => $raw['is_promotion'] ?? false]), static::admin());
     }
 
     protected function getCreatedNotificationTitle(): ?string
     {
-        return 'Sending. It will reach everyone within a few minutes.';
+        return $this->getRecord()->status === 'scheduled' ? 'Scheduled. It goes out at the time you chose.' : 'Sending. It will reach everyone within a few minutes.';
     }
 
     protected function getRedirectUrl(): string

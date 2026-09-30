@@ -8,6 +8,8 @@ use App\Models\CustomerMessage;
 use App\Models\Legacy\WpUser;
 use App\Notifications\BroadcastMessage;
 use App\Services\AdminAuditLogService;
+use Illuminate\Support\Carbon;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Notification;
 
 /**
@@ -15,32 +17,188 @@ use Illuminate\Support\Facades\Notification;
  * bell), by email and/or as a phone notification. The actual sending runs
  * in the background (App\Jobs\SendBroadcast), so a message to thousands
  * of customers never slows the admin down.
+ *
+ * A message can go now or at a chosen time. Sending works through the
+ * group in order of customer id, a batch at a time, and writes down who
+ * has been reached (broadcast_deliveries, one row per customer per
+ * message). If sending is interrupted it carries on where it stopped, and
+ * nobody can ever get the same message twice.
  */
 final class BroadcastService
 {
     public function __construct(private readonly Audience $audience) {}
 
-    /** @param  array{title: string, body: string, link_url?: ?string, link_label?: ?string, channels: list<string>, audience: string, audience_options?: array}  $data */
+    /**
+     * @param  array{title: string, body: string, link_url?: ?string, link_label?: ?string, channels: list<string>, audience: string, audience_options?: array, scheduled_at?: mixed, is_promotion?: bool}  $data
+     */
     public function send(array $data, WpUser $admin): Broadcast
     {
+        $at = filled($data['scheduled_at'] ?? null) ? Carbon::parse($data['scheduled_at']) : null;
+        $later = $at !== null && $at->isFuture();
+        $options = $data['audience_options'] ?? [];
+        $promotion = (bool) ($data['is_promotion'] ?? false);
+
         $broadcast = Broadcast::create([
             ...$data,
-            'audience_options' => $data['audience_options'] ?? [],
-            'status' => 'sending',
-            'recipients_count' => $this->audience->count($data['audience'], $data['audience_options'] ?? []),
+            'audience_options' => $options,
+            'is_promotion' => $promotion,
+            'scheduled_at' => $later ? $at : null,
+            'status' => $later ? 'scheduled' : 'sending',
+            'started_at' => $later ? null : now(),
+            // Who it would reach right now. Sending settles the real number.
+            'recipients_count' => $this->audience->count($data['audience'], $options, $promotion),
             'created_by' => $admin->ID,
         ]);
 
-        app(AdminAuditLogService::class)->record($admin, 'broadcast.sent', Broadcast::class, $broadcast->id, [
+        app(AdminAuditLogService::class)->record($admin, $later ? 'broadcast.scheduled' : 'broadcast.sent', Broadcast::class, $broadcast->id, [
             'title' => $broadcast->title,
             'to' => $this->audience->describe($broadcast->audience, $broadcast->audience_options ?? []),
             'recipients' => $broadcast->recipients_count,
             'channels' => $broadcast->channels,
+            'promotion' => $promotion,
+            'scheduled_at' => $later ? $at->toDateTimeString() : null,
         ]);
 
-        SendBroadcast::dispatch($broadcast->id);
+        if (! $later) {
+            SendBroadcast::dispatch($broadcast->id);
+        }
 
         return $broadcast;
+    }
+
+    /** Scheduled messages whose time has come start sending (run every minute). @return int how many started */
+    public function startDue(): int
+    {
+        $started = 0;
+
+        Broadcast::query()->where('status', 'scheduled')->where('scheduled_at', '<=', now())->pluck('id')->each(function ($id) use (&$started) {
+            // The update only matches once, so two overlapping runs can't both start it.
+            if (Broadcast::query()->whereKey($id)->where('status', 'scheduled')->update(['status' => 'sending', 'started_at' => now()])) {
+                SendBroadcast::dispatch($id);
+                $started++;
+            }
+        });
+
+        return $started;
+    }
+
+    /** Messages that say "sending" but haven't moved for a few minutes are picked up again. @return int how many restarted */
+    public function resumeStalled(int $idleMinutes = 4): int
+    {
+        $ids = Broadcast::query()->where('status', 'sending')->where('updated_at', '<', now()->subMinutes($idleMinutes))->pluck('id');
+        $ids->each(fn ($id) => SendBroadcast::dispatch($id));
+
+        return $ids->count();
+    }
+
+    /** Stop a message that hasn't finished (not yet started, or part-way). Whoever already got it keeps it. */
+    public function cancel(Broadcast $broadcast, WpUser $admin): bool
+    {
+        $stopped = Broadcast::query()->whereKey($broadcast->id)->whereIn('status', ['scheduled', 'sending', 'failed'])
+            ->update(['status' => 'cancelled', 'recipients_count' => DB::raw('delivered_count')]);
+
+        if ($stopped) {
+            $this->recordAdminAction($admin, 'broadcast.cancelled', $broadcast, ['delivered_so_far' => $broadcast->fresh()->delivered_count]);
+        }
+
+        return (bool) $stopped;
+    }
+
+    /** Start a scheduled message now, or carry on with one that hit a problem. */
+    public function sendNow(Broadcast $broadcast, WpUser $admin): bool
+    {
+        $wasFailed = $broadcast->status === 'failed';
+        $moved = Broadcast::query()->whereKey($broadcast->id)->whereIn('status', ['scheduled', 'failed'])
+            ->update(['status' => 'sending', 'started_at' => $broadcast->started_at ?? now(), 'error' => null]);
+
+        if ($moved) {
+            $this->recordAdminAction($admin, $wasFailed ? 'broadcast.resumed' : 'broadcast.sent_early', $broadcast);
+            SendBroadcast::dispatch($broadcast->id);
+        }
+
+        return (bool) $moved;
+    }
+
+    public function reschedule(Broadcast $broadcast, Carbon $at, WpUser $admin): bool
+    {
+        if (! $at->isFuture()) {
+            return false;
+        }
+
+        $moved = Broadcast::query()->whereKey($broadcast->id)->where('status', 'scheduled')->update(['scheduled_at' => $at]);
+
+        if ($moved) {
+            $this->recordAdminAction($admin, 'broadcast.rescheduled', $broadcast, ['from' => $broadcast->scheduled_at?->toDateTimeString(), 'to' => $at->toDateTimeString()]);
+        }
+
+        return (bool) $moved;
+    }
+
+    /**
+     * Reach the next batch of customers. Everything in one transaction:
+     * the "reached" rows, the inbox rows and the queued emails all save
+     * together or not at all, so an interrupted batch is simply redone
+     * and never half-sent or sent twice.
+     *
+     * @return bool whether more customers remain
+     */
+    public function sendNextBatch(Broadcast $broadcast, int $size = 200): bool
+    {
+        $users = $this->audience->query($broadcast->audience, $broadcast->audience_options ?? [], $broadcast->is_promotion)
+            ->where('ID', '>', $broadcast->last_user_id)->orderBy('ID')->limit($size)->get();
+
+        if ($users->isEmpty()) {
+            $this->finish($broadcast);
+
+            return false;
+        }
+
+        DB::transaction(function () use ($broadcast, $users) {
+            $already = DB::table('broadcast_deliveries')->where('broadcast_id', $broadcast->id)->whereIn('user_id', $users->pluck('ID'))->pluck('user_id')->all();
+            $fresh = $users->reject(fn (WpUser $u) => in_array($u->ID, $already, true));
+
+            if ($fresh->isNotEmpty()) {
+                DB::table('broadcast_deliveries')->insert($fresh->map(fn (WpUser $u) => [
+                    'broadcast_id' => $broadcast->id, 'user_id' => $u->ID, 'created_at' => now(),
+                ])->all());
+
+                $this->deliver($broadcast, $fresh);
+            }
+
+            $broadcast->forceFill([
+                'last_user_id' => $users->last()->ID,
+                'delivered_count' => $broadcast->delivered_count + $fresh->count(),
+            ])->save();
+        });
+
+        $more = $users->count() >= $size || $this->audience->query($broadcast->audience, $broadcast->audience_options ?? [], $broadcast->is_promotion)
+            ->where('ID', '>', $broadcast->last_user_id)->exists();
+
+        if (! $more) {
+            $this->finish($broadcast);
+        }
+
+        return $more;
+    }
+
+    private function finish(Broadcast $broadcast): void
+    {
+        $options = $broadcast->audience_options ?? [];
+
+        $broadcast->forceFill([
+            'status' => 'sent',
+            'sent_at' => now(),
+            'recipients_count' => $broadcast->delivered_count,
+            // Customers who match the group but asked not to get promotions.
+            'skipped_count' => $broadcast->is_promotion
+                ? max(0, $this->audience->count($broadcast->audience, $options) - $this->audience->count($broadcast->audience, $options, true))
+                : 0,
+        ])->save();
+    }
+
+    private function recordAdminAction(WpUser $admin, string $action, Broadcast $broadcast, array $context = []): void
+    {
+        app(AdminAuditLogService::class)->record($admin, $action, Broadcast::class, $broadcast->id, ['title' => $broadcast->title, ...$context]);
     }
 
     /** Deliver to one batch of customers. @param  iterable<WpUser>  $users */

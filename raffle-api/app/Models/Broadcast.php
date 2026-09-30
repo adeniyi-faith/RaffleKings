@@ -10,14 +10,25 @@ class Broadcast extends Model
 {
     public const CHANNELS = ['inbox' => 'On the site (message bell)', 'email' => 'Email', 'push' => 'Phone notification'];
 
-    protected $fillable = ['title', 'body', 'link_url', 'link_label', 'channels', 'audience', 'audience_options', 'status', 'recipients_count', 'created_by', 'sent_at'];
+    protected $fillable = [
+        'title', 'body', 'link_url', 'link_label', 'channels', 'audience', 'audience_options', 'status', 'recipients_count', 'created_by', 'sent_at',
+        'scheduled_at', 'last_user_id', 'delivered_count', 'skipped_count', 'is_promotion', 'started_at', 'error',
+    ];
 
     protected $casts = [
         'channels' => 'array',
         'audience_options' => 'array',
         'recipients_count' => 'integer',
+        'delivered_count' => 'integer',
+        'skipped_count' => 'integer',
+        'is_promotion' => 'boolean',
         'sent_at' => 'datetime',
+        'scheduled_at' => 'datetime',
+        'started_at' => 'datetime',
     ];
+
+    /** scheduled → sending → sent. Stopped early: cancelled. Hit a problem: failed (can be resumed). */
+    public const STATUSES = ['scheduled', 'sending', 'sent', 'failed', 'cancelled'];
 
     public function sender()
     {
