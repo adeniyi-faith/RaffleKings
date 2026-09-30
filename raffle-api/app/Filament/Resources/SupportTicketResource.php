@@ -55,6 +55,14 @@ class SupportTicketResource extends Resource
 
     protected static ?string $modelLabel = 'support ticket';
 
+    // Found by subject from the admin's top search box.
+    protected static ?string $recordTitleAttribute = 'subject';
+
+    public static function getGlobalSearchResultDetails(\Illuminate\Database\Eloquent\Model $record): array
+    {
+        return ['Ticket' => '#'.$record->id.' · '.$record->status];
+    }
+
     public static function canCreate(): bool
     {
         return false;

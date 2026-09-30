@@ -82,7 +82,7 @@ class WithdrawalService
             throw new MinimumWithdrawalNotMetException($minimum);
         }
 
-        if (! BankAccount::query()->where('user_id', $user->ID)->whereKey($bankAccountId)->exists()) {
+        if (! BankAccount::query()->active()->where('user_id', $user->ID)->whereKey($bankAccountId)->exists()) {
             throw new BankAccountNotFoundException;
         }
 
