@@ -29,3 +29,4 @@ if (!function_exists('update_option')) {
 require_once __DIR__ . '/../wp/wp-content/mu-plugins/rk-core/wallet-bridge.php';
 require_once __DIR__ . '/../wp/wp-content/mu-plugins/rk-core/draw-bridge.php';
 require_once __DIR__ . '/../wp/wp-content/mu-plugins/rk-core/rewards-bridge.php';
+require_once __DIR__ . '/../wp/wp-content/mu-plugins/rk-core/holds-bridge.php';
