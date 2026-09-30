@@ -328,4 +328,85 @@ class CustomerSupportToolsTest extends TestCase
         // (Content staff can't open Customers at all.)
         $this->get(\App\Filament\Resources\Legacy\WpUserResource::getUrl('view', ['record' => $customer]))->assertForbidden();
     }
+
+    // --- Free spins and bonus tokens -----------------------------------------------
+
+    public function test_free_spins_and_tokens_can_be_given_and_the_customer_is_told(): void
+    {
+        $admin = $this->actingAsAdministrator();
+        $customer = $this->customer();
+        UserEngagement::for($customer->ID)->update(['free_spins' => 1, 'bonus_entry_tokens' => 0]);
+
+        $result = $this->tools()->adjustPerks($admin, $customer, 3, 2, 'Apology for the delayed payout');
+
+        $this->assertSame(['from' => 1, 'to' => 4], $result['free_spins']);
+        $this->assertSame(['from' => 0, 'to' => 2], $result['bonus_entry_tokens']);
+        $row = UserEngagement::for($customer->ID);
+        $this->assertSame(4, $row->free_spins);
+        $this->assertSame(2, $row->bonus_entry_tokens);
+        $this->assertSame('Apology for the delayed payout', $this->audit('customer.perks_adjusted')->context['reason']);
+        $message = CustomerMessage::where('user_id', $customer->ID)->first();
+        $this->assertSame('reward', $message->kind);
+        $this->assertStringContainsString('3 free spins and 2 free bonus entries', $message->body);
+    }
+
+    public function test_perks_can_be_taken_back_but_never_below_zero(): void
+    {
+        $admin = $this->actingAsAdministrator();
+        $customer = $this->customer();
+        UserEngagement::for($customer->ID)->update(['free_spins' => 2]);
+
+        $this->tools()->adjustPerks($admin, $customer, -2, 0, 'Given by mistake');
+        $this->assertSame(0, UserEngagement::for($customer->ID)->free_spins);
+        $this->assertSame(0, CustomerMessage::where('user_id', $customer->ID)->count(), 'taking back sends no message');
+
+        try {
+            $this->tools()->adjustPerks($admin, $customer, -1, 0, 'Too many');
+            $this->fail('Going below zero must be refused.');
+        } catch (RuntimeException $e) {
+            $this->assertStringContainsString('only have 0 free spin', $e->getMessage());
+        }
+        $this->assertSame(0, UserEngagement::for($customer->ID)->free_spins);
+    }
+
+    public function test_perk_changes_need_a_number_a_reason_and_stay_small(): void
+    {
+        $admin = $this->actingAsAdministrator();
+        $customer = $this->customer();
+
+        foreach ([[0, 0, 'x'], [1, 0, '  '], [101, 0, 'x'], [0, -101, 'x']] as [$spins, $tokens, $reason]) {
+            try {
+                $this->tools()->adjustPerks($admin, $customer, $spins, $tokens, $reason);
+                $this->fail('Should have been refused.');
+            } catch (RuntimeException) {
+                $this->assertNull($this->audit('customer.perks_adjusted'));
+            }
+        }
+    }
+
+    public function test_the_customer_is_not_messaged_when_staff_choose_not_to(): void
+    {
+        $admin = $this->actingAsAdministrator();
+        $customer = $this->customer();
+
+        $this->tools()->adjustPerks($admin, $customer, 1, 0, 'Quietly', false);
+
+        $this->assertSame(1, UserEngagement::for($customer->ID)->free_spins);
+        $this->assertSame(0, CustomerMessage::where('user_id', $customer->ID)->count());
+    }
+
+    public function test_the_perks_button_works_for_managers_and_is_hidden_from_support(): void
+    {
+        $this->actingAsAdministrator();
+        $customer = $this->customer();
+
+        Livewire::test(ViewWpUser::class, ['record' => $customer->getKey()])
+            ->assertActionVisible('editPerks')
+            ->callAction('editPerks', ['free_spins' => 2, 'bonus_entry_tokens' => 1, 'reason' => 'Goodwill', 'tell' => false])
+            ->assertHasNoActionErrors();
+        $this->assertSame(2, UserEngagement::for($customer->ID)->free_spins);
+
+        $this->actingAsSupport();
+        Livewire::test(ViewWpUser::class, ['record' => $customer->getKey()])->assertActionHidden('editPerks');
+    }
 }
