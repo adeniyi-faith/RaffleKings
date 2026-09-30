@@ -8,13 +8,23 @@ use Illuminate\Database\Eloquent\Model;
 class BankAccount extends Model
 {
     protected $fillable = [
-        'user_id', 'bank_name', 'account_number', 'account_name', 'is_primary',
+        'user_id', 'bank_name', 'bank_code', 'account_number', 'account_name', 'is_primary',
+        'name_verified_at', 'paystack_recipient_code',
     ];
 
-    protected $casts = ['is_primary' => 'boolean'];
+    protected $casts = ['is_primary' => 'boolean', 'name_verified_at' => 'datetime'];
+
+    // Paystack's id for this account is only for the server.
+    protected $hidden = ['paystack_recipient_code'];
 
     public function user()
     {
         return $this->belongsTo(WpUser::class, 'user_id', 'ID');
+    }
+
+    /** Paystack confirmed the name on this account (bank-name check). */
+    public function isVerified(): bool
+    {
+        return $this->name_verified_at !== null && filled($this->bank_code);
     }
 }

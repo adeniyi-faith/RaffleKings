@@ -5,6 +5,7 @@ namespace App\Http\Controllers\Api;
 use App\Exceptions\PaymentGatewayException;
 use App\Http\Controllers\Controller;
 use App\Services\DepositService;
+use App\Services\PayoutService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Log;
@@ -25,7 +26,10 @@ use RuntimeException;
  */
 class PaymentWebhookController extends Controller
 {
-    public function __construct(private readonly DepositService $deposits) {}
+    public function __construct(
+        private readonly DepositService $deposits,
+        private readonly PayoutService $payouts,
+    ) {}
 
     public function paystack(Request $request): JsonResponse
     {
@@ -49,6 +53,18 @@ class PaymentWebhookController extends Controller
 
         if (! $reference) {
             return response()->json(['message' => 'No reference in payload.'], 200);
+        }
+
+        // Automatic payouts: Paystack's transfer.success / failed / reversed
+        // arrive on the same URL as top-ups.
+        if ($gatewayName === 'paystack' && str_starts_with((string) $request->json('event'), 'transfer.')) {
+            try {
+                $this->payouts->handleWebhook($reference);
+            } catch (PaymentGatewayException|RuntimeException $e) {
+                Log::error('Failed to check a Paystack payout from webhook.', ['reference' => $reference, 'error' => $e->getMessage()]);
+            }
+
+            return response()->json(['message' => 'ok']);
         }
 
         try {

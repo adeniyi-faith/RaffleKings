@@ -81,6 +81,18 @@ final class SettingsRegistry
                             new Setting('site.paused_message', 'Message shown when something is paused', 'textarea', rules: ['required', 'max:200']),
                         ],
                     ],
+                    'New features' => [
+                        'description' => 'Each starts OFF. While off, customers don\'t see it at all (no greyed-out buttons) and nothing runs in the background. The staff screens stay in the menu marked "Off", so you can set things up before switching on. Their numbers and keys are on the other tabs.',
+                        'settings' => [
+                            new Setting('features.bank_name_check', 'Bank-name check (Paystack)', 'bool', 'Customers pick their bank from a list and Paystack fills in the account name. Stops most wrong-account payouts. Needs the Paystack secret key.'),
+                            new Setting('features.auto_payouts', 'Automatic payouts (Paystack transfers)', 'bool', 'Adds "Send with Paystack" to Withdrawals: one tap sends the money and marks it paid when the bank confirms. Needs the bank-name check, and Transfers enabled on your Paystack account. Settings → Withdrawals has the limits.'),
+                            new Setting('features.reminders', 'Reminders (push, email, WhatsApp)', 'bool', '"This raffle ends in 1 hour" and "You left tickets in checkout". Settings → Reminders.'),
+                            new Setting('features.promo_codes', 'Promo codes', 'bool', 'A code box at sign-up and checkout. Create codes under Growth → Promo codes.'),
+                            new Setting('features.affiliates', 'Affiliate links', 'bool', 'Influencers get their own link and earnings page. Add them under Growth → Affiliates.'),
+                            new Setting('features.abuse_detection', 'Multi-account protection', 'bool', 'Holds referral and affiliate rewards when two accounts share a phone, device or bank account, until staff check them on Fraud watch.'),
+                            new Setting('features.status_page', 'Public status page', 'bool', 'A /status page showing which parts of the site are working, with your message. Settings → Alerts & push → Status page.'),
+                        ],
+                    ],
                 ],
             ],
 
@@ -121,6 +133,12 @@ final class SettingsRegistry
                             new Setting('withdrawals.minimum_amount', 'Smallest withdrawal', 'money', rules: ['required', 'numeric', 'min:0']),
                             new Setting('withdrawals.verification_deposit_threshold', 'One-time verification applies below this lifetime top-up total', 'money', 'Customers who have topped up less than this in total pay the verification fee once, from their first withdrawal. Set 0 to switch the fee off.', rules: ['required', 'numeric', 'min:0']),
                             new Setting('withdrawals.verification_fee', 'One-time verification fee', 'money', rules: ['required', 'numeric', 'min:0']),
+                        ],
+                    ],
+                    'Automatic payouts (Paystack)' => [
+                        'description' => 'Switched on in On / off → New features. Before switching on, in your Paystack dashboard: (1) make sure Transfers are enabled for your business, (2) Settings → Preferences → untick "Confirm transfers before sending" (the OTP step), so the site can send without a code, (3) keep enough money in your Paystack balance. Paystack\'s transfer messages arrive on the same webhook URL as top-ups. Only accounts whose name Paystack confirmed (bank-name check) can be paid this way; older accounts are paid by hand as before.',
+                        'settings' => [
+                            new Setting('withdrawals.auto_payout_max', 'Biggest withdrawal sent automatically', 'money', 'Bigger ones show "pay by hand". 0 = no limit.', rules: ['required', 'numeric', 'min:0']),
                         ],
                     ],
                 ],
