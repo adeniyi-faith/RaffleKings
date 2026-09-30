@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { Head } from '@inertiajs/react';
+import { Head, Link } from '@inertiajs/react';
 import { Check, Lock, Pin } from 'lucide-react';
 import PageTop from '../../Components/ui/PageTop';
 import LoadError from '../../Components/ui/LoadError';
@@ -14,9 +14,13 @@ export default function Badges() {
     const [pinned, setPinned] = useState([]);
     const [saving, setSaving] = useState(false);
     const [saved, setSaved] = useState(false);
+    const [privacy, setPrivacy] = useState(null);
 
     useEffect(() => {
-        if (data) setPinned(data.badges.filter((b) => b.pinned).map((b) => b.key));
+        if (data) {
+            setPinned(data.badges.filter((b) => b.pinned).map((b) => b.key));
+            setPrivacy(data.privacy);
+        }
     }, [data]);
 
     const badges = data?.badges ?? [];
@@ -26,6 +30,18 @@ export default function Badges() {
     function toggle(key) {
         setSaved(false);
         setPinned((current) => (current.includes(key) ? current.filter((k) => k !== key) : current.length < max ? [...current, key] : current));
+    }
+
+    // Who can see my public profile, and whether my wins show on it. Saves as soon as it changes.
+    async function changePrivacy(change) {
+        const before = privacy;
+        setPrivacy({ ...privacy, ...change });
+        try {
+            const result = await apiPost('/api/badges/privacy', change);
+            setPrivacy(result.privacy);
+        } catch {
+            setPrivacy(before);
+        }
     }
 
     async function save() {
@@ -89,6 +105,36 @@ export default function Badges() {
                                     </button>
                                 </div>
                             </div>
+
+                            {privacy && (
+                                <div className="rounded-2xl border border-gray-100 bg-white p-4 shadow-sm dark:border-gray-800 dark:bg-dark-card">
+                                    <p className="text-sm font-bold text-gray-900 dark:text-white">Your public profile</p>
+                                    <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
+                                        Other players can open a card with your username, picture and badges. It never shows money, your real name, phone or email.
+                                    </p>
+                                    <div className="mt-3 grid grid-cols-2 gap-2">
+                                        {[['everyone', 'Everyone can see it'], ['private', 'Only me']].map(([value, label]) => (
+                                            <button
+                                                key={value}
+                                                onClick={() => changePrivacy({ visibility: value })}
+                                                aria-pressed={privacy.visibility === value}
+                                                className={`rounded-xl border px-3 py-2 text-xs font-bold ${privacy.visibility === value ? 'border-fuchsia-500 bg-fuchsia-50 text-fuchsia-700 dark:bg-fuchsia-900/20 dark:text-fuchsia-300' : 'border-gray-200 text-gray-600 dark:border-gray-700 dark:text-gray-300'}`}
+                                            >
+                                                {label}
+                                            </button>
+                                        ))}
+                                    </div>
+                                    <label className="mt-3 flex items-start gap-2 text-xs text-gray-700 dark:text-gray-300">
+                                        <input type="checkbox" checked={privacy.show_wins} onChange={(e) => changePrivacy({ show_wins: e.target.checked })} className="mt-0.5" />
+                                        <span>Show my wins on my profile (the win badges and how many times I've won). Off by default.</span>
+                                    </label>
+                                    {privacy.visibility === 'everyone' && (
+                                        <Link href={privacy.path} className="mt-3 inline-block text-xs font-bold text-app-primary">
+                                            See my public profile
+                                        </Link>
+                                    )}
+                                </div>
+                            )}
 
                             <p className="text-xs text-gray-500 dark:text-gray-400">
                                 Grey badges are locked. The line under each one tells you what to do to earn it.
