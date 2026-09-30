@@ -36,12 +36,30 @@ class GamingTaxReturnPdf
         ])->render();
     }
 
+    /** The first folder the site can write to, for the PDF maker's font files. Shared hosts differ. */
+    private function workDir(): string
+    {
+        foreach ([storage_path('app/dompdf'), storage_path('framework/cache/dompdf'), sys_get_temp_dir().'/rk-dompdf'] as $dir) {
+            if (! is_dir($dir)) {
+                @mkdir($dir, 0775, true);
+            }
+
+            if (is_dir($dir) && is_writable($dir)) {
+                return $dir;
+            }
+        }
+
+        throw new \RuntimeException('No writable folder for the PDF maker (tried storage/app/dompdf, storage/framework/cache/dompdf and the system temp folder).');
+    }
+
     public function render(string $period): string
     {
-        $dir = storage_path('app/dompdf');
-        if (! is_dir($dir)) {
-            @mkdir($dir, 0775, true);
-        }
+        $dir = $this->workDir();
+        $html = $this->html($period);
+
+        // A small server may allow little memory or time; the PDF is one page, so give it what it needs.
+        @ini_set('memory_limit', '256M');
+        @set_time_limit(60);
 
         $options = new Options;
         $options->set('defaultFont', 'DejaVu Sans');   // has the ₦ sign
@@ -52,7 +70,7 @@ class GamingTaxReturnPdf
         $options->set('fontCache', $dir);
 
         $pdf = new Dompdf($options);
-        $pdf->loadHtml($this->html($period), 'UTF-8');
+        $pdf->loadHtml($html, 'UTF-8');
         $pdf->setPaper('A4');
         $pdf->render();
 
