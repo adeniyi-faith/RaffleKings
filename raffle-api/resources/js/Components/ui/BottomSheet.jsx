@@ -7,7 +7,7 @@ import { X } from 'lucide-react';
  * behind stops scrolling while it is open; and focus goes back to the button
  * that opened it when it closes.
  */
-export default function BottomSheet({ open, onClose, title, children }) {
+export default function BottomSheet({ open, onClose, title, children, keepMounted = false }) {
     const closeButton = useRef(null);
     const onCloseRef = useRef(onClose);
     onCloseRef.current = onClose;
@@ -38,13 +38,13 @@ export default function BottomSheet({ open, onClose, title, children }) {
         };
     }, [open]);
 
-    if (! open) {
+    if (! open && ! keepMounted) {
         return null;
     }
 
     return (
-        <div className="fixed inset-0 z-[70] flex items-end justify-center sm:items-center" role="dialog" aria-modal="true" aria-label={title}>
-            <div className="absolute inset-0 bg-gray-950/60 backdrop-blur-[2px]" onClick={() => onCloseRef.current()} aria-hidden="true" />
+        <div className={`fixed inset-0 z-[70] flex items-end justify-center sm:items-center ${open ? '' : 'hidden'}`} role="dialog" aria-modal="true" aria-label={title}>
+            <div className="rk-fade absolute inset-0 bg-gray-950/60" onClick={() => onCloseRef.current()} aria-hidden="true" />
             <div className="rk-sheet relative flex max-h-[90dvh] w-full max-w-lg flex-col rounded-t-3xl bg-white shadow-2xl dark:bg-dark-card sm:rounded-3xl">
                 <div className="mx-auto mt-2 h-1 w-10 rounded-full bg-gray-200 dark:bg-gray-700 sm:hidden" aria-hidden="true" />
                 <div className="flex items-center justify-between gap-3 px-5 pb-2 pt-3">
