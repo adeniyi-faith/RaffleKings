@@ -63,6 +63,13 @@ Schedule::call(function () {
 // Does nothing while switched off in Settings → On / off → New features.
 Schedule::command('reminders:send')->everyFiveMinutes()->withoutOverlapping(10);
 
+// Number holds: clear out ones that have run out (they already stop
+// counting the moment they expire; this only tidies the table).
+Schedule::call(fn () => app(\App\Services\NumberHoldService::class)->pruneExpired())
+    ->everyFiveMinutes()
+    ->name('number-holds-prune')
+    ->withoutOverlapping(10);
+
 // Affiliates: earnings past their hold are paid into the affiliate's winnings.
 Schedule::call(fn () => app(\App\Services\Growth\AffiliateService::class)->releaseDue())
     ->hourly()

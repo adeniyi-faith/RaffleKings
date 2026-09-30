@@ -68,14 +68,8 @@ export default function RaffleShow({ raffle, drawInfo = null }) {
         track('buy_tickets_clicked', { raffle_id: raffle.id, quantity: qty, logged_in: Boolean(auth.user) });
         const params = new URLSearchParams({ raffle_id: raffle.id, qty: String(qty) });
 
-        if (! auth.user) {
-            // Real signal now, not the dead localStorage 'token' check that
-            // used to send every visitor — logged in or not — to the
-            // register page after picking numbers (item 25).
-            router.visit(`/register?redirect=${encodeURIComponent(`/raffles/${raffle.id}/numbers?${params}`)}`);
-            return;
-        }
-
+        // Guests go straight to the numbers too: they pick first and are asked to
+        // sign in at checkout, where their numbers are held for them.
         router.visit(`/raffles/${raffle.id}/numbers?${params}`);
     }
 
