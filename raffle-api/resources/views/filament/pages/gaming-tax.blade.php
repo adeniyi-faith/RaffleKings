@@ -154,7 +154,7 @@
             <dl class="grid gap-2 text-sm">
                 <div class="flex justify-between gap-4"><dt class="text-gray-500">Tax rate</dt><dd class="font-medium tabular-nums">{{ rtrim(rtrim(number_format((float) config('gaming_tax.rate'), 3), '0'), '.') }}%</dd></div>
                 <div class="flex justify-between gap-4"><dt class="text-gray-500">If prizes beat sales</dt><dd class="text-end font-medium">{{ config('gaming_tax.shortfall') === 'carry_forward' ? 'Carried into next month' : 'That month owes nothing' }}</dd></div>
-                <div class="flex justify-between gap-4"><dt class="text-gray-500">Due on</dt><dd class="font-medium">the {{ \Illuminate\Support\Number::ordinal((int) config('gaming_tax.due_day')) }} of the next month</dd></div>
+                <div class="flex justify-between gap-4"><dt class="text-gray-500">Due on</dt><dd class="font-medium">the {{ \App\Services\GamingTaxReminders::ordinal((int) config('gaming_tax.due_day')) }} of the next month</dd></div>
             </dl>
             <p class="mt-3 text-xs text-gray-500">A month keeps the rate and rule it was locked with. Confirm the rate and the due day with your accountant.</p>
             @if ($settingsUrl)
