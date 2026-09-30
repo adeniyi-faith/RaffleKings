@@ -3,12 +3,18 @@
 namespace App\Filament\Resources\Legacy;
 
 use App\Filament\Concerns\GuardedByStaffRole;
+use App\Filament\Resources\BroadcastResource;
 use App\Filament\Resources\Legacy\WpUserResource\Pages;
 use App\Filament\Resources\Legacy\WpUserResource\RelationManagers;
 use App\Filament\Support\MobileCard;
 use App\Models\Admin\CustomerTag;
+use App\Models\Legacy\RaffleEntry;
 use App\Models\Legacy\WpUser;
+use App\Models\Legacy\WpUserMeta;
+use App\Models\Wallet;
+use App\Services\Admin\CustomerBulkActions;
 use App\Services\AdminAuditLogService;
+use App\Services\Reports\ReportExporter;
 use App\Services\UserManagementService;
 use Filament\Actions;
 use Filament\Forms;
@@ -16,6 +22,7 @@ use Filament\Forms\Form;
 use Filament\Notifications\Notification;
 use Filament\Resources\Resource;
 use Filament\Tables;
+use Filament\Tables\Contracts\HasTable;
 use Filament\Tables\Enums\ActionsPosition;
 use Filament\Tables\Table;
 use Illuminate\Database\Eloquent\Model;
@@ -119,9 +126,189 @@ class WpUserResource extends Resource
                         ->state(fn (WpUser $record) => $record->isBanned()),
                 ]),
             ])
+            ->filters(static::filters())
             // Tapping a customer opens their profile, so no separate Open button.
             ->actionsPosition(ActionsPosition::BeforeColumns)
-            ->actions(static::accountActions(table: true));
+            ->actions(static::accountActions(table: true))
+            ->bulkActions(static::bulkActions());
+    }
+
+    /** @throws RuntimeException if the admin's login has expired mid-session */
+    private static function currentAdmin(): WpUser
+    {
+        $admin = auth('wordpress')->user();
+
+        if (! $admin instanceof WpUser) {
+            throw new \RuntimeException('Your admin login has expired. Please sign in again. Nothing was changed.');
+        }
+
+        return $admin;
+    }
+
+    /** Ways to narrow the list, so "select all" means exactly the customers you meant. */
+    public static function filters(): array
+    {
+        $banned = fn () => WpUserMeta::query()->where('meta_key', 'rk_is_banned')->where('meta_value', '1')->select('user_id');
+
+        return [
+            Tables\Filters\SelectFilter::make('tag')->label('Has tag')->multiple()
+                ->options(fn () => array_combine(CustomerTag::inUse(), CustomerTag::inUse()))
+                ->query(fn ($query, array $data) => filled($data['values'] ?? null)
+                    ? $query->whereIn('ID', CustomerTag::query()->whereIn('tag', $data['values'])->select('user_id'))
+                    : $query),
+            Tables\Filters\TernaryFilter::make('banned')->label('Banned')->placeholder('Everyone')->trueLabel('Banned only')->falseLabel('Not banned')
+                ->queries(
+                    true: fn ($query) => $query->whereIn('ID', $banned()),
+                    false: fn ($query) => $query->whereNotIn('ID', $banned()),
+                    blank: fn ($query) => $query,
+                ),
+            Tables\Filters\Filter::make('never_bought')->label('Never bought a ticket')->toggle()
+                ->query(fn ($query) => $query->whereNotIn('ID', RaffleEntry::query()->select('user_id'))),
+            Tables\Filters\Filter::make('has_money')->label('Has money in wallet or winnings')->toggle()
+                ->query(fn ($query) => $query->whereIn('ID', Wallet::query()->where(fn ($w) => $w->where('wallet_balance', '>', 0)->orWhere('earnings_balance', '>', 0))->select('user_id'))),
+            Tables\Filters\Filter::make('joined')->label('Joined')
+                ->form([
+                    Forms\Components\DatePicker::make('from')->label('Joined from'),
+                    Forms\Components\DatePicker::make('until')->label('Joined until'),
+                ])->columns(2)
+                ->query(fn ($query, array $data) => $query
+                    ->when($data['from'] ?? null, fn ($q, $d) => $q->where('user_registered', '>=', \Illuminate\Support\Carbon::parse($d, config('raffles.timezone'))->startOfDay()->utc()))
+                    ->when($data['until'] ?? null, fn ($q, $d) => $q->where('user_registered', '<=', \Illuminate\Support\Carbon::parse($d, config('raffles.timezone'))->endOfDay()->utc())))
+                ->indicateUsing(fn (array $data) => array_values(array_filter([
+                    ($data['from'] ?? null) ? 'Joined from '.$data['from'] : null,
+                    ($data['until'] ?? null) ? 'Joined until '.$data['until'] : null,
+                ]))),
+        ];
+    }
+
+    /**
+     * Do something to every ticked customer (or, after "select all", every
+     * customer matching the filters). Work is done by
+     * App\Services\Admin\CustomerBulkActions, 500 at a time, and each change
+     * is audit-logged against each customer.
+     */
+    public static function bulkActions(): array
+    {
+        $service = fn () => app(CustomerBulkActions::class);
+        // fetchSelectedRecords(false): the action is given just the picked ids, not a heavy model for each.
+        $ids = fn (Tables\Actions\BulkAction $action) => $action->getRecords();
+        $manage = fn () => static::staffCan('customers.manage');
+        $count = fn (HasTable $livewire) => number_format($livewire->getSelectedTableRecords(false)->count());
+
+        $message = Tables\Actions\BulkAction::make('message')
+            ->label('Message these customers')
+            ->icon('heroicon-o-megaphone')
+            ->visible(fn () => static::staffCan('messages'))
+            ->fetchSelectedRecords(false)
+            ->action(function (Tables\Actions\BulkAction $action, HasTable $livewire) use ($service, $ids) {
+                $token = $service()->stashForMessage($ids($action));
+
+                $livewire->redirect(BroadcastResource::getUrl('create', ['list' => $token]));
+            });
+
+        $addTags = Tables\Actions\BulkAction::make('addTags')
+            ->label('Add tags')
+            ->icon('heroicon-o-tag')
+            ->visible($manage)
+            ->fetchSelectedRecords(false)
+            ->modalHeading(fn (HasTable $livewire) => 'Add tags to '.$count($livewire).' customers')
+            ->form([
+                Forms\Components\TagsInput::make('tags')->label('Tags')->required()->suggestions(fn () => CustomerTag::inUse())
+                    ->splitKeys(['Tab', ','])->helperText('Only staff see tags. A customer who already has a tag keeps it, without a copy.'),
+            ])
+            ->action(function (Tables\Actions\BulkAction $action, array $data) use ($service, $ids) {
+                $result = $service()->addTags(static::currentAdmin(), $ids($action), $data['tags']);
+
+                Notification::make()->title($result['added'] === 0 ? 'Nothing to add: they all had those tags already' : "Added {$result['added']} tag".($result['added'] === 1 ? '' : 's')." to {$result['customers']} customer".($result['customers'] === 1 ? '' : 's'))->success()->send();
+            });
+
+        $removeTags = Tables\Actions\BulkAction::make('removeTags')
+            ->label('Remove tags')
+            ->icon('heroicon-o-x-mark')
+            ->visible($manage)
+            ->fetchSelectedRecords(false)
+            ->modalHeading(fn (HasTable $livewire) => 'Remove tags from '.$count($livewire).' customers')
+            ->form([
+                Forms\Components\Select::make('tags')->label('Tags to remove')->multiple()->required()
+                    ->options(fn () => array_combine(CustomerTag::inUse(), CustomerTag::inUse())),
+            ])
+            ->action(function (Tables\Actions\BulkAction $action, array $data) use ($service, $ids) {
+                $result = $service()->removeTags(static::currentAdmin(), $ids($action), $data['tags']);
+
+                Notification::make()->title($result['removed'] === 0 ? 'Nothing to remove: none of them had those tags' : "Removed {$result['removed']} tag".($result['removed'] === 1 ? '' : 's')." from {$result['customers']} customer".($result['customers'] === 1 ? '' : 's'))->success()->send();
+            });
+
+        $export = Tables\Actions\BulkAction::make('export')
+            ->label('Download as spreadsheet')
+            ->icon('heroicon-o-arrow-down-tray')
+            ->visible($manage)
+            ->fetchSelectedRecords(false)
+            ->action(function (Tables\Actions\BulkAction $action) use ($service, $ids) {
+                $picked = $ids($action);
+
+                app(AdminAuditLogService::class)->record(static::currentAdmin(), 'report.downloaded', 'report', 0, ['report' => 'Customers (ticked on the list)', 'customers' => $picked->count()]);
+
+                return response()->streamDownload(function () use ($service, $picked) {
+                    $out = fopen('php://output', 'w');
+                    fwrite($out, "\xEF\xBB\xBF"); // so Excel reads names correctly
+                    fputcsv($out, CustomerBulkActions::exportHeadings());
+
+                    foreach ($service()->exportRows($picked) as $row) {
+                        // A customer's name can't run as a spreadsheet formula.
+                        fputcsv($out, array_map(ReportExporter::safeCell(...), $row));
+                    }
+
+                    fclose($out);
+                }, 'customers-'.now(config('raffles.timezone'))->format('Y-m-d').'.csv', ['Content-Type' => 'text/csv; charset=UTF-8']);
+            });
+
+        $ban = Tables\Actions\BulkAction::make('ban')
+            ->label('Ban')
+            ->icon('heroicon-o-no-symbol')
+            ->color('danger')
+            ->visible($manage)
+            ->fetchSelectedRecords(false)
+            ->modalHeading(fn (HasTable $livewire) => 'Ban '.$count($livewire).' customers?')
+            ->modalDescription('They are logged out and can\'t sign in until unbanned. Staff, and you, are never banned this way. At most '.CustomerBulkActions::MAX_BAN.' at a time.')
+            ->form([Forms\Components\Textarea::make('reason')->label('Reason (kept in the audit log)')->required()->maxLength(200)->rows(2)])
+            ->modalSubmitActionLabel('Yes, ban them')
+            ->action(fn (Tables\Actions\BulkAction $action, array $data) => static::runBan($service()->ban(...), $ids($action)->all(), $data['reason'], 'banned'));
+
+        $unban = Tables\Actions\BulkAction::make('unban')
+            ->label('Unban')
+            ->icon('heroicon-o-check-circle')
+            ->color('success')
+            ->visible($manage)
+            ->requiresConfirmation()
+            ->fetchSelectedRecords(false)
+            ->modalHeading(fn (HasTable $livewire) => 'Unban '.$count($livewire).' customers?')
+            ->action(fn (Tables\Actions\BulkAction $action) => static::runBan(fn ($admin, $picked) => $service()->unban($admin, $picked), $ids($action)->all(), null, 'unbanned'));
+
+        return [
+            Tables\Actions\BulkActionGroup::make([$message, $addTags, $removeTags, $export, $ban, $unban])
+                ->label('With the ticked customers')
+                ->visible(fn () => static::staffCan('customers.manage') || static::staffCan('messages')),
+        ];
+    }
+
+    /** Runs a bulk ban/unban and says in plain words what happened. */
+    private static function runBan(callable $run, array $ids, ?string $reason, string $word): void
+    {
+        try {
+            $result = $reason === null ? $run(static::currentAdmin(), $ids) : $run(static::currentAdmin(), $ids, $reason);
+        } catch (\RuntimeException $e) {
+            Notification::make()->title('Not done')->body($e->getMessage())->danger()->persistent()->send();
+
+            return;
+        }
+
+        $extra = array_filter([
+            $result['staff'] > 0 ? "{$result['staff']} left alone (staff or you)" : null,
+            $result['already'] > 0 ? "{$result['already']} already ".($word === 'banned' ? 'banned' : 'not banned') : null,
+        ]);
+
+        Notification::make()->title("{$result['banned']} customer".($result['banned'] === 1 ? '' : 's')." {$word}")
+            ->body($extra ? implode('. ', $extra).'.' : null)->success()->send();
     }
 
     /**
