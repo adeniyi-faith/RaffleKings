@@ -70,7 +70,9 @@ class DepositMismatchService
             throw new RuntimeException("Gateway no longer reports {$deposit->reference} as a successful payment. Reject this deposit instead of crediting it.");
         }
 
-        $confirmedAmount = round($verification->amount, 2);
+        // Never the gateway's fee: a customer who paid ₦2,000 + ₦30.46 Paystack
+        // fee gets ₦2,000 (the fee went to Paystack, not to us).
+        $confirmedAmount = round($verification->creditableAmount(), 2);
         $expectedAmount = (float) $deposit->amount;
 
         DB::transaction(function () use ($deposit, $confirmedAmount, $verification) {

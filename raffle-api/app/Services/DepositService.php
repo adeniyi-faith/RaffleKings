@@ -145,7 +145,11 @@ class DepositService
                 return $deposit;
             }
 
-            if (round($verification->amount, 2) !== round((float) $deposit->amount, 2)) {
+            // Compared with what we asked for, so a fee Paystack added on top
+            // for the customer (its "customer pays the fees" setting) is not
+            // mistaken for a wrong amount. Only what we asked for is credited:
+            // the fee went to Paystack, not to us.
+            if (round($verification->creditableAmount(), 2) !== round((float) $deposit->amount, 2)) {
                 // Paid, but not the expected amount — never credit blindly;
                 // flag for manual review instead of guessing which figure
                 // to trust.

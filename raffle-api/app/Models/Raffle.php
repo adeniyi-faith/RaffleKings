@@ -53,12 +53,21 @@ class Raffle extends Model
         // Phase 11 flash raffles: sales stop at this exact moment.
         'is_flash',
         'sales_end_at',
+        // Cancelled with every ticket refunded (App\Services\RaffleCancellationService).
+        'cancelled_at',
+        'cancelled_by',
+        'cancel_reason',
+        'refund_status',
+        'refunded_customers',
+        'refunded_total',
     ];
 
     protected $casts = [
         'draw_rules' => 'array',
         'is_flash' => 'boolean',
         'sales_end_at' => 'datetime',
+        'cancelled_at' => 'datetime',
+        'refunded_total' => 'float',
         'price' => 'decimal:2',
         'public_id' => 'integer',
         'max_tickets' => 'integer',
@@ -140,6 +149,11 @@ class Raffle extends Model
      */
     public function closedReason(?int $soldTickets = null): ?string
     {
+        // A cancelled raffle stays closed even if someone sets it back to published.
+        if ($this->cancelled_at) {
+            return 'cancelled';
+        }
+
         if ($this->status !== 'published') {
             return 'closed';
         }
