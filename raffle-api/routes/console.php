@@ -101,3 +101,16 @@ Schedule::call(function () {
     \App\Models\Raffle::query()->where('refund_status', 'refunding')->pluck('id')
         ->each(fn ($id) => \App\Jobs\RefundCancelledRaffle::dispatch($id));
 })->everyFiveMinutes()->name('raffle-refund-watchdog');
+
+// Messages to customers: start the ones scheduled for now, and pick up any
+// that stopped part-way. Nobody is messaged twice (BroadcastService).
+Schedule::call(function () {
+    $messages = app(\App\Services\Messaging\BroadcastService::class);
+    $messages->startDue();
+    $messages->resumeStalled();
+})->everyMinute()->name('scheduled-messages')->withoutOverlapping(5);
+
+// Staff two-step sign-in: forget "passed the code" marks that have run out.
+Schedule::call(fn () => app(\App\Services\Auth\StaffTwoStep::class)->prune())
+    ->daily()
+    ->name('staff-two-step-prune');
