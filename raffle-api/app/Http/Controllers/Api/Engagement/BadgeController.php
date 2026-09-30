@@ -38,10 +38,10 @@ class BadgeController extends Controller
         return response()->json(['privacy' => $this->privacy($request->user())]);
     }
 
-    /** @return array{visibility: string, show_wins: bool, url: string, path: string} */
+    /** @return array{visibility: string, show_wins: bool, username: string, url: string, path: string} */
     private function privacy($user): array
     {
-        return $this->profiles->settings($user->ID) + ['url' => url('/player/'.rawurlencode($user->user_login)), 'path' => '/player/'.rawurlencode($user->user_login)];
+        return $this->profiles->settings($user->ID) + ['username' => $user->user_login, 'url' => url('/player/'.rawurlencode($user->user_login)), 'path' => '/player/'.rawurlencode($user->user_login)];
     }
 
     public function showcase(Request $request): JsonResponse

@@ -176,4 +176,38 @@ class PlayerProfilesTest extends TestCase
 
         $this->assertSame(2, app(PlayerProfiles::class)->card('regular')['raffles_entered']);
     }
+
+    public function test_a_shared_card_link_previews_with_the_players_name_and_badge_count(): void
+    {
+        $user = $this->player('sharer');
+        app(BadgeService::class)->award($user->ID, 'first_ticket');
+
+        $html = $this->get('/player/sharer')->getContent();
+
+        $this->assertStringContainsString('<meta property="og:title" content="sharer on', $html);
+        $this->assertStringContainsString('1 badges collected', $html);
+    }
+
+    public function test_a_private_or_unknown_card_previews_generically_and_never_confirms_the_account(): void
+    {
+        $user = $this->player('hidden_one');
+        app(PlayerProfiles::class)->update($user->ID, ['visibility' => 'private']);
+
+        $html = $this->get('/player/hidden_one')->getContent();
+
+        // The address the visitor typed is echoed either way; nothing about the account is.
+        $this->assertStringNotContainsString('hidden_one on', $html);
+        $this->assertStringNotContainsString('badges collected', $html);
+        $this->assertStringNotContainsString('raffles played', $html);
+    }
+
+    public function test_the_privacy_panel_gives_the_link_and_username_to_share(): void
+    {
+        $user = $this->actingAsWordPressUser();
+
+        $this->getJson('/api/badges')
+            ->assertJsonPath('privacy.username', $user->user_login)
+            ->assertJsonPath('privacy.path', '/player/'.rawurlencode($user->user_login))
+            ->assertJsonPath('privacy.url', url('/player/'.rawurlencode($user->user_login)));
+    }
 }
