@@ -33,13 +33,6 @@ final class Audience
         'wallet_balance' => 'Money sitting in their wallet',
         'unwithdrawn_winnings' => 'Winnings they haven\'t withdrawn',
         'one' => 'One customer',
-    ];
-
-    /**
-     * Understood by query() but not offered on the message form yet: they
-     * need their own fields (filters, or the ticked customers).
-     */
-    public const UPCOMING_TYPES = [
         'custom' => 'Build my own group (combine filters)',
         'selected' => 'Customers ticked on the Customers list',
     ];
@@ -141,6 +134,34 @@ final class Audience
         return $q;
     }
 
+    /**
+     * Only the filters that are actually filled in (an empty box or an
+     * unticked switch means "don't filter on this").
+     *
+     * @param  array<string, mixed>  $filters
+     * @return array<string, mixed>
+     */
+    public static function cleanFilters(array $filters): array
+    {
+        $clean = [];
+
+        foreach (array_keys(self::FILTERS) as $key) {
+            $value = $filters[$key] ?? null;
+
+            if (is_array($value)) {
+                $value = array_values(array_filter($value, fn ($v) => filled($v)));
+            }
+
+            if ($value === null || $value === '' || $value === false || $value === []) {
+                continue;
+            }
+
+            $clean[$key] = $value;
+        }
+
+        return $clean;
+    }
+
     /** @param  array<string, mixed>  $options */
     public function count(string $type, array $options = [], bool $isPromotion = false): int
     {
@@ -158,7 +179,7 @@ final class Audience
             'one' => 'Customer: '.(WpUser::find($options['user_id'] ?? 0)?->user_email ?? '?'),
             'selected' => count((array) ($options['user_ids'] ?? [])).' customers ticked on the Customers list',
             'custom' => $this->describeFilters((array) ($options['filters'] ?? [])),
-            default => self::TYPES[$type] ?? self::UPCOMING_TYPES[$type] ?? $type,
+            default => self::TYPES[$type] ?? $type,
         };
     }
 
