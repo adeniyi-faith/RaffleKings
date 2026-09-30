@@ -81,6 +81,7 @@ final class StaffRoles
         Filament\Resources\AdminAuditLogResource::class => 'system',
         Filament\Pages\SystemHealth::class => 'system',
         Filament\Pages\Settings::class => 'settings',
+        Filament\Resources\SettingChangeResource::class => 'settings',
         Filament\Pages\TrackedEvents::class => 'settings',
         Filament\Resources\StaffResource::class => 'staff',
         Filament\Pages\StaffActivity::class => 'staff',

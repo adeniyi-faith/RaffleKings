@@ -16,7 +16,7 @@
                     ['What the site kept', 'kept', true],
                 ];
             @endphp
-            <div class="grid grid-cols-2 gap-3 lg:grid-cols-4">
+            <div class="rk-stats">
                 @foreach ($tiles as [$label, $key, $goodWhenUp])
                     @php
                         $now = $summary[$key];

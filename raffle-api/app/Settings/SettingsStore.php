@@ -2,6 +2,7 @@
 
 namespace App\Settings;
 
+use App\Models\Admin\SettingChange;
 use App\Models\AppSetting;
 use App\Models\Legacy\WpUser;
 use App\Services\AdminAuditLogService;
@@ -10,6 +11,7 @@ use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Crypt;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Str;
 use Throwable;
 
 /**
@@ -23,6 +25,10 @@ use Throwable;
  *   the cache, are never sent back to the browser, and never appear in
  *   the audit log.
  * - One cached read per request; any change clears the cache at once.
+ * - Every change is written down (SettingChange: what it was, what it
+ *   became, who did it, when) so it can be put back from System → Settings
+ *   history. Secrets are kept there encrypted too, so a wrongly pasted key
+ *   can be undone without anyone ever seeing it.
  */
 final class SettingsStore
 {
@@ -89,12 +95,13 @@ final class SettingsStore
      * @param  array<string, mixed>  $values  config value per key (already converted with Setting::fromForm)
      * @return list<string> labels of the settings that changed
      */
-    public static function save(array $values, ?WpUser $admin): array
+    public static function save(array $values, ?WpUser $admin, string $auditAction = 'settings.updated'): array
     {
         $changed = [];
         $auditChanges = [];
+        $batch = (string) Str::uuid();
 
-        DB::transaction(function () use ($values, $admin, &$changed, &$auditChanges) {
+        DB::transaction(function () use ($values, $admin, $batch, &$changed, &$auditChanges) {
             foreach ($values as $key => $value) {
                 $setting = SettingsRegistry::find($key);
 
@@ -113,6 +120,8 @@ final class SettingsStore
                     continue;
                 }
 
+                $before = config($key);
+
                 if (! $setting->isSecret() && self::same($setting, $value, self::baseline($key))) {
                     AppSetting::query()->where('key', $key)->delete();
                 } else {
@@ -122,10 +131,12 @@ final class SettingsStore
                     ]);
                 }
 
+                self::remember($batch, $setting, $before, $value, $admin);
+
                 $changed[] = $setting->label;
                 $auditChanges[$key] = $setting->isSecret()
                     ? 'secret replaced'
-                    : ['from' => config($key), 'to' => $value];
+                    : ['from' => $before, 'to' => $value];
             }
         });
 
@@ -133,7 +144,7 @@ final class SettingsStore
             self::refresh();
 
             if ($admin) {
-                app(AdminAuditLogService::class)->record($admin, 'settings.updated', 'settings', 0, ['changes' => $auditChanges]);
+                app(AdminAuditLogService::class)->record($admin, $auditAction, 'settings', 0, ['changes' => $auditChanges]);
             }
         }
 
@@ -141,17 +152,110 @@ final class SettingsStore
     }
 
     /** Remove the admin's value so the .env one applies again (used for secrets). */
-    public static function forget(string $key, WpUser $admin): void
+    public static function forget(string $key, ?WpUser $admin, string $auditAction = 'settings.reset'): void
     {
         $setting = SettingsRegistry::find($key);
 
-        if (! $setting || ! AppSetting::query()->where('key', $key)->delete()) {
+        if (! $setting || ! AppSetting::query()->where('key', $key)->exists()) {
             return;
         }
 
+        $before = config($key);
+
+        AppSetting::query()->where('key', $key)->delete();
         config([$key => self::baseline($key)]);
+        self::remember((string) Str::uuid(), $setting, $before, self::baseline($key), $admin);
         self::refresh();
-        app(AdminAuditLogService::class)->record($admin, 'settings.reset', 'settings', 0, ['setting' => $setting->label]);
+
+        if ($admin) {
+            app(AdminAuditLogService::class)->record($admin, $auditAction, 'settings', 0, ['setting' => $setting->label]);
+        }
+    }
+
+    /**
+     * Put changes back (System → Settings history → Undo). Each setting
+     * goes back to what it was before that change, whatever it is now.
+     * A secret that was empty or came from the server file before goes
+     * back to the server file's value.
+     *
+     * @param  iterable<SettingChange>  $changes
+     * @return array{restored: list<string>, skipped: list<string>}
+     */
+    public static function undo(iterable $changes, WpUser $admin): array
+    {
+        $restored = [];
+        $skipped = [];
+
+        foreach ($changes as $change) {
+            $change = $change->fresh();
+            $setting = $change ? SettingsRegistry::find($change->key) : null;
+
+            if (! $change || $change->reverted_at !== null) {
+                $skipped[] = ($change->label ?? 'A setting').' (already put back)';
+
+                continue;
+            }
+
+            if (! $setting) {
+                $skipped[] = "{$change->label} (no longer a setting)";
+
+                continue;
+            }
+
+            $old = self::historyRead($change, 'old_value');
+
+            if ($setting->isSecret() && ($old === null || $old === '' || $old === self::baseline($change->key))) {
+                self::forget($change->key, $admin, 'settings.undone');
+            } else {
+                self::save([$change->key => $old], $admin, 'settings.undone');
+            }
+
+            $change->forceFill(['reverted_by' => $admin->ID, 'reverted_at' => now()])->save();
+            $restored[] = $change->label;
+        }
+
+        return ['restored' => $restored, 'skipped' => $skipped];
+    }
+
+    /** Is the setting still what this change made it? (False once someone changed it again.) */
+    public static function isCurrent(SettingChange $change): bool
+    {
+        $setting = SettingsRegistry::find($change->key);
+
+        return $setting !== null && self::same($setting, self::historyRead($change, 'new_value'), config($change->key));
+    }
+
+    /** What a setting's history row holds (secrets are decrypted here, and only here). */
+    public static function historyRead(SettingChange $change, string $column): mixed
+    {
+        $raw = $change->{$column};
+
+        if (! $change->is_secret || $raw === null) {
+            return $raw;
+        }
+
+        try {
+            return json_decode(Crypt::decryptString($raw), true);
+        } catch (DecryptException) {
+            return null;
+        }
+    }
+
+    private static function remember(string $batch, Setting $setting, mixed $old, mixed $new, ?WpUser $admin): void
+    {
+        $keep = fn (mixed $v) => $setting->isSecret() && $v !== null
+            ? Crypt::encryptString(json_encode($v, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES))
+            : $v;
+
+        SettingChange::query()->create([
+            'batch' => $batch,
+            'key' => $setting->key,
+            'label' => $setting->label,
+            'is_secret' => $setting->isSecret(),
+            'old_value' => $keep($old),
+            'new_value' => $keep($new),
+            'changed_by' => $admin?->ID,
+        ]);
     }
 
     /** Clear the cache and re-apply, so this same request sees the new values too. */
