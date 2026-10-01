@@ -13,7 +13,8 @@ use Symfony\Component\HttpFoundation\Response;
  * pages that just show the customer's account. Everything else is refused,
  * including every button that buys, pays, withdraws, sends or saves, and
  * pages that quietly change something when opened (a checkout, the rewards
- * page granting a birthday gift, the Golden Box timer starting).
+ * page granting a birthday gift). The home page and raffle list are allowed:
+ * they hold back the Golden Box banner while viewing, so its timer can't start.
  *
  * An allow-list on purpose: a page nobody thought about is refused, not
  * allowed. It costs nothing for everyone else: without the view cookie this
@@ -23,6 +24,13 @@ class LimitImpersonationToViewing
 {
     /** The only pages and data feeds that can be opened while viewing as a customer. */
     private const ALLOWED_GET = [
+        // Browsing, so moving around the bottom menu doesn't end in a 403.
+        '/',
+        'raffles',
+        'raffles/*',
+        'hall-of-fame',
+        'live-draws',
+        'api/hall-of-fame',
         'profile',
         'messages',
         'referrals',
@@ -65,7 +73,7 @@ class LimitImpersonationToViewing
         }
 
         if ($request->isMethod('GET') || $request->isMethod('HEAD')) {
-            if ($request->is(...self::ALLOWED_GET) && ! $request->is('api/deposits/callback', 'api/raffles/*/boosts', 'api/raffles/*/live-draw')) {
+            if ($request->is(...self::ALLOWED_GET) && ! $request->is('api/deposits/callback', 'api/raffles/*/boosts', 'api/raffles/*/live-draw', 'raffles/*/live-draw')) {
                 return $next($request);
             }
         }

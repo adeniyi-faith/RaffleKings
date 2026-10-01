@@ -187,10 +187,25 @@ class ViewAsCustomerTest extends TestCase
         $owner = $this->actingAsAdministrator();
         $this->startViewing($owner, $this->customer());
 
-        // The rewards page can hand out a birthday gift; checkout records a visit; the raffle list starts the Golden Box timer.
-        foreach (['/rewards', '/checkout?raffle_id=1&qty=1&numbers=1', '/raffles', '/api/rewards/state', '/api/golden-box', '/'] as $url) {
+        // The rewards page can hand out a birthday gift; checkout records a visit; the banner feed starts the Golden Box timer.
+        foreach (['/rewards', '/checkout?raffle_id=1&qty=1&numbers=1', '/api/rewards/state', '/api/golden-box'] as $url) {
             $this->get($url)->assertStatus(403);
         }
+    }
+
+    public function test_the_bottom_menu_pages_can_be_browsed_without_starting_the_golden_box(): void
+    {
+        config(['pricing.golden_box_enabled' => true, 'pricing.golden_box_percent_off' => 10]);
+        $owner = $this->actingAsAdministrator();
+        $customer = $this->customer();
+        \App\Models\GoldenBoxOffer::create(['user_id' => $customer->ID, 'status' => 'open', 'raffle_id' => 1, 'quantity' => 1, 'ticket_numbers' => [1], 'order_total' => 100000]);
+        $this->startViewing($owner, $customer);
+
+        $this->get('/')->assertOk()->assertInertia(fn ($page) => $page->where('goldenBox', null));
+        $this->get('/raffles')->assertOk()->assertInertia(fn ($page) => $page->where('goldenBox', null));
+        $this->get('/hall-of-fame')->assertOk();
+
+        $this->assertNull(\App\Models\GoldenBoxOffer::query()->first()->offered_until);
     }
 
     public function test_the_account_pages_can_be_looked_at(): void

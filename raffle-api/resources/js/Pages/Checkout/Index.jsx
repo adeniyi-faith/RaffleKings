@@ -45,7 +45,7 @@ function checkoutPath() {
     return url.pathname + url.search;
 }
 
-export default function CheckoutIndex({ raffle, ticketNumbers, qty, minimumDeposit = 100, promoEnabled = false, savedPromo = null }) {
+export default function CheckoutIndex({ raffle, ticketNumbers, qty, minimumDeposit = 100, promoEnabled = false, savedPromo = null, paid = null }) {
     // Promo codes (only while switched on). A code given at sign-up is filled in.
     const [promoCode, setPromoCode] = useState(savedPromo || null);
     const { quote, loading: quoteLoading, refresh: refreshQuote } = useTicketPriceQuote(raffle.id, qty, promoCode);
@@ -62,11 +62,14 @@ export default function CheckoutIndex({ raffle, ticketNumbers, qty, minimumDepos
     const balances = useBalances();
     const wallet = balances ? { wallet_balance: balances.wallet, earnings_balance: balances.earnings } : null;
     const [method, setMethod] = useState(null); // chosen once the balances load
-    const [status, setStatus] = useState('idle'); // idle | processing | topping-up | success | error
+    // `paid` is only set on a page the customer already paid on and came
+    // back to with the Back button: it shows the result again, not a second
+    // payment.
+    const [status, setStatus] = useState(paid ? 'success' : 'idle'); // idle | processing | topping-up | success | error
     const [error, setError] = useState(null);
     const [playLimit, setPlayLimit] = useState(false); // blocked by the customer's own limit or break
     const [takenNumbers, setTakenNumbers] = useState([]);
-    const [purchase, setPurchase] = useState(null);
+    const [purchase, setPurchase] = useState(paid?.purchase ?? null);
     const [deposit, setDeposit] = useState(null); // a top-up we just came back from
     const idempotencyKey = useRef(generateIdempotencyKey());
 
@@ -204,6 +207,9 @@ export default function CheckoutIndex({ raffle, ticketNumbers, qty, minimumDepos
             setPurchase(data);
             setStatus('success');
             loadWallet();
+            // Remembered in this page's history entry, so going Back to it
+            // later shows "paid" instead of asking for the money again.
+            router.replaceProp('paid', { purchase: data, amount: price });
         } catch (err) {
             setError(err.message);
             setStatus('error');
@@ -412,7 +418,7 @@ export default function CheckoutIndex({ raffle, ticketNumbers, qty, minimumDepos
             )}
 
             {busy && <ProcessingModal />}
-            {status === 'success' && <SuccessModal raffle={raffle} amount={price} numbers={purchase?.ticket_numbers ?? ticketNumbers} bonusEntries={purchase?.bonus_entries ?? 0} />}
+            {status === 'success' && <SuccessModal raffle={raffle} amount={paid?.amount ?? price} numbers={purchase?.ticket_numbers ?? ticketNumbers} bonusEntries={purchase?.bonus_entries ?? 0} />}
         </>
     );
 }

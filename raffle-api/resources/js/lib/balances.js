@@ -11,6 +11,7 @@ import { usePage } from '@inertiajs/react';
 let balances = null;
 let hidden = readHidden();
 const adopted = new WeakSet(); // page loads whose numbers were already taken
+let newestPage = 0; // when the newest page's numbers were read (server time)
 const listeners = new Set();
 
 function emit() {
@@ -69,10 +70,18 @@ export function useBalances() {
     const fromServer = auth?.user?.balances ?? null;
 
     if (fromServer && ! adopted.has(fromServer)) {
-        // Adopt the page's own numbers once per page load (going Back
-        // shows an older page, whose numbers must not win).
+        // Adopt the page's own numbers once per page load. Going Back shows
+        // an older copy of a page (e.g. from before a purchase): its numbers
+        // must not win, so ask the server for the real ones instead.
         adopted.add(fromServer);
-        balances = { ...(balances ?? {}), ...fromServer };
+        const { as_of: asOf = 0, ...numbers } = fromServer;
+
+        if (asOf >= newestPage) {
+            newestPage = asOf;
+            balances = { ...(balances ?? {}), ...numbers };
+        } else {
+            refreshBalances(true);
+        }
     }
 
     const current = useSyncExternalStore(subscribe, () => balances, () => balances);
