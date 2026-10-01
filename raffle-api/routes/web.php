@@ -10,6 +10,7 @@ use App\Services\OddsCalculator;
 use App\Services\TicketPricingService;
 use App\Models\SitePage;
 use App\Services\Auth\RegistrationService;
+use App\Services\Admin\Impersonation;
 use App\Services\Auth\TurnstileVerifier;
 use App\Services\DailyClaimService;
 use App\Services\Engagement\FreeSpinGifts;
@@ -36,12 +37,21 @@ use Illuminate\Support\Facades\Route;
 use Illuminate\Support\Facades\URL;
 use Inertia\Inertia;
 
+// The gold "your order is waiting" banner, sent with the home page and the
+// raffle list. Showing it starts the offer's timer, so nothing is shown
+// while support is viewing a customer's account (it must stay untouched).
+$goldenBoxFor = function (Request $request) {
+    $user = Auth::guard('wordpress')->user();
+
+    return $user && ! Impersonation::current($request) ? app(GoldenBoxService::class)->offerFor($user) : null;
+};
+
 // Homepage (faithfully rebuilt to match the legacy index.php: hero
 // carousel, Play & Win action grid, Trending Now rail) — same trending
 // data source (top 10, closing-soon first) as the legacy homepage's
 // SSR-preloaded $initial_raffles, via the same RaffleReadService the
 // /raffles page already uses.
-Route::get('/', function (Request $request, RaffleReadService $raffles) {
+Route::get('/', function (Request $request, RaffleReadService $raffles) use ($goldenBoxFor) {
     // The old site's referral links were also shared as the bare homepage
     // with a code (`rafflekings.com.ng/?ref=NAME` — rk-core's own
     // referral-link builder produced this form); its .htaccess sent those
@@ -55,7 +65,7 @@ Route::get('/', function (Request $request, RaffleReadService $raffles) {
         'layout' => app(\App\Services\HomeLayoutService::class)->forVisitor(Auth::guard('wordpress')->check()),
         'trending' => $raffles->listActive(['sort' => 'closing_soon', 'per_page' => 10])['raffles'],
         // Sent with the page so the gold banner doesn't pop in late.
-        'goldenBox' => ($user = Auth::guard('wordpress')->user()) ? app(GoldenBoxService::class)->offerFor($user) : null,
+        'goldenBox' => $goldenBoxFor($request),
     ]);
 });
 
@@ -105,12 +115,12 @@ Route::get('/reset-password', function (Request $request) {
 // with today's default (unfiltered, page 1) result so the page has real
 // content immediately; the page's own search/filter/sort controls then
 // re-fetch GET /api/raffles client-side, same endpoint, with query params.
-Route::get('/raffles', function (Request $request, RaffleReadService $raffles) {
+Route::get('/raffles', function (Request $request, RaffleReadService $raffles) use ($goldenBoxFor) {
     return Inertia::render('Raffles/Index', [
         'initial' => $raffles->listActive($request->only([
             'search', 'prize_type', 'min_price', 'max_price', 'sort', 'page',
         ])),
-        'goldenBox' => ($user = Auth::guard('wordpress')->user()) ? app(GoldenBoxService::class)->offerFor($user) : null,
+        'goldenBox' => $goldenBoxFor($request),
     ]);
 });
 
@@ -225,11 +235,22 @@ Route::get('/checkout', function (Request $request, RaffleReadService $raffles) 
         ]);
     }
 
+    // Already paid for (e.g. the phone's Back button after paying, which
+    // reloads this address): show their tickets, not a second payment page.
+    $alreadyMine = RaffleEntry::query()->where('raffle_id', $raffleId)->where('user_id', $userId)
+        ->whereIn('ticket_number', $numbers)->count();
+
+    if ($alreadyMine === count($numbers)) {
+        return redirect('/account/tickets');
+    }
+
     // Item 46: remembered so a customer who leaves without paying can be
-    // offered the Golden Box on the raffle list.
-    app(GoldenBoxService::class)->rememberCheckout(Auth::guard('wordpress')->user(), $found, $numbers);
-    // Reminders: "you left tickets in checkout" (only while switched on).
-    app(ReminderService::class)->rememberCheckout(Auth::guard('wordpress')->user(), $found, $numbers);
+    // offered the Golden Box on the raffle list (not for numbers they own).
+    if (! $alreadyMine) {
+        app(GoldenBoxService::class)->rememberCheckout(Auth::guard('wordpress')->user(), $found, $numbers);
+        // Reminders: "you left tickets in checkout" (only while switched on).
+        app(ReminderService::class)->rememberCheckout(Auth::guard('wordpress')->user(), $found, $numbers);
+    }
 
     return Inertia::render('Checkout/Index', [
         'raffle' => $found,

@@ -398,6 +398,30 @@ class CheckoutAndWalletFlowsTest extends TestCase
         $this->getJson('/api/golden-box')->assertJson(['offer' => null]);
     }
 
+    public function test_going_back_to_checkout_after_paying_shows_the_tickets_and_brings_no_offer(): void
+    {
+        $user = $this->actingAsWordPressUser();
+        Wallet::create(['user_id' => $user->ID, 'wallet_balance' => 5000, 'earnings_balance' => 0]);
+        $this->leaveCheckout();
+        $this->buy()->assertCreated();
+
+        // The phone's Back button reloads the checkout address.
+        $this->get('/checkout?raffle_id=9&qty=1&numbers=7')->assertRedirect('/account/tickets');
+
+        $this->getJson('/api/golden-box')->assertJson(['offer' => null]);
+        $this->assertSame(0, GoldenBoxOffer::query()->where('status', 'open')->count());
+    }
+
+    public function test_an_offer_for_numbers_already_bought_is_not_shown(): void
+    {
+        $user = $this->actingAsWordPressUser();
+        $this->leaveCheckout();
+        RaffleEntry::query()->insert(['user_id' => $user->ID, 'raffle_id' => 9, 'ticket_number' => 7, 'txn_id' => 1, 'created_at' => now()]);
+
+        $this->getJson('/api/golden-box')->assertJson(['offer' => null]);
+        $this->assertSame('completed', GoldenBoxOffer::query()->first()->status);
+    }
+
     public function test_one_customer_cannot_claim_anothers_offer(): void
     {
         $this->actingAsWordPressUser();
