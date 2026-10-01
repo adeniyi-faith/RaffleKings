@@ -146,7 +146,13 @@ class HandleInertiaRequests extends Middleware
         ];
     }
 
-    /** @return array{wallet: float, earnings: float, points: int} */
+    /**
+     * `as_of` (when these numbers were read, in milliseconds) lets the
+     * browser tell an old copy of a page, shown again by the Back button,
+     * from a new one, so an old balance never replaces a newer one.
+     *
+     * @return array{wallet: float, earnings: float, points: int, as_of: int}
+     */
     private function balances(WpUser $user): array
     {
         $wallet = Wallet::query()->where('user_id', $user->ID)->first(['wallet_balance', 'earnings_balance']);
@@ -155,6 +161,7 @@ class HandleInertiaRequests extends Middleware
             'wallet' => (float) ($wallet->wallet_balance ?? 0),
             'earnings' => (float) ($wallet->earnings_balance ?? 0),
             'points' => (int) (UserPoints::query()->where('user_id', $user->ID)->value('balance') ?? 0),
+            'as_of' => (int) floor(microtime(true) * 1000),
         ];
     }
 }

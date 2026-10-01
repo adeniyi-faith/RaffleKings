@@ -3,6 +3,7 @@
 namespace App\Services;
 
 use App\Models\GoldenBoxOffer;
+use App\Models\Legacy\RaffleEntry;
 use App\Models\Legacy\WpUser;
 use Illuminate\Support\Facades\DB;
 use InvalidArgumentException;
@@ -55,6 +56,12 @@ class GoldenBoxService
     public function rememberCheckout(WpUser $user, array $raffle, array $ticketNumbers): void
     {
         if (! $this->enabled() || $this->claimedOffer($user->ID)) {
+            return;
+        }
+
+        // Opening checkout again for numbers they've already paid for (the
+        // phone's Back button after paying) is not an unfinished order.
+        if ($this->alreadyOwns($user->ID, (int) $raffle['id'], $ticketNumbers)) {
             return;
         }
 
@@ -210,6 +217,13 @@ class GoldenBoxService
             return null;
         }
 
+        // They've since bought these numbers: there's nothing left waiting.
+        if ($this->alreadyOwns($userId, $offer->raffle_id, (array) $offer->ticket_numbers)) {
+            $offer->update(['status' => 'completed']);
+
+            return null;
+        }
+
         $cooldownDays = (int) config('pricing.golden_box_cooldown_days', 0);
 
         if ($cooldownDays > 0 && GoldenBoxOffer::query()
@@ -223,6 +237,20 @@ class GoldenBoxService
         $raffle = $this->raffles->find($offer->raffle_id);
 
         return $raffle && ! $raffle['is_closed'] ? $offer : null;
+    }
+
+    /**
+     * Whether this customer already holds any of these tickets.
+     *
+     * @param  int[]  $ticketNumbers
+     */
+    private function alreadyOwns(int $userId, int $raffleId, array $ticketNumbers): bool
+    {
+        return $ticketNumbers !== [] && RaffleEntry::query()
+            ->where('user_id', $userId)
+            ->where('raffle_id', $raffleId)
+            ->whereIn('ticket_number', array_map('intval', $ticketNumbers))
+            ->exists();
     }
 
     private function present(GoldenBoxOffer $offer, string $state): array
