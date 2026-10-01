@@ -43,9 +43,19 @@ class AuthRateLimiterServiceProvider extends ServiceProvider
         RateLimiter::for('support-reply', fn ($request) => Limit::perMinute(10)->by('u:'.($request->user()?->getAuthIdentifier() ?? $request->ip())));
         RateLimiter::for('avatar-upload', fn ($request) => Limit::perHour(10)->by('u:'.($request->user()?->getAuthIdentifier() ?? $request->ip())));
 
-        RateLimiter::for('auth-forgot-password', fn ($request) => Limit::perMinutes(5, 3)->by($request->input('email', $request->ip())));
+        // Keyed by the email in lower case: the account lookup ignores case,
+        // so "Jane@x.com" and "jane@x.com" must share one allowance, or
+        // changing a letter's case would give a fresh set of guesses each
+        // time. A per-address cap sits on top for the same reason.
+        RateLimiter::for('auth-forgot-password', fn ($request) => [
+            Limit::perMinutes(5, 3)->by('email|'.self::emailKey($request)),
+            Limit::perMinutes(15, 20)->by('ip|'.$request->ip()),
+        ]);
 
-        RateLimiter::for('auth-otp-guess', fn ($request) => Limit::perMinutes(15, 5)->by($request->input('email', $request->ip())));
+        RateLimiter::for('auth-otp-guess', fn ($request) => [
+            Limit::perMinutes(15, 5)->by('email|'.self::emailKey($request)),
+            Limit::perMinutes(15, 30)->by('ip|'.$request->ip()),
+        ]);
 
         // Phase 10 security pass. A cap on the whole API, far above what a
         // person tapping around ever needs, so a script can't hammer it.
@@ -73,5 +83,12 @@ class AuthRateLimiterServiceProvider extends ServiceProvider
 
         // Spin & Win: one spin takes a few seconds to play out.
         RateLimiter::for('game', fn ($request) => Limit::perMinute(40)->by('game:'.($request->user()?->getAuthIdentifier() ?? $request->ip())));
+    }
+
+    private static function emailKey($request): string
+    {
+        $email = $request->input('email');
+
+        return is_string($email) && trim($email) !== '' ? mb_strtolower(trim($email)) : (string) $request->ip();
     }
 }

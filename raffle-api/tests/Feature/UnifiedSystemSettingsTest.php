@@ -2,6 +2,7 @@
 
 namespace Tests\Feature;
 
+use App\Auth\StaffRoles;
 use App\Filament\Pages\UnifiedSystemSettings;
 use App\Models\Legacy\WpOption;
 use App\Models\Legacy\WpUser;
@@ -32,6 +33,8 @@ class UnifiedSystemSettingsTest extends TestCase
             'meta_value' => serialize(['administrator' => true]),
         ]);
 
+        Livewire::withCookies($this->unencryptedCookies);
+
         return $admin;
     }
 
@@ -54,5 +57,14 @@ class UnifiedSystemSettingsTest extends TestCase
 
         Livewire::test(UnifiedSystemSettings::class)
             ->assertFormSet(['rk_support_unified_enabled' => true, 'rk_wallets_unified_enabled' => false]);
+    }
+
+    public function test_staff_who_are_not_owners_cannot_open_it(): void
+    {
+        $staff = $this->actingAsAdministrator();
+        WpUserMeta::create(['user_id' => $staff->ID, 'meta_key' => StaffRoles::META_KEY, 'meta_value' => 'content']);
+
+        Livewire::test(UnifiedSystemSettings::class)->assertForbidden();
+        $this->assertFalse(WpOption::flagEnabled('rk_wallets_unified_enabled'));
     }
 }

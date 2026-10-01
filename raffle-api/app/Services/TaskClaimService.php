@@ -7,6 +7,7 @@ use App\Exceptions\TaskNotReadyException;
 use App\Exceptions\UnknownTaskException;
 use App\Models\CompletedTask;
 use App\Models\Legacy\WpUser;
+use App\Models\UserPoints;
 use App\Services\Engagement\Progress;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\Cache;
@@ -162,7 +163,14 @@ class TaskClaimService
             throw new UnknownTaskException($taskId);
         }
 
+        // The points row must exist before it can be locked below.
+        UserPoints::query()->firstOrCreate(['user_id' => $user->ID], ['balance' => 0, 'streak_count' => 0]);
+
         return DB::transaction(function () use ($user, $taskId) {
+            // One claim at a time per customer: without this lock, two taps
+            // at once both saw "not done yet" and both paid out the points.
+            UserPoints::query()->where('user_id', $user->ID)->lockForUpdate()->first();
+
             if ($this->alreadyDone($user, $taskId)) {
                 throw new TaskAlreadyCompletedException($taskId);
             }

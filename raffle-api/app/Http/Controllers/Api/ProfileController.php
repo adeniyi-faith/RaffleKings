@@ -2,10 +2,12 @@
 
 namespace App\Http\Controllers\Api;
 
+use App\Auth\WordPressAuthCookieIssuer;
 use App\Http\Controllers\Controller;
 use App\Models\Legacy\WpUser;
 use App\Models\Legacy\WpUserMeta;
 use App\Models\UserEngagement;
+use App\Services\Auth\WordPressCookieFactory;
 use App\Services\Auth\WordPressPasswordHasher;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -89,12 +91,31 @@ class ProfileController extends Controller
             'first_name' => ['nullable', 'string', 'max:100'],
             'last_name' => ['nullable', 'string', 'max:100'],
             'display_name' => ['required', 'string', 'max:150'],
-            'email' => ['required', 'email', Rule::unique($user->getTable(), 'user_email')->ignore($user->getKey(), $user->getKeyName())],
+            'email' => ['required', 'email', 'max:100', Rule::unique($user->getTable(), 'user_email')->ignore($user->getKey(), $user->getKeyName())],
             'phone' => ['nullable', 'string', 'max:30'],
             'state' => ['nullable', 'string', 'max:50'],
-            'password' => ['nullable', 'string', 'min:8'],
+            // Same rules as signing up, so a new password is never weaker than a first one.
+            'password' => ['nullable', 'string', 'min:8', 'max:128', 'regex:/^(?=.*[A-Za-z])(?=.*\d).+$/'],
+            'current_password' => ['nullable', 'string'],
             'birthday' => ['nullable', 'string', 'regex:/^(0[1-9]|1[0-2])-(0[1-9]|[12]\d|3[01])$/'],
+        ], [
+            'password.regex' => 'Password must contain at least one letter and one number.',
         ]);
+
+        $changingPassword = ! empty($validated['password']);
+        $changingEmail = mb_strtolower(trim($validated['email'])) !== mb_strtolower(trim((string) $user->user_email));
+
+        // The email is where password-reset codes go, so changing either one
+        // takes the current password: someone who only got hold of a signed-in
+        // phone (or a stolen cookie) can't lock the real owner out.
+        if (($changingPassword || $changingEmail)
+            && ! $this->hasher->check((string) ($validated['current_password'] ?? ''), $user->getAuthPassword())) {
+            throw ValidationException::withMessages([
+                'current_password' => empty($validated['current_password'])
+                    ? 'Enter your current password to change your email or password.'
+                    : 'Your current password is not right.',
+            ]);
+        }
 
         // The birthday (MM-DD) can be set once; after that only support can change it,
         // so nobody moves it around to collect extra birthday spins.
@@ -122,11 +143,24 @@ class ProfileController extends Controller
         $this->setMeta($user->ID, 'phone', $validated['phone'] ?? '');
         $this->setMeta($user->ID, 'state', $validated['state'] ?? '');
 
-        if (! empty($validated['password'])) {
+        $response = response()->json(['message' => 'Profile updated successfully!']);
+
+        if ($changingPassword) {
             $user->forceFill(['user_pass' => $this->hasher->make($validated['password'])])->save();
+
+            // The sign-in cookie is tied to the password, so the old one
+            // stops working the moment it changes. Every other device is
+            // signed out (that's the point of a new password); this one
+            // gets a fresh cookie so the customer stays signed in here.
+            WpUserMeta::query()->where('user_id', $user->ID)->where('meta_key', 'session_tokens')->delete();
+            $current = $user->currentAccessToken();
+            $user->tokens()->when($current?->getKey(), fn ($q, $id) => $q->whereKeyNot($id))->delete();
+
+            $cookie = app(WordPressAuthCookieIssuer::class)->issue($user, ttlSeconds: 14 * 24 * 60 * 60, ip: $request->ip(), userAgent: $request->userAgent());
+            $response->withCookie(app(WordPressCookieFactory::class)->make(app('wordpress.auth_cookie_name'), $cookie['value'], $cookie['expiration']));
         }
 
-        return response()->json(['message' => 'Profile updated successfully!']);
+        return $response;
     }
 
     private function user(): WpUser

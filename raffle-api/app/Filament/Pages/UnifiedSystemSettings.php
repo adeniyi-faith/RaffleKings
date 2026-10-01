@@ -3,6 +3,7 @@
 namespace App\Filament\Pages;
 
 use App\Models\Legacy\WpOption;
+use App\Models\Legacy\WpUser;
 use Filament\Forms;
 use Filament\Forms\Concerns\InteractsWithForms;
 use Filament\Forms\Contracts\HasForms;
@@ -40,6 +41,18 @@ class UnifiedSystemSettings extends Page implements HasForms
     public static function shouldRegisterNavigation(): bool
     {
         return false;
+    }
+
+    /**
+     * Hidden from the menu, but its address still opened for any staff
+     * role (Content and Support included) and saved site-wide switches.
+     * Owners only, like the main Settings page.
+     */
+    public static function canAccess(): bool
+    {
+        $user = auth('wordpress')->user();
+
+        return $user instanceof WpUser && $user->staffRole() === 'owner';
     }
 
     protected static ?string $navigationIcon = 'heroicon-o-adjustments-horizontal';

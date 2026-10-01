@@ -56,6 +56,15 @@ class UserManagementService
             'meta_value' => $banned ? '1' : '0',
         ]);
 
+        // A ban used to stop only new sign-ins and withdrawals: anyone
+        // already signed in kept buying, spinning and chatting until their
+        // cookie ran out (up to two weeks). Signing them out everywhere
+        // makes the ban take effect straight away.
+        if ($banned) {
+            WpUserMeta::query()->where('user_id', $target->ID)->where('meta_key', 'session_tokens')->delete();
+            $target->tokens()->delete();
+        }
+
         $this->auditLog->record($admin, $banned ? 'user.banned' : 'user.unbanned', WpUser::class, $target->ID, [
             'reason' => $reason,
         ]);

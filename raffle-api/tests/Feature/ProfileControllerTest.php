@@ -2,6 +2,7 @@
 
 namespace Tests\Feature;
 
+use App\Auth\WordPressAuthCookieValidator;
 use App\Models\Legacy\WpUser;
 use App\Models\Legacy\WpUserMeta;
 use App\Services\Auth\WordPressPasswordHasher;
@@ -34,9 +35,10 @@ class ProfileControllerTest extends TestCase
 
     public function test_a_user_can_update_their_details(): void
     {
-        $user = $this->actingAsWordPressUser();
+        $user = $this->actingAsWordPressUser(['user_pass' => app(WordPressPasswordHasher::class)->make('current-pass1')]);
 
         $response = $this->postJson('/api/profile', [
+            'current_password' => 'current-pass1',
             'first_name' => 'Jane',
             'last_name' => 'Doe',
             'display_name' => 'Jane D.',
@@ -56,16 +58,96 @@ class ProfileControllerTest extends TestCase
 
     public function test_a_password_change_actually_verifies_against_the_shared_hasher(): void
     {
-        $user = $this->actingAsWordPressUser();
+        $user = $this->actingAsWordPressUser(['user_pass' => app(WordPressPasswordHasher::class)->make('current-pass1')]);
 
         $this->postJson('/api/profile', [
             'display_name' => $user->display_name,
             'email' => $user->user_email,
-            'password' => 'a-brand-new-password',
+            'current_password' => 'current-pass1',
+            'password' => 'a-brand-new-password1',
         ])->assertOk();
 
         $user->refresh();
-        $this->assertTrue(app(WordPressPasswordHasher::class)->check('a-brand-new-password', $user->user_pass));
+        $this->assertTrue(app(WordPressPasswordHasher::class)->check('a-brand-new-password1', $user->user_pass));
+    }
+
+    public function test_changing_the_password_needs_the_current_password(): void
+    {
+        $user = $this->actingAsWordPressUser(['user_pass' => app(WordPressPasswordHasher::class)->make('current-pass1')]);
+        $before = $user->user_pass;
+
+        $this->postJson('/api/profile', [
+            'display_name' => $user->display_name,
+            'email' => $user->user_email,
+            'password' => 'a-brand-new-password1',
+        ])->assertStatus(422)->assertJsonValidationErrors('current_password');
+
+        $this->postJson('/api/profile', [
+            'display_name' => $user->display_name,
+            'email' => $user->user_email,
+            'current_password' => 'not-my-password1',
+            'password' => 'a-brand-new-password1',
+        ])->assertStatus(422)->assertJsonValidationErrors('current_password');
+
+        $this->assertSame($before, $user->fresh()->user_pass);
+    }
+
+    public function test_changing_the_email_needs_the_current_password(): void
+    {
+        $user = $this->actingAsWordPressUser(['user_pass' => app(WordPressPasswordHasher::class)->make('current-pass1')]);
+        $email = $user->user_email;
+
+        $this->postJson('/api/profile', [
+            'display_name' => $user->display_name,
+            'email' => 'attacker@example.com',
+        ])->assertStatus(422)->assertJsonValidationErrors('current_password');
+
+        $this->assertSame($email, $user->fresh()->user_email);
+    }
+
+    public function test_other_details_can_be_saved_without_the_current_password(): void
+    {
+        $user = $this->actingAsWordPressUser();
+
+        $this->postJson('/api/profile', [
+            'display_name' => 'New Name',
+            'email' => strtoupper($user->user_email),
+        ])->assertOk();
+
+        $this->assertSame('New Name', $user->fresh()->display_name);
+    }
+
+    public function test_after_a_password_change_this_device_stays_signed_in_and_others_are_signed_out(): void
+    {
+        $user = $this->actingAsWordPressUser(['user_pass' => app(WordPressPasswordHasher::class)->make('current-pass1')]);
+        $user->createToken('another-phone');
+
+        $response = $this->postJson('/api/profile', [
+            'display_name' => $user->display_name,
+            'email' => $user->user_email,
+            'current_password' => 'current-pass1',
+            'password' => 'a-brand-new-password1',
+        ])->assertOk();
+
+        $cookieName = 'wordpress_logged_in_'.config('legacy.wp_cookiehash');
+        $fresh = collect($response->headers->getCookies())->first(fn ($c) => $c->getName() === $cookieName);
+        $this->assertNotNull($fresh, 'A fresh sign-in cookie is sent back.');
+
+        // The new cookie works, every app token is gone.
+        $this->assertSame(0, $user->tokens()->count());
+        $this->assertSame($user->ID, (new WordPressAuthCookieValidator(config('legacy.wp_logged_in_key'), config('legacy.wp_logged_in_salt')))->resolve($fresh->getValue())?->ID);
+    }
+
+    public function test_a_weak_new_password_is_refused(): void
+    {
+        $user = $this->actingAsWordPressUser(['user_pass' => app(WordPressPasswordHasher::class)->make('current-pass1')]);
+
+        $this->postJson('/api/profile', [
+            'display_name' => $user->display_name,
+            'email' => $user->user_email,
+            'current_password' => 'current-pass1',
+            'password' => 'onlyletters',
+        ])->assertStatus(422)->assertJsonValidationErrors('password');
     }
 
     public function test_email_must_be_unique(): void

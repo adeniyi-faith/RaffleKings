@@ -125,4 +125,67 @@ class PasswordResetControllerTest extends TestCase
 
         $this->assertNull($user->metaValue('session_tokens'));
     }
+
+    public function test_changing_the_letter_case_of_the_email_does_not_give_extra_code_guesses(): void
+    {
+        $this->makeUser();
+        $this->postJson('/api/auth/forgot-password', ['email' => 'jane@example.com'])->assertOk();
+
+        foreach (['jane@example.com', 'Jane@example.com', 'JANE@example.com', 'jAne@example.com', 'jaNe@example.com'] as $email) {
+            $this->postJson('/api/auth/verify-reset-code', ['email' => $email, 'otp' => '000000'])->assertStatus(422);
+        }
+
+        $this->postJson('/api/auth/verify-reset-code', ['email' => 'janE@EXAMPLE.com', 'otp' => '000000'])->assertStatus(429);
+    }
+
+    public function test_a_code_stops_working_after_five_wrong_guesses(): void
+    {
+        Notification::fake();
+        $user = $this->makeUser();
+        $this->postJson('/api/auth/forgot-password', ['email' => 'jane@example.com'])->assertOk();
+
+        $sentCode = null;
+        Notification::assertSentTo($user, PasswordResetOtp::class, function ($notification) use (&$sentCode) {
+            $sentCode = (fn () => $this->code)->call($notification);
+
+            return true;
+        });
+
+        $wrong = $sentCode === '000000' ? '111111' : '000000';
+
+        for ($i = 0; $i < 5; $i++) {
+            $this->postJson('/api/auth/verify-reset-code', ['email' => 'jane@example.com', 'otp' => $wrong])->assertStatus(422);
+        }
+
+        // Even with the request limit out of the way, the right code is now spent.
+        $this->app['cache']->flush();
+
+        $this->postJson('/api/auth/verify-reset-code', ['email' => 'jane@example.com', 'otp' => $sentCode])
+            ->assertStatus(422)
+            ->assertJsonPath('errors.otp.0', 'Too many wrong codes. Request a new one.');
+    }
+
+    public function test_resetting_the_password_also_revokes_app_sign_in_tokens(): void
+    {
+        Notification::fake();
+        $user = $this->makeUser();
+        $user->createToken('login');
+
+        $this->postJson('/api/auth/forgot-password', ['email' => 'jane@example.com'])->assertOk();
+
+        $sentCode = null;
+        Notification::assertSentTo($user, PasswordResetOtp::class, function ($notification) use (&$sentCode) {
+            $sentCode = (fn () => $this->code)->call($notification);
+
+            return true;
+        });
+
+        $this->postJson('/api/auth/reset-password', [
+            'email' => 'jane@example.com',
+            'otp' => $sentCode,
+            'password' => 'newpassword2',
+        ])->assertOk();
+
+        $this->assertSame(0, $user->tokens()->count());
+    }
 }
