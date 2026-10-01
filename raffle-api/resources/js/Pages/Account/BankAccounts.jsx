@@ -123,7 +123,7 @@ export default function AccountBankAccounts() {
                 credentials: 'same-origin',
                 body: JSON.stringify({ bank_code: form.bank_code, account_number: form.account_number.trim() }),
             });
-            const data = await response.json();
+            const data = await response.json().catch(() => ({}));
             if (! response.ok) throw new Error(data.message || 'Failed to save.');
 
             setSheetOpen(false);
@@ -167,7 +167,7 @@ export default function AccountBankAccounts() {
                 body: JSON.stringify({ bank_name: bankName, account_number: accNum, account_name: accName }),
             });
 
-            const data = await response.json();
+            const data = await response.json().catch(() => ({}));
 
             if (! response.ok) {
                 throw new Error(data.message || 'Failed to save.');

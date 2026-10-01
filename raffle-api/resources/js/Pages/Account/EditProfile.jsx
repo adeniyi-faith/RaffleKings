@@ -16,7 +16,7 @@ const STATES = [
     'Yobe', 'Zamfara',
 ];
 
-const EMPTY_FORM = { first_name: '', last_name: '', display_name: '', email: '', phone: '', state: '', password: '', birthday: '' };
+const EMPTY_FORM = { first_name: '', last_name: '', display_name: '', email: '', phone: '', state: '', password: '', current_password: '', birthday: '' };
 const MONTHS = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
 
 // Faithful rebuild of the legacy edit-profile.php: same top sticky
@@ -34,6 +34,9 @@ export default function EditProfile() {
     const [form, setForm] = useState(EMPTY_FORM);
     // Phase 11: the birthday (for a free birthday spin) can only be set once.
     const [birthdayLocked, setBirthdayLocked] = useState(false);
+    // The email as saved, so the page knows when it's being changed (that,
+    // like a new password, needs the current password).
+    const [savedEmail, setSavedEmail] = useState('');
     const [loading, setLoading] = useState(true);
     const [saving, setSaving] = useState(false);
     const [message, setMessage] = useState(null);
@@ -55,7 +58,8 @@ export default function EditProfile() {
                 return response.json();
             })
             .then((data) => {
-                setForm({ ...EMPTY_FORM, ...data, birthday: data.birthday || '', password: '' });
+                setForm({ ...EMPTY_FORM, ...data, birthday: data.birthday || '', password: '', current_password: '' });
+                setSavedEmail(data.email || '');
                 setBirthdayLocked(!! data.birthday);
             })
             .catch(() => setLoadFailed(true))
@@ -108,17 +112,20 @@ export default function EditProfile() {
         }
     }
 
+    const needsCurrentPassword = !! form.password || form.email.trim().toLowerCase() !== savedEmail.trim().toLowerCase();
+
     async function save(e) {
         e.preventDefault();
         setSaving(true);
         setMessage(null);
 
         try {
-            const { password, ...rest } = form;
-            await apiPost('/api/profile', password ? form : rest);
+            const { password, current_password, ...rest } = form;
+            await apiPost('/api/profile', needsCurrentPassword ? form : rest);
             setIsError(false);
             setMessage('Profile updated successfully!');
-            setForm((f) => ({ ...f, password: '' }));
+            setSavedEmail(form.email);
+            setForm((f) => ({ ...f, password: '', current_password: '' }));
             if (form.birthday) setBirthdayLocked(true);
             router.reload({ only: ['auth'] });
         } catch (err) {
@@ -247,7 +254,19 @@ export default function EditProfile() {
                                 value={form.password}
                                 onChange={update('password')}
                                 placeholder="Leave empty to keep current"
+                                autoComplete="new-password"
                             />
+                            {needsCurrentPassword && (
+                                <Field
+                                    label="Current Password"
+                                    type="password"
+                                    value={form.current_password}
+                                    onChange={update('current_password')}
+                                    placeholder="Needed to change your email or password"
+                                    autoComplete="current-password"
+                                    required
+                                />
+                            )}
                         </div>
 
                         <button
