@@ -134,6 +134,12 @@ class DepositService
                 return $deposit; // already settled or flagged — idempotent no-op
             }
 
+            // Only the gateway the top-up was started with can settle it, so
+            // a payment made elsewhere under the same reference never counts.
+            if ($deposit->gateway && $deposit->gateway !== $gatewayName) {
+                throw new RuntimeException("Deposit {$reference} was started with {$deposit->gateway}, not {$gatewayName}.");
+            }
+
             if (! $verification->successful) {
                 $deposit->update([
                     'status' => 'failed',
@@ -149,14 +155,20 @@ class DepositService
             // for the customer (its "customer pays the fees" setting) is not
             // mistaken for a wrong amount. Only what we asked for is credited:
             // the fee went to Paystack, not to us.
-            if (round($verification->creditableAmount(), 2) !== round((float) $deposit->amount, 2)) {
+            // The amount only means something in the right currency: a
+            // payment of "5,000" in another currency is not ₦5,000.
+            // Flutterwave's checkout lets a payer pick the currency, so this
+            // has to be checked, not assumed.
+            $wrongCurrency = strtoupper($verification->currency) !== strtoupper((string) ($deposit->currency ?: 'NGN'));
+
+            if ($wrongCurrency || round($verification->creditableAmount(), 2) !== round((float) $deposit->amount, 2)) {
                 // Paid, but not the expected amount — never credit blindly;
                 // flag for manual review instead of guessing which figure
                 // to trust.
                 $deposit->update([
                     'status' => 'amount_mismatch',
                     'gateway_transaction_id' => $verification->gatewayTransactionId,
-                    'failure_reason' => sprintf('Expected %.2f, gateway confirmed %.2f.', $deposit->amount, $verification->amount),
+                    'failure_reason' => sprintf('Expected %.2f %s, gateway confirmed %.2f %s.', $deposit->amount, strtoupper((string) ($deposit->currency ?: 'NGN')), $verification->amount, strtoupper($verification->currency)),
                 ]);
                 $outcome = 'topup_amount_mismatch';
 

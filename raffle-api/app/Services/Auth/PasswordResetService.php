@@ -28,6 +28,9 @@ class PasswordResetService
 {
     private const OTP_TTL_SECONDS = 15 * 60;
 
+    /** Wrong guesses one emailed code survives before it stops working. */
+    private const MAX_WRONG_GUESSES = 5;
+
     public function __construct(private readonly WordPressPasswordHasher $hasher) {}
 
     public function requestCode(string $email): void
@@ -42,6 +45,7 @@ class PasswordResetService
 
         $this->setMeta($user, 'rk_reset_otp', hash('sha256', $code));
         $this->setMeta($user, 'rk_reset_expiry', (string) (time() + self::OTP_TTL_SECONDS));
+        $this->setMeta($user, 'rk_reset_attempts', '0');
 
         $user->notify(new PasswordResetOtp($code));
     }
@@ -57,7 +61,18 @@ class PasswordResetService
         $storedHash = $user->metaValue('rk_reset_otp');
         $expiry = (int) $user->metaValue('rk_reset_expiry');
 
+        // A code that has been guessed at too often is spent, however the
+        // guesses were spread out, so it can't be worked out by trying
+        // every number.
+        if ($storedHash && (int) $user->metaValue('rk_reset_attempts') >= self::MAX_WRONG_GUESSES) {
+            throw ValidationException::withMessages(['otp' => 'Too many wrong codes. Request a new one.']);
+        }
+
         if (! $storedHash || ! hash_equals($storedHash, hash('sha256', $code))) {
+            if ($storedHash) {
+                $this->setMeta($user, 'rk_reset_attempts', (string) ((int) $user->metaValue('rk_reset_attempts') + 1));
+            }
+
             throw ValidationException::withMessages(['otp' => 'That code is invalid.']);
         }
 
@@ -74,12 +89,15 @@ class PasswordResetService
 
         $user->forceFill(['user_pass' => $this->hasher->make($newPassword)])->save();
 
-        WpUserMeta::where('user_id', $user->getKey())->whereIn('meta_key', ['rk_reset_otp', 'rk_reset_expiry'])->delete();
+        WpUserMeta::where('user_id', $user->getKey())->whereIn('meta_key', ['rk_reset_otp', 'rk_reset_expiry', 'rk_reset_attempts'])->delete();
 
         // A real security improvement over the legacy flow, which leaves
         // every existing session alive after a password reset: force
-        // every device to log in again with the new password.
+        // every device to log in again with the new password. That
+        // includes the app sign-in tokens issued at login, not only the
+        // browser cookies.
         WpUserMeta::where('user_id', $user->getKey())->where('meta_key', 'session_tokens')->delete();
+        $user->tokens()->delete();
     }
 
     private function setMeta(WpUser $user, string $key, string $value): void

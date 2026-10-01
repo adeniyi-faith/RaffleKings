@@ -51,7 +51,8 @@ class PasswordResetController extends Controller
         $data = $request->validate([
             'email' => ['required', 'email'],
             'otp' => ['required', 'string', 'size:6'],
-            'password' => ['required', 'string', 'min:6', 'regex:/^(?=.*[A-Za-z])(?=.*\d).+$/'],
+            // Same rules as signing up (it used to accept 6 characters here).
+            'password' => ['required', 'string', 'min:8', 'max:128', 'regex:/^(?=.*[A-Za-z])(?=.*\d).+$/'],
         ], [
             'password.regex' => 'Password must contain at least one letter and one number.',
         ]);

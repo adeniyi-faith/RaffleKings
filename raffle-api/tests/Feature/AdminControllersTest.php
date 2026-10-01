@@ -2,11 +2,13 @@
 
 namespace Tests\Feature;
 
+use App\Auth\StaffRoles;
 use App\Models\BankAccount;
 use App\Models\Legacy\RaffleWinner;
 use App\Models\Legacy\WpUser;
 use App\Models\Legacy\WpUserMeta;
 use App\Models\Wallet;
+use App\Services\UserManagementService;
 use App\Services\WithdrawalService;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Tests\Support\AuthenticatesWithWordPressCookie;
@@ -35,6 +37,31 @@ class AdminControllersTest extends TestCase
 
         $this->getJson('/api/admin/withdrawals')->assertStatus(403);
         $this->getJson('/api/admin/audit-logs')->assertStatus(403);
+    }
+
+    public function test_a_wordpress_admin_whose_staff_role_was_lowered_or_removed_cannot_use_the_admin_api(): void
+    {
+        foreach (['support', 'content', 'finance', StaffRoles::NO_ACCESS] as $role) {
+            $admin = $this->actingAsAdministrator();
+            WpUserMeta::create(['user_id' => $admin->ID, 'meta_key' => StaffRoles::META_KEY, 'meta_value' => $role]);
+
+            $this->getJson('/api/admin/withdrawals')->assertStatus(403);
+            $this->postJson('/api/admin/users/'.$admin->ID.'/balance', ['balance_type' => 'wallet', 'amount' => 1000000])->assertStatus(403);
+        }
+    }
+
+    public function test_banning_a_customer_signs_them_out_everywhere(): void
+    {
+        $admin = WpUser::create(['user_login' => 'boss', 'user_pass' => 'x', 'user_email' => 'boss@example.com']);
+        $customer = $this->actingAsWordPressUser();
+        $customer->createToken('phone');
+
+        $this->getJson('/api/me')->assertOk();
+
+        app(UserManagementService::class)->ban($admin, $customer, 'abuse');
+
+        $this->getJson('/api/me')->assertStatus(401);
+        $this->assertSame(0, $customer->tokens()->count());
     }
 
     public function test_an_admin_can_list_and_pay_a_pending_withdrawal(): void
