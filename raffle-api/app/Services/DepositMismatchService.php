@@ -70,6 +70,13 @@ class DepositMismatchService
             throw new RuntimeException("Gateway no longer reports {$deposit->reference} as a successful payment. Reject this deposit instead of crediting it.");
         }
 
+        // The confirmed figure is only naira when the payment was in naira;
+        // crediting "5,000" paid in another currency as ₦5,000 would give
+        // away money. Those are refused here and handled by hand.
+        if (strtoupper($verification->currency) !== strtoupper((string) ($deposit->currency ?: 'NGN'))) {
+            throw new RuntimeException("This payment was made in {$verification->currency}, not naira, so it can't be credited automatically. Reject it and sort it out with the customer.");
+        }
+
         // Never the gateway's fee: a customer who paid ₦2,000 + ₦30.46 Paystack
         // fee gets ₦2,000 (the fee went to Paystack, not to us).
         $confirmedAmount = round($verification->creditableAmount(), 2);

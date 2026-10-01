@@ -95,4 +95,48 @@ class PaymentWebhookControllerTest extends TestCase
 
         $response->assertStatus(401);
     }
+
+    public function test_a_flutterwave_payment_in_another_currency_is_not_credited_as_naira(): void
+    {
+        Http::fake([
+            'api.paystack.co/*' => Http::response(['status' => false, 'message' => 'down'], 503),
+            'api.flutterwave.com/v3/payments' => Http::response(['status' => 'success', 'data' => ['link' => 'https://flutterwave.test/pay/xyz']]),
+        ]);
+        $user = $this->makeUser();
+        $deposit = app(DepositService::class)->initialize($user, 3000, 'https://app.test/callback');
+
+        // Same number, but 3,000 of a different currency.
+        Http::fake(['api.flutterwave.com/v3/transactions/verify_by_reference*' => Http::response(['data' => ['status' => 'successful', 'amount' => 3000, 'currency' => 'UGX', 'id' => 778]])]);
+
+        $payload = json_encode(['event' => 'charge.completed', 'data' => ['tx_ref' => $deposit->reference]]);
+
+        $this->call('POST', '/api/webhooks/flutterwave', [], [], [], [
+            'HTTP_verif-hash' => 'whsec_test',
+            'CONTENT_TYPE' => 'application/json',
+        ], $payload)->assertOk();
+
+        $this->assertEquals(0, (float) Wallet::where('user_id', $user->ID)->value('wallet_balance'));
+        $this->assertSame('amount_mismatch', $deposit->fresh()->status);
+        $this->assertStringContainsString('UGX', $deposit->fresh()->failure_reason);
+    }
+
+    public function test_a_deposit_started_with_paystack_cannot_be_settled_by_a_flutterwave_webhook(): void
+    {
+        Http::fake(['api.paystack.co/transaction/initialize' => Http::response(['status' => true, 'data' => ['authorization_url' => 'https://paystack.test/pay/abc']])]);
+        $user = $this->makeUser();
+        $deposit = app(DepositService::class)->initialize($user, 5000, 'https://app.test/callback');
+        $this->assertSame('paystack', $deposit->gateway);
+
+        Http::fake(['api.flutterwave.com/v3/transactions/verify_by_reference*' => Http::response(['data' => ['status' => 'successful', 'amount' => 5000, 'currency' => 'NGN', 'id' => 779]])]);
+
+        $payload = json_encode(['event' => 'charge.completed', 'data' => ['tx_ref' => $deposit->reference]]);
+
+        $this->call('POST', '/api/webhooks/flutterwave', [], [], [], [
+            'HTTP_verif-hash' => 'whsec_test',
+            'CONTENT_TYPE' => 'application/json',
+        ], $payload)->assertOk();
+
+        $this->assertEquals(0, (float) Wallet::where('user_id', $user->ID)->value('wallet_balance'));
+        $this->assertSame('pending', $deposit->fresh()->status);
+    }
 }

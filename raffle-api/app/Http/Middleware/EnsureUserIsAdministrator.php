@@ -22,7 +22,13 @@ class EnsureUserIsAdministrator
         /** @var WpUser|null $user */
         $user = $request->user();
 
-        if (! $user || ! $user->isAdministrator()) {
+        // Owners only. This used to check the old WordPress "administrator"
+        // flag alone, so a WordPress admin whose staff role had been lowered
+        // (or removed with "Remove access") on Staff & roles could still pay
+        // out withdrawals, change balances and run draws through these
+        // endpoints. These routes can do anything, so they need the role
+        // that can do anything.
+        if (! $user || $user->staffRole() !== 'owner') {
             return response()->json(['message' => 'This action requires administrator access.'], 403);
         }
 

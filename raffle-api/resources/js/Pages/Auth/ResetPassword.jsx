@@ -100,7 +100,8 @@ export default function ResetPassword({ email }) {
                             value={password}
                             onChange={(e) => setPassword(e.target.value)}
                             required
-                            minLength={6}
+                            minLength={8}
+                            placeholder="At least 8 characters, with a number"
                         />
 
                         <Button type="submit" disabled={busy}>

@@ -88,7 +88,9 @@ export default function AccountWithdraw() {
                 }),
             });
 
-            const data = await response.json();
+            // A response that isn't JSON (a gateway timeout page, say) must
+            // still show a plain message, not a technical parse error.
+            const data = await response.json().catch(() => ({}));
 
             if (response.status === 403 && data.requires_verification_fee) {
                 setModal('verify');
