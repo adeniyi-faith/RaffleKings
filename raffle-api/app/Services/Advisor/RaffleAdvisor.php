@@ -5,17 +5,18 @@ namespace App\Services\Advisor;
 use App\Exceptions\AiUnavailableException;
 use App\Jobs\WriteAdvisorReport;
 use App\Models\AdvisorReport;
+use App\Models\DailyDrop;
 use App\Models\Legacy\WpUser;
 use App\Models\Raffle;
 use App\Services\AdminAuditLogService;
-use App\Services\Ai\ClaudeClient;
+use App\Services\Ai\GeminiClient;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
 use RuntimeException;
 
 /**
  * The Raffle advisor: an expert adviser for the raffles team. It reads the
- * site's own totals (PlatformSnapshot), asks Claude for practical advice on
+ * site's own totals (PlatformSnapshot), asks Gemini for practical advice on
  * raffles, prizes, prices and offers, and saves the answer as a report.
  *
  * It only advises. The one thing it can do on the site is open one of its
@@ -36,7 +37,7 @@ class RaffleAdvisor
     private const PRIZE_TYPES = ['cash', 'gadgets', 'vouchers', 'other'];
 
     public function __construct(
-        private readonly ClaudeClient $claude,
+        private readonly GeminiClient $gemini,
         private readonly PlatformSnapshot $snapshot,
     ) {}
 
@@ -55,14 +56,19 @@ class RaffleAdvisor
         return $report;
     }
 
-    /** Write the report: gather the totals, ask Claude, save the answer. */
+    /** Write the report: gather the totals, ask Gemini, save the answer. */
     public function write(AdvisorReport $report): AdvisorReport
     {
         $snapshot = $this->snapshot->build();
-        $report->update(['snapshot' => $snapshot, 'model' => $this->claude->model()]);
+        $report->update(['snapshot' => $snapshot, 'model' => config('services.gemini.assistant_model') ?: 'gemini-3-flash-preview']);
 
         try {
-            $answer = $this->claude->json('raffle-advisor', $this->system(), $this->prompt($snapshot, $report->focus), $this->schema());
+            $text = $this->gemini->generate('raffle-advisor', $this->system(), $this->prompt($snapshot, $report->focus), schema: $this->schema(), maxTokens: 16000);
+            $answer = json_decode(trim(preg_replace('/^```(?:json)?|```$/m', '', $text)), true);
+
+            if (! is_array($answer) || ! is_array($answer['recommendations'] ?? null)) {
+                throw new AiUnavailableException('The AI sent back an answer the site could not read. Try again.');
+            }
         } catch (AiUnavailableException $e) {
             $report->update(['status' => 'failed', 'error' => Str::limit($e->getMessage(), 290)]);
 
@@ -74,7 +80,7 @@ class RaffleAdvisor
             'summary' => trim((string) ($answer['summary'] ?? '')),
             'recommendations' => collect($answer['recommendations'] ?? [])
                 ->filter(fn ($r) => is_array($r) && filled($r['title'] ?? null))
-                ->map(fn ($r) => $r + ['opened_raffle_id' => null])
+                ->map(fn ($r) => $r + ['opened_raffle_id' => null, 'opened_drop_id' => null])
                 ->values()
                 ->all(),
             'error' => null,
@@ -84,69 +90,99 @@ class RaffleAdvisor
     }
 
     /**
-     * Open a recommended raffle as a draft, with its prize tiers and draw rules.
-     * Never published here: staff check it and publish it themselves.
+     * Open a suggestion as drafts: its raffle (with prize tiers and draw rules)
+     * and/or its Daily Drop. Never published or switched on here: staff check
+     * them and do that themselves.
+     *
+     * @return array{raffle: ?Raffle, drop: ?DailyDrop}
      *
      * @throws RuntimeException with a message safe to show staff
      */
-    public function openAsDraft(AdvisorReport $report, int $index, WpUser $admin): Raffle
+    public function openAsDraft(AdvisorReport $report, int $index, WpUser $admin): array
     {
         return DB::transaction(function () use ($report, $index, $admin) {
             $report = AdvisorReport::query()->lockForUpdate()->findOrFail($report->id);
             $recs = (array) $report->recommendations;
             $rec = $recs[$index] ?? null;
 
-            if (! is_array($rec) || ! is_array($rec['raffle_draft'] ?? null)) {
-                throw new RuntimeException('This suggestion has no ready-made raffle to open.');
+            if (! is_array($rec) || (! is_array($rec['raffle_draft'] ?? null) && ! is_array($rec['daily_drop'] ?? null))) {
+                throw new RuntimeException('This suggestion has nothing ready-made to open.');
             }
 
-            if (! empty($rec['opened_raffle_id']) && Raffle::query()->whereKey($rec['opened_raffle_id'])->exists()) {
-                throw new RuntimeException('This suggestion was already opened as a draft raffle.');
+            if (! empty($rec['opened_raffle_id']) || ! empty($rec['opened_drop_id'])) {
+                throw new RuntimeException('This suggestion was already opened as a draft.');
             }
 
-            $d = $rec['raffle_draft'];
-            $isFlash = (bool) ($d['is_flash'] ?? false);
-            $tz = config('raffles.timezone', 'Africa/Lagos');
+            $raffle = is_array($rec['raffle_draft'] ?? null) ? $this->createDraftRaffle($rec) : null;
+            $drop = is_array($rec['daily_drop'] ?? null) ? $this->createDraftDrop($rec['daily_drop'], $raffle, $report, $admin) : null;
 
-            $raffle = Raffle::create([
-                'title' => Str::limit(trim((string) ($d['title'] ?? $rec['title'])), 250, ''),
-                'excerpt' => Str::limit(trim((string) ($d['excerpt'] ?? '')), 2000, '') ?: null,
-                'price' => max(1, round((float) ($d['ticket_price'] ?? 0), 2)),
-                'max_tickets' => max(1, min(1_000_000, (int) ($d['tickets_available'] ?? 0))),
-                'max_per_order' => ($m = (int) ($d['max_per_order'] ?? 0)) > 0 ? $m : null,
-                'grand_prize' => Str::limit(trim((string) ($d['grand_prize'] ?? '')), 250, '') ?: null,
-                'prize_type' => in_array($d['prize_type'] ?? null, self::PRIZE_TYPES, true) ? $d['prize_type'] : 'other',
-                'is_flash' => $isFlash,
-                'sales_end_at' => $isFlash ? now($tz)->addHours(max(1, min(72, (int) ($d['flash_hours'] ?? 1))))->utc() : null,
-                'expiry' => $isFlash ? null : now($tz)->addDays(max(1, min(90, (int) ($d['sales_days'] ?? 7))))->toDateString(),
-                'draw_rules' => $this->drawRules((array) ($d['draw_rules'] ?? [])),
-                'status' => 'draft',
-            ]);
-
-            foreach (array_slice((array) ($d['prize_tiers'] ?? []), 0, 20) as $i => $tier) {
-                if (! is_array($tier) || blank($tier['tier_name'] ?? null)) {
-                    continue;
-                }
-
-                $raffle->prizeTiers()->create([
-                    'tier_name' => Str::limit(trim((string) $tier['tier_name']), 250, ''),
-                    'prize_description' => Str::limit(trim((string) ($tier['prize_description'] ?? '')), 250, '') ?: null,
-                    'cash_value' => max(0, round((float) ($tier['cash_value'] ?? 0), 2)),
-                    'winner_count' => max(1, min(10_000, (int) ($tier['winner_count'] ?? 1))),
-                    'rank' => $i + 1,
-                ]);
-            }
-
-            $recs[$index]['opened_raffle_id'] = $raffle->id;
+            $recs[$index]['opened_raffle_id'] = $raffle?->id;
+            $recs[$index]['opened_drop_id'] = $drop?->id;
             $report->update(['recommendations' => $recs]);
 
-            app(AdminAuditLogService::class)->record($admin, 'raffle.opened_from_advice', Raffle::class, $raffle->id, [
-                'advisor_report_id' => $report->id,
+            app(AdminAuditLogService::class)->record($admin, 'advisor.suggestion_opened', AdvisorReport::class, $report->id, [
                 'suggestion' => $rec['title'],
+                'raffle_id' => $raffle?->id,
+                'daily_drop_id' => $drop?->id,
             ]);
 
-            return $raffle;
+            return ['raffle' => $raffle, 'drop' => $drop];
         });
+    }
+
+    private function createDraftRaffle(array $rec): Raffle
+    {
+        $d = $rec['raffle_draft'];
+        $isFlash = (bool) ($d['is_flash'] ?? false);
+        $tz = config('raffles.timezone', 'Africa/Lagos');
+
+        $raffle = Raffle::create([
+            'title' => Str::limit(trim((string) ($d['title'] ?? $rec['title'])), 250, ''),
+            'excerpt' => Str::limit(trim((string) ($d['excerpt'] ?? '')), 2000, '') ?: null,
+            'price' => max(1, round((float) ($d['ticket_price'] ?? 0), 2)),
+            'max_tickets' => max(1, min(1_000_000, (int) ($d['tickets_available'] ?? 0))),
+            'max_per_order' => ($m = (int) ($d['max_per_order'] ?? 0)) > 0 ? $m : null,
+            'grand_prize' => Str::limit(trim((string) ($d['grand_prize'] ?? '')), 250, '') ?: null,
+            'prize_type' => in_array($d['prize_type'] ?? null, self::PRIZE_TYPES, true) ? $d['prize_type'] : 'other',
+            'is_flash' => $isFlash,
+            'sales_end_at' => $isFlash ? now($tz)->addHours(max(1, min(72, (int) ($d['flash_hours'] ?? 1))))->utc() : null,
+            'expiry' => $isFlash ? null : now($tz)->addDays(max(1, min(90, (int) ($d['sales_days'] ?? 7))))->toDateString(),
+            'draw_rules' => $this->drawRules((array) ($d['draw_rules'] ?? [])),
+            'status' => 'draft',
+        ]);
+
+        foreach (array_slice((array) ($d['prize_tiers'] ?? []), 0, 20) as $i => $tier) {
+            if (! is_array($tier) || blank($tier['tier_name'] ?? null)) {
+                continue;
+            }
+
+            $raffle->prizeTiers()->create([
+                'tier_name' => Str::limit(trim((string) $tier['tier_name']), 250, ''),
+                'prize_description' => Str::limit(trim((string) ($tier['prize_description'] ?? '')), 250, '') ?: null,
+                'cash_value' => max(0, round((float) ($tier['cash_value'] ?? 0), 2)),
+                'winner_count' => max(1, min(10_000, (int) ($tier['winner_count'] ?? 1))),
+                'rank' => $i + 1,
+            ]);
+        }
+
+        return $raffle;
+    }
+
+    /** A Daily Drop from advice always starts as a draft: someone with payout rights switches it on. */
+    private function createDraftDrop(array $d, ?Raffle $raffle, AdvisorReport $report, WpUser $admin): DailyDrop
+    {
+        $time = sprintf('%02d:00', max(8, min(23, (int) substr((string) ($d['drop_time'] ?? '20'), 0, 2))));
+
+        return DailyDrop::create([
+            'raffle_id' => $raffle?->id,
+            'status' => 'draft',
+            'pot_percent' => max(0.1, min(50, round((float) ($d['pot_percent'] ?? 10), 2))),
+            'daily_cap' => ($cap = (float) ($d['daily_cap'] ?? 0)) > 0 ? $cap : null,
+            'winners_per_day' => max(1, min(100, (int) ($d['winners_per_day'] ?? 3))),
+            'drop_time' => $time,
+            'created_by' => $admin->ID,
+            'advisor_report_id' => $report->id,
+        ]);
     }
 
     /** @return array<string, int|bool> */
@@ -171,7 +207,7 @@ class RaffleAdvisor
 
         You are an expert in raffles, lotteries, sweepstakes and prize promotions around the world, and in the psychology behind them: anticipation, near-misses, variable rewards, habit loops, social proof, scarcity and deadlines, loss aversion, fairness perception, and why people come back. You understand incentives, risk and reward on both sides: the platform must stay profitable, and players must feel the deal is fair and fun.
 
-        Your job is to give practical, specific advice: which raffles to run next, prize structures, ticket prices and sizes, incentives, a calendar for the week, and fresh ideas the platform has never tried (for example a "daily drop" that randomly credits ticket holders from part of a raffle's pot every day, a weekly mega raffle beside small fast ones, team or streak rewards). Ideas outside what the site does today are welcome when they could grow the platform; mark them as needing to be built.
+        Your job is to give practical, specific advice: which raffles to run next, prize structures, ticket prices and sizes, incentives, a calendar for the week, and fresh ideas the platform has never tried (for example a weekly mega raffle beside small fast ones, team raffles, streak rewards for playing several days in a row, or mystery prize boxes). Ideas outside what the site does today are welcome when they could grow the platform; mark them as needing to be built.
 
         What the site can already do (so you can say "ready today"):
         - Raffles with a ticket price, number of tickets, an optional per-order limit, a grand prize and prize tiers (each tier can have several winners and a cash value).
@@ -181,6 +217,7 @@ class RaffleAdvisor
         - Live draw events that viewers watch together, a Hall of Fame of winners, and winner stories.
         - Reward points, daily tasks, spin-the-wheel, a season pass, predictions, red envelopes (gifting points), referral rewards and promo codes.
         - Provably fair draws: the draw is locked in advance and anyone can check it.
+        - Daily Drops: on any raffle, every day at a set time (08:00-23:00), a chosen share (0.1-50%) of that day's new ticket sales is split equally between randomly picked ticket holders of that raffle (1-100 winners, one share per person per day, optional daily cap in naira). Winners keep their tickets in the main draw. The pick is locked in advance and checkable. 'daily_drops' in the totals shows how existing drops did.
 
         Hard rules:
         - Fair and transparent always. Never suggest hidden odds, rigged or adjusted draws, fake winners, fake scarcity, misleading countdowns, or anything that would not survive being explained to players.
@@ -200,6 +237,7 @@ class RaffleAdvisor
             ."- summary: 3 to 6 short sentences. What the numbers say about our players right now, and the one thing that matters most this week.\n"
             ."- recommendations: 3 to 6, most valuable first. Mix safe bets with at least one bolder idea. Each one must be specific (real prices, ticket counts, prizes, days).\n"
             ."- When a recommendation is a raffle we could open, fill raffle_draft with a complete raffle. Otherwise set raffle_draft to null.\n"
+            ."- When a recommendation uses a Daily Drop, fill daily_drop (it attaches to the raffle_draft in the same recommendation, or the team picks a raffle). Otherwise set daily_drop to null. Make sure the drop still leaves a sensible margin after prizes.\n"
             .'- ready_today is true only if the site can already do it (see the list in your instructions).';
     }
 
@@ -250,6 +288,12 @@ class RaffleAdvisor
                 'fairness' => ['type' => 'string', 'description' => 'How to keep it fair and clear for players.'],
                 'measure' => ['type' => 'string', 'description' => 'The number to watch to know if it worked.'],
                 'raffle_draft' => ['anyOf' => [$draft, ['type' => 'null']]],
+                'daily_drop' => ['anyOf' => [$obj([
+                    'pot_percent' => ['type' => 'number', 'description' => 'Share of each day\'s new ticket sales, 0.1 to 50.'],
+                    'winners_per_day' => $int,
+                    'daily_cap' => ['type' => ['number', 'null'], 'description' => 'Most paid out in one day, in naira, or null for no cap.'],
+                    'drop_time' => ['type' => 'string', 'description' => 'Hour of the drop as HH:00, between 08:00 and 23:00.'],
+                ]), ['type' => 'null']]],
             ])],
         ]);
     }

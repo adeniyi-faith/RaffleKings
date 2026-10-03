@@ -212,7 +212,7 @@ class AccountReadService
             'withdrawal_rejected' => 'withdrawal_refund',
             'referral_commission' => 'referral_commission',
             'points_redemption' => 'points_redemption',
-            'prize_payout' => 'prize_win',
+            'prize_payout', 'daily_drop' => 'prize_win',
             'opening_balance' => 'opening_balance',
             'earnings_transfer' => 'earnings_transfer',
             default => $direction === 'credit' ? 'credit_'.$reason : 'debit_'.$reason,

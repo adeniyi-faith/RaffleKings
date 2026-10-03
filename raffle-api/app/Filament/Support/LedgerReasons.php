@@ -22,6 +22,7 @@ final class LedgerReasons
         'earnings_transfer' => 'Winnings moved to wallet',
         'promo_bonus' => 'Promo code bonus',
         'affiliate_commission' => 'Affiliate commission',
+        'daily_drop' => 'Daily Drop won',
     ];
 
     public static function label(?string $reason): string
