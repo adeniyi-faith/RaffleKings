@@ -43,7 +43,7 @@ final class MoneyReports
     /** The longest stretch the day/week/month table covers. */
     public const MAX_DAYS = 400;
 
-    private const BONUS_REASONS = ['signup_bonus', 'deposit_bonus', 'promo_bonus'];
+    private const BONUS_REASONS = ['signup_bonus', 'deposit_bonus', 'promo_bonus', 'lucky_meter'];
 
     private const COMMISSION_REASONS = ['referral_commission', 'affiliate_commission'];
 

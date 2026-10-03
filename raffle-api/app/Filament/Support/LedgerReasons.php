@@ -23,6 +23,7 @@ final class LedgerReasons
         'promo_bonus' => 'Promo code bonus',
         'affiliate_commission' => 'Affiliate commission',
         'daily_drop' => 'Daily Drop won',
+        'lucky_meter' => 'Lucky Meter ticket credit',
     ];
 
     public static function label(?string $reason): string
