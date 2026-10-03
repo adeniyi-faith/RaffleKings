@@ -298,6 +298,23 @@ class RetentionEngineTest extends TestCase
         $this->assertSame(0, app(ComebackOffers::class)->makeOffers());
     }
 
+    public function test_offers_greet_members_by_full_name_or_username(): void
+    {
+        $this->openRaffle();
+        $named = $this->member(60, ['user_login' => 'kingsley99']);
+        WpUserMeta::create(['user_id' => $named->ID, 'meta_key' => 'first_name', 'meta_value' => 'Kingsley']);
+        WpUserMeta::create(['user_id' => $named->ID, 'meta_key' => 'last_name', 'meta_value' => 'King']);
+        $nameless = $this->member(60, ['user_login' => 'luckyking']);
+        app(MemberSegments::class)->refresh();
+
+        app(ComebackOffers::class)->makeOffers();
+
+        $this->assertStringContainsString('Kingsley King', RetentionOffer::query()->where('user_id', $named->ID)->value('headline'));
+        $this->assertStringContainsString('luckyking', RetentionOffer::query()->where('user_id', $nameless->ID)->value('headline'));
+        $this->assertSame('luckyking', BroadcastService::fullName($nameless));
+        $this->assertSame('Hi Kingsley King', BroadcastService::personalise('Hi {name}', $named));
+    }
+
     public function test_budgets_are_hard_limits(): void
     {
         $this->openRaffle(500);

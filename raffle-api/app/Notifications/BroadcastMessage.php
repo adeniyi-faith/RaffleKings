@@ -53,7 +53,7 @@ class BroadcastMessage extends Notification implements ShouldQueue, TracksDelive
         $token = $this->deliveryToken('email', $notifiable);
         $mail = (new MailMessage)
             ->subject(BroadcastService::personalise($b->title, $notifiable))
-            ->greeting('Hi '.BroadcastService::firstName($notifiable).',');
+            ->greeting('Hi '.BroadcastService::fullName($notifiable).',');
 
         foreach (preg_split("/\n\s*\n/", BroadcastService::personalise($b->body, $notifiable)) as $paragraph) {
             $mail->line(trim($paragraph));
