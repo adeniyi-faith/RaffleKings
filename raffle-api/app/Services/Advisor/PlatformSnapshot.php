@@ -3,6 +3,7 @@
 namespace App\Services\Advisor;
 
 use App\Models\AdvisorReport;
+use App\Models\DailyDrop;
 use App\Models\Legacy\RaffleEntry;
 use App\Models\Raffle;
 use Illuminate\Support\Carbon;
@@ -41,6 +42,7 @@ class PlatformSnapshot
             'by_prize_type' => $this->groupSellThrough($raffles, fn ($r) => $r['prize_type']),
             'raffles_on_sale_now' => collect($raffles)->where('state', 'on sale')->count(),
             'past_advice' => $this->pastAdvice(),
+            'daily_drops' => $this->dailyDrops(),
         ];
     }
 
@@ -217,6 +219,30 @@ class PlatformSnapshot
             ->reject(fn ($r) => $r['state'] === 'on sale' || $r['state'] === 'cancelled' || $r['sell_through_percent'] === null)
             ->groupBy($key)
             ->map(fn ($group) => ['raffles' => $group->count(), 'average_sell_through_percent' => (int) round($group->avg('sell_through_percent'))])
+            ->all();
+    }
+
+    /**
+     * How Daily Drops have done: the setup, how much they paid, and how
+     * their raffle sold, so the advisor can tell whether drops help.
+     *
+     * @return list<array<string, mixed>>
+     */
+    private function dailyDrops(): array
+    {
+        return DailyDrop::query()->whereIn('status', ['active', 'paused', 'ended'])->with('raffle')->latest('id')->limit(10)->get()
+            ->map(fn (DailyDrop $drop) => [
+                'raffle' => $drop->raffle?->title,
+                'status' => $drop->status,
+                'share_of_sales_percent' => $drop->pot_percent,
+                'winners_per_day' => $drop->winners_per_day,
+                'daily_cap' => $drop->daily_cap,
+                'drop_time' => $drop->drop_time,
+                'days_paid' => $drop->runs()->where('result', 'paid')->count(),
+                'total_paid' => round((float) $drop->runs()->sum('pot')),
+                'raffle_tickets_sold' => $drop->raffle ? $drop->raffle->soldTickets() : null,
+                'raffle_tickets_available' => $drop->raffle?->max_tickets,
+            ])
             ->all();
     }
 

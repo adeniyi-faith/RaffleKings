@@ -20,10 +20,12 @@ class GeminiClient
 
     /**
      * @param  list<array{mime_type: string, data: string}>  $files  Optional files (base64) to read, e.g. a PDF.
+     * @param  array<string, mixed>|null  $schema  Optional JSON schema the answer must follow (implies $json).
+     * @param  int  $maxTokens  Longest answer allowed; long structured answers (the Raffle advisor) need more.
      *
      * @throws AiUnavailableException
      */
-    public function generate(string $purpose, string $system, string $prompt, bool $json = false, ?int $ticketId = null, array $files = []): string
+    public function generate(string $purpose, string $system, string $prompt, bool $json = false, ?int $ticketId = null, array $files = [], ?array $schema = null, int $maxTokens = 2048): string
     {
         if (! config('ai.enabled')) {
             throw new AiUnavailableException('AI helpers are switched off in Settings → AI.');
@@ -49,11 +51,14 @@ class GeminiClient
         $body = [
             'systemInstruction' => ['parts' => [['text' => $system]]],
             'contents' => [['role' => 'user', 'parts' => $parts]],
-            'generationConfig' => ['maxOutputTokens' => 2048] + ($json ? ['responseMimeType' => 'application/json'] : []),
+            'generationConfig' => ['maxOutputTokens' => $maxTokens]
+                + ($json || $schema ? ['responseMimeType' => 'application/json'] : [])
+                + ($schema ? ['responseJsonSchema' => $schema] : []),
         ];
 
         try {
-            $response = Http::timeout(45)
+            // Long answers (the Raffle advisor, written in the background) get longer to arrive.
+            $response = Http::timeout($maxTokens > 4096 ? 240 : 45)
                 ->withHeaders(['x-goog-api-key' => $apiKey])
                 ->post('https://generativelanguage.googleapis.com/v1beta/models/'.rawurlencode($model).':generateContent', $body);
         } catch (\Throwable $e) {

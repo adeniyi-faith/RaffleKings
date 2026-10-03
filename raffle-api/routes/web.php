@@ -143,6 +143,8 @@ Route::get('/raffles/{raffle}', function (int $raffle, RaffleReadService $raffle
     return Inertia::render('Raffles/Show', [
         'raffle' => $found,
         'drawInfo' => app(RaffleRulesService::class)->forRafflePage($raffle, Auth::guard('wordpress')->id()),
+        // Daily Drop on this raffle, if any: rules, today's pot so far, recent drops (ticket numbers only).
+        'dailyDrop' => app(\App\Services\Engagement\DailyDrops::class)->forRafflePage($raffle),
         // The chances for the usual ticket counts, so they show at once instead of after a round trip.
         'odds' => ($model = Raffle::query()->with('prizeTiers')->where('public_id', $raffle)->first())
             ? app(OddsCalculator::class)->forQuantities($model, [...range(1, 20), 25, 30, 40, 50, 75, 100, ...app(TicketPricingService::class)->bundleQuantities()])

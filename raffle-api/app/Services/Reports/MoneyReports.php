@@ -48,7 +48,7 @@ final class MoneyReports
     private const COMMISSION_REASONS = ['referral_commission', 'affiliate_commission'];
 
     /** Every ledger reason the overview cares about. */
-    private const LEDGER_REASONS = ['deposit', 'prize_payout', 'ticket_purchase_refunded', ...self::BONUS_REASONS, ...self::COMMISSION_REASONS];
+    private const LEDGER_REASONS = ['deposit', 'prize_payout', 'daily_drop', 'ticket_purchase_refunded', ...self::BONUS_REASONS, ...self::COMMISSION_REASONS];
 
     /**
      * The headline numbers for the days.
@@ -68,7 +68,7 @@ final class MoneyReports
             'topups' => $sum(['deposit']),
             'withdrawals' => round((float) (clone $paid)->sum('amount_to_send'), 2),
             'withdrawal_fees' => round((float) (clone $paid)->sum('fee_amount'), 2),
-            'prizes' => $sum(['prize_payout']),
+            'prizes' => $sum(['prize_payout', 'daily_drop']),
             'refunds' => $sum(['ticket_purchase_refunded']),
             'bonuses' => $sum(self::BONUS_REASONS),
             'commissions' => $sum(self::COMMISSION_REASONS),
@@ -126,7 +126,7 @@ final class MoneyReports
             ->selectRaw($hour('created_at').' as bucket, reason, SUM(amount) as total')->groupBy('bucket', 'reason')->get()
             ->each(fn ($r) => $add($r->bucket, match (true) {
                 $r->reason === 'deposit' => 'topups',
-                $r->reason === 'prize_payout' => 'prizes',
+                in_array($r->reason, ['prize_payout', 'daily_drop'], true) => 'prizes',
                 $r->reason === 'ticket_purchase_refunded' => 'refunds',
                 default => 'given',
             }, (float) $r->total));

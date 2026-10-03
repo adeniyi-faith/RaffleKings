@@ -7,7 +7,6 @@
     "license": "MIT",
     "require": {
         "php": "^8.3",
-        "anthropic-ai/sdk": "^0.54.0",
         "dompdf/dompdf": "^3.1",
         "filament/filament": "^3.3",
         "inertiajs/inertia-laravel": "^3.3",
