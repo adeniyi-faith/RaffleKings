@@ -6,6 +6,7 @@ use App\Http\Controllers\LegacyRedirectController;
 use App\Models\Deposit;
 use App\Models\Legacy\RaffleEntry;
 use App\Models\Raffle;
+use App\Models\Retention\RetentionOffer;
 use App\Services\OddsCalculator;
 use App\Services\TicketPricingService;
 use App\Models\SitePage;
@@ -20,6 +21,7 @@ use App\Services\GoldenBoxService;
 use App\Services\Growth\AffiliateService;
 use App\Services\Growth\PromoCodeService;
 use App\Services\Reminders\ReminderService;
+use App\Services\Retention\DeliveryTracker;
 use App\Services\LiveDrawService;
 use App\Services\PointsService;
 use App\Services\NumberHoldService;
@@ -318,6 +320,39 @@ Route::get('/messages', function (Request $request) use ($accountGuard) {
     return $accountGuard($request) ?? Inertia::render('Account/Messages');
 });
 
+// A comeback offer (App\Services\Retention\ComebackOffers): the customer's
+// own personal offer, with its countdown and Claim button. Only its owner
+// can open it.
+Route::get('/offers/{token}', function (Request $request, string $token) use ($accountGuard) {
+    if ($redirect = $accountGuard($request)) {
+        return $redirect;
+    }
+
+    $offer = RetentionOffer::query()->with('raffle')->where('token', $token)->where('user_id', Auth::guard('wordpress')->id())->first();
+    abort_unless($offer, 404);
+
+    $raffle = $offer->raffle;
+
+    return Inertia::render('Offers/Show', [
+        'offer' => [
+            'token' => $offer->token,
+            'headline' => $offer->headline,
+            'body' => $offer->body,
+            'kind' => $offer->kind,
+            'amount' => $offer->amount,
+            'prize_text' => $offer->prizeText(),
+            'status' => $offer->status === 'open' && $offer->expires_at->isPast() ? 'expired' : $offer->status,
+            'expires_at' => $offer->expires_at->toIso8601String(),
+            'raffle' => $raffle && $raffle->closedReason() === null ? [
+                'id' => $raffle->public_id,
+                'title' => $raffle->title,
+                'price' => (float) $raffle->price,
+                'prize' => $raffle->grand_prize,
+            ] : null,
+        ],
+    ]);
+})->where('token', '[A-Za-z0-9]{20,40}');
+
 Route::get('/account/withdraw', function (Request $request) use ($accountGuard) {
     return $accountGuard($request) ?? Inertia::render('Account/Withdraw');
 });
@@ -560,6 +595,24 @@ Route::get('/reminders/unsubscribe/{user}', function (Request $request, int $use
         'stopUrl' => URL::signedRoute('reminders.unsubscribe', ['user' => $user]),
     ]);
 })->middleware('signed')->name('reminders.unsubscribe');
+
+// Tracked links in emails and push notifications (App\Services\Retention\DeliveryTracker):
+// note the tap, then go where the message pointed.
+Route::get('/m/{token}', function (string $token, DeliveryTracker $tracker) {
+    $target = $tracker->click($token) ?? '/';
+
+    return str_starts_with($target, '/') ? redirect($target) : redirect()->away($target);
+})->where('token', '[A-Za-z0-9]{20,40}');
+
+// The invisible image in emails: the email was opened.
+Route::get('/m/{token}/open.gif', function (string $token, DeliveryTracker $tracker) {
+    rescue(fn () => $tracker->opened($token), report: false);
+
+    return response(base64_decode('R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7'), 200, [
+        'Content-Type' => 'image/gif',
+        'Cache-Control' => 'no-store, max-age=0',
+    ]);
+})->where('token', '[A-Za-z0-9]{20,40}');
 
 // A screenshot attached to a support ticket (signed, short-lived link only).
 Route::get('/support/attachments/{message}/{index}', \App\Http\Controllers\SupportAttachmentController::class)

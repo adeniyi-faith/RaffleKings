@@ -196,6 +196,8 @@ class Phase5bTest extends TestCase
         Notification::fake();
         $admin = $this->actingAsAdministrator();
         $ada = $this->customer('ada');
+        WpUserMeta::create(['user_id' => $ada->ID, 'meta_key' => 'first_name', 'meta_value' => 'Ada']);
+        WpUserMeta::create(['user_id' => $ada->ID, 'meta_key' => 'last_name', 'meta_value' => 'Obi']);
         $bola = $this->customer('bola');
         $banned = $this->customer('banned');
         WpUserMeta::create(['user_id' => $banned->ID, 'meta_key' => 'rk_is_banned', 'meta_value' => '1']);
@@ -207,7 +209,9 @@ class Phase5bTest extends TestCase
 
         $this->assertSame('sent', $broadcast->fresh()->status);
         $this->assertSame(2, $broadcast->fresh()->recipients_count);
-        $this->assertSame('Hello Ada', CustomerMessage::where('user_id', $ada->ID)->value('title'));
+        // {name} is the full name, or the username when no name is saved.
+        $this->assertSame('Hello Ada Obi', CustomerMessage::where('user_id', $ada->ID)->value('title'));
+        $this->assertSame('Hello bola', CustomerMessage::where('user_id', $bola->ID)->value('title'));
         $this->assertFalse(CustomerMessage::where('user_id', $banned->ID)->exists());
         $this->assertFalse(CustomerMessage::where('user_id', $admin->ID)->exists());
         Notification::assertSentTo([$ada, $bola], BroadcastMessage::class);

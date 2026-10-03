@@ -7,6 +7,7 @@ use App\Filament\Resources\BroadcastResource;
 use App\Models\Legacy\RaffleNotificationTemplate;
 use App\Services\Messaging\Audience;
 use App\Services\Messaging\BroadcastService;
+use App\Services\Retention\MemberSegments;
 use Filament\Actions\Action;
 use Filament\Notifications\Notification;
 use Filament\Resources\Pages\CreateRecord;
@@ -45,6 +46,23 @@ class CreateBroadcast extends CreateRecord
     public function mount(): void
     {
         parent::mount();
+
+        // "Message them" on Growth → Member segments.
+        $segment = (string) request()->query('segment');
+        $flag = (string) request()->query('flag');
+
+        if (isset(MemberSegments::SEGMENTS[$segment]) || isset(MemberSegments::FLAGS[$flag])) {
+            $this->form->fill([
+                'audience' => isset(MemberSegments::SEGMENTS[$segment]) ? 'segment' : 'custom',
+                'segments' => isset(MemberSegments::SEGMENTS[$segment]) ? [$segment] : [],
+                'filters' => isset(MemberSegments::FLAGS[$flag]) && ! isset(MemberSegments::SEGMENTS[$segment]) ? ['flags' => [$flag]] : [],
+                'flags' => isset(MemberSegments::FLAGS[$flag]) && isset(MemberSegments::SEGMENTS[$segment]) ? [$flag] : [],
+                'channels' => ['inbox', 'email'],
+                'is_promotion' => true,
+                'when' => 'now',
+                'user_ids' => [],
+            ]);
+        }
 
         if ($token = request()->query('list')) {
             $ids = array_map('intval', (array) Cache::get(BroadcastResource::TICKED_CACHE_PREFIX.$token, []));

@@ -3,6 +3,7 @@
 namespace App\Settings;
 
 use App\Services\Ai\GeminiModels;
+use App\Services\Retention\MemberSegments;
 
 /**
  * Every setting the admin can change, grouped the way the Settings page
@@ -356,6 +357,33 @@ final class SettingsRegistry
                             new Setting('reminders.max_per_day', 'Most reminders one person gets in 24 hours', 'int', rules: ['required', 'integer', 'min:1', 'max:10']),
                             new Setting('reminders.quiet_from', 'Quiet hours start (hour, 0-23)', 'int', 'Business time zone. Nothing is sent in quiet hours.', rules: ['required', 'integer', 'min:0', 'max:23']),
                             new Setting('reminders.quiet_until', 'Quiet hours end (hour, 0-23)', 'int', 'Same number as the start = no quiet hours.', rules: ['required', 'integer', 'min:0', 'max:23']),
+                        ],
+                    ],
+                    'Member segments' => [
+                        'description' => 'Every customer is sorted into a segment each night (Growth → Member segments). You can message any segment from Site → Message customers.',
+                        'settings' => [
+                            new Setting('retention.high_value_spend', '"High value" means spent at least (₦, all time)', 'money', rules: ['required', 'numeric', 'min:1']),
+                        ],
+                    ],
+                    'Comeback offers' => [
+                        'description' => 'Once a day, customers who are slipping away get a personal gift to claim within a few hours ("It\'s been a while! Here\'s ₦500 to play…"). The gift is picked for each person: a free ticket, ticket credit sized from what they usually spend, or points. Money is paid only when they claim, as ticket credit (spendable on tickets, never withdrawable). The budgets below are hard limits. Never sent to people who stopped reminders or are on a responsible-play break.',
+                        'settings' => [
+                            new Setting('retention.offers.enabled', 'Comeback offers are on', 'bool', 'Off by default. Check the budgets below before switching on.'),
+                            new Setting('retention.offers.segments', 'Who gets offers', 'checklist', 'Consistent and repeat players are left out by default: they come anyway.', array_map(fn ($s) => $s[0], MemberSegments::SEGMENTS)),
+                            new Setting('retention.offers.send_hour', 'Send new offers at (hour, 0-23)', 'int', 'Business time zone. Outside quiet hours.', rules: ['required', 'integer', 'min:0', 'max:23']),
+                            new Setting('retention.offers.claim_hours', 'Hours to claim an offer', 'int', 'Short makes it exciting. The raffle mentioned stays open at least this long.', rules: ['required', 'integer', 'min:1', 'max:168']),
+                            new Setting('retention.offers.last_call_hours', 'Send a "last call" this many hours before it runs out', 'int', rules: ['required', 'integer', 'min:1', 'max:48']),
+                            new Setting('retention.offers.monthly_budget', 'Most ticket credit offered in a month, everyone together (₦)', 'money', 'Offers that run out unclaimed don\'t count. Set 0 to give points only.', rules: ['required', 'numeric', 'min:0']),
+                            new Setting('retention.offers.per_member_30_days', 'Most ticket credit one customer can be offered in 30 days (₦)', 'money', rules: ['required', 'numeric', 'min:0']),
+                            new Setting('retention.offers.credit_min', 'Smallest ticket credit gift (₦)', 'money', 'Ticket credit is about a quarter of what the customer usually spends per order, kept between these two amounts. High-value customers get twice that.', rules: ['required', 'numeric', 'min:1']),
+                            new Setting('retention.offers.credit_max', 'Largest ticket credit gift (₦)', 'money', rules: ['required', 'numeric', 'min:1']),
+                            new Setting('retention.offers.ticket_max_price', '"A ticket on us" only for raffles whose ticket costs at most (₦)', 'money', rules: ['required', 'numeric', 'min:1']),
+                            new Setting('retention.offers.points', 'Bonus points gift', 'int', rules: ['required', 'integer', 'min:1', 'max:1000000']),
+                            new Setting('retention.offers.monthly_points_budget', 'Most points offered in a month, everyone together', 'int', rules: ['required', 'integer', 'min:0']),
+                            new Setting('retention.offers.daily_max', 'Most new offers in one day', 'int', rules: ['required', 'integer', 'min:1', 'max:10000']),
+                            new Setting('retention.offers.cooldown_days', 'Days between two offers to the same customer', 'int', rules: ['required', 'integer', 'min:1', 'max:365']),
+                            new Setting('retention.offers.give_up_after_ignored', 'Rest a customer for 90 days after this many unclaimed offers in a row', 'int', rules: ['required', 'integer', 'min:1', 'max:20']),
+                            new Setting('retention.offers.use_ai', 'Let Gemini write the messages', 'bool', 'Needs AI switched on (AI tab). Built-in messages are used whenever Gemini is off or busy. No customer details are sent to Gemini.'),
                         ],
                     ],
                     'WhatsApp (Meta WhatsApp Business)' => [

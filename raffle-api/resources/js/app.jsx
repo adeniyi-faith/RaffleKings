@@ -5,6 +5,7 @@ import SiteNotices from './Components/layout/SiteNotices';
 import ImpersonationBanner from './Components/layout/ImpersonationBanner';
 import MaintenanceBanner from './Components/layout/MaintenanceBanner';
 import StatusBanner from './Components/layout/StatusBanner';
+import OfferBanner from './Components/layout/OfferBanner';
 import CookieBanner from './Components/layout/CookieBanner';
 // Starts tracking pages visited, for the Back buttons (lib/nav.js).
 import './lib/nav';
@@ -39,6 +40,8 @@ createInertiaApp({
                             <MaintenanceBanner />
                             {/* The staff's status message (Settings → Backups & status). */}
                             <StatusBanner />
+                            {/* A comeback offer waiting to be claimed. */}
+                            <OfferBanner />
                             <Component key={key} {...pageProps} />
                             {/* Asks first-time visitors about analytics (Settings → Consent & privacy). */}
                             <CookieBanner />

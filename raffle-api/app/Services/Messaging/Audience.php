@@ -7,10 +7,13 @@ use App\Models\Growth\CustomerSource;
 use App\Models\Legacy\RaffleEntry;
 use App\Models\Legacy\WpUser;
 use App\Models\Legacy\WpUserMeta;
+use App\Models\Retention\MemberProfile;
 use App\Models\Wallet;
 use App\Models\WalletLedgerEntry;
 use App\Services\Reminders\ReminderService;
+use App\Services\Retention\MemberSegments;
 use Illuminate\Database\Eloquent\Builder;
+use Illuminate\Support\Facades\DB;
 use InvalidArgumentException;
 
 /**
@@ -32,6 +35,7 @@ final class Audience
         'never_bought' => 'Signed up but never bought a ticket',
         'wallet_balance' => 'Money sitting in their wallet',
         'unwithdrawn_winnings' => 'Winnings they haven\'t withdrawn',
+        'segment' => 'A member segment (repeat players, drawing back, lapsed…)',
         'one' => 'One customer',
         'custom' => 'Build my own group (combine filters)',
         'selected' => 'Customers ticked on the Customers list',
@@ -53,6 +57,8 @@ final class Audience
         'promo_code_id' => 'Signed up with promo code',
         'affiliate_id' => 'Brought by affiliate',
         'push_only' => 'Turned on phone notifications',
+        'segments' => 'In any of these segments',
+        'flags' => 'Has all of these labels',
     ];
 
     /** @param  array<string, mixed>  $options */
@@ -67,6 +73,8 @@ final class Audience
             'never_bought' => WpUser::query()->whereNotIn('ID', RaffleEntry::query()->select('user_id')),
             'wallet_balance' => WpUser::query()->whereIn('ID', Wallet::query()->where('wallet_balance', '>=', max(1, (float) ($options['min_amount'] ?? 100)))->select('user_id')),
             'unwithdrawn_winnings' => WpUser::query()->whereIn('ID', Wallet::query()->where('earnings_balance', '>=', max(1, (float) ($options['min_amount'] ?? 100)))->select('user_id')),
+            // No segment picked = nobody, never "everyone".
+            'segment' => array_filter((array) ($options['segments'] ?? [])) === [] ? WpUser::query()->whereRaw('1 = 0') : $this->custom(['segments' => (array) ($options['segments'] ?? []), 'flags' => (array) ($options['flags'] ?? [])]),
             'one' => WpUser::query()->whereKey((int) ($options['user_id'] ?? 0)),
             'selected' => WpUser::query()->whereIn('ID', array_map('intval', (array) ($options['user_ids'] ?? []))),
             default => throw new InvalidArgumentException("Unknown audience {$type}"),
@@ -127,6 +135,12 @@ final class Audience
         if ($id = $n('affiliate_id')) {
             $q->whereIn('ID', CustomerSource::query()->where('affiliate_id', (int) $id)->select('user_id'));
         }
+        if ($segments = array_values(array_filter((array) ($f['segments'] ?? [])))) {
+            $q->whereIn('ID', MemberProfile::query()->whereIn('segment', $segments)->select('user_id'));
+        }
+        foreach (array_filter((array) ($f['flags'] ?? [])) as $flag) {
+            $q->whereIn('ID', DB::table('member_profile_flags')->where('flag', $flag)->select('user_id'));
+        }
         if (! empty($f['push_only'])) {
             $q->whereIn('ID', WpUserMeta::query()->where('meta_key', 'rk_onesignal_id')->where('meta_value', '!=', '')->select('user_id'));
         }
@@ -178,6 +192,7 @@ final class Audience
             'unwithdrawn_winnings' => 'Winnings at least ₦'.number_format((float) ($options['min_amount'] ?? 100)),
             'one' => 'Customer: '.(WpUser::find($options['user_id'] ?? 0)?->user_email ?? '?'),
             'selected' => count((array) ($options['user_ids'] ?? [])).' customers ticked on the Customers list',
+            'segment' => $this->describeFilters(['segments' => (array) ($options['segments'] ?? []), 'flags' => (array) ($options['flags'] ?? [])]),
             'custom' => $this->describeFilters((array) ($options['filters'] ?? [])),
             default => self::TYPES[$type] ?? $type,
         };
@@ -192,6 +207,13 @@ final class Audience
             $value = $f[$key] ?? null;
 
             if (blank($value) || $value === false || $value === []) {
+                continue;
+            }
+
+            if (in_array($key, ['segments', 'flags'], true)) {
+                $names = array_map(fn ($v) => $key === 'segments' ? MemberSegments::label($v) : MemberSegments::flagLabel($v), (array) $value);
+                $parts[] = $label.': '.implode(', ', $names);
+
                 continue;
             }
 

@@ -124,7 +124,7 @@ class Settings extends Page implements HasForms
     private function component(Setting $setting): Component
     {
         $name = self::field($setting->key);
-        $wide = in_array($setting->type, ['textarea', 'bundles', 'spin_prizes', 'daily_rewards', 'tags', 'loyalty_tiers'], true);
+        $wide = in_array($setting->type, ['textarea', 'bundles', 'spin_prizes', 'daily_rewards', 'tags', 'loyalty_tiers', 'checklist'], true);
 
         $field = match ($setting->type) {
             'text' => Forms\Components\TextInput::make($name)->maxLength(255),
@@ -141,6 +141,7 @@ class Settings extends Page implements HasForms
             'select' => Forms\Components\Select::make($name)->options($this->selectOptions($setting))->selectablePlaceholder(false),
             'timezone' => Forms\Components\Select::make($name)->options(array_combine(timezone_identifiers_list(), timezone_identifiers_list()))->searchable()->required(),
             'tags' => Forms\Components\TagsInput::make($name)->splitKeys(['Tab', ','])->placeholder('Type, then press Enter'),
+            'checklist' => Forms\Components\CheckboxList::make($name)->options($setting->options)->columns(['md' => 2])->bulkToggleable(),
             'daily_rewards' => Forms\Components\Fieldset::make($setting->label)->columns(['default' => 3, 'sm' => 4, 'xl' => 7])->schema(
                 array_map(fn (int $i) => Forms\Components\TextInput::make("{$name}__d{$i}")->label('Day '.($i + 1))->integer()->minValue(0)->required()->live(onBlur: true), range(0, 6)),
             ),
