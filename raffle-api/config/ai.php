@@ -27,4 +27,7 @@ return [
 
     // Extra house rules added to every AI prompt (tone, things to avoid).
     'instructions' => env('AI_INSTRUCTIONS', ''),
+
+    // Raffle advisor: write a fresh report by itself once a week (Monday morning).
+    'advisor_weekly' => (bool) env('AI_ADVISOR_WEEKLY', true),
 ];

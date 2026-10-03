@@ -469,6 +469,17 @@ final class SettingsRegistry
                             new Setting('ai.instructions', 'House rules for the AI', 'textarea', 'Optional. Tone and things to avoid, e.g. "Be warm and brief. Never promise a win."', rules: ['nullable', 'max:1000']),
                         ],
                     ],
+                    'Claude (raffle advisor)' => [
+                        'description' => 'The Raffle advisor (Raffles → Raffle advisor) uses Claude by Anthropic to suggest raffles, prizes and offers from your sales totals. Only totals are sent, never customer details. Get a key at console.anthropic.com → API keys. It follows the "AI helpers on" switch and the daily limit above.',
+                        'settings' => [
+                            new Setting('services.anthropic.api_key', 'API key', 'secret', placeholder: 'sk-ant-...'),
+                            new Setting('services.anthropic.advisor_model', 'Model', 'select', 'Opus gives the most thoughtful advice. Sonnet is about half the price.', [
+                                'claude-opus-5-5' => 'Claude Opus 5.5 (recommended)',
+                                'claude-sonnet-5-5' => 'Claude Sonnet 5.5 (cheaper)',
+                            ]),
+                            new Setting('ai.advisor_weekly', 'Write a fresh report every Monday', 'bool', 'The advisor checks in by itself once a week, so new advice is waiting for you.'),
+                        ],
+                    ],
                 ],
             ],
 
