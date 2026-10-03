@@ -393,6 +393,7 @@ export default function RewardsIndex({ referralCode, initialState = null, referr
                             </div>
                         </div>
                     )}
+                    {data?.lucky_meter && <LuckyMeterCard meter={data.lucky_meter} isGuest={isGuest} />}
                     {state?.loyalty && <LoyaltyCard loyalty={state.loyalty} />}
                     {/* Redeem card */}
                     <div className="flex items-center justify-between rounded-2xl border border-gray-100 bg-white p-5 shadow-sm dark:border-gray-800 dark:bg-dark-card">
@@ -715,6 +716,54 @@ function LoyaltyCard({ loyalty }) {
                 )}
                 <p className="text-[11px] text-gray-400">
                     Buy tickets in more weeks to move up. Higher tiers get free bonus entries: extra chances to win, at no cost, in raffles that allow them. Check "How this draw works" on a raffle to see if it does.
+                </p>
+            </div>
+        </div>
+    );
+}
+
+// Lucky Meter: what you paid for tickets in raffles you didn't win fills
+// the meter; a full meter pays a fixed amount of ticket credit.
+function LuckyMeterCard({ meter, isGuest }) {
+    const left = Math.max(0, meter.target - meter.progress);
+
+    return (
+        <div className="overflow-hidden rounded-2xl border border-gray-100 bg-white shadow-sm dark:border-gray-800 dark:bg-dark-card">
+            <div className="flex items-center gap-3 bg-gradient-to-r from-emerald-500 to-teal-600 p-4 text-white">
+                <div className="flex h-11 w-11 flex-shrink-0 items-center justify-center rounded-full bg-white/20 text-xl">🍀</div>
+                <div className="min-w-0 flex-1">
+                    <p className="text-[10px] font-bold uppercase tracking-wider text-white/80">Lucky Meter</p>
+                    <h3 className="text-lg font-black">{isGuest ? `${formatNaira(meter.reward)} for every full meter` : `${meter.percent}% full`}</h3>
+                </div>
+            </div>
+            <div className="space-y-3 p-4 text-xs text-gray-600 dark:text-gray-300">
+                {!isGuest && (
+                    <>
+                        <Progress label={`${formatNaira(meter.progress)} of ${formatNaira(meter.target)}`} pct={meter.percent} />
+                        <p className="font-bold text-gray-900 dark:text-white">
+                            {formatNaira(left)} more in tickets that don't win, and you get {formatNaira(meter.reward)} of ticket credit.
+                        </p>
+                        {meter.fills > 0 && (
+                            <p>
+                                Filled {meter.fills} {meter.fills === 1 ? 'time' : 'times'} so far: {formatNaira(meter.total_paid)} of ticket credit.
+                            </p>
+                        )}
+                        {meter.recent.length > 0 && (
+                            <ul className="space-y-1">
+                                {meter.recent.map((e, i) => (
+                                    <li key={i} className="flex justify-between gap-2">
+                                        <span className="truncate">{e.kind === 'paid' ? '🎉 Meter filled' : `From ${e.raffle ?? 'a raffle'}`}</span>
+                                        <span className="font-semibold text-gray-900 dark:text-white">{e.kind === 'paid' ? `+${formatNaira(e.amount)} credit` : `+${formatNaira(e.amount)}`}</span>
+                                    </li>
+                                ))}
+                            </ul>
+                        )}
+                    </>
+                )}
+                <p className="text-[11px] text-gray-400">
+                    After each draw, what you paid for tickets in that raffle fills your meter, unless you won a prize in it. Every {formatNaira(meter.target)} fills it once and
+                    pays {formatNaira(meter.reward)} of ticket credit to your wallet, guaranteed. Anything over carries on, and the meter never goes down. Free bonus entries
+                    and cancelled raffles don't count.
                 </p>
             </div>
         </div>
