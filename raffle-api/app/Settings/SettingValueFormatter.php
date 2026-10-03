@@ -26,6 +26,7 @@ final class SettingValueFormatter
             'fraction_percent' => $number((float) $value * 100, 4).'%',
             'select' => $setting->options[(string) $value] ?? (string) $value,
             'tags' => implode(', ', (array) $value),
+            'checklist' => implode(', ', array_map(fn ($v) => $setting->options[$v] ?? $v, (array) $value)),
             'daily_rewards' => 'Days 1-7: '.implode(' / ', (array) $value),
             'bundles', 'spin_prizes', 'loyalty_tiers' => count((array) $value).' entries: '.Str::limit((string) json_encode($value, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES), 90),
             default => Str::limit(is_scalar($value) ? (string) $value : (string) json_encode($value, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES), 110),

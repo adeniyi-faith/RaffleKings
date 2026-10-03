@@ -5,6 +5,7 @@ namespace App\Http\Middleware;
 use App\Models\CustomerMessage;
 use App\Models\Growth\Affiliate;
 use App\Models\Legacy\WpUser;
+use App\Models\Retention\RetentionOffer;
 use App\Models\UserPoints;
 use App\Models\Wallet;
 use App\Services\Auth\TurnstileVerifier;
@@ -77,6 +78,8 @@ class HandleInertiaRequests extends Middleware
                     'is_affiliate' => Features::on('affiliates') && Affiliate::query()->where('user_id', $user->ID)->exists(),
                     'reward_ready' => config('site.switches.daily_claim', true) !== false
                         && ! app(DailyClaimService::class)->state($user)['is_claimed_today'],
+                    // A comeback offer waiting to be claimed: the strip at the top of every page.
+                    'offer' => $this->openOffer($user),
                 ] : null,
             ],
             // An owner viewing the site as a customer (App\Services\Admin\Impersonation):
@@ -144,6 +147,14 @@ class HandleInertiaRequests extends Middleware
                 ],
             ],
         ];
+    }
+
+    private function openOffer(WpUser $user): ?array
+    {
+        $offer = RetentionOffer::query()->where('user_id', $user->ID)->where('status', 'open')->where('expires_at', '>', now())
+            ->latest('id')->first(['token', 'kind', 'amount', 'expires_at']);
+
+        return $offer ? ['url' => $offer->url(), 'prize_text' => $offer->prizeText(), 'expires_at' => $offer->expires_at->toIso8601String()] : null;
     }
 
     /**

@@ -81,6 +81,8 @@ final class StaffRoles
         Filament\Resources\SitePageResource::class => 'content',
         Filament\Resources\HomeSectionResource::class => 'content',
         Filament\Resources\BroadcastResource::class => 'messages',
+        Filament\Pages\MemberSegments::class => ['messages', 'reports'],
+        Filament\Resources\RetentionOfferResource::class => ['messages', 'money.view'],
         Filament\Resources\AdminAuditLogResource::class => 'system',
         Filament\Pages\SystemHealth::class => 'system',
         Filament\Pages\Settings::class => 'settings',

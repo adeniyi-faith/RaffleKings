@@ -10,6 +10,7 @@ use App\Http\Middleware\HandleInertiaRequests;
 use App\Http\Middleware\LimitImpersonationToViewing;
 use App\Http\Middleware\MaintenanceMode;
 use App\Http\Middleware\RememberDevice;
+use App\Http\Middleware\RememberVisit;
 use App\Http\Middleware\SecurityHeaders;
 use App\Http\Middleware\TrackApiActions;
 use App\Http\Middleware\VerifyApiOrigin;
@@ -41,7 +42,7 @@ return Application::configure(basePath: dirname(__DIR__))
     )
     ->withMiddleware(function (Middleware $middleware): void {
         $middleware->alias(['admin' => EnsureUserIsAdministrator::class, 'feature' => EnsureFeatureOn::class, 'growth' => EnsureGrowthFeatureOn::class, 'not-on-break' => EnsureNotOnBreak::class]);
-        $middleware->web(append: [HandleInertiaRequests::class, MaintenanceMode::class, RememberDevice::class, AttachExtraCookies::class, LimitImpersonationToViewing::class]);
+        $middleware->web(append: [HandleInertiaRequests::class, MaintenanceMode::class, RememberDevice::class, RememberVisit::class, AttachExtraCookies::class, LimitImpersonationToViewing::class]);
         // Maintenance mode (Settings → On / off) covers the API too.
         $middleware->api(append: [MaintenanceMode::class, TrackApiActions::class, LimitImpersonationToViewing::class]);
 
