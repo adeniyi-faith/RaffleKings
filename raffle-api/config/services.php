@@ -161,4 +161,10 @@ return [
         'assistant_model' => env('GEMINI_ASSISTANT_MODEL', 'gemini-3-flash-preview'),
     ],
 
+    // Claude (Anthropic): used by the Raffle advisor (App\Services\Advisor\RaffleAdvisor).
+    'anthropic' => [
+        'api_key' => env('ANTHROPIC_API_KEY'),
+        'advisor_model' => env('ANTHROPIC_ADVISOR_MODEL', 'claude-opus-5-5'),
+    ],
+
 ];
