@@ -72,6 +72,7 @@ final class StaffRoles
         Filament\Resources\LiveChatResource::class => 'chat',
         Filament\Resources\RaffleResource::class => 'raffles',
         Filament\Resources\RaffleDrawResource::class => 'raffles',
+        Filament\Pages\RaffleAdvisor::class => 'raffles',
         Filament\Resources\PredictionResource::class => 'content',
         Filament\Resources\WinnerStoryResource::class => 'content',
         Filament\Resources\SiteNoticeResource::class => 'content',
