@@ -204,8 +204,8 @@ class BroadcastResource extends Resource
                         }),
                     Forms\Components\TextInput::make('title')->label('Headline / email subject')->required()->maxLength(120)->live(onBlur: true),
                     Forms\Components\Textarea::make('body')->label('Message')->required()->rows(6)->maxLength(3000)->live(onBlur: true)
-                        ->helperText('{name} becomes each customer\'s first name. Leave an empty line between paragraphs.')
-                        ->hintAction(AiAssist::action('a short message (email and app notification) sent to customers; you may use {name} for their first name', false, fn (Forms\Get $get) => 'Headline: '.$get('title'))),
+                        ->helperText('{name} becomes each customer\'s full name (or their username if they haven\'t saved a name). Leave an empty line between paragraphs.')
+                        ->hintAction(AiAssist::action('a short message (email and app notification) sent to customers; you may use {name} for their full name', false, fn (Forms\Get $get) => 'Headline: '.$get('title'))),
                     Forms\Components\Grid::make(['md' => 2])->schema([
                         Forms\Components\TextInput::make('link_url')->label('Button link (optional)')->placeholder('/raffles/12 or https://…')
                             ->rule(fn () => function (string $attribute, $value, \Closure $fail) {
@@ -230,8 +230,8 @@ class BroadcastResource extends Resource
             ]),
             Forms\Components\Section::make('Preview')->columnSpan(['lg' => 1])->schema([
                 Forms\Components\Placeholder::make('preview')->hiddenLabel()->content(fn (Get $get) => view('filament.broadcast-preview', [
-                    'title' => str_replace('{name}', 'Ada', (string) $get('title')),
-                    'body' => str_replace('{name}', 'Ada', (string) $get('body')),
+                    'title' => str_replace('{name}', 'Ada Obi', (string) $get('title')),
+                    'body' => str_replace('{name}', 'Ada Obi', (string) $get('body')),
                     'label' => $get('link_label') ?: ($get('link_url') ? 'Open' : null),
                 ])),
             ]),

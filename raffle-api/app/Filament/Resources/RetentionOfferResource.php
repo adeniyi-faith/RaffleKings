@@ -96,7 +96,7 @@ class RetentionOfferResource extends Resource
                     Tables\Columns\TextColumn::make('headline')->label('Message')->limit(45)->tooltip(fn (RetentionOffer $o) => $o->body)
                         ->description(fn (RetentionOffer $o) => ($o->written_by === 'ai' ? 'Written by Gemini' : 'Built-in message').' · '.collect($o->channels)->map(fn ($c) => ['inbox' => 'Site', 'email' => 'Email', 'push' => 'Push'][$c] ?? $c)->implode(', ')),
                     Tables\Columns\TextColumn::make('status')->badge()->state(fn (RetentionOffer $o) => static::status($o)[0])->color(fn (RetentionOffer $o) => static::status($o)[1]),
-                    Tables\Columns\TextColumn::make('spend_after')->label('Spent in 7 days after')->money('NGN')->placeholder('–')
+                    Tables\Columns\TextColumn::make('spend_after')->label('Spent in 7 days after')->naira()->placeholder('–')
                         ->state(fn (RetentionOffer $o) => $o->status === 'claimed' ? $o->spend_after : null),
                 ]),
             ])

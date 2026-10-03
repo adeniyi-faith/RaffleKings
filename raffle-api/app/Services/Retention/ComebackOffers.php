@@ -310,7 +310,7 @@ class ComebackOffers
         $hours = max(1, (int) config('retention.offers.claim_hours', 24));
         $raffle = $plan['raffle'];
         $words = $this->writer->write($plan['style'], $plan['segment'], [
-            'name' => \App\Services\Messaging\BroadcastService::firstName($user),
+            'name' => \App\Services\Messaging\BroadcastService::fullName($user),
             'amount' => self::amountText($plan['kind'], $plan['amount']),
             'raffle' => $raffle?->title,
             'prize' => $raffle ? ($raffle->grand_prize ?: $raffle->title) : null,
@@ -422,7 +422,7 @@ class ComebackOffers
                 }
 
                 $words = $this->writer->write('last_call', $offer->segment, [
-                    'name' => \App\Services\Messaging\BroadcastService::firstName($user),
+                    'name' => \App\Services\Messaging\BroadcastService::fullName($user),
                     'amount' => self::amountText($offer->kind, $offer->amount),
                     'hours' => max(1, (int) ceil(now()->diffInMinutes($offer->expires_at) / 60)),
                 ], $user->ID);

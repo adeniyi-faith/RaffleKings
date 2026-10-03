@@ -297,10 +297,21 @@ final class BroadcastService
         return $user->metaValue('first_name') ?: ($user->display_name ?: $user->user_login);
     }
 
-    /** {name} → the customer's name. */
+    /**
+     * How messages address a customer: their full name (first and last
+     * name from their profile), or their username when no name is saved.
+     */
+    public static function fullName(WpUser $user): string
+    {
+        $full = trim(trim((string) $user->metaValue('first_name')).' '.trim((string) $user->metaValue('last_name')));
+
+        return $full !== '' ? $full : (string) $user->user_login;
+    }
+
+    /** {name} → the customer's full name (or username). */
     public static function personalise(string $text, WpUser $user): string
     {
-        return str_replace(['{name}', '{username}'], [self::firstName($user), $user->user_login], $text);
+        return str_replace(['{name}', '{username}'], [self::fullName($user), $user->user_login], $text);
     }
 
     public static function absolute(string $url): string
