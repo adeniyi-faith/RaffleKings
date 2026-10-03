@@ -6,8 +6,10 @@ use App\Jobs\SendBroadcast;
 use App\Models\Broadcast;
 use App\Models\CustomerMessage;
 use App\Models\Legacy\WpUser;
+use App\Models\Legacy\WpUserMeta;
 use App\Notifications\BroadcastMessage;
 use App\Services\AdminAuditLogService;
+use App\Services\Retention\DeliveryTracker;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Notification;
@@ -201,15 +203,23 @@ final class BroadcastService
         app(AdminAuditLogService::class)->record($admin, $action, Broadcast::class, $broadcast->id, ['title' => $broadcast->title, ...$context]);
     }
 
-    /** Deliver to one batch of customers. @param  iterable<WpUser>  $users */
+    /**
+     * Deliver to one batch of customers. Each copy (site, email, push) is
+     * written down in message_deliveries so the message's page can show
+     * what was sent, failed, opened and tapped (DeliveryTracker).
+     *
+     * @param  iterable<WpUser>  $users
+     */
     public function deliver(Broadcast $broadcast, iterable $users): void
     {
         $users = collect($users);
+        $tracked = $broadcast->id > 0 ? $this->track($broadcast, $users) : [];
 
         if (in_array('inbox', $broadcast->channels, true)) {
             CustomerMessage::insert($users->map(fn (WpUser $u) => [
                 'user_id' => $u->ID,
                 'broadcast_id' => $broadcast->id,
+                'delivery_id' => $tracked[$u->ID]['inbox']['id'] ?? null,
                 'title' => self::personalise($broadcast->title, $u),
                 'body' => self::personalise($broadcast->body, $u),
                 'link_url' => $broadcast->link_url,
@@ -223,6 +233,40 @@ final class BroadcastService
         if ($outside !== []) {
             Notification::send($users, new BroadcastMessage($broadcast, $outside));
         }
+    }
+
+    /**
+     * One tracking row per customer per channel. Push only for customers
+     * who turned notifications on (nobody else can get one).
+     *
+     * @param  \Illuminate\Support\Collection<int, WpUser>  $users
+     */
+    private function track(Broadcast $broadcast, $users): array
+    {
+        $ids = $users->pluck('ID')->all();
+        $withPush = in_array('push', $broadcast->channels, true)
+            ? WpUserMeta::query()->whereIn('user_id', $ids)->where('meta_key', 'rk_onesignal_id')->where('meta_value', '!=', '')->pluck('user_id')->map(fn ($id) => (int) $id)->flip()
+            : collect();
+        $rows = [];
+
+        foreach ($users as $u) {
+            foreach ($broadcast->channels as $channel) {
+                if ($channel === 'push' && ! isset($withPush[(int) $u->ID])) {
+                    continue;
+                }
+                if ($channel === 'email' && blank($u->user_email)) {
+                    continue;
+                }
+
+                $rows[] = [
+                    'user_id' => (int) $u->ID,
+                    'channel' => $channel,
+                    'target_url' => $broadcast->link_url ?: ($channel === 'push' ? '/messages' : null),
+                ];
+            }
+        }
+
+        return app(DeliveryTracker::class)->createMany('broadcast', $broadcast->id, $rows);
     }
 
     /** "Send me a test": the same message to the admin only, right now. */

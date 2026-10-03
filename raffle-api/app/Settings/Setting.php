@@ -10,7 +10,7 @@ namespace App\Settings;
 final class Setting
 {
     /**
-     * @param  string  $type  text|textarea|url|email|datetime|secret|int|money|percent|fraction_percent|bool|select|tags|timezone|daily_rewards|bundles|spin_prizes|loyalty_tiers
+     * @param  string  $type  text|textarea|url|email|datetime|secret|int|money|percent|fraction_percent|bool|select|checklist|tags|timezone|daily_rewards|bundles|spin_prizes|loyalty_tiers
      * @param  array<string, string>  $options  For select.
      * @param  array<int, string>  $rules  Extra validation rules.
      */
@@ -38,6 +38,7 @@ final class Setting
             'bool' => (bool) $value,
             'fraction_percent' => $value === null ? null : round((float) $value * 100, 4),
             'tags' => array_values(array_filter((array) $value, fn ($v) => $v !== null && $v !== '')),
+            'checklist' => array_values(array_intersect((array) $value, array_keys($this->options))),
             'daily_rewards' => array_values(array_map('intval', (array) $value)),
             'bundles', 'spin_prizes' => array_values((array) $value),
             'loyalty_tiers' => array_values((array) $value),
@@ -56,6 +57,8 @@ final class Setting
             'money', 'percent' => $value === null || $value === '' ? null : (float) $value,
             'fraction_percent' => $value === null || $value === '' ? null : round((float) $value / 100, 6),
             'tags' => array_values(array_filter(array_map(fn ($v) => trim((string) $v), (array) $value), fn ($v) => $v !== '')),
+            // Only choices that exist, in the order they're listed.
+            'checklist' => array_values(array_intersect(array_keys($this->options), (array) $value)),
             'daily_rewards' => array_values(array_map('intval', (array) $value)),
             'bundles' => collect((array) $value)
                 ->map(fn ($b) => ['quantity' => (int) $b['quantity'], 'percent_off' => (float) $b['percent_off']])

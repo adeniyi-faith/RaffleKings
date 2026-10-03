@@ -26,6 +26,7 @@ use App\Http\Controllers\Api\PaymentWebhookController;
 use App\Http\Controllers\Api\ProfileController;
 use App\Http\Controllers\Api\PushDeviceController;
 use App\Http\Controllers\Api\NumberHoldController;
+use App\Http\Controllers\Api\OfferController;
 use App\Http\Controllers\Api\RaffleController;
 use App\Http\Controllers\Api\ReferralController;
 use App\Http\Controllers\Api\RewardsController;
@@ -199,6 +200,10 @@ Route::middleware('auth:wordpress')->group(function () {
     Route::get('/messages', [MessageController::class, 'index']);
     Route::post('/messages/read-all', [MessageController::class, 'readAll']);
     Route::post('/messages/{message}/read', [MessageController::class, 'read'])->whereNumber('message');
+    Route::post('/messages/{message}/tapped', [MessageController::class, 'tapped'])->whereNumber('message');
+
+    // Comeback offers: claim a personal, time-limited offer (App\Services\Retention\ComebackOffers).
+    Route::post('/offers/{token}/claim', [OfferController::class, 'claim'])->where('token', '[A-Za-z0-9]{20,40}')->middleware('throttle:money');
 
     Route::get('/support/tickets', [SupportTicketController::class, 'index']);
     Route::post('/support/tickets', [SupportTicketController::class, 'store'])->middleware('throttle:support-open');

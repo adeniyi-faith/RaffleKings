@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { Head, Link, router } from '@inertiajs/react';
-import { ArrowLeft, ArrowRight, ArrowUpRight, BellOff, CheckCheck, Gift, LifeBuoy, Star, Trophy, Users, Wallet } from 'lucide-react';
+import { ArrowLeft, ArrowRight, ArrowUpRight, BellOff, CheckCheck, Gift, LifeBuoy, Sparkles, Star, Trophy, Users, Wallet } from 'lucide-react';
 import { apiPost } from '../../lib/api';
 import { goBack } from '../../lib/nav';
 import BottomNav from '../../Components/layout/BottomNav';
@@ -17,6 +17,7 @@ const KINDS = {
     withdrawal: { icon: ArrowUpRight, colour: 'bg-sky-500' },
     referral: { icon: Users, colour: 'bg-pink-500' },
     reward: { icon: Star, colour: 'bg-fuchsia-500' },
+    offer: { icon: Sparkles, colour: 'bg-orange-500' },
     news: { icon: Gift, colour: 'bg-app-primary' },
 };
 
@@ -56,6 +57,11 @@ export default function Messages() {
 
         setMessages((list) => list.map((m) => (m.id === message.id ? { ...m, is_read: true } : m)));
         apiPost(`/api/messages/${message.id}/read`).then(() => router.reload({ only: ['auth'] })).catch(() => {});
+    }
+
+    // Counts as a tap on the message (how well each channel works for this customer).
+    function tapped(message) {
+        apiPost(`/api/messages/${message.id}/tapped`).catch(() => {});
     }
 
     function markAllRead() {
@@ -140,11 +146,11 @@ export default function Messages() {
                                         <p className={`mt-1 whitespace-pre-line break-words text-xs leading-relaxed text-gray-600 dark:text-gray-400 ${open === m.id ? '' : 'line-clamp-2'}`}>{m.body}</p>
                                         {m.link_url && open === m.id && (
                                             m.link_url.startsWith('/') ? (
-                                                <Link href={m.link_url} onClick={(e) => e.stopPropagation()} className="mt-3 inline-flex items-center gap-1.5 rounded-xl bg-app-primary px-4 py-2 text-xs font-bold text-white">
+                                                <Link href={m.link_url} onClick={(e) => { e.stopPropagation(); tapped(m); }} className="mt-3 inline-flex items-center gap-1.5 rounded-xl bg-app-primary px-4 py-2 text-xs font-bold text-white">
                                                     {m.link_label || 'Open'} <ArrowRight className="h-3.5 w-3.5" />
                                                 </Link>
                                             ) : (
-                                                <a href={m.link_url} target="_blank" rel="noopener noreferrer" onClick={(e) => e.stopPropagation()} className="mt-3 inline-flex items-center gap-1.5 rounded-xl bg-app-primary px-4 py-2 text-xs font-bold text-white">
+                                                <a href={m.link_url} target="_blank" rel="noopener noreferrer" onClick={(e) => { e.stopPropagation(); tapped(m); }} className="mt-3 inline-flex items-center gap-1.5 rounded-xl bg-app-primary px-4 py-2 text-xs font-bold text-white">
                                                     {m.link_label || 'Open'} <ArrowRight className="h-3.5 w-3.5" />
                                                 </a>
                                             )

@@ -4,6 +4,7 @@ namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
 use App\Models\CustomerMessage;
+use App\Services\Retention\DeliveryTracker;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 
@@ -27,8 +28,26 @@ class MessageController extends Controller
     public function read(Request $request, int $message): JsonResponse
     {
         CustomerMessage::query()->where('user_id', $request->user()->getKey())->whereKey($message)->whereNull('read_at')->update(['read_at' => now()]);
+        $this->track($request, $message, clicked: false);
 
         return response()->json(['ok' => true]);
+    }
+
+    /** They tapped the message's button (counted as a click on the site channel). */
+    public function tapped(Request $request, int $message): JsonResponse
+    {
+        $this->track($request, $message, clicked: true);
+
+        return response()->json(['ok' => true]);
+    }
+
+    private function track(Request $request, int $message, bool $clicked): void
+    {
+        $deliveryId = CustomerMessage::query()->where('user_id', $request->user()->getKey())->whereKey($message)->value('delivery_id');
+
+        if ($deliveryId) {
+            app(DeliveryTracker::class)->openedInbox((int) $deliveryId, $clicked);
+        }
     }
 
     public function readAll(Request $request): JsonResponse

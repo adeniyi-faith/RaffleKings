@@ -12,7 +12,10 @@ use App\Models\Growth\PromoCode;
 use App\Models\Legacy\RaffleNotificationTemplate;
 use App\Models\Legacy\RaffleSiteNotice;
 use App\Models\Legacy\WpUser;
+use App\Models\Retention\MemberProfile;
 use App\Services\Messaging\Audience;
+use App\Services\Retention\DeliveryTracker;
+use App\Services\Retention\MemberSegments;
 use App\Filament\Support\AiAssist;
 use Filament\Forms;
 use Filament\Forms\Form;
@@ -85,8 +88,24 @@ class BroadcastResource extends Resource
             'min_amount' => $value('min_amount'),
             'user_id' => $value('user_id'),
             'user_ids' => array_map('intval', (array) $value('user_ids')),
+            'segments' => array_values(array_filter((array) $value('segments'))),
+            'flags' => array_values(array_filter((array) $value('flags'))),
             'filters' => Audience::cleanFilters((array) $value('filters')),
         ], fn ($v) => filled($v));
+    }
+
+    /** @return array<string, string> segment => "Name (count)" */
+    public static function segmentOptions(): array
+    {
+        $counts = MemberProfile::query()->groupBy('segment')->selectRaw('segment, COUNT(*) as n')->pluck('n', 'segment');
+
+        return collect(MemberSegments::SEGMENTS)->mapWithKeys(fn ($s, $key) => [$key => $s[0].' ('.number_format((int) ($counts[$key] ?? 0)).')'])->all();
+    }
+
+    /** @return array<string, string> */
+    public static function flagOptions(): array
+    {
+        return collect(MemberSegments::FLAGS)->except('stopped_reminders')->map(fn ($f) => $f[0])->all();
     }
 
     /** The boxes for "Build my own group". Each one that's filled in must match. */
@@ -118,6 +137,10 @@ class BroadcastResource extends Resource
                 Forms\Components\Select::make('filters.affiliate_id')->label('Brought by affiliate')->options(fn () => Affiliate::query()->orderBy('name')->pluck('name', 'id'))->searchable()->live(),
                 Forms\Components\Toggle::make('filters.push_only')->label('Only people who turned on phone notifications')->live(),
             ]),
+            Forms\Components\Fieldset::make('Member segments (Growth → Member segments)')->columns(['md' => 2])->schema([
+                Forms\Components\Select::make('filters.segments')->label('In any of these segments')->multiple()->options(static::segmentOptions())->live(),
+                Forms\Components\Select::make('filters.flags')->label('Has all of these labels')->multiple()->options(static::flagOptions())->live(),
+            ]),
         ];
     }
 
@@ -139,6 +162,11 @@ class BroadcastResource extends Resource
                             ->limit(20)->get()->mapWithKeys(fn (WpUser $u) => [$u->ID => ($u->display_name ?: $u->user_login).' · '.$u->user_email]))
                         ->getOptionLabelUsing(fn ($value) => WpUser::find($value)?->user_email)
                         ->visible(fn (Get $get) => $get('audience') === 'one')->live(),
+                    Forms\Components\Select::make('segments')->label('Segments')->multiple()->options(static::segmentOptions())->required()
+                        ->helperText('Customers in any of these. Sorted every night.')
+                        ->visible(fn (Get $get) => $get('audience') === 'segment')->live(),
+                    Forms\Components\Select::make('flags')->label('Only those with all of these labels (optional)')->multiple()->options(static::flagOptions())
+                        ->visible(fn (Get $get) => $get('audience') === 'segment')->live(),
                     Forms\Components\Group::make(static::filterFields())->columnSpanFull()
                         ->visible(fn (Get $get) => $get('audience') === 'custom'),
                     Forms\Components\Hidden::make('user_ids')->default([]),
@@ -290,6 +318,11 @@ class BroadcastResource extends Resource
                 Components\TextEntry::make('scheduled_at')->label('Goes out at')->dateTime('j M Y, H:i')->timezone(config('raffles.timezone'))->visible(fn (Broadcast $b) => $b->scheduled_at !== null),
                 Components\TextEntry::make('sent_at')->label('Finished')->dateTime('j M Y, H:i')->timezone(config('raffles.timezone'))->visible(fn (Broadcast $b) => $b->sent_at !== null),
             ]),
+            Components\Section::make('Delivery')->description('Sent = the email or push provider took it. Tapped = they pressed the button. Email opens are a low estimate: many email apps hide them.')
+                ->visible(fn (Broadcast $b) => $b->status !== 'scheduled')
+                ->schema([
+                    Components\TextEntry::make('delivery')->hiddenLabel()->html()->state(fn (Broadcast $b) => static::deliveryTable($b)),
+                ]),
             Components\Section::make('Message')->schema([
                 Components\TextEntry::make('title')->hiddenLabel()->weight('bold'),
                 Components\TextEntry::make('body')->hiddenLabel()->formatStateUsing(fn ($state) => nl2br(e($state)))->html(),
@@ -306,5 +339,33 @@ class BroadcastResource extends Resource
             'create' => Pages\CreateBroadcast::route('/new'),
             'view' => Pages\ViewBroadcast::route('/{record}'),
         ];
+    }
+
+    /** Per channel: sent, waiting, failed, opened, tapped. */
+    public static function deliveryTable(Broadcast $b): HtmlString
+    {
+        $stats = app(DeliveryTracker::class)->stats('broadcast', $b->id);
+        $pct = fn (int $n, int $of) => $of > 0 ? ' <span class="text-gray-500">('.round($n / $of * 100).'%)</span>' : '';
+        $rows = '';
+
+        foreach ($b->channels as $channel) {
+            $c = $stats[$channel] ?? null;
+            if (! $c) {
+                continue;
+            }
+
+            $rows .= '<tr class="border-t border-gray-100 dark:border-white/5"><td class="py-2 pr-4 font-medium">'.e(Broadcast::CHANNELS[$channel] ?? $channel).'</td>'
+                .'<td class="pr-4 tabular-nums">'.number_format($c['sent']).'</td>'
+                .'<td class="pr-4 tabular-nums">'.number_format($c['queued']).'</td>'
+                .'<td class="pr-4 tabular-nums">'.number_format($c['failed']).'</td>'
+                .'<td class="pr-4 tabular-nums">'.number_format($c['opened']).$pct($c['opened'], $c['sent']).'</td>'
+                .'<td class="tabular-nums">'.number_format($c['clicked']).$pct($c['clicked'], $c['sent']).'</td></tr>';
+        }
+
+        if ($rows === '') {
+            return new HtmlString('<p class="text-sm text-gray-500">No delivery details for this message (sent before tracking started).</p>');
+        }
+
+        return new HtmlString('<div class="overflow-x-auto"><table class="w-full text-left text-sm"><thead class="text-xs text-gray-500"><tr><th class="py-2 pr-4">Channel</th><th class="pr-4">Sent</th><th class="pr-4">Waiting</th><th class="pr-4">Failed</th><th class="pr-4">Opened / read</th><th>Tapped</th></tr></thead><tbody>'.$rows.'</tbody></table></div>');
     }
 }
