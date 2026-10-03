@@ -13,9 +13,21 @@ use Illuminate\Support\Facades\Http;
  */
 class GeminiClient
 {
+    public const NO_KEY_MESSAGE = 'No Gemini key is saved yet. Add one in Settings → AI → Google Gemini.';
+
     public function available(): bool
     {
         return (bool) config('ai.enabled') && filled(config('services.gemini.api_key'));
+    }
+
+    /**
+     * Whether the AI buttons should show. They show as soon as AI helpers
+     * are switched on, even before a key is saved, so a missing key is
+     * explained when the button is pressed instead of the button vanishing.
+     */
+    public function switchedOn(): bool
+    {
+        return (bool) config('ai.enabled');
     }
 
     /**
@@ -33,7 +45,7 @@ class GeminiClient
 
         $apiKey = config('services.gemini.api_key');
         if (blank($apiKey)) {
-            throw new AiUnavailableException('No Gemini key is saved yet. Add one in Settings → AI.');
+            throw new AiUnavailableException(self::NO_KEY_MESSAGE);
         }
 
         $limit = (int) config('ai.daily_limit');
@@ -41,7 +53,7 @@ class GeminiClient
             throw new AiUnavailableException("Today's AI limit ({$limit} calls) has been reached. It resets tomorrow, or raise it in Settings → AI.");
         }
 
-        $model = config('services.gemini.assistant_model') ?: 'gemini-3-flash-preview';
+        $model = config('services.gemini.assistant_model') ?: GeminiModels::DEFAULT;
 
         $parts = [['text' => $prompt]];
         foreach ($files as $file) {
