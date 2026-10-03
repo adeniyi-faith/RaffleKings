@@ -15,7 +15,8 @@ use Illuminate\Support\Facades\Log;
  * Lets the AI answer a support ticket when the Knowledge base has the
  * answer. Stands down (leaving the ticket for a person) if a person has
  * already replied, the customer asked for a human, the AI reached its
- * limit on this ticket, or it isn't sure. Never changes any account.
+ * limit on this ticket, or it isn't sure. When the customer says their
+ * problem is solved, it marks the ticket resolved. Never changes any account.
  */
 class AutoReplyToTicket implements ShouldQueue
 {
@@ -50,6 +51,17 @@ class AutoReplyToTicket implements ShouldQueue
             $result = $ai->answer($ticket);
         } catch (\Throwable $e) {
             Log::info('AutoReplyToTicket: left for a person', ['ticket' => $ticket->id, 'why' => $e->getMessage()]);
+
+            return;
+        }
+
+        // The customer says it's sorted ("thanks, that worked"): say goodbye and mark it solved.
+        // If they write again, the ticket opens again by itself.
+        if ($result['solved'] && config('ai.auto_resolve')) {
+            if ($result['reply'] !== '') {
+                $tickets->replyAutomated($ticket, $result['reply']);
+            }
+            $tickets->setStatus($ticket, 'resolved');
 
             return;
         }

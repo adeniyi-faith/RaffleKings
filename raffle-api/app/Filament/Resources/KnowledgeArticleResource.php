@@ -43,6 +43,23 @@ class KnowledgeArticleResource extends Resource
         return static::staffCanOpen();
     }
 
+    /** Suggestions learned from solved tickets, waiting for a person to check them. */
+    public static function getNavigationBadge(): ?string
+    {
+        try {
+            $count = KnowledgeArticle::query()->whereNotNull('suggested_from_ticket_id')->where('is_active', false)->count();
+        } catch (\Throwable) {
+            return null; // column not added yet (mid-deploy)
+        }
+
+        return $count > 0 ? (string) $count : null;
+    }
+
+    public static function getNavigationBadgeTooltip(): ?string
+    {
+        return 'Suggested entries learned from solved tickets. Check them, then switch on "AI may use".';
+    }
+
     public static function form(Form $form): Form
     {
         return $form->schema([
@@ -117,8 +134,17 @@ class KnowledgeArticleResource extends Resource
             ->columns([
                 Tables\Columns\TextColumn::make('title')->searchable()->weight('bold')->wrap()
                     ->description(fn (KnowledgeArticle $r) => Str::limit(preg_replace('/\s+/', ' ', $r->body), 100)),
+                Tables\Columns\TextColumn::make('suggested_from_ticket_id')->label('Source')
+                    ->formatStateUsing(fn ($state) => "Learned from ticket #{$state}")
+                    ->url(fn (KnowledgeArticle $r) => $r->suggested_from_ticket_id ? SupportTicketResource::getUrl('view', ['record' => $r->suggested_from_ticket_id]) : null)
+                    ->badge()->color('info')
+                    ->placeholder('Written by staff'),
                 Tables\Columns\ToggleColumn::make('is_active')->label('AI may use'),
                 Tables\Columns\TextColumn::make('updated_at')->label('Updated')->since(),
+            ])
+            ->filters([
+                Tables\Filters\Filter::make('to_check')->label('Suggestions to check')
+                    ->query(fn ($query) => $query->whereNotNull('suggested_from_ticket_id')->where('is_active', false)),
             ])
             ->actions([
                 Tables\Actions\EditAction::make(),

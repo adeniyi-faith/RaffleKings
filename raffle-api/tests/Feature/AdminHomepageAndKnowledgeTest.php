@@ -90,4 +90,19 @@ class AdminHomepageAndKnowledgeTest extends TestCase
 
         Livewire::test(ViewSupportTicket::class, ['record' => $ticket->getKey()])->assertSuccessful();
     }
+
+    public function test_suggestions_learned_from_tickets_are_listed_for_checking(): void
+    {
+        $this->actingAsAdministrator();
+        $entry = KnowledgeArticle::create(['title' => 'Prize delivery', 'body' => 'Within 7 days.', 'is_active' => false, 'suggested_from_ticket_id' => 5]);
+        KnowledgeArticle::create(['title' => 'Deposits', 'body' => 'Instant.', 'is_active' => true]);
+
+        Livewire::test(ListKnowledgeArticles::class)
+            ->assertSee('Learned from ticket #5')
+            ->filterTable('to_check')
+            ->assertCanSeeTableRecords([$entry])
+            ->assertCountTableRecords(1);
+
+        $this->assertSame('1', \App\Filament\Resources\KnowledgeArticleResource::getNavigationBadge());
+    }
 }
