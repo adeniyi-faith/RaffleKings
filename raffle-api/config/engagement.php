@@ -119,4 +119,14 @@ return [
         'max_image_kb' => 5120,
         'max_video_kb' => 20480,
     ],
+
+    // Lucky Meter: what a customer pays for tickets in a raffle they win
+    // nothing in fills their meter; a full meter pays ticket credit
+    // (App\Services\Engagement\LuckyMeter). Off until switched on in
+    // Settings → Rewards → Lucky Meter.
+    'lucky_meter' => [
+        'enabled' => false,
+        'target' => 10000,
+        'reward' => 500,
+    ],
 ];

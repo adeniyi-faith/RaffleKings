@@ -12,6 +12,7 @@ use App\Http\Controllers\Controller;
 use App\Models\Legacy\WpUser;
 use App\Services\DailyClaimService;
 use App\Services\Engagement\FreeSpinGifts;
+use App\Services\Engagement\LuckyMeter;
 use App\Services\Engagement\Perks;
 use App\Services\Engagement\SeasonPass;
 use App\Services\LoyaltyService;
@@ -72,6 +73,8 @@ class RewardsController extends Controller
             // Phase 11: Season Pass level, free spins waiting.
             'season' => collect(app(SeasonPass::class)->state($user->ID))->only(['level', 'claimable', 'season'])->all(),
             'free_spins' => app(Perks::class)->freeSpins($user->ID),
+            // Lucky Meter (null while it's switched off).
+            'lucky_meter' => app(LuckyMeter::class)->state($user->ID),
         ];
     }
 

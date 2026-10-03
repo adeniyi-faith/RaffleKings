@@ -239,6 +239,14 @@ final class SettingsRegistry
                             new Setting('loyalty.tiers', 'Tiers', 'loyalty_tiers', 'Each higher tier should need at least as much as the one below it.'),
                         ],
                     ],
+                    'Lucky Meter' => [
+                        'description' => 'A reward non-winners can count on. After each draw, what a customer paid for tickets in that raffle fills their meter, unless they won a prize in it. Each time the meter reaches the target, they get the reward as ticket credit (wallet balance: spendable on tickets, not withdrawable), and anything over the target carries on. The cost is reward ÷ target of what non-winners spend: the starting ₦500 per ₦10,000 is 5%. Only raffles drawn after you switch it on count.',
+                        'settings' => [
+                            new Setting('engagement.lucky_meter.enabled', 'Lucky Meter is on', 'bool', 'Customers see their meter on the Rewards page while this is on.'),
+                            new Setting('engagement.lucky_meter.target', 'Fill the meter at (₦ spent on tickets that don\'t win)', 'money', rules: ['required', 'numeric', 'min:100']),
+                            new Setting('engagement.lucky_meter.reward', 'Ticket credit for each full meter (₦)', 'money', 'Keep this well below the target: it is a thank-you, not a refund. The meter stays off if this is more than the target.', rules: ['required', 'numeric', 'min:1']),
+                        ],
+                    ],
                     'Cashing in points' => [
                         'settings' => [
                             new Setting('rewards.points_per_naira', 'Points per ₦1', 'int', rules: ['required', 'integer', 'min:1']),

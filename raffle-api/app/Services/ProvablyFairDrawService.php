@@ -17,6 +17,7 @@ use App\Models\RafflePrizeTier;
 use App\Notifications\DrawCompletedAdminAlert;
 use App\Notifications\WinnerAnnounced;
 use App\Services\Draw\DrawRules;
+use App\Services\Engagement\LuckyMeter;
 use App\Services\Engagement\Progress;
 use Illuminate\Notifications\AnonymousNotifiable;
 use Illuminate\Support\Carbon;
@@ -155,6 +156,7 @@ class ProvablyFairDrawService
         // then gets rolled back.
         $this->notifyWinnersAndAdmins($raffle->id, $created);
         $this->payConsolation($legacyRaffleId, $rules, $created);
+        app(LuckyMeter::class)->afterDraw($raffle);
 
         return $created;
     }
