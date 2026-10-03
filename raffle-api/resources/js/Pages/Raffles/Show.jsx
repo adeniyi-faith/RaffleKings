@@ -29,6 +29,7 @@ import { track } from '../../lib/analytics';
 import { isOn, useSite } from '../../lib/site';
 import PausedNotice from '../../Components/layout/PausedNotice';
 import BoostPanel from '../../Components/social/BoostPanel';
+import DailyDropPanel from '../../Components/raffles/DailyDropPanel';
 
 const DEFAULT_QUANTITIES = [1, 2, 3, 5, 10];
 // The most a single order can hold when neither the raffle nor the site sets a
@@ -48,7 +49,7 @@ const TONES = {
  * open as sheets. Choosing tickets keeps everything the old page had: the
  * bundle buttons with their discounts, and any amount up to the limit.
  */
-export default function RaffleShow({ raffle, drawInfo = null, odds = null }) {
+export default function RaffleShow({ raffle, drawInfo = null, odds = null, dailyDrop = null }) {
     const { auth } = usePage().props;
     // Put the chances that came with the page where the odds boxes can find them, before they draw.
     useMemo(() => seedRaffleOdds(raffle.id, odds), [raffle.id, odds]);
@@ -58,7 +59,7 @@ export default function RaffleShow({ raffle, drawInfo = null, odds = null }) {
     const notEligible = drawInfo?.not_eligible ?? null;
     const salesPaused = ! isOn(site, 'ticket_sales') || !! notEligible;
     const [selectedQty, setSelectedQty] = useState(FIXED_QUANTITIES.includes(3) ? 3 : FIXED_QUANTITIES[Math.min(1, FIXED_QUANTITIES.length - 1)]);
-    const [sheet, setSheet] = useState(null); // null | 'tickets' | 'prizes' | 'how' | 'boost'
+    const [sheet, setSheet] = useState(null); // null | 'tickets' | 'prizes' | 'how' | 'drop' | 'boost'
     const closeSheet = useCallback(() => setSheet(null), []);
 
     // Counts down to the exact moment sales stop (end of the expiry day, Lagos time).
@@ -245,6 +246,20 @@ export default function RaffleShow({ raffle, drawInfo = null, odds = null }) {
                             onClick={() => setSheet('how')}
                         />
                     )}
+                    {dailyDrop && (dailyDrop.active || dailyDrop.recent.length > 0) && (
+                        <InfoRow
+                            icon={Gift}
+                            tone="amber"
+                            title="Daily Drop"
+                            subtitle={
+                                dailyDrop.active
+                                    ? `${formatNaira(dailyDrop.pot_so_far)} so far, dropping at ${dailyDrop.drop_time} to ${dailyDrop.winners_per_day} ticket ${dailyDrop.winners_per_day === 1 ? 'holder' : 'holders'}`
+                                    : `${formatNaira(dailyDrop.total_paid)} dropped to ticket holders`
+                            }
+                            cta={dailyDrop.active ? 'Every day' : null}
+                            onClick={() => setSheet('drop')}
+                        />
+                    )}
                     {auth.user && ! isClosed && (
                         <InfoRow icon={Megaphone} tone="hot" title="Boost and share" subtitle="Invite friends, earn free bonus entries" cta="Free" onClick={() => setSheet('boost')} />
                     )}
@@ -323,6 +338,10 @@ export default function RaffleShow({ raffle, drawInfo = null, odds = null }) {
 
             <BottomSheet open={sheet === 'how'} onClose={closeSheet} title="How this draw works">
                 {drawInfo && <DrawRules drawInfo={drawInfo} />}
+            </BottomSheet>
+
+            <BottomSheet open={sheet === 'drop'} onClose={closeSheet} title="Daily Drop">
+                {dailyDrop && <DailyDropPanel drop={dailyDrop} />}
             </BottomSheet>
 
             <BottomSheet open={sheet === 'boost'} onClose={closeSheet} title="Boost and share" keepMounted>

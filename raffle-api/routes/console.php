@@ -131,12 +131,19 @@ Schedule::call(fn () => app(\App\Services\Auth\StaffTwoStep::class)->prune())
     ->name('staff-two-step-prune');
 
 // Raffle advisor: a fresh report waiting every Monday morning (Lagos time),
-// when the AI is on, a Claude key is saved and the weekly report is switched on.
+// when the AI is on, a Gemini key is saved and the weekly report is switched on.
 Schedule::call(function () {
-    if (config('ai.advisor_weekly') && app(\App\Services\Ai\ClaudeClient::class)->available()) {
+    if (config('ai.advisor_weekly') && app(\App\Services\Ai\GeminiClient::class)->available()) {
         app(\App\Services\Advisor\RaffleAdvisor::class)->request(trigger: 'weekly');
     }
 })
     ->weeklyOn(1, '07:00')
     ->timezone(config('raffles.timezone', 'Africa/Lagos'))
     ->name('raffle-advisor-weekly');
+
+// Daily Drops: pay each running drop once its time comes each day. A day can
+// never be paid twice (App\Services\Engagement\DailyDrops).
+Schedule::call(fn () => app(\App\Services\Engagement\DailyDrops::class)->runDue())
+    ->everyMinute()
+    ->name('daily-drops')
+    ->withoutOverlapping(10);

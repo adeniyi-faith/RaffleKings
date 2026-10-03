@@ -3,12 +3,13 @@
 namespace App\Filament\Pages;
 
 use App\Filament\Concerns\GuardedByStaffRole;
+use App\Filament\Resources\DailyDropResource;
 use App\Filament\Resources\RaffleResource;
 use App\Models\AdvisorReport;
 use App\Models\Legacy\WpUser;
 use App\Services\Advisor\PlatformSnapshot;
 use App\Services\Advisor\RaffleAdvisor as Advisor;
-use App\Services\Ai\ClaudeClient;
+use App\Services\Ai\GeminiClient;
 use Filament\Notifications\Notification;
 use Filament\Pages\Page;
 use Illuminate\Support\Collection;
@@ -50,7 +51,7 @@ class RaffleAdvisor extends Page
 
     public function aiAvailable(): bool
     {
-        return app(ClaudeClient::class)->available();
+        return app(GeminiClient::class)->available();
     }
 
     public function report(): ?AdvisorReport
@@ -83,7 +84,7 @@ class RaffleAdvisor extends Page
         $this->validate(['focus' => ['nullable', 'string', 'max:1000']]);
 
         if (! $this->aiAvailable()) {
-            Notification::make()->title('The advisor is not set up yet')->body('Add a Claude (Anthropic) key in Settings → AI, and make sure "AI helpers on" is switched on.')->danger()->send();
+            Notification::make()->title('The advisor is not set up yet')->body('Add a Gemini key in Settings → AI, and make sure "AI helpers on" is switched on.')->danger()->send();
 
             return;
         }
@@ -112,7 +113,7 @@ class RaffleAdvisor extends Page
         }
 
         try {
-            $raffle = app(Advisor::class)->openAsDraft($report, $index, $admin);
+            ['raffle' => $raffle, 'drop' => $drop] = app(Advisor::class)->openAsDraft($report, $index, $admin);
         } catch (RuntimeException $e) {
             Notification::make()->title('Not opened')->body($e->getMessage())->danger()->send();
 
@@ -120,12 +121,21 @@ class RaffleAdvisor extends Page
         }
 
         Notification::make()
-            ->title('Draft raffle created')
-            ->body('It is hidden from customers. Check the prizes, dates and wording, then set it to Published when you are happy.')
+            ->title(match (true) {
+                $raffle && $drop => 'Draft raffle and Daily Drop created',
+                $drop !== null => 'Draft Daily Drop created',
+                default => 'Draft raffle created',
+            })
+            ->body(collect([
+                $raffle ? 'The raffle is hidden from customers: check the prizes, dates and wording, then set it to Published.' : null,
+                $drop ? 'The Daily Drop pays nothing until it is switched on in Raffles → Daily Drops'.($raffle ? '' : ' (choose its raffle there first)').'.' : null,
+            ])->filter()->implode(' '))
             ->success()
             ->persistent()
             ->send();
 
-        $this->redirect(RaffleResource::getUrl('edit', ['record' => $raffle]));
+        $this->redirect($raffle
+            ? RaffleResource::getUrl('edit', ['record' => $raffle])
+            : DailyDropResource::getUrl('edit', ['record' => $drop]));
     }
 }

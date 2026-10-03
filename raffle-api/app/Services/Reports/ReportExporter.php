@@ -148,7 +148,7 @@ final class ReportExporter
             'sales' => (float) RaffleTransaction::query()->whereIn('type', self::SALE_TYPES)->whereIn('status', self::DONE)->whereBetween('created_at', [$from, $to])->sum('claimed_amount'),
             'topups' => (float) WalletLedgerEntry::query()->where('reason', 'deposit')->where('direction', 'credit')->whereBetween('created_at', [$from, $to])->sum('amount'),
             'withdrawals' => (float) WithdrawalRequest::query()->where('status', 'paid')->whereBetween('updated_at', [$from, $to])->sum('amount_to_send'),
-            'prizes' => (float) WalletLedgerEntry::query()->where('reason', 'prize_payout')->where('direction', 'credit')->whereBetween('created_at', [$from, $to])->sum('amount'),
+            'prizes' => (float) WalletLedgerEntry::query()->whereIn('reason', ['prize_payout', 'daily_drop'])->where('direction', 'credit')->whereBetween('created_at', [$from, $to])->sum('amount'),
         ];
     }
 }

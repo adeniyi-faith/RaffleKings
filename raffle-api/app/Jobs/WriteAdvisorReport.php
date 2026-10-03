@@ -11,7 +11,7 @@ use Illuminate\Queue\InteractsWithQueue;
 use Illuminate\Queue\SerializesModels;
 
 /**
- * Writes one Raffle advisor report in the background: Claude can take a
+ * Writes one Raffle advisor report in the background: the AI can take a
  * minute or two to think, longer than a web page should wait. Runs once;
  * if anything goes wrong the report is marked failed so staff can retry.
  */
