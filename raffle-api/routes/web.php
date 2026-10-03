@@ -359,6 +359,7 @@ Route::get('/rewards', function () {
             'daily_schedule' => app(DailyClaimService::class)->schedule(),
             'tasks' => app(TaskClaimService::class)->publicCatalog(),
             'spin' => ['cost' => SpinService::cost(), 'odds' => app(SpinService::class)->odds()],
+            'lucky_meter' => app(\App\Services\Engagement\LuckyMeter::class)->state(null),
         ],
     ]);
 });

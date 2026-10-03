@@ -147,3 +147,10 @@ Schedule::call(fn () => app(\App\Services\Engagement\DailyDrops::class)->runDue(
     ->everyMinute()
     ->name('daily-drops')
     ->withoutOverlapping(10);
+
+// Lucky Meter safety net: count any recent draw the draw itself didn't
+// (a raffle can only ever be counted once; App\Services\Engagement\LuckyMeter).
+Schedule::call(fn () => app(\App\Services\Engagement\LuckyMeter::class)->countRecentDraws())
+    ->everyTenMinutes()
+    ->name('lucky-meter')
+    ->withoutOverlapping(10);
