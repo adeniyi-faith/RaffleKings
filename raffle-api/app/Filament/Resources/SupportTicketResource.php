@@ -221,7 +221,8 @@ class SupportTicketResource extends Resource
         return Forms\Components\Actions\Action::make('aiDraft')
             ->label('Draft with AI')
             ->icon('heroicon-o-sparkles')
-            ->visible(fn () => app(\App\Services\Ai\GeminiClient::class)->available())
+            ->visible(fn () => app(\App\Services\Ai\GeminiClient::class)->switchedOn())
+            ->modalHidden(fn () => ! app(\App\Services\Ai\GeminiClient::class)->available())
             ->modalHeading('Draft a reply with AI')
             ->modalDescription('It reads the conversation, the Knowledge base and this customer\'s account (balances, recent activity). Press again for a new version.')
             ->modalSubmitActionLabel('Draft it')
@@ -230,6 +231,12 @@ class SupportTicketResource extends Resource
                     ->placeholder('e.g. Tell them we have found the payment and it will show shortly'),
             ])
             ->action(function (array $data, Forms\Set $set) use ($ticket) {
+                if (! app(\App\Services\Ai\GeminiClient::class)->available()) {
+                    \Filament\Notifications\Notification::make()->title('AI could not draft this')->body(\App\Services\Ai\GeminiClient::NO_KEY_MESSAGE)->danger()->send();
+
+                    return;
+                }
+
                 try {
                     $result = app(\App\Services\Ai\SupportAi::class)->answer($ticket->fresh(), (string) ($data['instruction'] ?? ''));
                 } catch (\App\Exceptions\AiUnavailableException $e) {
