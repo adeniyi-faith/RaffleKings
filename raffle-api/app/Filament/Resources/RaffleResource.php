@@ -54,7 +54,8 @@ class RaffleResource extends Resource
             ->schema([
                 Forms\Components\TextInput::make('title')
                     ->required()
-                    ->maxLength(255),
+                    ->maxLength(255)
+                    ->hintAction(AiAssist::action('a short, catchy but honest raffle title (under 60 characters, one line, no quotes)', false, fn (Forms\Get $get) => 'Grand prize: '.$get('grand_prize').'; ticket price ₦'.$get('price'))),
                 Forms\Components\Textarea::make('excerpt')
                     ->maxLength(2000)
                     ->columnSpanFull()

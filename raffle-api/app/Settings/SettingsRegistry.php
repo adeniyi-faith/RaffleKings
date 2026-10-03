@@ -2,6 +2,8 @@
 
 namespace App\Settings;
 
+use App\Services\Ai\GeminiModels;
+
 /**
  * Every setting the admin can change, grouped the way the Settings page
  * shows them: tab → section → settings. Each one overrides a config
@@ -454,23 +456,14 @@ final class SettingsRegistry
                         'description' => 'Reads payment screenshots and bank statements (bank-transfer checks, Daily Audit). Get a key at aistudio.google.com → Get API key.',
                         'settings' => [
                             new Setting('services.gemini.api_key', 'API key', 'secret', placeholder: 'AIza...'),
-                            new Setting('services.gemini.model', 'Model', 'select', 'Flash is fast and cheap; Pro reads messy screenshots better but costs more.', [
-                                'gemini-2.5-flash' => 'Gemini 2.5 Flash (recommended)',
-                                'gemini-2.5-flash-lite' => 'Gemini 2.5 Flash-Lite (cheapest)',
-                                'gemini-2.5-pro' => 'Gemini 2.5 Pro (most accurate)',
-                                'gemini-2.5-flash-preview-09-2025' => 'Gemini 2.5 Flash preview (09-2025)',
-                            ]),
+                            new Setting('services.gemini.model', 'Model', 'select', 'All are Gemini Flash models. Newer ones read messy screenshots better; Flash-Lite is the cheapest.', GeminiModels::OPTIONS),
                         ],
                     ],
                     'AI assistant' => [
                         'description' => 'The "Write with AI" buttons next to text boxes, the support agent that can answer tickets from the Knowledge base, and the Raffle advisor. Uses the Gemini key above. AI replies to customers are always labelled "Automated reply".',
                         'settings' => [
-                            new Setting('ai.enabled', 'AI helpers on', 'bool', 'Turns off every AI button and the support agent.'),
-                            new Setting('services.gemini.assistant_model', 'Model for writing and replying', 'select', 'Pick a Gemini 3 Flash model. Use "Test connection" on the Google Gemini section to check the key. If a model shows as unavailable, choose another.', [
-                                'gemini-3-flash-preview' => 'Gemini 3 Flash (recommended)',
-                                'gemini-3.1-flash-lite-preview' => 'Gemini 3.1 Flash-Lite (cheapest, fastest)',
-                                'gemini-2.5-flash' => 'Gemini 2.5 Flash (older, steady)',
-                            ]),
+                            new Setting('ai.enabled', 'AI helpers on', 'bool', 'Turns every AI button and the support agent on or off. They also need the Gemini API key above.'),
+                            new Setting('services.gemini.assistant_model', 'Model for writing and replying', 'select', 'Use "Test connection" on the Google Gemini section to check the key. If a model shows as unavailable, choose another.', GeminiModels::OPTIONS),
                             new Setting('ai.auto_reply', 'Support agent answers tickets by itself', 'bool', 'It only replies when the Knowledge base clearly has the answer. Otherwise the ticket waits for your team.'),
                             new Setting('ai.max_auto_replies', 'Automated replies per ticket before a person takes over', 'int', rules: ['required', 'integer', 'min:1', 'max:10']),
                             new Setting('ai.daily_limit', 'Most AI calls per day', 'int', 'A safety cap on cost. When it is reached the AI stops until tomorrow.', rules: ['required', 'integer', 'min:0', 'max:5000']),
