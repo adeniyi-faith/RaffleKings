@@ -3,14 +3,17 @@
 namespace App\Services;
 
 use App\Jobs\AutoReplyToTicket;
+use App\Jobs\LearnFromTicket;
 use App\Models\Legacy\WpUser;
 use App\Models\SupportTicket;
 use App\Models\SupportTicketMessage;
 use App\Notifications\NewSupportTicketAdminAlert;
 use App\Notifications\SupportTicketReply;
+use Illuminate\Http\UploadedFile;
 use Illuminate\Notifications\AnonymousNotifiable;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Notification;
+use Illuminate\Support\Str;
 use RuntimeException;
 
 /**
@@ -22,9 +25,10 @@ use RuntimeException;
  */
 class SupportTicketService
 {
-    public function open(WpUser $user, string $subject, string $message): SupportTicket
+    /** @param  list<UploadedFile>  $screenshots */
+    public function open(WpUser $user, string $subject, string $message, array $screenshots = []): SupportTicket
     {
-        $ticket = DB::transaction(function () use ($user, $subject, $message) {
+        $ticket = DB::transaction(function () use ($user, $subject, $message, $screenshots) {
             $ticket = SupportTicket::create(['user_id' => $user->ID, 'subject' => $subject, 'status' => 'open']);
 
             SupportTicketMessage::create([
@@ -32,6 +36,7 @@ class SupportTicketService
                 'author_id' => $user->ID,
                 'is_from_admin' => false,
                 'message' => $message,
+                'attachments' => $this->store($ticket, $screenshots),
                 'created_at' => now(),
             ]);
 
@@ -51,14 +56,15 @@ class SupportTicketService
      * an admin reply moves an open ticket to "pending" — same simple
      * status model most support systems use.
      */
-    public function reply(SupportTicket $ticket, WpUser $author, string $message, bool $isFromAdmin): SupportTicketMessage
+    public function reply(SupportTicket $ticket, WpUser $author, string $message, bool $isFromAdmin, array $screenshots = []): SupportTicketMessage
     {
-        $reply = DB::transaction(function () use ($ticket, $author, $message, $isFromAdmin) {
+        $reply = DB::transaction(function () use ($ticket, $author, $message, $isFromAdmin, $screenshots) {
             $reply = SupportTicketMessage::create([
                 'support_ticket_id' => $ticket->id,
                 'author_id' => $author->ID,
                 'is_from_admin' => $isFromAdmin,
                 'message' => $message,
+                'attachments' => $this->store($ticket, $screenshots),
                 'created_at' => now(),
             ]);
 
@@ -111,6 +117,23 @@ class SupportTicketService
         return $ticket;
     }
 
+    /**
+     * Saves screenshots on the private disk (not reachable from the web
+     * except through a signed link).
+     *
+     * @param  list<UploadedFile>  $screenshots
+     * @return list<string>|null
+     */
+    private function store(SupportTicket $ticket, array $screenshots): ?array
+    {
+        $paths = [];
+        foreach ($screenshots as $file) {
+            $paths[] = $file->storeAs("support-attachments/{$ticket->id}", Str::uuid().'.'.$file->extension(), 'local');
+        }
+
+        return $paths === [] ? null : $paths;
+    }
+
     private function offerToAi(SupportTicket $ticket): void
     {
         if (config('ai.enabled') && config('ai.auto_reply')) {
@@ -127,7 +150,12 @@ class SupportTicketService
             throw new RuntimeException("Unknown ticket status: {$status}");
         }
 
+        $wasOpen = ! in_array($ticket->status, ['resolved', 'closed'], true);
         $ticket->update(['status' => $status]);
+
+        if ($wasOpen && in_array($status, ['resolved', 'closed'], true) && config('ai.enabled') && config('ai.learn_from_tickets')) {
+            LearnFromTicket::dispatch($ticket->id)->afterCommit();
+        }
 
         return $ticket;
     }
