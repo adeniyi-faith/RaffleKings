@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { Head, Link, usePage } from '@inertiajs/react';
-import { ArrowLeft, BookOpen, ChevronDown, Inbox, MessageSquarePlus, Plus, Send } from 'lucide-react';
+import { ArrowLeft, BookOpen, ChevronDown, ImagePlus, Inbox, MessageSquarePlus, Plus, Send, X } from 'lucide-react';
 import Modal from '../../Components/ui/Modal';
 import LoadError from '../../Components/ui/LoadError';
 import BottomNav from '../../Components/layout/BottomNav';
@@ -20,6 +20,61 @@ const STATUS_DOT = {
     closed: 'bg-gray-400',
 };
 
+// Up to 3 screenshots per message (the server checks again: pictures only, 5 MB each).
+const MAX_SCREENSHOTS = 3;
+const MAX_SCREENSHOT_BYTES = 5 * 1024 * 1024;
+
+function pickScreenshots(fileList, current) {
+    const picked = [...current, ...Array.from(fileList ?? [])].slice(0, MAX_SCREENSHOTS);
+    const tooBig = picked.find((f) => f.size > MAX_SCREENSHOT_BYTES);
+    return tooBig ? { files: current, error: `"${tooBig.name}" is over 5 MB. Please pick a smaller picture.` } : { files: picked, error: null };
+}
+
+function asForm(fields, files) {
+    const form = new FormData();
+    Object.entries(fields).forEach(([k, v]) => form.append(k, v));
+    files.forEach((f) => form.append('screenshots[]', f));
+    return form;
+}
+
+// A small "Add screenshot" button with the chosen pictures listed below it.
+function ScreenshotPicker({ files, onChange, onError, compact = false }) {
+    return (
+        <div>
+            {files.length > 0 && (
+                <div className="mb-2 flex flex-wrap gap-2">
+                    {files.map((f, i) => (
+                        <span key={i} className="flex max-w-full items-center gap-1 rounded-full bg-gray-100 px-2 py-1 text-[10px] font-semibold text-gray-600 dark:bg-gray-800 dark:text-gray-300">
+                            <span className="max-w-[9rem] truncate">{f.name}</span>
+                            <button type="button" aria-label={`Remove ${f.name}`} onClick={() => onChange(files.filter((_, j) => j !== i))}>
+                                <X className="h-3 w-3" />
+                            </button>
+                        </span>
+                    ))}
+                </div>
+            )}
+            {files.length < MAX_SCREENSHOTS && (
+                <label className={`inline-flex cursor-pointer items-center gap-1.5 text-[11px] font-bold text-app-primary ${compact ? '' : 'rounded-lg border border-dashed border-gray-300 px-3 py-2 dark:border-gray-600'}`}>
+                    <ImagePlus className="h-4 w-4" />
+                    {compact ? 'Screenshot' : 'Add a screenshot (optional)'}
+                    <input
+                        type="file"
+                        accept="image/png,image/jpeg,image/webp"
+                        multiple
+                        className="hidden"
+                        onChange={(e) => {
+                            const { files: next, error } = pickScreenshots(e.target.files, files);
+                            onChange(next);
+                            onError(error);
+                            e.target.value = '';
+                        }}
+                    />
+                </label>
+            )}
+        </div>
+    );
+}
+
 function timeAgo(dateStr) {
     const diffMs = Date.now() - new Date(dateStr).getTime();
     const mins = Math.floor(diffMs / 60000);
@@ -36,11 +91,14 @@ export default function SupportIndex() {
     const [openId, setOpenId] = useState(null);
     const [thread, setThread] = useState(null);
     const [replyText, setReplyText] = useState('');
+    const [replyFiles, setReplyFiles] = useState([]);
+    const [replyError, setReplyError] = useState(null);
     const [busy, setBusy] = useState(false);
 
     const [showNewTicket, setShowNewTicket] = useState(false);
     const [subject, setSubject] = useState('General Inquiry');
     const [message, setMessage] = useState('');
+    const [newFiles, setNewFiles] = useState([]);
     const [formError, setFormError] = useState(null);
 
     useEffect(() => {
@@ -85,19 +143,24 @@ export default function SupportIndex() {
     }
 
     async function sendReply(id) {
-        if (! replyText.trim()) return;
+        if (! replyText.trim() && replyFiles.length === 0) return;
 
         setBusy(true);
+        setReplyError(null);
         try {
             const res = await fetch(`/api/support/tickets/${id}/reply`, {
                 method: 'POST',
-                headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
+                headers: { Accept: 'application/json' },
                 credentials: 'same-origin',
-                body: JSON.stringify({ message: replyText }),
+                body: asForm({ message: replyText }, replyFiles),
             });
 
-            if (res.ok) {
+            if (! res.ok) {
+                const data = await res.json().catch(() => ({}));
+                setReplyError(data.message || 'Could not send. Please try again.');
+            } else {
                 setReplyText('');
+                setReplyFiles([]);
                 const refreshed = await fetch(`/api/support/tickets/${id}`, { credentials: 'same-origin' });
                 setThread(await refreshed.json());
                 loadTickets();
@@ -137,9 +200,9 @@ export default function SupportIndex() {
         try {
             const res = await fetch('/api/support/tickets', {
                 method: 'POST',
-                headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
+                headers: { Accept: 'application/json' },
                 credentials: 'same-origin',
-                body: JSON.stringify({ subject, message }),
+                body: asForm({ subject, message }, newFiles),
             });
             const data = await res.json();
 
@@ -149,6 +212,7 @@ export default function SupportIndex() {
 
             setShowNewTicket(false);
             setMessage('');
+            setNewFiles([]);
             loadTickets();
         } catch (err) {
             setFormError(err.message);
@@ -258,9 +322,20 @@ export default function SupportIndex() {
                                                                     </span>
                                                                 )}
                                                             </p>
-                                                            <p className={`whitespace-pre-line text-xs [overflow-wrap:anywhere] ${m.is_from_admin ? 'text-blue-700 dark:text-blue-200' : 'text-gray-700 dark:text-gray-200'}`}>
-                                                                {m.message}
-                                                            </p>
+                                                            {m.message && (
+                                                                <p className={`whitespace-pre-line text-xs [overflow-wrap:anywhere] ${m.is_from_admin ? 'text-blue-700 dark:text-blue-200' : 'text-gray-700 dark:text-gray-200'}`}>
+                                                                    {m.message}
+                                                                </p>
+                                                            )}
+                                                            {m.attachment_urls?.length > 0 && (
+                                                                <div className="mt-2 flex flex-wrap gap-2">
+                                                                    {m.attachment_urls.map((src, i) => (
+                                                                        <a key={i} href={src} target="_blank" rel="noopener noreferrer">
+                                                                            <img src={src} alt={`Screenshot ${i + 1}`} loading="lazy" className="h-20 w-20 rounded-lg border border-gray-200 object-cover dark:border-gray-700" />
+                                                                        </a>
+                                                                    ))}
+                                                                </div>
+                                                            )}
                                                         </div>
                                                     ))}
                                                 </div>
@@ -274,9 +349,16 @@ export default function SupportIndex() {
                                                         This didn&apos;t help. Talk to a person
                                                     </button>
                                                 )}
+                                                {['resolved', 'closed'].includes(thread.status) && (
+                                                    <p className="mb-2 text-center text-[11px] font-semibold text-gray-500 dark:text-gray-400">Marked as solved. Reply below if you still need help.</p>
+                                                )}
                                                 {thread.needs_human && (
                                                     <p className="mb-2 text-center text-[11px] font-semibold text-gray-500 dark:text-gray-400">A team member will reply to you here.</p>
                                                 )}
+                                                {replyError && <p className="mb-2 text-[11px] font-bold text-red-600 dark:text-red-400">{replyError}</p>}
+                                                <div className="mb-2">
+                                                    <ScreenshotPicker files={replyFiles} onChange={setReplyFiles} onError={setReplyError} compact />
+                                                </div>
                                                 <div className="flex gap-2">
                                                     <input
                                                         type="text"
@@ -341,6 +423,7 @@ export default function SupportIndex() {
                                 className="w-full rounded-xl border border-gray-200 bg-gray-50 px-4 py-3 text-sm outline-none focus:ring-2 focus:ring-app-primary/20 dark:border-gray-700 dark:bg-gray-800 dark:text-white"
                             />
                         </div>
+                        <ScreenshotPicker files={newFiles} onChange={setNewFiles} onError={setFormError} />
                     </div>
                     <button
                         type="submit"

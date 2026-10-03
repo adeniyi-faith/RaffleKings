@@ -22,6 +22,16 @@ class AiSupportTest extends TestCase
         ])]);
     }
 
+    /** Gemini gives these answers, one per call, in order. */
+    private function geminiSaysInTurn(array ...$answers): void
+    {
+        $sequence = Http::sequence();
+        foreach ($answers as $json) {
+            $sequence->push(['candidates' => [['content' => ['parts' => [['text' => json_encode($json)]]]]]]);
+        }
+        Http::fake(['generativelanguage.googleapis.com/*' => $sequence]);
+    }
+
     private function switchOn(): void
     {
         config([
@@ -116,5 +126,91 @@ class AiSupportTest extends TestCase
 
         Http::assertNothingSent();
         $this->assertSame(1, SupportTicket::firstOrFail()->messages()->count());
+    }
+
+    public function test_the_ai_marks_the_ticket_solved_when_the_customer_says_it_helped(): void
+    {
+        Notification::fake();
+        $this->switchOn();
+        $this->geminiSaysInTurn(
+            ['answerable' => true, 'solved' => false, 'reply' => 'Pick a raffle and press Buy.', 'reason' => 'in KB'],
+            ['answerable' => true, 'solved' => true, 'reply' => 'Glad it helped! Reply here if you need anything else.', 'reason' => 'customer is happy'],
+            ['answerable' => false, 'solved' => false, 'reply' => '', 'reason' => 'new question'],
+        );
+
+        $user = $this->actingAsWordPressUser();
+        $this->postJson('/api/support/tickets', ['subject' => 'Buying', 'message' => 'How do I buy a ticket?'])->assertCreated();
+        $ticket = SupportTicket::firstOrFail();
+        $this->assertSame('pending', $ticket->status);
+
+        app(SupportTicketService::class)->reply($ticket->refresh(), $user, 'Thank you. It helps.', isFromAdmin: false);
+
+        $ticket->refresh();
+        $this->assertSame('resolved', $ticket->status);
+        $this->assertSame('Glad it helped! Reply here if you need anything else.', $ticket->messages()->latest('id')->first()->message);
+
+        // Writing again opens it again.
+        app(SupportTicketService::class)->reply($ticket, $user, 'Actually, one more thing', isFromAdmin: false);
+        $this->assertSame('open', $ticket->refresh()->status);
+    }
+
+    public function test_tickets_stay_open_when_auto_resolve_is_off(): void
+    {
+        Notification::fake();
+        $this->switchOn();
+        config(['ai.auto_resolve' => false]);
+        $this->geminiSays(['answerable' => true, 'solved' => true, 'reply' => 'Glad it helped!', 'reason' => '']);
+
+        $this->actingAsWordPressUser();
+        $this->postJson('/api/support/tickets', ['subject' => 'Thanks', 'message' => 'Thanks, all sorted'])->assertCreated();
+
+        $this->assertSame('pending', SupportTicket::firstOrFail()->status);
+    }
+
+    public function test_a_ticket_the_team_solves_becomes_a_suggested_knowledge_entry(): void
+    {
+        Notification::fake();
+        $this->switchOn();
+        config(['ai.auto_reply' => false, 'ai.learn_from_tickets' => true]);
+
+        $user = $this->actingAsWordPressUser();
+        $this->postJson('/api/support/tickets', ['subject' => 'Prizes', 'message' => 'How do I claim a gadget prize?'])->assertCreated();
+        $ticket = SupportTicket::firstOrFail();
+        app(SupportTicketService::class)->reply($ticket, $user, 'Send us your address and we deliver it within 7 days.', isFromAdmin: true);
+
+        $this->geminiSays(['useful' => true, 'title' => 'How do I claim a gadget prize?', 'body' => 'Reply to the winner message with your delivery address. Gadgets are delivered within 7 days.']);
+        app(SupportTicketService::class)->setStatus($ticket->refresh(), 'resolved');
+
+        $entry = KnowledgeArticle::query()->firstOrFail();
+        $this->assertFalse($entry->is_active);
+        $this->assertSame($ticket->id, $entry->suggested_from_ticket_id);
+        $this->assertSame('How do I claim a gadget prize?', $entry->title);
+
+        // Resolving again (after a reopen) doesn't add a second copy.
+        $ticket->update(['status' => 'open']);
+        app(SupportTicketService::class)->setStatus($ticket, 'closed');
+        $this->assertSame(1, KnowledgeArticle::count());
+    }
+
+    public function test_nothing_is_learned_from_tickets_the_ai_solved_alone_or_when_nothing_is_new(): void
+    {
+        Notification::fake();
+        $this->switchOn();
+        config(['ai.auto_reply' => false]);
+        $this->geminiSays(['useful' => false, 'title' => '', 'body' => '']);
+
+        $user = $this->actingAsWordPressUser();
+        $this->postJson('/api/support/tickets', ['subject' => 'Hi', 'message' => 'Hello'])->assertCreated();
+        $ticket = SupportTicket::firstOrFail();
+        app(SupportTicketService::class)->replyAutomated($ticket, 'Hello! How can I help?');
+        app(SupportTicketService::class)->setStatus($ticket->refresh(), 'resolved');
+        Http::assertNothingSent();
+
+        $other = SupportTicket::create(['user_id' => $user->ID, 'subject' => 'x', 'status' => 'open']);
+        app(SupportTicketService::class)->reply($other, $user, 'Done, check again.', isFromAdmin: true);
+        app(SupportTicketService::class)->setStatus($other->refresh(), 'resolved');
+
+        Http::assertSentCount(1);
+        $this->assertSame(0, KnowledgeArticle::count());
     }
 }

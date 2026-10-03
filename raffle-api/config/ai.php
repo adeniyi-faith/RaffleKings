@@ -22,6 +22,12 @@ return [
     // Most AI calls per day, so a bug or a flood can't run up a bill.
     'daily_limit' => (int) env('AI_DAILY_LIMIT', 300),
 
+    // Mark a ticket resolved when the customer says the AI's answer solved it.
+    'auto_resolve' => (bool) env('AI_AUTO_RESOLVE', true),
+
+    // When the team solves a ticket, suggest a Knowledge base entry from it (staff switch it on).
+    'learn_from_tickets' => (bool) env('AI_LEARN_FROM_TICKETS', true),
+
     // After this many automated replies on one ticket, a person takes over.
     'max_auto_replies' => (int) env('AI_MAX_AUTO_REPLIES', 3),
 

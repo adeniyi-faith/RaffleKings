@@ -29,7 +29,12 @@ class SupportTicketController extends Controller
         /** @var WpUser $user */
         $user = $request->user();
 
-        $ticket = $this->tickets->open($user, $request->string('subject')->toString(), $request->string('message')->toString());
+        $ticket = $this->tickets->open(
+            $user,
+            $request->string('subject')->toString(),
+            $request->string('message')->toString(),
+            $request->file('screenshots', []),
+        );
 
         return response()->json($ticket->load('messages'), 201);
     }
@@ -55,9 +60,13 @@ class SupportTicketController extends Controller
             return response()->json(['message' => 'Ticket not found.'], 404);
         }
 
-        $request->validate(['message' => ['required', 'string', 'max:5000']]);
+        $request->validate([
+            'message' => ['required_without:screenshots', 'nullable', 'string', 'max:5000'],
+            'screenshots' => ['nullable', 'array', 'max:'.OpenSupportTicketRequest::MAX_SCREENSHOTS],
+            'screenshots.*' => OpenSupportTicketRequest::SCREENSHOT_RULES,
+        ]);
 
-        $reply = $this->tickets->reply($ticket, $user, $request->string('message')->toString(), isFromAdmin: false);
+        $reply = $this->tickets->reply($ticket, $user, $request->string('message')->toString(), isFromAdmin: false, screenshots: $request->file('screenshots', []));
 
         return response()->json($reply, 201);
     }

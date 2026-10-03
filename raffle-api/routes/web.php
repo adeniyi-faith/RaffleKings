@@ -560,3 +560,9 @@ Route::get('/reminders/unsubscribe/{user}', function (Request $request, int $use
         'stopUrl' => URL::signedRoute('reminders.unsubscribe', ['user' => $user]),
     ]);
 })->middleware('signed')->name('reminders.unsubscribe');
+
+// A screenshot attached to a support ticket (signed, short-lived link only).
+Route::get('/support/attachments/{message}/{index}', \App\Http\Controllers\SupportAttachmentController::class)
+    ->whereNumber('index')
+    ->middleware('signed')
+    ->name('support.attachment');
