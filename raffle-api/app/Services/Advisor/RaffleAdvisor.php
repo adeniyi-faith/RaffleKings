@@ -10,6 +10,7 @@ use App\Models\Legacy\WpUser;
 use App\Models\Raffle;
 use App\Services\AdminAuditLogService;
 use App\Services\Ai\GeminiClient;
+use App\Services\Ai\GeminiModels;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
 use RuntimeException;
@@ -60,7 +61,7 @@ class RaffleAdvisor
     public function write(AdvisorReport $report): AdvisorReport
     {
         $snapshot = $this->snapshot->build();
-        $report->update(['snapshot' => $snapshot, 'model' => config('services.gemini.assistant_model') ?: 'gemini-3-flash-preview']);
+        $report->update(['snapshot' => $snapshot, 'model' => config('services.gemini.assistant_model') ?: GeminiModels::DEFAULT]);
 
         try {
             $text = $this->gemini->generate('raffle-advisor', $this->system(), $this->prompt($snapshot, $report->focus), schema: $this->schema(), maxTokens: 16000);

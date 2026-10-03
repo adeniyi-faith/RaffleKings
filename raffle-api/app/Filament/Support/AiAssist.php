@@ -27,7 +27,8 @@ final class AiAssist
             ->label('Write with AI')
             ->icon('heroicon-o-sparkles')
             ->color('primary')
-            ->visible(fn () => app(GeminiClient::class)->available())
+            ->visible(fn () => app(GeminiClient::class)->switchedOn())
+            ->modalHidden(fn () => ! app(GeminiClient::class)->available())
             ->modalHeading('Write with AI')
             ->modalDescription('Tell it what to say, or leave this empty for a first draft. If the box already has text, the AI improves it. You can press the button again to get a new version.')
             ->modalSubmitActionLabel('Write it')
@@ -40,6 +41,12 @@ final class AiAssist
             ])
             ->action(function (array $data, Forms\Components\Component $component, Forms\Get $get, Forms\Set $set) use ($purpose, $html, $context) {
                 $name = $component->getName();
+
+                if (! app(GeminiClient::class)->available()) {
+                    Notification::make()->title('AI could not write this')->body(GeminiClient::NO_KEY_MESSAGE)->danger()->send();
+
+                    return;
+                }
 
                 try {
                     $text = app(AiWriter::class)->write(
