@@ -166,6 +166,10 @@ class SupportTicketResource extends Resource
                                 ->prose()
                                 ->helperText(fn (SupportTicketMessage $record) => ($record->is_from_admin ? ($record->is_automated ? 'Automated reply (AI)' : 'RaffleKings team') : 'Customer')
                                     .' · '.$record->created_at?->diffForHumans()),
+                            Infolists\Components\ViewEntry::make('attachments')
+                                ->hiddenLabel()
+                                ->view('filament.support.attachments')
+                                ->visible(fn (SupportTicketMessage $record) => ! empty($record->attachments)),
                         ]),
                 ]),
         ]);
