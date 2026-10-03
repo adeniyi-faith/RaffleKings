@@ -157,14 +157,8 @@ return [
     'gemini' => [
         'api_key' => env('GEMINI_API_KEY'),
         'model' => env('GEMINI_MODEL', 'gemini-2.5-flash-preview-09-2025'),
-        // Used by the AI writing helpers and the support agent (see config/ai.php).
+        // Used by the AI writing helpers, the support agent and the Raffle advisor (see config/ai.php).
         'assistant_model' => env('GEMINI_ASSISTANT_MODEL', 'gemini-3-flash-preview'),
-    ],
-
-    // Claude (Anthropic): used by the Raffle advisor (App\Services\Advisor\RaffleAdvisor).
-    'anthropic' => [
-        'api_key' => env('ANTHROPIC_API_KEY'),
-        'advisor_model' => env('ANTHROPIC_ADVISOR_MODEL', 'claude-opus-5-5'),
     ],
 
 ];

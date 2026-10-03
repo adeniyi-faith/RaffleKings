@@ -7,19 +7,17 @@ use App\Filament\Resources\RaffleResource;
 use App\Jobs\WriteAdvisorReport;
 use App\Models\AdvisorReport;
 use App\Models\AiRequest;
+use App\Models\DailyDrop;
 use App\Models\Legacy\RaffleEntry;
 use App\Models\Legacy\WpUser;
 use App\Models\Raffle;
 use App\Services\Advisor\PlatformSnapshot;
 use App\Services\Advisor\RaffleAdvisor;
-use App\Services\Ai\ClaudeClient;
-use GuzzleHttp\Psr7\Response;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Http\Client\Request;
+use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Queue;
 use Livewire\Livewire;
-use Psr\Http\Client\ClientInterface;
-use Psr\Http\Message\RequestInterface;
-use Psr\Http\Message\ResponseInterface;
 use RuntimeException;
 use Tests\Support\ActsAsAdministrator;
 use Tests\Support\CreatesRaffles;
@@ -29,46 +27,20 @@ class RaffleAdvisorTest extends TestCase
 {
     use ActsAsAdministrator, CreatesRaffles, RefreshDatabase;
 
-    /** @var list<RequestInterface> */
-    private array $sent = [];
-
     protected function setUp(): void
     {
         parent::setUp();
 
-        config(['ai.enabled' => true, 'ai.daily_limit' => 100, 'services.anthropic.api_key' => 'sk-ant-test']);
+        config(['ai.enabled' => true, 'ai.daily_limit' => 100, 'services.gemini.api_key' => 'test-key', 'services.gemini.assistant_model' => 'gemini-3-flash-preview']);
     }
 
-    /** Answer every Claude call with this response instead of reaching the internet. */
-    private function fakeClaude(int $status, array $body): void
+    /** Answer every Gemini call with this answer instead of reaching the internet. */
+    private function fakeGemini(array $answer, int $status = 200): void
     {
-        $test = $this;
-        $this->app->instance(ClaudeClient::class, new ClaudeClient(new class($status, $body, $test) implements ClientInterface
-        {
-            public function __construct(private int $status, private array $body, private RaffleAdvisorTest $test) {}
-
-            public function sendRequest(RequestInterface $request): ResponseInterface
-            {
-                $this->test->recordRequest($request);
-
-                return new Response($this->status, ['Content-Type' => 'application/json'], json_encode($this->body));
-            }
-        }));
-    }
-
-    public function recordRequest(RequestInterface $request): void
-    {
-        $this->sent[] = $request;
-    }
-
-    private function message(array $answer): array
-    {
-        return [
-            'id' => 'msg_1', 'type' => 'message', 'role' => 'assistant', 'model' => 'claude-opus-5-5',
-            'content' => [['type' => 'text', 'text' => json_encode($answer)]],
-            'stop_reason' => 'end_turn', 'stop_sequence' => null,
-            'usage' => ['input_tokens' => 10, 'output_tokens' => 10],
-        ];
+        Http::fake(['generativelanguage.googleapis.com/*' => Http::response(
+            $status === 200 ? ['candidates' => [['content' => ['parts' => [['text' => json_encode($answer)]]]]]] : ['error' => ['message' => 'nope']],
+            $status,
+        )]);
     }
 
     private function answer(): array
@@ -90,12 +62,14 @@ class RaffleAdvisorTest extends TestCase
                         ],
                         'draw_rules' => ['max_wins_per_person' => 1, 'new_players_only' => false, 'loyalty_bonus_entries' => true, 'consolation_min_tickets' => 5, 'consolation_points' => 50],
                     ],
+                    'daily_drop' => null,
                 ],
                 [
-                    'title' => 'Start a daily drop', 'kind' => 'new_idea', 'ready_today' => false,
+                    'title' => 'Start a daily drop', 'kind' => 'incentive', 'ready_today' => true,
                     'what' => 'Credit a random ticket holder daily.', 'why' => 'A reason to come back every day.',
                     'steps' => [], 'risks' => 'Needs building.', 'fairness' => 'Publish the rules.', 'measure' => 'Daily return visits.',
                     'raffle_draft' => null,
+                    'daily_drop' => ['pot_percent' => 10, 'winners_per_day' => 3, 'daily_cap' => 20000, 'drop_time' => '20:00'],
                 ],
             ],
         ];
@@ -130,9 +104,9 @@ class RaffleAdvisorTest extends TestCase
         $this->assertStringNotContainsString('"user_id"', $json);
     }
 
-    public function test_a_report_is_written_from_claudes_answer(): void
+    public function test_a_report_is_written_from_geminis_answer(): void
     {
-        $this->fakeClaude(200, $this->message($this->answer()));
+        $this->fakeGemini($this->answer());
         $report = AdvisorReport::create(['status' => 'pending', 'focus' => 'Plan next week']);
 
         app(RaffleAdvisor::class)->write($report);
@@ -142,20 +116,25 @@ class RaffleAdvisorTest extends TestCase
         $this->assertSame('Players come back on Fridays.', $report->summary);
         $this->assertCount(2, $report->recommendations);
         $this->assertNull($report->recommendations[0]['opened_raffle_id']);
+        $this->assertSame('gemini-3-flash-preview', $report->model);
 
-        $body = json_decode((string) $this->sent[0]->getBody(), true);
-        $this->assertSame('claude-opus-5-5', $body['model']);
-        $this->assertSame('json_schema', $body['output_config']['format']['type']);
-        $this->assertSame('default', $body['fallbacks']);
-        $this->assertStringContainsString('server-side-fallback-2026-07-01', $this->sent[0]->getHeaderLine('anthropic-beta'));
-        $this->assertSame('sk-ant-test', $this->sent[0]->getHeaderLine('x-api-key'));
-        $this->assertStringContainsString('Plan next week', $body['messages'][0]['content']);
+        Http::assertSent(function (Request $request) {
+            $config = $request['generationConfig'];
+
+            return str_contains($request->url(), 'gemini-3-flash-preview:generateContent')
+                && $request->header('x-goog-api-key') === ['test-key']
+                && $config['responseMimeType'] === 'application/json'
+                && isset($config['responseJsonSchema']['properties']['recommendations'])
+                && $config['maxOutputTokens'] === 16000
+                && str_contains($request['contents'][0]['parts'][0]['text'], 'Plan next week')
+                && str_contains($request['systemInstruction']['parts'][0]['text'], 'Daily Drops');
+        });
         $this->assertTrue(AiRequest::query()->where('purpose', 'raffle-advisor')->where('succeeded', true)->exists());
     }
 
-    public function test_a_claude_error_marks_the_report_failed_with_a_plain_reason(): void
+    public function test_an_ai_error_marks_the_report_failed_with_a_plain_reason(): void
     {
-        $this->fakeClaude(401, ['type' => 'error', 'error' => ['type' => 'authentication_error', 'message' => 'invalid x-api-key']]);
+        $this->fakeGemini([], 403);
         $report = AdvisorReport::create(['status' => 'pending']);
 
         app(RaffleAdvisor::class)->write($report);
@@ -164,24 +143,34 @@ class RaffleAdvisorTest extends TestCase
         $this->assertStringContainsString('rejected the key', $report->fresh()->error);
     }
 
-    public function test_nothing_is_sent_without_a_key(): void
+    public function test_an_unreadable_answer_marks_the_report_failed(): void
     {
-        config(['services.anthropic.api_key' => null]);
-        $this->fakeClaude(200, $this->message($this->answer()));
+        $this->fakeGemini(['summary' => 'no list here']);
         $report = AdvisorReport::create(['status' => 'pending']);
 
         app(RaffleAdvisor::class)->write($report);
 
         $this->assertSame('failed', $report->fresh()->status);
-        $this->assertSame([], $this->sent);
+    }
+
+    public function test_nothing_is_sent_without_a_key(): void
+    {
+        config(['services.gemini.api_key' => null]);
+        $this->fakeGemini($this->answer());
+        $report = AdvisorReport::create(['status' => 'pending']);
+
+        app(RaffleAdvisor::class)->write($report);
+
+        $this->assertSame('failed', $report->fresh()->status);
+        Http::assertNothingSent();
     }
 
     public function test_a_suggestion_opens_as_a_draft_raffle_once(): void
     {
         $admin = $this->actingAsAdministrator();
-        $report = AdvisorReport::create(['status' => 'ready', 'summary' => 'x', 'recommendations' => array_map(fn ($r) => $r + ['opened_raffle_id' => null], $this->answer()['recommendations'])]);
+        $report = AdvisorReport::create(['status' => 'ready', 'summary' => 'x', 'recommendations' => $this->answer()['recommendations']]);
 
-        $raffle = app(RaffleAdvisor::class)->openAsDraft($report, 0, $admin);
+        $raffle = app(RaffleAdvisor::class)->openAsDraft($report, 0, $admin)['raffle'];
 
         $this->assertSame('draft', $raffle->status);
         $this->assertSame('Friday Flash: ₦50,000', $raffle->title);
@@ -192,18 +181,37 @@ class RaffleAdvisorTest extends TestCase
         $this->assertSame(10, $raffle->prizeTiers[1]->winner_count);
         $this->assertTrue($raffle->drawRules()->loyaltyBonusEntries);
         $this->assertSame($raffle->id, $report->fresh()->recommendations[0]['opened_raffle_id']);
-        $this->assertDatabaseHas('admin_audit_logs', ['action' => 'raffle.opened_from_advice', 'subject_id' => $raffle->id]);
+        $this->assertSame(0, DailyDrop::query()->count());
+        $this->assertDatabaseHas('admin_audit_logs', ['action' => 'advisor.suggestion_opened', 'subject_id' => $report->id]);
 
         $this->expectException(RuntimeException::class);
         app(RaffleAdvisor::class)->openAsDraft($report, 0, $admin);
     }
 
-    public function test_an_idea_without_a_raffle_cannot_be_opened(): void
+    public function test_a_daily_drop_suggestion_opens_as_a_draft_drop_that_pays_nothing_yet(): void
     {
         $admin = $this->actingAsAdministrator();
         $report = AdvisorReport::create(['status' => 'ready', 'recommendations' => $this->answer()['recommendations']]);
 
-        $this->expectExceptionMessage('no ready-made raffle');
+        $drop = app(RaffleAdvisor::class)->openAsDraft($report, 1, $admin)['drop'];
+
+        $this->assertSame('draft', $drop->status);
+        $this->assertNull($drop->raffle_id);
+        $this->assertSame(10.0, $drop->pot_percent);
+        $this->assertSame(3, $drop->winners_per_day);
+        $this->assertSame(20000.0, $drop->daily_cap);
+        $this->assertSame('20:00', $drop->drop_time);
+        $this->assertSame($drop->id, $report->fresh()->recommendations[1]['opened_drop_id']);
+    }
+
+    public function test_an_idea_with_nothing_ready_made_cannot_be_opened(): void
+    {
+        $admin = $this->actingAsAdministrator();
+        $recs = $this->answer()['recommendations'];
+        $recs[1]['daily_drop'] = null;
+        $report = AdvisorReport::create(['status' => 'ready', 'recommendations' => $recs]);
+
+        $this->expectExceptionMessage('nothing ready-made');
         app(RaffleAdvisor::class)->openAsDraft($report, 1, $admin);
     }
 
@@ -211,7 +219,7 @@ class RaffleAdvisorTest extends TestCase
     {
         $admin = $this->actingAsAdministrator();
         $report = AdvisorReport::create(['status' => 'ready', 'recommendations' => $this->answer()['recommendations']]);
-        $raffle = app(RaffleAdvisor::class)->openAsDraft($report, 0, $admin);
+        $raffle = app(RaffleAdvisor::class)->openAsDraft($report, 0, $admin)['raffle'];
         $raffle->update(['status' => 'published']);
         RaffleEntry::create(['user_id' => $admin->ID, 'raffle_id' => $raffle->public_id, 'ticket_number' => 1, 'txn_id' => 1]);
 
@@ -241,7 +249,8 @@ class RaffleAdvisorTest extends TestCase
 
         Livewire::test(AdvisorPage::class)
             ->assertSee('Friday flash raffle')
-            ->assertSee('Needs building')
+            ->assertSee('Can run today')
+            ->assertSee('Set up as a draft Daily Drop')
             ->call('openDraft', 0)
             ->assertRedirect(RaffleResource::getUrl('edit', ['record' => Raffle::query()->sole()]));
     }

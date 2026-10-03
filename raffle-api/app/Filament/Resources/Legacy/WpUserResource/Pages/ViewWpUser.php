@@ -527,7 +527,7 @@ class ViewWpUser extends ViewRecord
             'streak' => (int) ($points->streak_count ?? 0),
             'tickets' => RaffleEntry::query()->where('user_id', $user->ID)->count(),
             'topped_up' => $credits('deposit'),
-            'won' => $credits('prize_payout'),
+            'won' => $credits('prize_payout') + $credits('daily_drop'),
             'withdrawn' => (float) WithdrawalRequest::query()->where('user_id', $user->ID)->where('status', 'paid')->sum('amount_to_send'),
             'referral_earnings' => $credits('referral_commission'),
             'friends_referred' => WpUserMeta::query()->where('meta_key', 'referred_by')->where('meta_value', (string) $user->ID)->count(),

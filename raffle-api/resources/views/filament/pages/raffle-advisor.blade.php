@@ -10,7 +10,7 @@
     <div @if ($pending) wire:poll.5s @endif class="space-y-6">
         <x-filament::section heading="Ask the advisor" description="Leave the box empty for general advice, or ask about something specific.">
             @if (! $this->aiAvailable())
-                <p class="text-sm text-gray-500">Add a Claude (Anthropic) key in Settings → AI → "Claude (raffle advisor)" to get advice. The numbers below work without it.</p>
+                <p class="text-sm text-gray-500">Add a Gemini key in Settings → AI → "Google Gemini" and switch on "AI helpers on" to get advice. The numbers below work without it.</p>
             @else
                 <form wire:submit="askAdvisor" class="space-y-3">
                     <textarea wire:model="focus" rows="2" maxlength="1000"
@@ -84,32 +84,48 @@
                                     @endif
                                 </dl>
 
-                                @if (is_array($rec['raffle_draft'] ?? null))
-                                    @php $d = $rec['raffle_draft']; @endphp
-                                    <div class="mt-4 rounded-lg bg-gray-50 p-3 text-sm dark:bg-white/5">
-                                        <p class="font-medium">Ready-made raffle: {{ $d['title'] ?? '' }}</p>
-                                        <p class="mt-1 text-gray-600 dark:text-gray-300">
-                                            ₦{{ number_format((float) ($d['ticket_price'] ?? 0)) }} a ticket · {{ number_format((int) ($d['tickets_available'] ?? 0)) }} tickets ·
-                                            {{ ($d['is_flash'] ?? false) ? '⚡ flash, '.($d['flash_hours'] ?? 1).' hours' : ($d['sales_days'] ?? 7).' days' }} ·
-                                            grand prize: {{ $d['grand_prize'] ?? '' }}
-                                        </p>
-                                        @if (! empty($d['prize_tiers']))
-                                            <ul class="mt-1 text-gray-600 dark:text-gray-300">
-                                                @foreach ($d['prize_tiers'] as $t)
-                                                    <li>{{ $t['tier_name'] ?? '' }}: {{ $t['prize_description'] ?? '' }} × {{ $t['winner_count'] ?? 1 }}</li>
-                                                @endforeach
-                                            </ul>
+                                @php
+                                    $d = is_array($rec['raffle_draft'] ?? null) ? $rec['raffle_draft'] : null;
+                                    $dd = is_array($rec['daily_drop'] ?? null) ? $rec['daily_drop'] : null;
+                                @endphp
+                                @if ($d || $dd)
+                                    <div class="mt-4 space-y-2 rounded-lg bg-gray-50 p-3 text-sm dark:bg-white/5">
+                                        @if ($d)
+                                            <p class="font-medium">Ready-made raffle: {{ $d['title'] ?? '' }}</p>
+                                            <p class="text-gray-600 dark:text-gray-300">
+                                                ₦{{ number_format((float) ($d['ticket_price'] ?? 0)) }} a ticket · {{ number_format((int) ($d['tickets_available'] ?? 0)) }} tickets ·
+                                                {{ ($d['is_flash'] ?? false) ? '⚡ flash, '.($d['flash_hours'] ?? 1).' hours' : ($d['sales_days'] ?? 7).' days' }} ·
+                                                grand prize: {{ $d['grand_prize'] ?? '' }}
+                                            </p>
+                                            @if (! empty($d['prize_tiers']))
+                                                <ul class="text-gray-600 dark:text-gray-300">
+                                                    @foreach ($d['prize_tiers'] as $t)
+                                                        <li>{{ $t['tier_name'] ?? '' }}: {{ $t['prize_description'] ?? '' }} × {{ $t['winner_count'] ?? 1 }}</li>
+                                                    @endforeach
+                                                </ul>
+                                            @endif
+                                        @endif
+                                        @if ($dd)
+                                            <p class="font-medium">🎁 Daily Drop</p>
+                                            <p class="text-gray-600 dark:text-gray-300">
+                                                {{ $dd['pot_percent'] ?? 0 }}% of each day's new sales, shared by {{ $dd['winners_per_day'] ?? 1 }} random ticket holder(s) at {{ $dd['drop_time'] ?? '20:00' }}@if (! empty($dd['daily_cap'])), up to ₦{{ number_format((float) $dd['daily_cap']) }} a day @endif
+                                            </p>
                                         @endif
 
-                                        <div class="mt-3">
-                                            @if (! empty($rec['opened_raffle_id']))
-                                                <x-filament::link :href="\App\Filament\Resources\RaffleResource::getUrl('edit', ['record' => $rec['opened_raffle_id']])" icon="heroicon-o-arrow-right">
-                                                    Opened as a draft: view it
-                                                </x-filament::link>
+                                        <div class="pt-1">
+                                            @if (! empty($rec['opened_raffle_id']) || ! empty($rec['opened_drop_id']))
+                                                <div class="flex flex-wrap gap-4">
+                                                    @if (! empty($rec['opened_raffle_id']))
+                                                        <x-filament::link :href="\App\Filament\Resources\RaffleResource::getUrl('edit', ['record' => $rec['opened_raffle_id']])" icon="heroicon-o-arrow-right">Draft raffle: view it</x-filament::link>
+                                                    @endif
+                                                    @if (! empty($rec['opened_drop_id']))
+                                                        <x-filament::link :href="\App\Filament\Resources\DailyDropResource::getUrl('edit', ['record' => $rec['opened_drop_id']])" icon="heroicon-o-arrow-right">Draft Daily Drop: view it</x-filament::link>
+                                                    @endif
+                                                </div>
                                             @else
                                                 <x-filament::button size="sm" icon="heroicon-o-plus" wire:click="openDraft({{ $i }})" wire:loading.attr="disabled"
-                                                    wire:confirm="Create this raffle as a draft? It stays hidden from customers until you publish it.">
-                                                    Open as a draft raffle
+                                                    wire:confirm="Create this as a draft? Customers see nothing, and no money moves, until you publish it or switch it on.">
+                                                    {{ $d && $dd ? 'Open raffle and drop as drafts' : ($d ? 'Open as a draft raffle' : 'Set up as a draft Daily Drop') }}
                                                 </x-filament::button>
                                             @endif
                                         </div>
