@@ -154,3 +154,23 @@ Schedule::call(fn () => app(\App\Services\Engagement\LuckyMeter::class)->countRe
     ->everyTenMinutes()
     ->name('lucky-meter')
     ->withoutOverlapping(10);
+
+// Member segments: sort every customer again each night (Lagos time), and
+// check how claimed comeback offers did (App\Services\Retention).
+Schedule::call(function () {
+    app(\App\Services\Retention\MemberSegments::class)->refresh();
+    app(\App\Services\Retention\ComebackOffers::class)->trackResults();
+    app(\App\Services\Retention\DeliveryTracker::class)->prune();
+})
+    ->dailyAt('04:30')
+    ->timezone(config('raffles.timezone', 'Africa/Lagos'))
+    ->name('member-segments')
+    ->withoutOverlapping(120);
+
+// Comeback offers: end old ones, send "last call" reminders, and once a day
+// at the chosen hour make new offers. Makes nothing while switched off in
+// Settings → Reminders → Comeback offers (App\Services\Retention\ComebackOffers).
+Schedule::call(fn () => app(\App\Services\Retention\ComebackOffers::class)->runDue())
+    ->hourly()
+    ->name('comeback-offers')
+    ->withoutOverlapping(30);

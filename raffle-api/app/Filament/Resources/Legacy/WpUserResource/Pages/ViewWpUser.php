@@ -18,6 +18,8 @@ use Filament\Forms;
 use Filament\Notifications\Notification;
 use App\Models\Legacy\RaffleEntry;
 use App\Models\Legacy\WpUser;
+use App\Models\Retention\MemberProfile;
+use App\Services\Retention\MemberSegments;
 use App\Models\Legacy\WpUserMeta;
 use App\Models\PlayLimit;
 use App\Models\UserPoints;
@@ -657,6 +659,10 @@ class ViewWpUser extends ViewRecord
                     Components\TextEntry::make('user_registered')->label('Joined')->since()->placeholder('Unknown')->tooltip(fn (WpUser $record) => (string) $record->user_registered),
                     Components\TextEntry::make('last_active')->label('Last money or ticket activity')
                         ->state(fn () => $this->summary()['last_active']?->diffForHumans() ?? 'Never'),
+                    // Growth → Member segments (sorted every night).
+                    Components\TextEntry::make('member_segment')->label('Segment')
+                        ->state(fn (WpUser $record) => MemberSegments::label(MemberProfile::query()->whereKey($record->ID)->value('segment')))
+                        ->helperText(fn (WpUser $record) => implode(', ', array_map(fn ($f) => MemberSegments::flagLabel($f), MemberSegments::flagsFor($record->ID))) ?: null),
                 ]),
 
             Components\Section::make('Contact & bank accounts')
