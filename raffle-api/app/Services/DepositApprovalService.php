@@ -6,7 +6,6 @@ use App\Models\Legacy\RaffleEntry;
 use App\Models\Legacy\RaffleTransaction;
 use App\Models\Legacy\RaffleWinner;
 use App\Models\Legacy\WpUser;
-use App\Models\Wallet;
 use App\Notifications\LegacyDepositApproved;
 use App\Notifications\TicketPurchaseReceipt;
 use Illuminate\Database\Eloquent\Collection;
@@ -77,6 +76,11 @@ class DepositApprovalService
     public function approve(WpUser $admin, RaffleTransaction $transaction, bool $creditWalletInstead = false): RaffleTransaction
     {
         $this->guardApprovable($transaction);
+
+        // Staff never approve their own payment (money-safety audit I2).
+        if ((int) $admin->ID === (int) $transaction->user_id) {
+            throw new RuntimeException('You can\'t approve your own payment. Ask another staff member.');
+        }
 
         $bonusPercent = (float) config('payments.legacy_deposit_bonus_percent');
         $bonusAmount = 0.0;
@@ -239,18 +243,13 @@ class DepositApprovalService
 
     private function creditBalance(int $userId, string $balanceType, float $amount, string $reason, RaffleTransaction $transaction): void
     {
-        $wallet = Wallet::query()->where('user_id', $userId)->lockForUpdate()->first()
-            ?? Wallet::create(['user_id' => $userId, 'wallet_balance' => 0, 'earnings_balance' => 0]);
-
-        $column = $balanceType === 'wallet' ? 'wallet_balance' : 'earnings_balance';
-        $wallet->{$column} = (float) $wallet->{$column} + $amount;
-        $wallet->save();
-
-        $this->ledger->recordCredit(
+        $this->ledger->credit(
             userId: $userId,
             balanceType: $balanceType,
-            amount: $amount,
+            amount: round($amount, 2),
             reason: $reason,
+            key: "{$reason}:raffle_transaction:{$transaction->id}",
+            from: $reason === 'deposit' ? 'gateway_clearing' : 'promotions',
             referenceType: RaffleTransaction::class,
             referenceId: (int) $transaction->id,
         );
