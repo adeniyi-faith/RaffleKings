@@ -4,7 +4,7 @@ namespace App\Services;
 
 use App\Exceptions\MinimumRedemptionNotMetException;
 use App\Models\Legacy\WpUser;
-use App\Models\Wallet;
+use App\Models\PointLedgerEntry;
 use Illuminate\Support\Facades\DB;
 
 /**
@@ -20,6 +20,7 @@ class PointRedemptionService
     public function __construct(
         private readonly PointsService $points,
         private readonly WalletLedgerService $walletLedger,
+        private readonly AccountRestrictions $restrictions,
     ) {}
 
     /**
@@ -30,6 +31,8 @@ class PointRedemptionService
     public function redeem(WpUser $user): array
     {
         return DB::transaction(function () use ($user) {
+            $this->restrictions->assertCanMoveMoney($user->ID, 'redeem');
+
             $currentPoints = $this->points->balance($user);
             // Both editable in Settings → Rewards (config/rewards.php).
             $minimum = (int) config('rewards.minimum_redeem_points');
@@ -42,19 +45,23 @@ class PointRedemptionService
 
             $this->points->debit($user, $currentPoints, 'redemption', description: "Redeemed {$currentPoints} points for ₦{$walletValue}");
 
-            $wallet = Wallet::query()->where('user_id', $user->ID)->lockForUpdate()->first()
-                ?? Wallet::create(['user_id' => $user->ID, 'wallet_balance' => 0, 'earnings_balance' => 0]);
+            // Keyed by the points-ledger row that paid for it: one redemption, one credit.
+            $pointsEntryId = PointLedgerEntry::query()->where('user_id', $user->ID)->where('reason', 'redemption')->max('id');
 
-            $wallet->wallet_balance = (float) $wallet->wallet_balance + $walletValue;
-            $wallet->save();
-
-            $this->walletLedger->recordCredit(
+            $this->walletLedger->credit(
                 userId: $user->ID,
                 balanceType: 'wallet',
                 amount: $walletValue,
                 reason: 'points_redemption',
+                key: "points_redemption:{$pointsEntryId}",
+                from: 'promotions',
+                referenceType: 'point_ledger_entry',
+                referenceId: $pointsEntryId,
                 description: "Redeemed {$currentPoints} points.",
+                customerAction: 'redeem',
             );
+
+            $wallet = $this->walletLedger->lockWallet($user->ID);
 
             return [
                 'redeemed_points' => $currentPoints,

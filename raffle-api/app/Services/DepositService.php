@@ -6,7 +6,6 @@ use App\Contracts\PaymentGateway;
 use App\Exceptions\PaymentGatewayException;
 use App\Models\Deposit;
 use App\Models\Legacy\WpUser;
-use App\Models\Wallet;
 use App\Notifications\DepositConfirmed;
 use App\Notifications\ReferralCommissionEarned;
 use App\Services\Payments\FlutterwaveGateway;
@@ -182,17 +181,13 @@ class DepositService
                 'verified_at' => now(),
             ]);
 
-            $wallet = Wallet::query()->where('user_id', $deposit->user_id)->lockForUpdate()->first()
-                ?? Wallet::create(['user_id' => $deposit->user_id, 'wallet_balance' => 0, 'earnings_balance' => 0]);
-
-            $wallet->wallet_balance = (float) $wallet->wallet_balance + (float) $deposit->amount;
-            $wallet->save();
-
-            $this->ledger->recordCredit(
+            $this->ledger->credit(
                 userId: $deposit->user_id,
                 balanceType: 'wallet',
-                amount: (float) $deposit->amount,
+                amount: (string) $deposit->amount,
                 reason: 'deposit',
+                key: "deposit:{$deposit->id}",
+                from: 'gateway_clearing',
                 referenceType: Deposit::class,
                 referenceId: $deposit->id,
                 description: "Deposit via {$gatewayName}",

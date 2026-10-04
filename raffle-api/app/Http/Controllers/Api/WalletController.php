@@ -3,6 +3,9 @@
 namespace App\Http\Controllers\Api;
 
 use App\Exceptions\InsufficientBalanceException;
+use App\Exceptions\UserRestrictedException;
+use App\Support\Money;
+use App\Support\MoneyRules;
 use App\Http\Controllers\Controller;
 use App\Models\Legacy\WpUser;
 use App\Models\Wallet;
@@ -29,6 +32,13 @@ class WalletController extends Controller
         return response()->json([
             'wallet_balance' => (float) ($wallet->wallet_balance ?? 0),
             'earnings_balance' => (float) ($wallet->earnings_balance ?? 0),
+            // Winnings waiting in a withdrawal request.
+            'held_balance' => (float) ($wallet->held_balance ?? 0),
+            // Exact figures in kobo (₦1 = 100 kobo), with the currency.
+            'currency' => 'NGN',
+            'wallet_balance_kobo' => Money::kobo($wallet?->wallet_balance),
+            'earnings_balance_kobo' => Money::kobo($wallet?->earnings_balance),
+            'held_balance_kobo' => Money::kobo($wallet?->held_balance),
         ]);
     }
 
@@ -42,11 +52,14 @@ class WalletController extends Controller
         $user = $request->user();
 
         $data = $request->validate([
-            'amount' => ['required', 'numeric', 'min:0.01', 'max:100000000'],
+            'amount' => MoneyRules::amount(),
+            'idempotency_key' => MoneyRules::idempotencyKey(),
         ]);
 
         try {
-            $wallet = $transfers->transfer($user, (float) $data['amount']);
+            $wallet = $transfers->transfer($user, (float) $data['amount'], $data['idempotency_key']);
+        } catch (UserRestrictedException $e) {
+            return response()->json(['message' => $e->getMessage()], 403);
         } catch (InsufficientBalanceException) {
             return response()->json(['message' => "You don't have that much in your winnings."], 422);
         } catch (InvalidArgumentException $e) {
@@ -57,6 +70,9 @@ class WalletController extends Controller
             'moved' => round((float) $data['amount'], 2),
             'wallet_balance' => (float) $wallet->wallet_balance,
             'earnings_balance' => (float) $wallet->earnings_balance,
+            'currency' => 'NGN',
+            'wallet_balance_kobo' => Money::kobo($wallet->wallet_balance),
+            'earnings_balance_kobo' => Money::kobo($wallet->earnings_balance),
         ]);
     }
 }
