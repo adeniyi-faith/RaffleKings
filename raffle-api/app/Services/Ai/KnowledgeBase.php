@@ -3,6 +3,7 @@
 namespace App\Services\Ai;
 
 use App\Models\KnowledgeArticle;
+use App\Support\GuideTokens;
 use Illuminate\Support\Str;
 
 /**
@@ -35,7 +36,7 @@ class KnowledgeBase
                 continue;
             }
 
-            $chunk = "### {$row['article']->title}\n".Str::limit(strip_tags($row['article']->body), 6000, '')."\n\n";
+            $chunk = "### {$row['article']->title}\n".Str::limit(strip_tags(GuideTokens::fill($row['article']->body)), 6000, '')."\n\n";
             if (mb_strlen($out) + mb_strlen($chunk) > self::CHAR_BUDGET) {
                 break;
             }
