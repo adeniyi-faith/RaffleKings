@@ -20,19 +20,23 @@ class KnowledgeBase
         $words = collect(preg_split('/[^\p{L}\p{N}]+/u', Str::lower($question), -1, PREG_SPLIT_NO_EMPTY))
             ->filter(fn ($w) => mb_strlen($w) > 2)->unique()->values();
 
-        $articles = KnowledgeArticle::query()->where('is_active', true)->get()
-            ->map(function (KnowledgeArticle $a) use ($words) {
-                $haystack = Str::lower($a->title.' '.$a->body);
-                $score = $words->sum(fn ($w) => str_contains($haystack, $w) ? (str_contains(Str::lower($a->title), $w) ? 3 : 1) : 0);
+        $all = KnowledgeArticle::query()->where('is_active', true)->get()
+            ->map(fn (KnowledgeArticle $a) => ['article' => $a, 'title' => Str::lower($a->title), 'text' => Str::lower($a->title.' '.GuideTokens::fill($a->body))]);
 
-                return ['article' => $a, 'score' => $score];
-            })
+        // A word found in almost every article ("you", "the", "can") says nothing, so each word
+        // counts for more the fewer articles it appears in. Without this, long articles full of
+        // everyday words would outrank the one that really answers a messy question.
+        $total = max(1, $all->count());
+        $weight = $words->mapWithKeys(fn ($w) => [$w => log(1 + $total / max(1, $all->filter(fn ($row) => str_contains($row['text'], $w))->count()))]);
+
+        $articles = $all
+            ->map(fn ($row) => ['article' => $row['article'], 'score' => $words->sum(fn ($w) => str_contains($row['text'], $w) ? $weight[$w] * (str_contains($row['title'], $w) ? 3 : 1) : 0)])
             ->sortByDesc('score');
 
         $out = '';
         foreach ($articles as $row) {
             // With a big base, skip articles that share no words with the question.
-            if ($row['score'] === 0 && $articles->count() > 12) {
+            if ($row['score'] <= 0 && $articles->count() > 12) {
                 continue;
             }
 
