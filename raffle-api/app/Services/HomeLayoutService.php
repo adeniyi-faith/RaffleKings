@@ -4,6 +4,8 @@ namespace App\Services;
 
 use App\Models\HomeItem;
 use App\Models\HomeSection;
+use Illuminate\Support\Carbon;
+use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Schema;
 
@@ -15,19 +17,78 @@ use Illuminate\Support\Facades\Schema;
  */
 class HomeLayoutService
 {
+    public const CACHE_KEY = 'home-layout:v1';
+
+    /** A safety net only: every edit in the admin clears the saved copy straight away. */
+    private const CACHE_SECONDS = 600;
+
     /** @return list<array<string, mixed>> */
     public function forVisitor(bool $loggedIn): array
     {
-        if (! Schema::hasTable('home_sections') || ! HomeSection::query()->exists()) {
+        $stored = $this->stored();
+
+        if ($stored === null) {
             return $this->publicShape($this->defaults(), $loggedIn);
         }
 
-        $sections = HomeSection::query()->where('is_visible', true)->orderBy('sort_order')->with('items')->get()
-            ->map(fn (HomeSection $s) => $s->only(['type', 'title', 'subtitle', 'badge', 'link_label', 'link_url']) + [
-                'items' => $s->items->map(fn (HomeItem $i) => $i->attributesToArray() + ['locked_now' => $i->isLockedNow(), 'shown' => $i->isShownTo($loggedIn)])->all(),
-            ])->all();
+        // Dates (a card's start, end and unlock time) are checked on every visit,
+        // against the saved copy, so a card still appears and locks on time.
+        $sections = array_map(fn (array $section) => array_merge($section, [
+            'items' => array_map(fn (array $item) => array_merge($item, [
+                'locked_now' => $this->isLockedNow($item),
+                'shown' => $this->isShownTo($item, $loggedIn),
+            ]), $section['items']),
+        ]), $stored);
 
         return $this->publicShape($sections, $loggedIn, fromDatabase: true);
+    }
+
+    /** Forget the saved copy, so the next visit reads what staff just saved. */
+    public static function forgetCache(): void
+    {
+        Cache::forget(self::CACHE_KEY);
+    }
+
+    /**
+     * The visible sections and their cards as saved in the admin, or null when
+     * the default layout applies. Kept for a few minutes (it only changes when
+     * staff edit the homepage) instead of being read from the database on every visit.
+     *
+     * @return list<array<string, mixed>>|null
+     */
+    private function stored(): ?array
+    {
+        $saved = Cache::remember(self::CACHE_KEY, self::CACHE_SECONDS, function () {
+            if (! Schema::hasTable('home_sections') || ! HomeSection::query()->exists()) {
+                return ['sections' => null];
+            }
+
+            return ['sections' => HomeSection::query()->where('is_visible', true)->orderBy('sort_order')->with('items')->get()
+                ->map(fn (HomeSection $s) => $s->only(['type', 'title', 'subtitle', 'badge', 'link_label', 'link_url']) + [
+                    'items' => $s->items->map(fn (HomeItem $i) => $i->attributesToArray())->all(),
+                ])->all()];
+        });
+
+        return $saved['sections'];
+    }
+
+    /** @param  array<string, mixed>  $item */
+    private function isLockedNow(array $item): bool
+    {
+        return ! empty($item['is_locked']) && (empty($item['unlock_at']) || Carbon::parse($item['unlock_at'])->isFuture());
+    }
+
+    /** @param  array<string, mixed>  $item */
+    private function isShownTo(array $item, bool $loggedIn): bool
+    {
+        return ! empty($item['is_visible'])
+            && (empty($item['starts_at']) || Carbon::parse($item['starts_at'])->lte(now()))
+            && (empty($item['ends_at']) || Carbon::parse($item['ends_at'])->gte(now()))
+            && match ($item['audience'] ?? 'all') {
+                'guests' => ! $loggedIn,
+                'members' => $loggedIn,
+                default => true,
+            };
     }
 
     /** Replace the layout with the original homepage (used by the admin's "Load the default layout" button). */
@@ -36,6 +97,7 @@ class HomeLayoutService
         DB::transaction(function () {
             HomeItem::query()->delete();
             HomeSection::query()->delete();
+            self::forgetCache();
 
             foreach ($this->defaults() as $order => $section) {
                 $items = $section['items'] ?? [];
@@ -47,6 +109,8 @@ class HomeLayoutService
                 }
             }
         });
+
+        self::forgetCache();
     }
 
     /**
