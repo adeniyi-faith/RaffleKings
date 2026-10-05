@@ -9,6 +9,7 @@ use App\Models\Legacy\WpUserMeta;
 use App\Models\Raffle;
 use App\Services\Engagement\PlayerProfiles;
 use Illuminate\Http\JsonResponse;
+use Illuminate\Support\Facades\Cache;
 
 /**
  * Item 27 — Hall of Fame, replacing the legacy `hall_of_fame` ajax-router
@@ -29,7 +30,18 @@ use Illuminate\Http\JsonResponse;
  */
 class HallOfFameController extends Controller
 {
+    public const CACHE_KEY = 'hall-of-fame:v1';
+
+    /** Winners only change when a draw finishes; any winner change clears the saved copy sooner. */
+    private const CACHE_SECONDS = 300;
+
     public function index(): JsonResponse
+    {
+        return response()->json(Cache::remember(self::CACHE_KEY, self::CACHE_SECONDS, fn () => $this->build()));
+    }
+
+    /** @return array<string, mixed> */
+    private function build(): array
     {
         $winners = RaffleWinner::query()
             ->where('is_visible', true)
@@ -71,11 +83,11 @@ class HallOfFameController extends Controller
             ];
         });
 
-        return response()->json([
-            'featured' => $formatted->sortByDesc('prize_amount')->take(5)->values(),
-            'recent' => $formatted->values(),
+        return [
+            'featured' => $formatted->sortByDesc('prize_amount')->take(5)->values()->all(),
+            'recent' => $formatted->values()->all(),
             'total_count' => RaffleWinner::query()->where('is_visible', true)->count(),
-        ]);
+        ];
     }
 
     /** A real uploaded picture (https, or a path on this site), else the site-wide cartoon avatar for that name. */

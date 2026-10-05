@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 
 /** Fetches a server-computed price quote (TicketPricingService, via
- *  GET /api/raffles/{id}/price-quote) for several quantities at once —
+ *  GET /api/raffles/{id}/price-quotes) for several quantities in ONE request —
  *  what the ticket-bundle tier cards need to show real, never-hand-
  *  calculated discounted prices per tier. */
 export function useTicketPriceQuotes(raffleId, quantities) {
@@ -17,14 +17,12 @@ export function useTicketPriceQuotes(raffleId, quantities) {
         const controller = new AbortController();
         setLoading(true);
 
-        Promise.all(
-            quantities.map((qty) =>
-                fetch(`/api/raffles/${raffleId}/price-quote?quantity=${qty}`, { signal: controller.signal })
-                    .then((res) => res.json())
-                    .then((data) => [qty, data]),
-            ),
-        )
-            .then((entries) => setQuotes(Object.fromEntries(entries)))
+        const params = new URLSearchParams();
+        quantities.forEach((qty) => params.append('quantities[]', qty));
+
+        fetch(`/api/raffles/${raffleId}/price-quotes?${params}`, { signal: controller.signal })
+            .then((res) => res.json())
+            .then((data) => setQuotes(data.quotes ?? {}))
             .catch((err) => {
                 if (err.name !== 'AbortError') {
                     // Leave whatever quotes we have; the UI falls back to a loading state per-tier.
