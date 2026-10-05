@@ -247,4 +247,21 @@ class AiSupportTest extends TestCase
         $this->assertSame('{"ok":true}', $text);
         Http::assertSentCount(3);
     }
+
+    public function test_an_answer_wrapped_in_extra_words_or_a_code_fence_is_still_read(): void
+    {
+        Notification::fake();
+        $this->switchOn();
+        KnowledgeArticle::create(['title' => 'Withdrawal times', 'body' => 'Withdrawals arrive within 24 hours.']);
+        $json = json_encode(['answerable' => true, 'solved' => false, 'reply' => 'Withdrawals arrive within 24 hours.', 'reason' => 'in KB']);
+        Http::fake(['generativelanguage.googleapis.com/*' => Http::response([
+            'candidates' => [['content' => ['parts' => [['text' => "Here you go:\n```json\n{$json}\n```"]]]]],
+        ])]);
+
+        $this->actingAsWordPressUser();
+        $this->postJson('/api/support/tickets', ['subject' => 'Withdrawal', 'message' => 'How long do withdrawals take?'])->assertCreated();
+
+        $this->assertNotNull(SupportTicket::query()->with('messages')->firstOrFail()->messages->firstWhere('is_automated', true));
+        Http::assertSent(fn ($r) => data_get($r->data(), 'generationConfig.maxOutputTokens') === 4096 && data_get($r->data(), 'generationConfig.responseJsonSchema.required') !== null);
+    }
 }
