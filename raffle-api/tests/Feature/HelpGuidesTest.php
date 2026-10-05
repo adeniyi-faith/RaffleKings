@@ -130,4 +130,15 @@ class HelpGuidesTest extends TestCase
         $this->assertStringContainsString('₦7,500', $context);
         $this->assertStringNotContainsString('{{min_withdrawal}}', $context);
     }
+
+    public function test_a_messy_question_finds_the_guide_that_answers_it(): void
+    {
+        app(GuideSync::class)->run();
+
+        $context = app(KnowledgeBase::class)->contextFor("i paid 5000 on paystack my bank dont reverse am but wallet never show, wetin i do\npaid but wallet not credited");
+        $firstTitle = strtok($context, "\n");
+
+        $this->assertStringContainsString('wallet', strtolower($firstTitle));
+        $this->assertStringContainsString('credited', strtolower($context));
+    }
 }

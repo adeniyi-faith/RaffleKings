@@ -73,6 +73,9 @@ class AiSupportTest extends TestCase
         $ticket = SupportTicket::query()->with('messages')->firstOrFail();
         $this->assertSame('open', $ticket->status);
         $this->assertCount(1, $ticket->messages);
+
+        // Staff can see why it stayed quiet.
+        $this->assertSame('not covered', \App\Models\AiRequest::query()->where('purpose', 'support:held-back')->where('support_ticket_id', $ticket->id)->value('error'));
     }
 
     public function test_it_does_nothing_when_auto_reply_is_off(): void
