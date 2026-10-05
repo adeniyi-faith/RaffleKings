@@ -216,4 +216,35 @@ class AiSupportTest extends TestCase
         Http::assertSentCount(1);
         $this->assertSame(0, KnowledgeArticle::count());
     }
+
+    public function test_a_short_gemini_hiccup_does_not_leave_the_customer_unanswered(): void
+    {
+        Notification::fake();
+        $this->switchOn();
+        KnowledgeArticle::create(['title' => 'Withdrawal times', 'body' => 'Withdrawals arrive within 24 hours.']);
+        Http::fake(['generativelanguage.googleapis.com/*' => Http::sequence()
+            ->push('busy', 503)
+            ->push(['candidates' => [['content' => ['parts' => [['text' => json_encode(['answerable' => true, 'reply' => 'Withdrawals arrive within 24 hours.', 'reason' => 'in KB'])]]]]]])]);
+
+        $this->actingAsWordPressUser();
+        $this->postJson('/api/support/tickets', ['subject' => 'Withdrawal', 'message' => 'How long do withdrawals take?'])->assertCreated();
+
+        $ticket = SupportTicket::query()->with('messages')->firstOrFail();
+        $this->assertNotNull($ticket->messages->firstWhere('is_automated', true));
+        Http::assertSentCount(2);
+    }
+
+    public function test_it_switches_to_the_backup_model_when_the_first_keeps_failing(): void
+    {
+        $this->switchOn();
+        Http::fake([
+            'generativelanguage.googleapis.com/*gemini-3.5-flash-lite*' => Http::response(['candidates' => [['content' => ['parts' => [['text' => '{"ok":true}']]]]]]),
+            'generativelanguage.googleapis.com/*' => Http::response('busy', 503),
+        ]);
+
+        $text = app(\App\Services\Ai\GeminiClient::class)->generate('test', 'sys', 'hi', json: true);
+
+        $this->assertSame('{"ok":true}', $text);
+        Http::assertSentCount(3);
+    }
 }
