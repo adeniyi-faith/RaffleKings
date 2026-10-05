@@ -226,6 +226,11 @@
     border-radius: 6px;
 }
 .dark .rk-article code { background: var(--color-gray-800, #1f2937); }
+.rk-article figure { margin: 1.25em 0; }
+.rk-article figure img { display: block; width: 100%; max-width: 360px; margin: 0 auto; border: 1px solid var(--color-gray-200, #e5e7eb); box-shadow: 0 6px 18px rgb(0 0 0 / 0.08); }
+.rk-article figcaption { margin-top: 0.6em; text-align: center; font-size: 0.8em; color: var(--color-gray-500, #6b7280); }
+.rk-article .rk-callout { border-radius: 12px; background: var(--color-blue-50, #eff6ff); padding: 0.8em 1em; font-size: 0.95em; }
+.dark .rk-article .rk-callout { background: rgb(30 58 138 / 0.25); }
 .rk-article hr { border-color: var(--color-gray-200, #e5e7eb); margin: 2em 0; }
 .rk-article table { width: 100%; border-collapse: collapse; font-size: 0.9em; display: block; overflow-x: auto; }
 .rk-article th, .rk-article td { border: 1px solid var(--color-gray-200, #e5e7eb); padding: 0.5em 0.75em; text-align: left; }

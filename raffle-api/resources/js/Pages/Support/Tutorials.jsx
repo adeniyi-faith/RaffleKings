@@ -1,9 +1,11 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { Head, Link, usePage } from '@inertiajs/react';
-import { ArrowLeft, BookOpen, Play, RotateCw, WifiOff } from 'lucide-react';
+import { ArrowLeft, BookOpen, Play, RotateCw, Search, WifiOff, X } from 'lucide-react';
 import HeartButton from '../../Components/support/HeartButton';
 import { deviceId } from '../../lib/tutorialLikes';
 import BottomNav from '../../Components/layout/BottomNav';
+
+const PAGE_SIZE = 20;
 
 // Rebuild of tutorials.php (item 29) against the new GET /api/tutorials
 // (TutorialController/TutorialReadService), which reads the same real
@@ -18,10 +20,35 @@ export default function Tutorials() {
     const [state, setState] = useState('loading'); // loading | error | ready
     const [featured, setFeatured] = useState(null);
     const [articles, setArticles] = useState([]);
+    const [query, setQuery] = useState('');
+    const [category, setCategory] = useState('All');
+    const [visible, setVisible] = useState(PAGE_SIZE);
 
     useEffect(() => {
         fetchTutorials();
     }, []);
+
+    // The categories, in the order the guides come in, each with how many guides it holds.
+    const categories = useMemo(() => {
+        const counts = new Map();
+        [...(featured ? [featured] : []), ...articles].forEach((a) => counts.set(a.category, (counts.get(a.category) ?? 0) + 1));
+
+        return [...counts.entries()];
+    }, [articles, featured]);
+
+    const needle = query.trim().toLowerCase();
+    const filtering = needle !== '' || category !== 'All';
+    const matches = useMemo(
+        () => articles.filter((a) => (category === 'All' || a.category === category)
+            && (needle === '' || `${a.title} ${a.excerpt}`.toLowerCase().includes(needle))),
+        [articles, category, needle],
+    );
+    const shown = matches.slice(0, visible);
+
+    function pick(next) {
+        setCategory(next);
+        setVisible(PAGE_SIZE);
+    }
 
     function fetchTutorials() {
         setState('loading');
@@ -73,22 +100,63 @@ export default function Tutorials() {
 
                 {state === 'ready' && (
                     <>
-                        {featured && (
+                        <div className="px-5 pt-4">
+                            <div className="relative">
+                                <Search className="pointer-events-none absolute left-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-400" />
+                                <input
+                                    type="search"
+                                    value={query}
+                                    onChange={(e) => {
+                                        setQuery(e.target.value);
+                                        setVisible(PAGE_SIZE);
+                                    }}
+                                    placeholder="Search guides, e.g. withdrawal"
+                                    aria-label="Search guides"
+                                    className="w-full rounded-xl border border-gray-200 bg-white py-3 pl-10 pr-10 text-sm text-gray-900 outline-none focus:ring-2 focus:ring-app-primary/20 dark:border-gray-700 dark:bg-dark-card dark:text-white"
+                                />
+                                {query && (
+                                    <button onClick={() => setQuery('')} className="absolute right-3 top-1/2 -translate-y-1/2 rounded-full p-1 text-gray-400" aria-label="Clear search">
+                                        <X className="h-4 w-4" />
+                                    </button>
+                                )}
+                            </div>
+                            {categories.length > 1 && (
+                                <div className="no-scrollbar -mx-5 mt-3 flex gap-2 overflow-x-auto px-5 pb-1">
+                                    {[['All', articles.length + (featured ? 1 : 0)], ...categories].map(([name, count]) => (
+                                        <button
+                                            key={name}
+                                            onClick={() => pick(name)}
+                                            className={`flex-shrink-0 whitespace-nowrap rounded-full border px-3 py-1.5 text-xs font-bold transition-colors ${
+                                                category === name
+                                                    ? 'border-app-primary bg-app-primary text-white'
+                                                    : 'border-gray-200 bg-white text-gray-600 dark:border-gray-700 dark:bg-dark-card dark:text-gray-300'
+                                            }`}
+                                        >
+                                            {name} <span className="opacity-70">{count}</span>
+                                        </button>
+                                    ))}
+                                </div>
+                            )}
+                        </div>
+
+                        {featured && ! filtering && (
                             <section className="p-5 pb-2">
                                 <Link
                                     href={featured.url}
-                                    className="group relative mb-2 flex aspect-video w-full cursor-pointer items-center justify-center overflow-hidden rounded-2xl bg-gray-900 shadow-lg"
+                                    className="group relative mb-2 flex aspect-video w-full cursor-pointer items-center justify-center overflow-hidden rounded-2xl bg-gradient-to-br from-blue-600 to-indigo-700 shadow-lg"
                                 >
-                                    <div className="absolute inset-0 z-10 bg-gradient-to-t from-black/80 via-transparent to-transparent" />
-                                    <div className="relative z-20 flex flex-col items-center">
-                                        <div className="flex h-14 w-14 items-center justify-center rounded-full border border-white/30 bg-white/20 shadow-xl backdrop-blur-md transition-transform group-hover:scale-110">
-                                            <Play className="ml-1 h-6 w-6 fill-current text-white" />
+                                    <div className="absolute inset-0 z-10 bg-gradient-to-t from-black/80 via-black/10 to-transparent" />
+                                    {featured.video_url && (
+                                        <div className="relative z-20 flex flex-col items-center">
+                                            <div className="flex h-14 w-14 items-center justify-center rounded-full border border-white/30 bg-white/20 shadow-xl backdrop-blur-md transition-transform group-hover:scale-110">
+                                                <Play className="ml-1 h-6 w-6 fill-current text-white" />
+                                            </div>
                                         </div>
-                                    </div>
-                                    <div className="absolute bottom-4 left-4 z-20">
-                                        <span className="mb-1 inline-block rounded bg-red-600 px-2 py-0.5 text-[9px] font-bold text-white">FEATURED</span>
+                                    )}
+                                    <div className="absolute bottom-4 left-4 right-4 z-20">
+                                        <span className="mb-1 inline-block rounded bg-red-600 px-2 py-0.5 text-[9px] font-bold text-white">START HERE</span>
                                         <h3 className="text-lg font-bold leading-tight text-white">{featured.title}</h3>
-                                        <p className="text-xs text-gray-300">{featured.date_ago}</p>
+                                        {featured.date_ago && <p className="text-xs text-gray-300">{featured.date_ago}</p>}
                                     </div>
                                 </Link>
                                 <div className="flex items-center justify-end px-1">
@@ -100,20 +168,23 @@ export default function Tutorials() {
                         {articles.length > 0 && (
                             <section className="px-5 py-4">
                                 <h3 className="mb-3 flex items-center gap-2 text-sm font-bold text-gray-900 dark:text-white">
-                                    Latest Guides
-                                    <span className="rounded-full bg-blue-50 px-2 py-0.5 text-[10px] font-medium text-blue-600 dark:bg-blue-900/30 dark:text-blue-300">Updated</span>
+                                    {filtering ? `${matches.length} ${matches.length === 1 ? 'guide' : 'guides'} found` : 'All guides'}
                                 </h3>
                                 <div className="space-y-4">
-                                    {articles.map((article) => (
+                                    {shown.map((article) => (
                                         <Link
                                             key={article.id}
                                             href={article.url}
                                             className="flex cursor-pointer gap-4 rounded-2xl border border-gray-100 bg-white p-4 shadow-sm transition-transform active:scale-[0.99] dark:border-gray-800 dark:bg-dark-card"
                                         >
-                                            <div className="flex h-20 w-20 flex-shrink-0 items-center justify-center rounded-xl bg-gray-100 dark:bg-gray-800">
-                                                <BookOpen className="h-8 w-8 text-gray-300 dark:text-gray-600" />
+                                            <div className="flex h-20 w-20 flex-shrink-0 items-center justify-center overflow-hidden rounded-xl bg-gray-100 dark:bg-gray-800">
+                                                {article.image_url ? (
+                                                    <img src={article.image_url} alt="" loading="lazy" className="h-full w-full object-cover object-top" />
+                                                ) : (
+                                                    <BookOpen className="h-8 w-8 text-gray-300 dark:text-gray-600" />
+                                                )}
                                             </div>
-                                            <div className="flex-1">
+                                            <div className="min-w-0 flex-1">
                                                 <div className="flex items-start justify-between">
                                                     <h4 className="line-clamp-2 text-sm font-bold leading-tight text-gray-800 dark:text-gray-100">{article.title}</h4>
                                                     <span className="ml-2 whitespace-nowrap rounded bg-gray-50 px-1.5 py-0.5 text-[9px] text-gray-400 dark:bg-gray-800">
@@ -131,6 +202,22 @@ export default function Tutorials() {
                                         </Link>
                                     ))}
                                 </div>
+
+                                {matches.length === 0 && (
+                                    <div className="py-10 text-center text-sm text-gray-500 dark:text-gray-400">
+                                        <p className="font-bold text-gray-800 dark:text-gray-100">No guide matches that.</p>
+                                        <p className="mt-1">Try a shorter word, or <Link href="/support?new=1" className="font-bold text-app-primary">ask support</Link>.</p>
+                                    </div>
+                                )}
+
+                                {matches.length > shown.length && (
+                                    <button
+                                        onClick={() => setVisible((v) => v + PAGE_SIZE)}
+                                        className="mt-5 w-full rounded-xl border border-gray-200 bg-white py-3 text-sm font-bold text-gray-700 shadow-sm active:scale-[0.99] dark:border-gray-700 dark:bg-dark-card dark:text-gray-200"
+                                    >
+                                        Show more guides ({matches.length - shown.length} left)
+                                    </button>
+                                )}
                             </section>
                         )}
 

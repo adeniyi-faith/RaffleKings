@@ -54,12 +54,13 @@ class TutorialControllerTest extends TestCase
 
     public function test_scripts_and_unsafe_links_never_reach_the_site(): void
     {
-        $this->makeTutorial([
+        $tutorial = $this->makeTutorial([
             'content' => '<p onclick="steal()">Hi</p><script>alert(1)</script><a href="javascript:alert(1)">x</a>',
             'video_url' => 'javascript:alert(1)',
         ]);
 
-        $item = $this->getJson('/api/tutorials')->json('list.0');
+        // The list leaves out the full text to stay light, so check the guide's own page.
+        $item = $this->get("/support/tutorials/{$tutorial->id}")->viewData('page')['props']['tutorial'];
 
         $this->assertStringNotContainsString('<script', $item['content']);
         $this->assertStringNotContainsString('onclick', $item['content']);
