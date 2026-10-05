@@ -1,10 +1,29 @@
 <?php
 
 use App\Console\Commands\HealthCheck;
+use App\Jobs\RefundCancelledRaffle;
+use App\Models\Raffle;
+use App\Services\Admin\StaffTodo;
+use App\Services\Advisor\RaffleAdvisor;
+use App\Services\Ai\GeminiClient;
+use App\Services\Auth\StaffTwoStep;
+use App\Services\Engagement\DailyDrops;
+use App\Services\Engagement\LuckyMeter;
 use App\Services\Engagement\RedEnvelopes;
+use App\Services\GamingTaxReminders;
+use App\Services\Growth\AffiliateService;
+use App\Services\Messaging\BroadcastService;
+use App\Services\Monitoring\DatabaseBackup;
+use App\Services\NumberHoldService;
+use App\Services\PayoutService;
+use App\Services\Retention\ComebackOffers;
+use App\Services\Retention\DeliveryTracker;
+use App\Services\Retention\MemberSegments;
+use App\Support\Features;
 use Illuminate\Foundation\Inspiring;
 use Illuminate\Support\Facades\Artisan;
 use Illuminate\Support\Facades\Cache;
+use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Schedule;
 
 Artisan::command('inspire', function () {
@@ -51,8 +70,8 @@ Schedule::call(fn () => app(RedEnvelopes::class)->refundExpired())
 // Automatic payouts: ask Paystack about any payout whose answer never
 // arrived (a timeout or a lost webhook). Does nothing while it's off.
 Schedule::call(function () {
-    if (\App\Support\Features::on('auto_payouts')) {
-        app(\App\Services\PayoutService::class)->checkStuck();
+    if (Features::on('auto_payouts')) {
+        app(PayoutService::class)->checkStuck();
     }
 })
     ->everyFiveMinutes()
@@ -65,7 +84,7 @@ Schedule::command('reminders:send')->everyFiveMinutes()->withoutOverlapping(10);
 
 // Number holds: clear out ones that have run out (they already stop
 // counting the moment they expire; this only tidies the table).
-Schedule::call(fn () => app(\App\Services\NumberHoldService::class)->pruneExpired())
+Schedule::call(fn () => app(NumberHoldService::class)->pruneExpired())
     ->everyFiveMinutes()
     ->name('number-holds-prune')
     ->withoutOverlapping(10);
@@ -73,13 +92,13 @@ Schedule::call(fn () => app(\App\Services\NumberHoldService::class)->pruneExpire
 // Gaming tax: reminds staff when a month needs locking, filing or paying.
 // Does nothing while switched off in Settings → Payments → Gaming tax, and
 // never before 9am business time. Each reminder is sent once.
-Schedule::call(fn () => app(\App\Services\GamingTaxReminders::class)->sendDue())
+Schedule::call(fn () => app(GamingTaxReminders::class)->sendDue())
     ->hourly()
     ->name('gaming-tax-reminders')
     ->withoutOverlapping(10);
 
 // Affiliates: earnings past their hold are paid into the affiliate's winnings.
-Schedule::call(fn () => app(\App\Services\Growth\AffiliateService::class)->releaseDue())
+Schedule::call(fn () => app(AffiliateService::class)->releaseDue())
     ->hourly()
     ->name('affiliate-payouts')
     ->withoutOverlapping(30);
@@ -94,7 +113,7 @@ Schedule::command('backup:run')
 Schedule::command('backup:test-restore')
     ->dailyAt(sprintf('%02d:40', (int) config('backups.hour', 3)))
     ->timezone(config('raffles.timezone'))
-    ->when(fn () => (bool) config('backups.enabled', true) && app(\App\Services\Monitoring\DatabaseBackup::class)->restoreConfigured())
+    ->when(fn () => (bool) config('backups.enabled', true) && app(DatabaseBackup::class)->restoreConfigured())
     ->withoutOverlapping(120);
 
 // Uptime heartbeat: an outside service (healthchecks.io, Better Stack…)
@@ -103,8 +122,8 @@ Schedule::command('backup:test-restore')
 Schedule::call(function () {
     if ($url = config('monitoring.heartbeat_url')) {
         try {
-            \Illuminate\Support\Facades\Http::timeout(10)->get($url);
-        } catch (\Throwable) {
+            Http::timeout(10)->get($url);
+        } catch (Throwable) {
             // The outside service alerts on the missing ping; nothing to do here.
         }
     }
@@ -113,28 +132,28 @@ Schedule::call(function () {
 // Cancelled raffles: restart any refunds that stopped part-way (the job
 // is locked, so this never runs two at once and never refunds twice).
 Schedule::call(function () {
-    \App\Models\Raffle::query()->where('refund_status', 'refunding')->pluck('id')
-        ->each(fn ($id) => \App\Jobs\RefundCancelledRaffle::dispatch($id));
+    Raffle::query()->where('refund_status', 'refunding')->pluck('id')
+        ->each(fn ($id) => RefundCancelledRaffle::dispatch($id));
 })->everyFiveMinutes()->name('raffle-refund-watchdog');
 
 // Messages to customers: start the ones scheduled for now, and pick up any
 // that stopped part-way. Nobody is messaged twice (BroadcastService).
 Schedule::call(function () {
-    $messages = app(\App\Services\Messaging\BroadcastService::class);
+    $messages = app(BroadcastService::class);
     $messages->startDue();
     $messages->resumeStalled();
 })->everyMinute()->name('scheduled-messages')->withoutOverlapping(5);
 
 // Staff two-step sign-in: forget "passed the code" marks that have run out.
-Schedule::call(fn () => app(\App\Services\Auth\StaffTwoStep::class)->prune())
+Schedule::call(fn () => app(StaffTwoStep::class)->prune())
     ->daily()
     ->name('staff-two-step-prune');
 
 // Raffle advisor: a fresh report waiting every Monday morning (Lagos time),
 // when the AI is on, a Gemini key is saved and the weekly report is switched on.
 Schedule::call(function () {
-    if (config('ai.advisor_weekly') && app(\App\Services\Ai\GeminiClient::class)->available()) {
-        app(\App\Services\Advisor\RaffleAdvisor::class)->request(trigger: 'weekly');
+    if (config('ai.advisor_weekly') && app(GeminiClient::class)->available()) {
+        app(RaffleAdvisor::class)->request(trigger: 'weekly');
     }
 })
     ->weeklyOn(1, '07:00')
@@ -143,14 +162,14 @@ Schedule::call(function () {
 
 // Daily Drops: pay each running drop once its time comes each day. A day can
 // never be paid twice (App\Services\Engagement\DailyDrops).
-Schedule::call(fn () => app(\App\Services\Engagement\DailyDrops::class)->runDue())
+Schedule::call(fn () => app(DailyDrops::class)->runDue())
     ->everyMinute()
     ->name('daily-drops')
     ->withoutOverlapping(10);
 
 // Lucky Meter safety net: count any recent draw the draw itself didn't
 // (a raffle can only ever be counted once; App\Services\Engagement\LuckyMeter).
-Schedule::call(fn () => app(\App\Services\Engagement\LuckyMeter::class)->countRecentDraws())
+Schedule::call(fn () => app(LuckyMeter::class)->countRecentDraws())
     ->everyTenMinutes()
     ->name('lucky-meter')
     ->withoutOverlapping(10);
@@ -158,9 +177,9 @@ Schedule::call(fn () => app(\App\Services\Engagement\LuckyMeter::class)->countRe
 // Member segments: sort every customer again each night (Lagos time), and
 // check how claimed comeback offers did (App\Services\Retention).
 Schedule::call(function () {
-    app(\App\Services\Retention\MemberSegments::class)->refresh();
-    app(\App\Services\Retention\ComebackOffers::class)->trackResults();
-    app(\App\Services\Retention\DeliveryTracker::class)->prune();
+    app(MemberSegments::class)->refresh();
+    app(ComebackOffers::class)->trackResults();
+    app(DeliveryTracker::class)->prune();
 })
     ->dailyAt('04:30')
     ->timezone(config('raffles.timezone', 'Africa/Lagos'))
@@ -170,7 +189,18 @@ Schedule::call(function () {
 // Comeback offers: end old ones, send "last call" reminders, and once a day
 // at the chosen hour make new offers. Makes nothing while switched off in
 // Settings → Reminders → Comeback offers (App\Services\Retention\ComebackOffers).
-Schedule::call(fn () => app(\App\Services\Retention\ComebackOffers::class)->runDue())
+Schedule::call(fn () => app(ComebackOffers::class)->runDue())
     ->hourly()
     ->name('comeback-offers')
     ->withoutOverlapping(30);
+
+// Team to-do (the admin bell): add a to-do for anything new waiting for
+// staff, and close the ones sorted in their own screen. Also runs when
+// staff open the admin, so it keeps working if the cron job stops.
+Schedule::call(fn () => app(StaffTodo::class)->sync())
+    ->everyMinute()
+    ->name('staff-todo-sync')
+    ->withoutOverlapping(5);
+Schedule::call(fn () => app(StaffTodo::class)->prune())
+    ->daily()
+    ->name('staff-todo-prune');

@@ -6,6 +6,7 @@ use App\Filament\Pages\Auth\AdminLogin;
 use App\Filament\Support\AdminSearch;
 use App\Http\Middleware\AttachExtraCookies;
 use App\Http\Middleware\RequireStaffTwoStep;
+use App\Livewire\AdminBell;
 use App\Services\Maintenance;
 use App\Support\Formats;
 use Filament\Http\Middleware\Authenticate;
@@ -25,7 +26,9 @@ use Illuminate\Cookie\Middleware\EncryptCookies;
 use Illuminate\Foundation\Http\Middleware\VerifyCsrfToken;
 use Illuminate\Routing\Middleware\SubstituteBindings;
 use Illuminate\Session\Middleware\StartSession;
+use Illuminate\Support\Facades\Blade;
 use Illuminate\View\Middleware\ShareErrorsFromSession;
+use Livewire\Livewire;
 
 /**
  * Staff sign in at /admin/login (App\Filament\Pages\Auth\AdminLogin). It
@@ -66,6 +69,8 @@ class AdminPanelProvider extends PanelProvider
         // browsers and Cloudflare fetch the new files instead of an old
         // cached copy. Set ASSET_VERSION in .env (the deploy uses the commit id).
         FilamentAsset::appVersion(config('app.asset_version'));
+
+        Livewire::component('admin-bell', AdminBell::class);
     }
 
     public function panel(Panel $panel): Panel
@@ -94,6 +99,9 @@ class AdminPanelProvider extends PanelProvider
             // Phone layout: styles + "menu starts closed", and the bottom
             // tab bar (resources/views/filament/hooks).
             ->renderHook(PanelsRenderHook::HEAD_END, fn () => view('filament.hooks.head'))
+            // The bell next to your picture: the team to-do list, ticked off
+            // together (App\Livewire\AdminBell, App\Services\Admin\StaffTodo).
+            ->renderHook(PanelsRenderHook::USER_MENU_BEFORE, fn () => auth('wordpress')->user()?->staffRole() ? Blade::render('@livewire(\'admin-bell\')') : '')
             ->renderHook(PanelsRenderHook::BODY_END, fn () => auth('wordpress')->user()?->staffRole() ? view('filament.hooks.bottom-nav') : '')
             // A red reminder on every admin page while maintenance mode is on.
             ->renderHook(PanelsRenderHook::CONTENT_START, fn () => app(Maintenance::class)->active() ? view('filament.hooks.maintenance-banner') : '')

@@ -49,6 +49,7 @@ class AdminSearch implements GlobalSearchProvider
         ['Pay or deliver a prize', Resources\RaffleWinnerResource::class, 'index', 'winner prize credit payout'],
         ['Look up a ticket number', Resources\TicketResource::class, 'index', 'ticket entry number owner'],
         ['Ban, restrict or adjust a customer\'s balance', Resources\Legacy\WpUserResource::class, 'index', 'customer user ban suspend block restrict balance adjust credit debit wallet points'],
+        ['See the team to-do list (the bell)', Pages\TeamTodo::class, 'index', 'to-do todo task bell notification alert waiting attention checklist done'],
         ['Check suspicious customers', Pages\FraudWatch::class, 'index', 'fraud abuse multiple accounts scam held rewards shared bank'],
         ['Reply to a support ticket', Resources\SupportTicketResource::class, 'index', 'help complaint customer message support'],
         ['Moderate live-draw chat', Resources\LiveChatResource::class, 'index', 'chat hide comment mute moderation red envelope'],
