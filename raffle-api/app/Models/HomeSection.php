@@ -9,6 +9,14 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
 /** One block of the customer homepage (see HomeLayoutService). */
 class HomeSection extends Model
 {
+    protected static function booted(): void
+    {
+        // Any save or delete changes what the homepage shows, so the saved copy is dropped.
+        $forget = fn () => \App\Services\HomeLayoutService::forgetCache();
+        static::saved($forget);
+        static::deleted($forget);
+    }
+
     public const TYPES = [
         'hero' => 'Slides (the big swiping banner)',
         'golden_box' => 'Golden Box offer banner',

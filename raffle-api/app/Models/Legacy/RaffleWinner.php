@@ -16,6 +16,14 @@ class RaffleWinner extends LegacyModel
 
     const UPDATED_AT = null;
 
+    protected static function booted(): void
+    {
+        // A new, hidden, shown or removed winner changes the Hall of Fame, so its saved copy is dropped.
+        $forget = fn () => \Illuminate\Support\Facades\Cache::forget(\App\Http\Controllers\Api\HallOfFameController::CACHE_KEY);
+        static::saved($forget);
+        static::deleted($forget);
+    }
+
     protected $fillable = [
         'raffle_id',
         'user_id',

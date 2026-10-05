@@ -77,6 +77,7 @@ Route::delete('/raffles/{raffle}/holds', [NumberHoldController::class, 'destroy'
 // Public — a server-computed price quote, so the frontend never has to
 // duplicate TicketPricingService's formula by hand (audit TD-20).
 Route::get('/raffles/{raffle}/price-quote', [TicketPriceQuoteController::class, 'show']);
+Route::get('/raffles/{raffle}/price-quotes', [TicketPriceQuoteController::class, 'batch']);
 
 // Public — the chance of winning each prize level for a number of tickets.
 Route::get('/raffles/{raffle}/odds', [RaffleController::class, 'odds']);
