@@ -45,10 +45,47 @@ class TicketPriceQuoteController extends Controller
             'promo_code' => ['nullable', 'string', 'max:40'],
         ]);
 
-        $quantity = (int) $data['quantity'];
+        [$status, $body] = $this->quote($found, $raffle, (int) $data['quantity'], $data['promo_code'] ?? null);
 
+        return response()->json($body, $status);
+    }
+
+    /**
+     * Several quantities in one request (the bundle cards on the raffle page
+     * used to send one request per bundle). Each entry is exactly what the
+     * single-quantity endpoint would have answered for that quantity,
+     * including its "at most N tickets" message, so nothing about the
+     * price itself changes — and it is never cached: prices are personal
+     * (Golden Box, promo codes).
+     */
+    public function batch(Request $request, int $raffle): JsonResponse
+    {
+        $found = $this->raffles->find($raffle);
+
+        if (! $found) {
+            return response()->json(['message' => 'Raffle not found.'], 404);
+        }
+
+        $data = $request->validate([
+            'quantities' => ['required', 'array', 'min:1', 'max:20'],
+            'quantities.*' => ['required', 'integer', 'min:1'],
+            'promo_code' => ['nullable', 'string', 'max:40'],
+        ]);
+
+        $quotes = [];
+
+        foreach (array_unique(array_map('intval', $data['quantities'])) as $quantity) {
+            $quotes[$quantity] = $this->quote($found, $raffle, $quantity, $data['promo_code'] ?? null)[1];
+        }
+
+        return response()->json(['quotes' => $quotes]);
+    }
+
+    /** @return array{0: int, 1: array<string, mixed>} the HTTP status and the answer for one quantity */
+    private function quote(array $found, int $raffle, int $quantity, ?string $promoCode): array
+    {
         if (($found['max_per_order'] ?? null) && $quantity > $found['max_per_order']) {
-            return response()->json(['message' => 'You can buy at most '.$found['max_per_order'].' tickets in one order for this raffle.', 'max_per_order' => $found['max_per_order']], 422);
+            return [422, ['message' => 'You can buy at most '.$found['max_per_order'].' tickets in one order for this raffle.', 'max_per_order' => $found['max_per_order']]];
         }
 
         $unitPrice = (float) $found['price'];
@@ -64,9 +101,9 @@ class TicketPriceQuoteController extends Controller
         $promo = null;
         $promoError = null;
 
-        if ($user && PromoCodeService::normalise($data['promo_code'] ?? null) !== '') {
+        if ($user && PromoCodeService::normalise($promoCode) !== '') {
             try {
-                $promoQuote = app(PromoCodeService::class)->quote($user, $data['promo_code'], $discounted);
+                $promoQuote = app(PromoCodeService::class)->quote($user, $promoCode, $discounted);
                 $promo = ['code' => $promoQuote['promo']->code, 'summary' => $promoQuote['promo']->summary(), 'savings' => $promoQuote['discount'], 'price_before' => $discounted];
                 $discounted = round($discounted - $promoQuote['discount'], 2);
             } catch (InvalidArgumentException $e) {
@@ -74,7 +111,7 @@ class TicketPriceQuoteController extends Controller
             }
         }
 
-        return response()->json([
+        return [200, [
             'quantity' => $quantity,
             'unit_price' => $unitPrice,
             'original' => $original,
@@ -88,6 +125,6 @@ class TicketPriceQuoteController extends Controller
             ] : null,
             'promo' => $promo,
             'promo_error' => $promoError,
-        ]);
+        ]];
     }
 }
