@@ -427,7 +427,12 @@ Route::get('/support/tutorials', fn () => Inertia::render('Support/Tutorials'));
 // One tutorial on its own page ("/support/tutorials/12-how-to-win"; only
 // the number matters, so a renamed title doesn't break old links).
 Route::get('/support/tutorials/{tutorial}', function (Request $request, string $tutorial, TutorialReadService $tutorials) {
-    $found = preg_match('/^(\d+)/', $tutorial, $m) ? $tutorials->find((int) $m[1], TutorialController::voter($request, required: false)) : null;
+    // Built-in help guides can also be opened by their short name ("/support/tutorials/create-your-account"),
+    // which is how the guides link to each other.
+    $id = preg_match('/^(\d+)/', $tutorial, $m)
+        ? (int) $m[1]
+        : (int) \App\Models\Tutorial::query()->where('guide_key', $tutorial)->where('is_published', true)->value('id');
+    $found = $id ? $tutorials->find($id, TutorialController::voter($request, required: false)) : null;
     abort_if(! $found, 404);
 
     return Inertia::render('Support/Tutorial', $found);
