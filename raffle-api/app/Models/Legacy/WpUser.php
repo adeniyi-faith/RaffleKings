@@ -159,7 +159,7 @@ class WpUser extends LegacyModel implements Authenticatable, FilamentUser, HasAv
     /** True while a full account ban is in force (not lifted, not past its end date). */
     public function isBanned(): bool
     {
-        return \App\Models\AccountRestriction::query()->active()->where('user_id', $this->ID)->where('type', 'full_ban')->exists();
+        return app(\App\Services\AccountRestrictions::class)->isBanned((int) $this->ID);
     }
 
     public function isAdministrator(): bool

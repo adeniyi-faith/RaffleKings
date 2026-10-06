@@ -15,5 +15,5 @@ return [
     | starting value. If email ever stops working and nobody can sign in,
     | run `php artisan staff:two-step off` on the server.
     */
-    'staff_two_step' => (bool) env('STAFF_TWO_STEP', false),
+    'staff_two_step' => (bool) env('STAFF_TWO_STEP', true),
 ];

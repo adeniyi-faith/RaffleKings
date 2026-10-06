@@ -676,8 +676,9 @@ class ViewWpUser extends ViewRecord
                         ->columnSpanFull()
                         ->grid(['md' => 2])
                         ->schema([
-                            Components\TextEntry::make('account_number')->hiddenLabel()->copyable()->fontFamily('mono')->weight(FontWeight::Bold)
-                                ->suffix(fn ($record) => $record->is_primary ? '  · primary' : ''),
+                            Components\TextEntry::make('account_number')->hiddenLabel()->fontFamily('mono')->weight(FontWeight::Bold)
+                                ->formatStateUsing(fn ($state, $record) => $record->masked())
+                                ->suffix(fn ($record) => ($record->is_primary ? '  · primary' : '').($record->name_mismatch ? '  · NAME DOES NOT MATCH THE CUSTOMER' : '')),
                             Components\TextEntry::make('bank_name')->hiddenLabel()->formatStateUsing(fn ($state, $record) => "{$state} · {$record->account_name}"),
                         ])
                         ->placeholder('No bank account saved'),

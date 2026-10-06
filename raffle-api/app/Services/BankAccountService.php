@@ -5,7 +5,9 @@ namespace App\Services;
 use App\Exceptions\PaymentGatewayException;
 use App\Models\BankAccount;
 use App\Models\Legacy\WpUser;
+use App\Models\Legacy\WpUserMeta;
 use App\Models\WithdrawalRequest;
+use App\Services\Monitoring\StaffAlerts;
 use App\Services\Payments\PaystackApi;
 use Illuminate\Database\Eloquent\Collection;
 use Illuminate\Support\Facades\DB;
@@ -98,7 +100,41 @@ class BankAccountService
      */
     public function addVerified(WpUser $user, string $bankCode, string $accountNumber): BankAccount
     {
-        return $this->create($user, $this->lookUp($bankCode, $accountNumber) + ['name_verified_at' => now()]);
+        $found = $this->lookUp($bankCode, $accountNumber);
+        $mismatch = ! $this->nameLooksLikeCustomer($user, $found['account_name']);
+
+        $account = $this->create($user, $found + ['name_verified_at' => now(), 'name_mismatch' => $mismatch]);
+
+        if ($mismatch) {
+            StaffAlerts::send("A new bank account for {$user->user_login} (#{$user->ID}) is in the name {$found['account_name']}, which doesn't look like their own name. Automatic payout is blocked for it; check before paying.", "name-mismatch:{$account->id}");
+        }
+
+        return $account;
+    }
+
+    /**
+     * Does the bank's name for the account share at least one real name with
+     * the customer's own (first/last name, or the display name)? When the
+     * customer has no name on file there is nothing to compare, so it passes.
+     */
+    public function nameLooksLikeCustomer(WpUser $user, string $bankName): bool
+    {
+        $meta = WpUserMeta::query()->where('user_id', $user->ID)->whereIn('meta_key', ['first_name', 'last_name'])->pluck('meta_value');
+        $own = $this->nameParts(trim($meta->implode(' ')) ?: (string) $user->display_name);
+
+        if ($own === []) {
+            return true;
+        }
+
+        return array_intersect($own, $this->nameParts($bankName)) !== [];
+    }
+
+    /** @return list<string> upper-case name words of three or more letters */
+    private function nameParts(string $name): array
+    {
+        preg_match_all('/[A-Z]{3,}/', strtoupper(preg_replace('/[^A-Za-z ]/', ' ', $name)), $m);
+
+        return array_values(array_unique($m[0]));
     }
 
     /** @param  array<string, mixed>  $attributes */
@@ -111,7 +147,7 @@ class BankAccountService
                 throw new RuntimeException('Maximum of '.self::MAX_ACCOUNTS_PER_USER.' bank accounts allowed.');
             }
 
-            if (BankAccount::query()->active()->where('user_id', $user->ID)->where('account_number', $attributes['account_number'])->exists()) {
+            if (BankAccount::query()->active()->where('user_id', $user->ID)->where('account_number_hash', BankAccount::hashNumber($attributes['account_number']))->exists()) {
                 throw new RuntimeException('This account is already saved.');
             }
 

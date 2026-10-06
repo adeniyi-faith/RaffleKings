@@ -39,7 +39,7 @@ class WithdrawalsRelationManager extends RelationManager
             ->modifyQueryUsing(fn ($query) => $query->with('bankAccount'))
             ->columns([
                 MobileCard::make(fn (WithdrawalRequest $w) => [
-                    'title' => $w->bankAccount ? "{$w->bankAccount->bank_name} · {$w->bankAccount->account_number}" : 'No bank account',
+                    'title' => $w->bankAccount ? "{$w->bankAccount->bank_name} · {$w->bankAccount->masked()}" : 'No bank account',
                     'amount' => '₦'.number_format((float) $w->amount_to_send),
                     'lines' => [(float) $w->fee_amount > 0 ? 'Asked for ₦'.number_format((float) $w->requested_amount).' · fee ₦'.number_format((float) $w->fee_amount) : null],
                     'badges' => [static::status($w)],
@@ -49,7 +49,7 @@ class WithdrawalsRelationManager extends RelationManager
                     Tables\Columns\TextColumn::make('created_at')->label('Asked')->dateTime('j M Y, H:i')->sortable(),
                     Tables\Columns\TextColumn::make('amount_to_send')->label('To send')->naira()->weight('bold')
                         ->description(fn (WithdrawalRequest $w) => (float) $w->fee_amount > 0 ? 'fee ₦'.number_format((float) $w->fee_amount) : null),
-                    Tables\Columns\TextColumn::make('bankAccount.account_number')->label('To')->description(fn (WithdrawalRequest $w) => $w->bankAccount?->bank_name),
+                    Tables\Columns\TextColumn::make('bankAccount.account_name')->label('To')->description(fn (WithdrawalRequest $w) => $w->bankAccount?->bank_name),
                     Tables\Columns\TextColumn::make('status')->badge()->formatStateUsing(fn ($state, WithdrawalRequest $w) => static::status($w)[0])->color(fn (WithdrawalRequest $w) => static::status($w)[1]),
                     Tables\Columns\TextColumn::make('updated_at')->label('Last change')->since(),
                 ]),

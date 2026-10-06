@@ -141,14 +141,14 @@ class BackfillWalletsFromUserMeta extends Command
 
                 $exists = BankAccount::query()
                     ->where('user_id', $row->user_id)
-                    ->where('account_number', $accountNumber)
+                    ->where('account_number_hash', BankAccount::hashNumber((string) $accountNumber))
                     ->exists();
 
                 if ($exists) {
                     continue;
                 }
 
-                $this->line("user {$row->user_id}: {$bankName} / {$accountNumber}");
+                $this->line("user {$row->user_id}: {$bankName} / ••••".substr((string) $accountNumber, -4));
 
                 if (! $dryRun) {
                     BankAccount::create([
