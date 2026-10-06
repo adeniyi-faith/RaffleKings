@@ -25,6 +25,10 @@ class BackupsAndStatusTest extends TestCase
     {
         parent::setUp();
 
+        if (DB::getDriverName() !== 'sqlite') {
+            $this->markTestSkipped('These tests use a throwaway SQLite file as the practice database.');
+        }
+
         $this->practiceDb = tempnam(sys_get_temp_dir(), 'rk-restore-').'.sqlite';
         touch($this->practiceDb);
         config(['backups.restore.database' => $this->practiceDb]);
@@ -34,7 +38,9 @@ class BackupsAndStatusTest extends TestCase
 
     protected function tearDown(): void
     {
-        @unlink($this->practiceDb);
+        if (isset($this->practiceDb)) {
+            @unlink($this->practiceDb);
+        }
 
         foreach (array_merge(glob(storage_path('app/backups/backup-*')) ?: [], glob(storage_path('app/backups/restore-*')) ?: []) as $file) {
             @unlink($file);
@@ -65,6 +71,7 @@ class BackupsAndStatusTest extends TestCase
     public function test_the_restored_copy_has_the_same_values(): void
     {
         WpUser::create(['user_login' => "o'brien", 'user_pass' => "line1\nline2", 'user_email' => 'a@example.com', 'display_name' => 'Ada']);
+        config(['backups.encrypt' => false]);
         $run = app(DatabaseBackup::class)->run();
 
         // Load it by hand into the practice database and read it back.
