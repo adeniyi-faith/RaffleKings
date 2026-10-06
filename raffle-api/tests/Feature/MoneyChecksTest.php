@@ -115,4 +115,18 @@ class MoneyChecksTest extends TestCase
 
         $this->assertDatabaseHas('staff_tasks', ['source' => 'money_check', 'title' => 'Customer #5: wallet balance does not match the ledger']);
     }
+
+    public function test_a_missing_database_lock_on_the_books_is_reported(): void
+    {
+        if (DB::getDriverName() !== 'sqlite') {
+            $this->markTestSkipped('Drops a SQLite trigger.');
+        }
+
+        $this->assertArrayNotHasKey('unprotected', app(LedgerIntegrity::class)->run());
+
+        DB::unprepared('DROP TRIGGER wallet_ledger_entries_no_update');
+
+        $this->assertSame(1, app(LedgerIntegrity::class)->run()['unprotected']);
+        $this->assertSame(1, MoneyReviewItem::where('kind', 'books_unprotected')->where('status', 'open')->count());
+    }
 }
