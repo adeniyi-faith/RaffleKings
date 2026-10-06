@@ -8,6 +8,7 @@ use App\Filament\Pages\GamingTax;
 use App\Filament\Pages\SystemHealth;
 use App\Filament\Resources\BankTransferResource;
 use App\Filament\Resources\KnowledgeArticleResource;
+use App\Filament\Resources\MoneyReviewItemResource;
 use App\Filament\Resources\PaymentMismatchResource;
 use App\Filament\Resources\RaffleWinnerResource;
 use App\Filament\Resources\SupportTicketResource;
@@ -20,6 +21,7 @@ use App\Models\KnowledgeArticle;
 use App\Models\Legacy\RaffleTransaction;
 use App\Models\Legacy\RaffleWinner;
 use App\Models\Legacy\WpUser;
+use App\Models\MoneyReviewItem;
 use App\Models\ReferralCommission;
 use App\Models\SupportTicket;
 use App\Models\WinnerStory;
@@ -80,6 +82,7 @@ class StaffTodo
         'winner_story' => ['label' => 'Winner stories', 'icon' => 'heroicon-o-camera', 'screen' => WinnerStoryResource::class],
         'help_draft' => ['label' => 'Help articles', 'icon' => 'heroicon-o-light-bulb', 'screen' => KnowledgeArticleResource::class],
         'gaming_tax' => ['label' => 'Gaming tax', 'icon' => 'heroicon-o-receipt-percent', 'screen' => GamingTax::class],
+        'money_check' => ['label' => 'Needs checking', 'icon' => 'heroicon-o-scale', 'screen' => MoneyReviewItemResource::class],
         'failed_jobs' => ['label' => 'System health', 'icon' => 'heroicon-o-exclamation-triangle', 'screen' => SystemHealth::class],
         self::MANUAL => ['label' => 'Added by staff', 'icon' => 'heroicon-o-pencil-square', 'screen' => null],
     ];
@@ -336,6 +339,11 @@ class StaffTodo
                 ->reject(fn ($a) => $a['severity'] === 'info')
                 ->map(fn ($a) => ['key' => $a['period'].':'.$a['status'], 'title' => 'Gaming tax, '.$a['headline'], 'detail' => $a['next_step']])
                 ->values()->all()),
+            'money_check' => $this->rows(
+                MoneyReviewItem::query()->where('status', 'open'),
+                fn (MoneyReviewItem $i) => ['title' => $i->title, 'detail' => $i->details],
+                'found_at',
+            ),
             'failed_jobs' => $this->listed(fn () => DB::table(config('queue.failed.table', 'failed_jobs'))
                 ->where('failed_at', '>=', now()->subDay())->pluck('failed_at')
                 ->groupBy(fn ($at) => Carbon::parse($at)->toDateString())

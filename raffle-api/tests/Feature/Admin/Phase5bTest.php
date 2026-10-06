@@ -89,7 +89,8 @@ class Phase5bTest extends TestCase
             ->assertSee('₦2,500')
             ->assertSee('₦700')
             ->assertSee('₦5,000')
-            ->assertSee('0123456789');
+            ->assertSee('••••••6789')
+            ->assertDontSee('0123456789');
 
         Livewire::test(AdminActionsRelationManager::class, ['ownerRecord' => $ada, 'pageClass' => ViewWpUser::class])
             ->assertSee('Withdrawal marked paid');
@@ -381,6 +382,6 @@ class Phase5bTest extends TestCase
         $this->assertArrayHasKey($withdrawal->id, app(FraudWatchService::class)->pendingWithdrawalWarnings());
 
         $this->actingAsAdministrator();
-        $this->get('/admin/fraud-watch')->assertOk()->assertSee('5555555555');
+        $this->get('/admin/fraud-watch')->assertOk()->assertSee('••••••5555')->assertDontSee('5555555555');
     }
 }
