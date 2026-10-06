@@ -15,6 +15,7 @@ use App\Models\Wallet;
 use App\Services\AccountRestrictions;
 use App\Services\Admin\CustomerBulkActions;
 use App\Services\AdminAuditLogService;
+use App\Services\Compliance\ComplianceCases;
 use App\Services\Reports\ReportExporter;
 use App\Services\UserManagementService;
 use Filament\Actions;
@@ -368,6 +369,27 @@ class WpUserResource extends Resource
                     ->success()->send();
             });
 
+        $openCase = $action::make('openCase')
+            ->label('Open a case')
+            ->color('gray')
+            ->icon('heroicon-o-folder-plus')
+            ->visible(fn () => static::staffCan('customers.manage'))
+            ->modalDescription('Starts a case to look into this customer. Notes on it can\'t be changed afterwards, and a different staff member has to close it.')
+            ->form([
+                Forms\Components\TextInput::make('title')->label('What needs looking into?')->required()->maxLength(200),
+                Forms\Components\Textarea::make('details')->label('Details')->maxLength(4000),
+            ])
+            ->action(function (WpUser $record, array $data) {
+                try {
+                    app(ComplianceCases::class)->open(auth('wordpress')->user(), $record, $data['title'], $data['details'] ?? null);
+                } catch (\RuntimeException $e) {
+                    Notification::make()->title($e->getMessage())->danger()->send();
+
+                    return;
+                }
+                Notification::make()->title('Case opened. Find it under Customers → Cases.')->success()->send();
+            });
+
         $ban = $action::make('ban')
             ->label('Ban')
             ->color('danger')
@@ -457,7 +479,7 @@ class WpUserResource extends Resource
 
         // Look-only staff (e.g. Support) don't get these buttons at all.
         $manage = fn () => ! static::staffCan('customers.manage');
-        foreach ([$adjust, $ban, $unban, $restrictions] as $button) {
+        foreach ([$adjust, $ban, $unban, $restrictions, $openCase] as $button) {
             $button->hidden($manage);
         }
 
@@ -465,7 +487,7 @@ class WpUserResource extends Resource
             $adjust,
             // Less frequent, and ban is drastic: tucked behind "More" so
             // the row stays one line of buttons on a phone.
-            $group::make([$ban, $unban, $restrictions])->label('More')->icon('heroicon-m-ellipsis-vertical')->button()->color('gray'),
+            $group::make([$openCase, $ban, $unban, $restrictions])->label('More')->icon('heroicon-m-ellipsis-vertical')->button()->color('gray'),
         ];
     }
 
