@@ -27,6 +27,10 @@ class SecurityHeaders
         $headers = $response->headers;
 
         $headers->set('Content-Security-Policy', "frame-ancestors 'self'; base-uri 'self'; object-src 'none'", false);
+        // Report-only for now: lists in the browser console any script that comes
+        // from somewhere other than this site or the push-notification service.
+        // Once nothing unexpected shows up it can be switched to enforced.
+        $headers->set('Content-Security-Policy-Report-Only', "script-src 'self' 'unsafe-inline' https://cdn.onesignal.com", false);
         $headers->set('X-Frame-Options', 'SAMEORIGIN', false);
         $headers->set('X-Content-Type-Options', 'nosniff', false);
         $headers->set('Referrer-Policy', 'strict-origin-when-cross-origin', false);

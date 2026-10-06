@@ -22,6 +22,13 @@ return [
     // Backups older than this are deleted from the server.
     'keep_days' => (int) env('BACKUPS_KEEP_DAYS', 14),
 
+    // Backup files are locked (encrypted) before they are kept or sent anywhere.
+    // Set BACKUP_ENCRYPTION_KEY and keep a copy of it away from the server;
+    // without it a key made from the app's own secret is used.
+    // Unlock one with: php artisan backup:unlock <file>
+    'encrypt' => (bool) env('BACKUPS_ENCRYPT', true),
+    'encryption_key' => env('BACKUP_ENCRYPTION_KEY'),
+
     // Also send each backup file to the staff Telegram chat(s), so a copy
     // survives if the server itself is lost (files up to ~45 MB).
     'send_to_telegram' => (bool) env('BACKUPS_TELEGRAM', false),

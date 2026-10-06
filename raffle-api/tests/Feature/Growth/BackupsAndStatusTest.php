@@ -36,7 +36,7 @@ class BackupsAndStatusTest extends TestCase
     {
         @unlink($this->practiceDb);
 
-        foreach (glob(storage_path('app/backups/backup-*')) ?: [] as $file) {
+        foreach (array_merge(glob(storage_path('app/backups/backup-*')) ?: [], glob(storage_path('app/backups/restore-*')) ?: []) as $file) {
             @unlink($file);
         }
 
@@ -86,6 +86,8 @@ class BackupsAndStatusTest extends TestCase
 
     public function test_a_cut_short_backup_fails_its_practice_restore_and_alerts_staff(): void
     {
+        config(['backups.encrypt' => false]);
+
         $run = app(DatabaseBackup::class)->run();
         $path = storage_path('app/backups/'.$run->file);
         $in = gzopen($path, 'rb');
@@ -103,6 +105,42 @@ class BackupsAndStatusTest extends TestCase
         $this->assertFalse($tested->restore_ok);
         $this->assertStringContainsString('cut short', $tested->restore_message);
         Notification::assertSentOnDemand(SystemProblemAdminAlert::class);
+    }
+
+    public function test_a_backup_is_locked_so_the_file_is_unreadable_but_still_restores(): void
+    {
+        WpUser::create(['user_login' => 'secretperson', 'user_pass' => 'x', 'user_email' => 'private@example.com']);
+
+        $run = app(DatabaseBackup::class)->run();
+        $path = storage_path('app/backups/'.$run->file);
+
+        $this->assertStringEndsWith('.enc', $run->file);
+        $raw = file_get_contents($path);
+        $this->assertStringStartsWith('RKBK1', $raw);
+        $this->assertStringNotContainsString('private@example.com', $raw);
+        $this->assertStringNotContainsString('private@example.com', (string) @gzdecode($raw));
+        $this->assertSame([], glob(storage_path('app/backups/restore-*')) ?: []);
+
+        $this->assertTrue((bool) app(DatabaseBackup::class)->testRestore($run)->restore_ok);
+        $this->assertSame([], glob(storage_path('app/backups/restore-*')) ?: [], 'the unlocked copy is removed after the practice restore');
+    }
+
+    public function test_a_changed_or_wrong_key_backup_is_refused(): void
+    {
+        $run = app(DatabaseBackup::class)->run();
+        $path = storage_path('app/backups/'.$run->file);
+
+        $changed = file_get_contents($path);
+        $changed[strlen($changed) - 5] = $changed[strlen($changed) - 5] === 'a' ? 'b' : 'a';
+        file_put_contents($path, $changed);
+        $this->assertFalse((bool) app(DatabaseBackup::class)->testRestore($run)->restore_ok);
+
+        $fresh = app(DatabaseBackup::class)->run();
+        config(['backups.encryption_key' => 'a-different-key']);
+        $tested = app(DatabaseBackup::class)->testRestore($fresh);
+
+        $this->assertFalse((bool) $tested->restore_ok);
+        $this->assertStringContainsString('could not be unlocked', $tested->restore_message);
     }
 
     public function test_the_practice_restore_refuses_to_use_the_live_database(): void

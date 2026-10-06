@@ -98,7 +98,15 @@ class DatabaseBackup
 
             gzclose($out);
             $out = null;
-            rename($partial, "{$dir}/{$name}");
+
+            if (config('backups.encrypt', true)) {
+                BackupCrypto::encrypt($partial, "{$dir}/{$name}.enc.part");
+                @unlink($partial);
+                rename("{$dir}/{$name}.enc.part", "{$dir}/{$name}.enc");
+                $name .= '.enc';
+            } else {
+                rename($partial, "{$dir}/{$name}");
+            }
         } catch (Throwable $e) {
             if ($out) {
                 gzclose($out);
@@ -110,6 +118,7 @@ class DatabaseBackup
                 }
             }
             @unlink($partial);
+            @unlink("{$dir}/{$name}.enc.part");
 
             report($e);
             $run = BackupRun::create(['status' => 'failed', 'message' => mb_substr('Backup failed: '.$e->getMessage(), 0, 500)]);
@@ -160,7 +169,14 @@ class DatabaseBackup
 
             $this->wipe($target);
 
-            $in = gzopen($path, 'rb') ?: throw new RuntimeException('Could not open the backup file.');
+            $plain = $path;
+
+            if (str_ends_with($path, '.enc')) {
+                $plain = $this->directory().'/restore-'.bin2hex(random_bytes(4)).'.sql.gz.tmp';
+                BackupCrypto::decrypt($path, $plain);
+            }
+
+            $in = gzopen($plain, 'rb') ?: throw new RuntimeException('Could not open the backup file.');
             $sawEnd = false;
 
             try {
@@ -179,6 +195,10 @@ class DatabaseBackup
                 }
             } finally {
                 gzclose($in);
+
+                if ($plain !== $path) {
+                    @unlink($plain);
+                }
             }
 
             if (! $sawEnd) {
@@ -228,7 +248,7 @@ class DatabaseBackup
         $cutoff = now()->subDays(max(1, (int) config('backups.keep_days', 14)))->getTimestamp();
         $deleted = 0;
 
-        foreach (glob($this->directory().'/backup-*.sql.gz') ?: [] as $file) {
+        foreach (glob($this->directory().'/backup-*.sql.gz*') ?: [] as $file) {
             if (filemtime($file) < $cutoff && @unlink($file)) {
                 $deleted++;
             }

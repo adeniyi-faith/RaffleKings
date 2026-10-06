@@ -54,11 +54,12 @@ jobs:
     environment: staging
     steps:
       - name: Deploy to the staging site over SSH
-        uses: appleboy/ssh-action@master
+        uses: appleboy/ssh-action@v1.2.0
         with:
           host: ${{ secrets.CPANEL_STAGING_HOST }}
           username: ${{ secrets.CPANEL_STAGING_USERNAME }}
           password: ${{ secrets.CPANEL_STAGING_PASSWORD }}
+          fingerprint: ${{ secrets.CPANEL_HOST_FINGERPRINT }}
           port: 22
           script: |
             set -e
