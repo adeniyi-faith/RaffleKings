@@ -29,6 +29,10 @@ return [
     // Automatic payouts (Settings → On / off → New features): the biggest
     // single withdrawal "Send with Paystack" may send. Bigger ones are paid
     // by hand. 0 = no limit.
+    // A newly added bank account can't receive a withdrawal for this many hours
+    // (money-safety audit H4): time for the real owner to notice a thief's account.
+    'new_account_wait_hours' => (int) env('WITHDRAWAL_NEW_ACCOUNT_WAIT_HOURS', 24),
+
     'auto_payout_max' => (float) env('WITHDRAWAL_AUTO_PAYOUT_MAX', 200000),
 
 ];

@@ -55,11 +55,13 @@ class ReconcileWalletLedger extends Command
                 $this->line(sprintf('%s user %d: opening %s balance %.2f', $dryRun ? '[dry-run]' : '[reconcile]', $wallet->user_id, $balanceType, $amount));
 
                 if (! $dryRun) {
-                    $ledger->recordCredit(
+                    $ledger->credit(
                         userId: $wallet->user_id,
                         balanceType: $balanceType,
                         amount: $amount,
                         reason: 'opening_balance',
+                        key: "opening_balance:{$wallet->user_id}:{$balanceType}",
+                        from: 'opening_balances',
                         description: 'Balance carried over from the old site when the money history started.',
                     );
                 }

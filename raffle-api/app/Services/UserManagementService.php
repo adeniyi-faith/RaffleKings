@@ -2,11 +2,13 @@
 
 namespace App\Services;
 
+use App\Models\BalanceAdjustment;
 use App\Models\Legacy\RaffleTransaction;
 use App\Models\Legacy\WpUser;
 use App\Models\Legacy\WpUserMeta;
 use App\Models\UserPoints;
 use App\Models\Wallet;
+use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\DB;
 use InvalidArgumentException;
 
@@ -31,179 +33,61 @@ class UserManagementService
         private readonly AdminAuditLogService $auditLog,
         private readonly WalletLedgerService $walletLedger,
         private readonly PointsLedgerService $pointsLedger,
+        private readonly AccountRestrictions $restrictions,
     ) {}
 
     public function ban(WpUser $admin, WpUser $target, ?string $reason = null): void
     {
-        $this->setBanned($admin, $target, true, $reason);
-    }
+        $reason = trim((string) $reason) !== '' ? $reason : 'No reason written';
 
-    public function unban(WpUser $admin, WpUser $target): void
-    {
-        $this->setBanned($admin, $target, false, null);
-    }
-
-    private function setBanned(WpUser $admin, WpUser $target, bool $banned, ?string $reason): void
-    {
-        WpUserMeta::query()
-            ->where('user_id', $target->ID)
-            ->where('meta_key', 'rk_is_banned')
-            ->delete();
-
-        WpUserMeta::create([
-            'user_id' => $target->ID,
-            'meta_key' => 'rk_is_banned',
-            'meta_value' => $banned ? '1' : '0',
-        ]);
-
-        // A ban used to stop only new sign-ins and withdrawals: anyone
-        // already signed in kept buying, spinning and chatting until their
-        // cookie ran out (up to two weeks). Signing them out everywhere
-        // makes the ban take effect straight away.
-        if ($banned) {
-            WpUserMeta::query()->where('user_id', $target->ID)->where('meta_key', 'session_tokens')->delete();
-            $target->tokens()->delete();
-        }
-
-        $this->auditLog->record($admin, $banned ? 'user.banned' : 'user.unbanned', WpUser::class, $target->ID, [
-            'reason' => $reason,
-        ]);
+        $this->restrictions->impose($admin, $target, 'full_ban', $reason);
     }
 
     /**
-     * Same mechanic as legacy's own "Adjust Balance" panel: a manual
-     * add/subtract on wallet, earnings, or points, always logged as a
-     * `raffle_transactions` row (`type='admin_adjustment'`) — the same
-     * table Transaction Monitor and Purchase Log already read — plus an
-     * admin audit log entry. Subtracting clamps at zero (never goes
-     * negative), matching legacy exactly; adding does not.
+     * Asks for a ban to be lifted. Lifting takes TWO staff members: this is
+     * the first step, and a different staff member approves it
+     * (AccountRestrictions::approveLift).
      *
-     * Always lands in the new `wallets`/`user_points` tables — the only
-     * balances the live site reads since the WordPress site was retired.
-     * (This used to follow the legacy rk_wallets_unified_enabled /
-     * rk_rewards_unified_enabled switches, which default to off, so an
-     * admin credit silently went to wp_usermeta where no customer could
-     * see it.) The ledger records what was actually applied, so a
-     * subtraction that hits the zero floor doesn't leave the ledger
-     * claiming more was taken than really was.
-     *
-     * @throws InvalidArgumentException for an unknown balance type/direction or a non-positive amount
+     * @return int how many lift requests were made
      */
-    public function adjustBalance(WpUser $admin, WpUser $target, string $type, float $amount, string $direction): void
+    public function unban(WpUser $admin, WpUser $target, ?string $reason = null): int
     {
-        if (! in_array($type, self::ADJUSTABLE_BALANCE_TYPES, true)) {
-            throw new InvalidArgumentException("Unknown balance type: {$type}");
+        $count = 0;
+
+        foreach ($this->restrictions->active($target->ID)->where('type', 'full_ban') as $restriction) {
+            $this->restrictions->requestLift($admin, $restriction, trim((string) $reason) !== '' ? $reason : 'Lift requested');
+            $count++;
         }
 
-        if (! in_array($direction, ['add', 'subtract'], true)) {
-            throw new InvalidArgumentException("Unknown direction: {$direction}");
-        }
+        return $count;
+    }
 
-        if ($amount <= 0) {
-            throw new InvalidArgumentException('Amount must be positive.');
-        }
+    /**
+     * Turns restrictions on, or asks for them to be lifted (a second staff
+     * member approves lifting). Each one needs a reason.
+     */
+    public function updateRestrictions(WpUser $admin, WpUser $target, bool $banned, bool $banWithdraw, bool $banTransfer, ?string $banExpiry, string $reason = ''): void
+    {
+        $endsAt = $banExpiry ? Carbon::parse($banExpiry)->endOfDay() : null;
 
-        DB::transaction(function () use ($target, $type, $amount, $direction) {
-            if ($type === 'points') {
-                $this->adjustPoints($target, $amount, $direction);
-            } else {
-                $this->adjustWalletOrEarnings($target, $type, $amount, $direction);
+        foreach (['full_ban' => $banned, 'no_withdraw' => $banWithdraw, 'no_transfer' => $banTransfer] as $type => $wanted) {
+            $active = $this->restrictions->active($target->ID)->firstWhere('type', $type);
+
+            if ($wanted && ! $active) {
+                $this->restrictions->impose($admin, $target, $type, $reason, $endsAt);
+            } elseif (! $wanted && $active) {
+                $this->restrictions->requestLift($admin, $active, $reason !== '' ? $reason : 'Lift requested');
             }
-
-            RaffleTransaction::create([
-                'user_id' => $target->ID,
-                'claimed_amount' => $amount,
-                'status' => 'verified_final',
-                'type' => 'admin_adjustment',
-                'proof_url' => 'admin_panel',
-                'order_id' => 'Admin '.strtoupper($direction).' '.strtoupper($type),
-                'created_at' => now(),
-            ]);
-        });
-
-        $this->auditLog->record($admin, 'user.balance_'.$direction, WpUser::class, $target->ID, [
-            'balance_type' => $type,
-            'amount' => $amount,
-        ]);
+        }
     }
 
     /**
-     * Same fields as legacy's "Security & Restrictions" panel, stored
-     * in the same usermeta keys, so toggling them here means the same
-     * thing on both systems. `ban_withdraw` is enforced on both sides:
-     * legacy's own withdrawal handler already checks it via
-     * rk_check_user_status($user_id, 'withdraw')
-     * (wp-core/api-auth.php), and WithdrawalService::assertNotRestricted()
-     * now checks the same usermeta keys for a withdrawal submitted
-     * through the new Laravel frontend — that Laravel-side check was
-     * the real gap OVERHAUL_CHECKLIST.md item 36 called out, closed in
-     * this pass. `ban_transfer` is enforced by legacy's own transfer
-     * handler (rk_check_user_status($user_id, 'transfer'),
-     * wp-core/api-financials.php) the same way it always was; there is
-     * no Laravel-native transfer feature yet for it to also gate.
+     * Staff balance change. Needs a reason; big ones need a second person.
+     * See BalanceAdjustments.
      */
-    public function updateRestrictions(WpUser $admin, WpUser $target, bool $banned, bool $banWithdraw, bool $banTransfer, ?string $banExpiry): void
+    public function adjustBalance(WpUser $admin, WpUser $target, string $type, float $amount, string $direction, string $reason = ''): BalanceAdjustment
     {
-        $this->setMeta($target->ID, 'rk_is_banned', $banned ? '1' : '0');
-        $this->setMeta($target->ID, 'rk_ban_withdraw', $banWithdraw ? '1' : '0');
-        $this->setMeta($target->ID, 'rk_ban_transfer', $banTransfer ? '1' : '0');
-        $this->setMeta($target->ID, 'rk_ban_expiry', (string) $banExpiry);
-
-        $this->auditLog->record($admin, 'user.restrictions_updated', WpUser::class, $target->ID, [
-            'is_banned' => $banned,
-            'ban_withdraw' => $banWithdraw,
-            'ban_transfer' => $banTransfer,
-            'ban_expiry' => $banExpiry,
-        ]);
-    }
-
-    private function adjustWalletOrEarnings(WpUser $target, string $type, float $amount, string $direction): void
-    {
-        $column = $type.'_balance';
-
-        $wallet = Wallet::query()->where('user_id', $target->ID)->lockForUpdate()->first()
-            ?? Wallet::create(['user_id' => $target->ID, 'wallet_balance' => 0, 'earnings_balance' => 0]);
-
-        $before = (float) $wallet->{$column};
-        $after = $direction === 'add' ? $before + $amount : max(0, $before - $amount);
-        $applied = abs($after - $before);
-
-        $wallet->{$column} = $after;
-        $wallet->save();
-
-        if ($applied <= 0) {
-            return;
-        }
-
-        if ($direction === 'add') {
-            $this->walletLedger->recordCredit($target->ID, $type, $applied, 'admin_adjustment');
-        } else {
-            $this->walletLedger->recordDebit($target->ID, $type, $applied, 'admin_adjustment');
-        }
-    }
-
-    private function adjustPoints(WpUser $target, float $amount, string $direction): void
-    {
-        $points = (int) round($amount);
-
-        $record = UserPoints::query()->lockForUpdate()->firstOrCreate(['user_id' => $target->ID], ['balance' => 0, 'streak_count' => 0]);
-
-        $before = (int) $record->balance;
-        $after = $direction === 'add' ? $before + $points : max(0, $before - $points);
-        $applied = abs($after - $before);
-
-        $record->balance = $after;
-        $record->save();
-
-        if ($applied <= 0) {
-            return;
-        }
-
-        if ($direction === 'add') {
-            $this->pointsLedger->recordCredit($target->ID, $applied, 'admin_adjustment');
-        } else {
-            $this->pointsLedger->recordDebit($target->ID, $applied, 'admin_adjustment');
-        }
+        return app(BalanceAdjustments::class)->propose($admin, $target, $type, $direction, $amount, $reason);
     }
 
     private function setMeta(int $userId, string $key, string $value): void

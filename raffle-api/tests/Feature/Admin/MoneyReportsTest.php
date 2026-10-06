@@ -54,7 +54,7 @@ class MoneyReportsTest extends TestCase
 
     private function credit(WpUser $user, float $amount, string $reason): void
     {
-        app(WalletLedgerService::class)->recordCredit($user->ID, 'wallet', $amount, $reason);
+        app(WalletLedgerService::class)->credit($user->ID, 'wallet', $amount, $reason, $reason.':'.uniqid(), 'gateway_clearing');
     }
 
     private function withdrawal(WpUser $user, string $status, float $asked, float $fee): WithdrawalRequest

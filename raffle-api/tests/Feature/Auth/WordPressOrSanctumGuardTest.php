@@ -42,7 +42,7 @@ class WordPressOrSanctumGuardTest extends TestCase
     {
         $this->makeUser('jane', 'correcthorse1');
 
-        $login = $this->postJson('/api/auth/login', ['username' => 'jane', 'password' => 'correcthorse1']);
+        $login = $this->postJson('/api/auth/login', ['username' => 'jane', 'password' => 'correcthorse1', 'issue_token' => true]);
         $login->assertOk();
         $token = $login->json('token');
         $this->assertIsString($token);
@@ -61,6 +61,7 @@ class WordPressOrSanctumGuardTest extends TestCase
             'username' => 'newbie',
             'email' => 'newbie@example.com',
             'password' => 'correcthorse1',
+            'issue_token' => true,
         ]);
 
         $response->assertCreated();
@@ -82,7 +83,7 @@ class WordPressOrSanctumGuardTest extends TestCase
     {
         $user = $this->makeUser('cookie-user', 'correcthorse1');
 
-        $login = $this->postJson('/api/auth/login', ['username' => 'cookie-user', 'password' => 'correcthorse1']);
+        $login = $this->postJson('/api/auth/login', ['username' => 'cookie-user', 'password' => 'correcthorse1', 'issue_token' => true]);
         $cookie = collect($login->headers->getCookies())->first(fn ($c) => $c->getName() === 'wordpress_logged_in_testhash');
         $this->assertNotNull($cookie);
 
@@ -98,8 +99,8 @@ class WordPressOrSanctumGuardTest extends TestCase
     {
         $user = $this->makeUser('multi-device', 'correcthorse1');
 
-        $first = $this->postJson('/api/auth/login', ['username' => 'multi-device', 'password' => 'correcthorse1'])->json('token');
-        $second = $this->postJson('/api/auth/login', ['username' => 'multi-device', 'password' => 'correcthorse1'])->json('token');
+        $first = $this->postJson('/api/auth/login', ['username' => 'multi-device', 'password' => 'correcthorse1', 'issue_token' => true])->json('token');
+        $second = $this->postJson('/api/auth/login', ['username' => 'multi-device', 'password' => 'correcthorse1', 'issue_token' => true])->json('token');
 
         $this->withHeaders(['Authorization' => "Bearer {$first}"])->postJson('/api/auth/logout')->assertOk();
 

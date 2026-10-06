@@ -5,19 +5,20 @@ namespace App\Services;
 use App\Exceptions\BankAccountNotFoundException;
 use App\Exceptions\InsufficientBalanceException;
 use App\Exceptions\MinimumWithdrawalNotMetException;
+use App\Exceptions\DuplicatePostingException;
 use App\Exceptions\UserRestrictedException;
 use App\Exceptions\VerificationFeeRequiredException;
 use App\Models\BankAccount;
 use App\Models\Legacy\WpUser;
-use App\Models\Legacy\WpUserMeta;
-use App\Models\Wallet;
 use App\Models\WalletLedgerEntry;
 use App\Models\WithdrawalRequest;
 use App\Notifications\WithdrawalProcessed;
 use App\Notifications\WithdrawalRequestSubmittedAdminAlert;
+use Illuminate\Database\UniqueConstraintViolationException;
 use Illuminate\Notifications\AnonymousNotifiable;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Notification;
+use App\Support\Money;
 use RuntimeException;
 
 /**
@@ -45,6 +46,7 @@ class WithdrawalService
     public function __construct(
         private readonly WalletLedgerService $ledger,
         private readonly AdminAuditLogService $auditLog,
+        private readonly AccountRestrictions $restrictions,
     ) {}
 
     /**
@@ -66,24 +68,46 @@ class WithdrawalService
     }
 
     /**
+     * Takes the money out of winnings straight away and keeps it in a
+     * separate "held" balance until staff pay or reject the request, so a
+     * customer can't spend it twice and staff can see what is on its way.
+     *
+     * @param  string|null  $idempotencyKey  made once per tap by the app; the same
+     *                                       key returns the first request instead of making a second
+     *
      * @throws UserRestrictedException
      * @throws MinimumWithdrawalNotMetException
      * @throws BankAccountNotFoundException
      * @throws VerificationFeeRequiredException
      * @throws InsufficientBalanceException
      */
-    public function request(WpUser $user, float $amount, int $bankAccountId, bool $authorizeVerificationFee = false): WithdrawalRequest
+    public function request(WpUser $user, float $amount, int $bankAccountId, bool $authorizeVerificationFee = false, ?string $idempotencyKey = null): WithdrawalRequest
     {
-        $this->assertNotRestricted($user);
+        $this->restrictions->assertCanMoveMoney($user->ID, 'withdraw');
 
+        if ($idempotencyKey !== null && ($existing = WithdrawalRequest::query()->where('user_id', $user->ID)->where('idempotency_key', $idempotencyKey)->first())) {
+            return $existing;
+        }
+
+        $amount = round($amount, 2);
         $minimum = (float) config('withdrawals.minimum_amount');
 
         if ($amount < $minimum) {
             throw new MinimumWithdrawalNotMetException($minimum);
         }
 
-        if (! BankAccount::query()->active()->where('user_id', $user->ID)->whereKey($bankAccountId)->exists()) {
+        $bank = BankAccount::query()->active()->where('user_id', $user->ID)->whereKey($bankAccountId)->first();
+
+        if (! $bank) {
             throw new BankAccountNotFoundException;
+        }
+
+        // A bank account added a moment ago can't receive money yet: it gives
+        // the real owner time to notice and stop a thief who added it.
+        $waitHours = (int) config('withdrawals.new_account_wait_hours', 24);
+
+        if ($waitHours > 0 && $bank->created_at && $bank->created_at->gt(now()->subHours($waitHours))) {
+            throw new BankAccountNotFoundException('This bank account was added recently. For your safety it can receive withdrawals from '.$bank->created_at->copy()->addHours($waitHours)->format('j M, g:ia').'.');
         }
 
         $requiresFee = $this->lifetimeDeposits($user) < config('withdrawals.verification_deposit_threshold');
@@ -93,63 +117,74 @@ class WithdrawalService
             throw new VerificationFeeRequiredException($fee);
         }
 
-        $withdrawal = DB::transaction(function () use ($user, $amount, $bankAccountId, $fee, $requiresFee) {
-            $wallet = Wallet::query()->where('user_id', $user->ID)->lockForUpdate()->first()
-                ?? Wallet::create(['user_id' => $user->ID, 'wallet_balance' => 0, 'earnings_balance' => 0]);
+        try {
+            $withdrawal = DB::transaction(function () use ($user, $amount, $bankAccountId, $fee, $requiresFee, $idempotencyKey) {
+                $this->ledger->lockWallet($user->ID);
+                $earnings = $this->ledger->balances($user->ID)['earnings'];
 
-            $earnings = (float) $wallet->earnings_balance;
+                $amountKobo = Money::kobo($amount);
+                $feeKobo = Money::kobo($fee);
 
-            if ($earnings >= $amount + $fee) {
-                $deduct = $amount + $fee;
-                $send = $amount;
-            } elseif ($requiresFee && $earnings >= $amount) {
-                $deduct = $amount;
-                $send = $amount - $fee;
+                if ($earnings >= $amountKobo + $feeKobo) {
+                    $deduct = $amountKobo + $feeKobo;
+                    $send = $amountKobo;
+                } elseif ($requiresFee && $earnings >= $amountKobo) {
+                    $deduct = $amountKobo;
+                    $send = $amountKobo - $feeKobo;
 
-                if ($send <= 0) {
-                    throw new InsufficientBalanceException($fee - $earnings);
+                    if ($send <= 0) {
+                        throw new InsufficientBalanceException(Money::toFloat($feeKobo - $earnings));
+                    }
+                } else {
+                    throw new InsufficientBalanceException(Money::toFloat(($amountKobo + $feeKobo) - $earnings));
                 }
-            } else {
-                throw new InsufficientBalanceException(($amount + $fee) - $earnings);
-            }
 
-            $wallet->earnings_balance = $earnings - $deduct;
-            $wallet->save();
+                $withdrawal = WithdrawalRequest::create([
+                    'user_id' => $user->ID,
+                    'bank_account_id' => $bankAccountId,
+                    'requested_amount' => $amount,
+                    'fee_amount' => $fee,
+                    'amount_to_send' => Money::naira($send),
+                    'status' => 'pending',
+                    'idempotency_key' => $idempotencyKey,
+                ]);
 
-            $this->ledger->recordDebit(
-                userId: $user->ID,
-                balanceType: 'earnings',
-                amount: $deduct,
-                reason: 'withdrawal_request',
-            );
-
-            if ($fee > 0) {
-                // Same mechanic as the legacy site: the fee is credited
-                // into the user's own spending wallet, tagged 'deposit'
-                // so it counts toward THEIR OWN future lifetimeDeposits()
-                // check — this is what actually unlocks future
-                // withdrawals without the fee. See the class docblock.
-                $wallet->wallet_balance = (float) $wallet->wallet_balance + $fee;
-                $wallet->save();
-
-                $this->ledger->recordCredit(
+                // Winnings → held, all of it; then the fee (if any) goes to the
+                // spending wallet under its own label, leaving exactly what will
+                // be sent in the hold.
+                $this->ledger->move(
                     userId: $user->ID,
-                    balanceType: 'wallet',
-                    amount: $fee,
-                    reason: 'deposit',
-                    description: 'Account verification fee (counts toward future lifetime deposits).',
+                    fromBalance: 'earnings',
+                    toBalance: 'held',
+                    amount: Money::naira($deduct),
+                    reason: 'withdrawal_hold',
+                    key: "withdrawal_hold:{$withdrawal->id}",
+                    referenceType: 'withdrawal_request',
+                    referenceId: $withdrawal->id,
+                    description: 'Held for withdrawal request',
+                    customerAction: 'withdraw',
                 );
-            }
 
-            return WithdrawalRequest::create([
-                'user_id' => $user->ID,
-                'bank_account_id' => $bankAccountId,
-                'requested_amount' => $amount,
-                'fee_amount' => $fee,
-                'amount_to_send' => $send,
-                'status' => 'pending',
-            ]);
-        });
+                if ($fee > 0) {
+                    $this->ledger->move(
+                        userId: $user->ID,
+                        fromBalance: 'held',
+                        toBalance: 'wallet',
+                        amount: Money::naira($feeKobo),
+                        reason: 'verification_fee',
+                        key: "verification_fee:{$withdrawal->id}",
+                        referenceType: 'withdrawal_request',
+                        referenceId: $withdrawal->id,
+                        description: 'Account verification fee (counts toward future lifetime deposits).',
+                    );
+                }
+
+                return $withdrawal;
+            });
+        } catch (UniqueConstraintViolationException|DuplicatePostingException) {
+            // The same tap arrived twice at the same moment: hand back the first.
+            return WithdrawalRequest::query()->where('user_id', $user->ID)->where('idempotency_key', $idempotencyKey)->firstOrFail();
+        }
 
         // Fired AFTER the transaction commits — same "notify after
         // commit" discipline as every other service in this app.
@@ -164,19 +199,36 @@ class WithdrawalService
     }
 
     /**
-     * Admin confirms the bank transfer was actually sent. Logged to the
-     * admin audit log — fixes audit TD-15 ("no admin action audit log
-     * anywhere... approvals... are unlogged").
+     * Admin confirms the bank transfer was actually sent. The held money
+     * leaves the books to the payouts account. Logged to the admin audit log.
+     * Staff can't pay their own withdrawal.
      *
      * @throws RuntimeException if the request isn't pending
      */
     public function markPaid(WpUser $admin, WithdrawalRequest $withdrawal, bool $viaPaystack = false): WithdrawalRequest
     {
         $this->guardPending($withdrawal, $viaPaystack);
+        $this->guardNotOwn($admin, $withdrawal, $viaPaystack);
 
-        DB::transaction(function () use ($withdrawal, $viaPaystack) {
-            $this->guardPending(WithdrawalRequest::query()->whereKey($withdrawal->id)->lockForUpdate()->firstOrFail(), $viaPaystack);
-            $withdrawal->update(['status' => 'paid']);
+        DB::transaction(function () use ($withdrawal, $admin, $viaPaystack) {
+            $locked = WithdrawalRequest::query()->whereKey($withdrawal->id)->lockForUpdate()->firstOrFail();
+            $this->guardPending($locked, $viaPaystack);
+
+            $this->ledger->debit(
+                userId: $locked->user_id,
+                balanceType: 'held',
+                amount: (string) $locked->amount_to_send,
+                reason: 'withdrawal_paid',
+                key: "withdrawal_paid:{$locked->id}",
+                to: 'payouts',
+                referenceType: 'withdrawal_request',
+                referenceId: $locked->id,
+                description: 'Withdrawal paid',
+                createdBy: $admin->ID,
+            );
+
+            $locked->update(['status' => 'paid']);
+            $withdrawal->setRawAttributes($locked->getAttributes(), true);
         });
 
         $this->auditLog->record($admin, 'withdrawal.paid', WithdrawalRequest::class, $withdrawal->id, [
@@ -193,51 +245,78 @@ class WithdrawalService
     }
 
     /**
-     * Admin declines the request — refunds exactly what was taken for
-     * THIS request (amount_to_send + fee_amount) back to earnings.
-     * Deliberately does NOT reverse a verification-fee credit into the
-     * user's wallet balance, if one happened: that credit represents
-     * the account having been verified, a fact independent of whether
-     * this particular request is later approved or rejected.
+     * Admin declines the request. The held money goes back to winnings, and
+     * the verification fee, if one was taken, is taken back out of the
+     * spending wallet too (as much of it as is still there), so a rejected
+     * request can't be used to collect the fee as free money.
+     *
+     * @param  string|null  $reason  an internal note, kept in the audit log
+     * @param  string|null  $customerMessage  what the customer is told (never the internal note)
      *
      * @throws RuntimeException if the request isn't pending
      */
-    public function reject(WpUser $admin, WithdrawalRequest $withdrawal, ?string $reason = null): WithdrawalRequest
+    public function reject(WpUser $admin, WithdrawalRequest $withdrawal, ?string $reason = null, ?string $customerMessage = null): WithdrawalRequest
     {
         $this->guardPending($withdrawal);
+        $this->guardNotOwn($admin, $withdrawal);
 
-        DB::transaction(function () use ($withdrawal) {
+        $reclaimed = 0.0;
+
+        DB::transaction(function () use ($withdrawal, $admin, &$reclaimed) {
             // Re-checked under a lock (item 44): two admins clicking Reject
             // at once used to refund twice, and a Reject racing a Mark Paid
             // could leave a withdrawal both paid AND refunded.
-            $this->guardPending(WithdrawalRequest::query()->whereKey($withdrawal->id)->lockForUpdate()->firstOrFail());
+            $locked = WithdrawalRequest::query()->whereKey($withdrawal->id)->lockForUpdate()->firstOrFail();
+            $this->guardPending($locked);
 
-            $wallet = Wallet::query()->where('user_id', $withdrawal->user_id)->lockForUpdate()->first()
-                ?? Wallet::create(['user_id' => $withdrawal->user_id, 'wallet_balance' => 0, 'earnings_balance' => 0]);
-            $refund = (float) $withdrawal->amount_to_send + (float) $withdrawal->fee_amount;
-
-            $wallet->earnings_balance = (float) $wallet->earnings_balance + $refund;
-            $wallet->save();
-
-            $this->ledger->recordCredit(
-                userId: $withdrawal->user_id,
-                balanceType: 'earnings',
-                amount: $refund,
+            $this->ledger->move(
+                userId: $locked->user_id,
+                fromBalance: 'held',
+                toBalance: 'earnings',
+                amount: (string) $locked->amount_to_send,
                 reason: 'withdrawal_rejected',
+                key: "withdrawal_rejected:{$locked->id}",
                 referenceType: 'withdrawal_request',
-                referenceId: $withdrawal->id,
+                referenceId: $locked->id,
+                description: 'Withdrawal rejected: held money returned to winnings',
+                createdBy: $admin->ID,
             );
 
-            $withdrawal->update(['status' => 'rejected']);
+            $fee = Money::kobo((string) $locked->fee_amount);
+
+            if ($fee > 0) {
+                $take = min($fee, $this->ledger->balances($locked->user_id)['wallet']);
+
+                if ($take > 0) {
+                    $this->ledger->move(
+                        userId: $locked->user_id,
+                        fromBalance: 'wallet',
+                        toBalance: 'earnings',
+                        amount: Money::naira($take),
+                        reason: 'verification_fee_reclaimed',
+                        key: "verification_fee_reclaimed:{$locked->id}",
+                        referenceType: 'withdrawal_request',
+                        referenceId: $locked->id,
+                        description: 'Verification fee returned to winnings because the withdrawal was rejected',
+                        createdBy: $admin->ID,
+                    );
+                    $reclaimed = Money::toFloat($take);
+                }
+            }
+
+            $locked->update(['status' => 'rejected']);
+            $withdrawal->setRawAttributes($locked->getAttributes(), true);
         });
 
         $this->auditLog->record($admin, 'withdrawal.rejected', WithdrawalRequest::class, $withdrawal->id, [
             'reason' => $reason,
-            'refunded' => (float) $withdrawal->amount_to_send + (float) $withdrawal->fee_amount,
+            'customer_message' => $customerMessage,
+            'returned_to_winnings' => (float) $withdrawal->amount_to_send + $reclaimed,
+            'fee_reclaimed' => $reclaimed,
             'user_id' => $withdrawal->user_id,
         ]);
 
-        $withdrawal->user->notify(new WithdrawalProcessed($withdrawal, 'rejected', $reason));
+        $withdrawal->user->notify(new WithdrawalProcessed($withdrawal, 'rejected', $customerMessage));
 
         app(\App\Services\Analytics\Analytics::class)->capture($withdrawal->user_id, 'withdrawal_rejected', ['amount' => (float) $withdrawal->requested_amount]);
 
@@ -258,65 +337,36 @@ class WithdrawalService
         // Automatic payouts: while Paystack is sending the money, paying it
         // by hand would pay twice and rejecting would refund money already
         // on its way.
-        if (! $viaPaystack && $withdrawal->payout_status === 'sending') {
+        if (! $viaPaystack && in_array($withdrawal->payout_status, ['sending', 'checking'], true)) {
             throw new RuntimeException("Paystack is still sending withdrawal #{$withdrawal->id}. Wait for it to finish (or fail) first.");
         }
     }
 
-    /**
-     * Same three usermeta keys, same auto-expiry rule, and the same
-     * "an expired ban clears itself" behaviour as legacy's own
-     * rk_check_user_status($user_id, 'withdraw') (wp-core/api-auth.php)
-     * — a full account ban blocks a withdrawal the same as a
-     * withdrawal-specific one. This was never checked anywhere on the
-     * Laravel side before OVERHAUL_CHECKLIST.md Phase 3 item 36: an
-     * admin could flip rk_is_banned/rk_ban_withdraw from the new
-     * console (UserManagementService) and it would do nothing for a
-     * withdrawal submitted through the new frontend.
-     *
-     * @throws UserRestrictedException
-     */
-    private function assertNotRestricted(WpUser $user): void
+    /** Staff never pay or refund their own withdrawal (money-safety audit I2). */
+    private function guardNotOwn(WpUser $admin, WithdrawalRequest $withdrawal, bool $viaPaystack = false): void
     {
-        $meta = WpUserMeta::query()
-            ->where('user_id', $user->ID)
-            ->whereIn('meta_key', ['rk_is_banned', 'rk_ban_withdraw', 'rk_ban_expiry'])
-            ->pluck('meta_value', 'meta_key');
-
-        $expiry = $meta->get('rk_ban_expiry');
-
-        if (! empty($expiry) && now()->toDateString() > $expiry) {
-            // Same auto-lift-on-expiry behaviour as legacy: an expired
-            // ban is treated as if it were never set, and cleared so it
-            // doesn't have to be re-checked (and re-expired) every call.
-            WpUserMeta::query()
-                ->where('user_id', $user->ID)
-                ->whereIn('meta_key', ['rk_is_banned', 'rk_ban_withdraw', 'rk_ban_transfer', 'rk_ban_expiry'])
-                ->delete();
-
-            return;
-        }
-
-        if (($meta->get('rk_is_banned') ?? '0') === '1') {
-            throw new UserRestrictedException('Account suspended. Contact support.');
-        }
-
-        if (($meta->get('rk_ban_withdraw') ?? '0') === '1') {
-            throw new UserRestrictedException('Withdrawals are currently disabled for your account.');
+        if (! $viaPaystack && (int) $admin->ID === (int) $withdrawal->user_id) {
+            throw new RuntimeException('You can\'t pay or reject your own withdrawal. Ask another staff member.');
         }
     }
 
     /**
-     * A real payment gateway's deposit webhook (item 13) should record
-     * its credits with reason 'deposit' via WalletLedgerService — that's
-     * the contract this reads.
+     * Money the customer has put in with their own payments: top-ups, plus
+     * the verification fee they already paid (which unlocks future
+     * withdrawals), less any fee taken back when a request was rejected.
      */
     private function lifetimeDeposits(WpUser $user): float
     {
-        return (float) WalletLedgerEntry::query()
+        $sum = fn (string $balance, string $direction, array $reasons) => Money::kobo((string) (WalletLedgerEntry::query()
             ->where('user_id', $user->ID)
-            ->where('direction', 'credit')
-            ->where('reason', 'deposit')
-            ->sum('amount');
+            ->where('balance_type', $balance)
+            ->where('direction', $direction)
+            ->whereIn('reason', $reasons)
+            ->sum('amount') ?: '0'));
+
+        $kobo = $sum('wallet', 'credit', ['deposit', 'verification_fee'])
+            - $sum('wallet', 'debit', ['verification_fee_reclaimed']);
+
+        return Money::toFloat(max(0, $kobo));
     }
 }

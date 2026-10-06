@@ -18,6 +18,7 @@ class UpdateUserRestrictionsRequest extends FormRequest
             'ban_withdraw' => ['required', 'boolean'],
             'ban_transfer' => ['required', 'boolean'],
             'ban_expiry' => ['nullable', 'date'],
+            'reason' => ['required', 'string', 'min:5', 'max:2000'],
         ];
     }
 }

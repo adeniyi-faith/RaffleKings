@@ -476,16 +476,14 @@ class ComebackOffers
             }
 
             if ($offer->isMoney()) {
-                $wallet = Wallet::query()->where('user_id', $user->ID)->lockForUpdate()->first()
-                    ?? Wallet::create(['user_id' => $user->ID, 'wallet_balance' => 0, 'earnings_balance' => 0]);
-                $wallet->wallet_balance = (float) $wallet->wallet_balance + $offer->amount;
-                $wallet->save();
-
-                $this->ledger->recordCredit(
+                $this->ledger->credit(
                     userId: $user->ID,
                     balanceType: 'wallet',
                     amount: $offer->amount,
                     reason: 'comeback_offer',
+                    key: "comeback_offer:{$offer->id}",
+                    from: 'promotions',
+                    customerAction: 'claim',
                     referenceType: 'retention_offer',
                     referenceId: $offer->id,
                     description: 'Comeback offer claimed',

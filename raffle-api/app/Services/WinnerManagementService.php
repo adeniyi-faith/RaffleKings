@@ -37,20 +37,21 @@ class WinnerManagementService
                 throw new RuntimeException("Winner #{$locked->id} has already been credited.");
             }
 
+            if ((int) $locked->user_id === (int) $admin->ID) {
+                throw new RuntimeException('You can\'t credit your own prize. Ask another staff member.');
+            }
+
             $amount = (float) $locked->prize_cash_value;
 
             if ($amount > 0) {
-                $wallet = Wallet::query()->where('user_id', $locked->user_id)->lockForUpdate()->first()
-                    ?? Wallet::create(['user_id' => $locked->user_id, 'wallet_balance' => 0, 'earnings_balance' => 0]);
-
-                $wallet->earnings_balance = (float) $wallet->earnings_balance + $amount;
-                $wallet->save();
-
-                $this->ledger->recordCredit(
+                $this->ledger->credit(
                     userId: $locked->user_id,
                     balanceType: 'earnings',
                     amount: $amount,
                     reason: 'prize_payout',
+                    key: "prize_payout:raffle_winner:{$locked->id}",
+                    from: 'prizes',
+                    createdBy: $admin->ID,
                     referenceType: 'raffle_winner',
                     referenceId: $locked->id,
                 );

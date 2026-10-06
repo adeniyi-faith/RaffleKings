@@ -88,6 +88,13 @@ class WordPressOrSanctumGuard implements Guard
         $viaToken = $this->resolveViaSanctumToken($request);
         $user = $viaToken ?? $this->cookieGuard->user();
 
+        // A banned account is signed out on its very next request, however it
+        // got here (cookie or app token), so a ban never depends on every
+        // session having been cleaned up (money-safety audit J2, H5).
+        if ($user instanceof WpUser && $user->isBanned()) {
+            return $this->user = null;
+        }
+
         // An owner viewing the site as a customer (never through an API token,
         // and never on the admin pages, which always see the owner themselves).
         if ($viaToken === null && $user !== null && $request->cookies->has(Impersonation::COOKIE) && ! $request->is('admin', 'admin/*', 'livewire/*')) {
