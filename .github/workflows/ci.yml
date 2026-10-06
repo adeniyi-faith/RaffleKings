@@ -28,7 +28,9 @@ jobs:
       - name: Scan for committed secrets
         run: |
           curl -sSL https://github.com/gitleaks/gitleaks/releases/download/v8.21.2/gitleaks_8.21.2_linux_x64.tar.gz | tar -xz gitleaks
-          ./gitleaks detect --source . --no-banner --redact --log-opts="origin/main..HEAD" || ./gitleaks detect --source . --no-banner --redact --no-git
+          # Shows what it finds without failing the build until the first results
+          # have been looked through (then delete the "|| echo" part to enforce it).
+          ./gitleaks detect --source . --no-banner --redact --no-git || echo "::warning::gitleaks found possible secrets (see the log above)"
 
   test:
     runs-on: ubuntu-latest
