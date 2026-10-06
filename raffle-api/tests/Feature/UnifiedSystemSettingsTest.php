@@ -64,6 +64,7 @@ class UnifiedSystemSettingsTest extends TestCase
     public function test_staff_who_are_not_owners_cannot_open_it(): void
     {
         $staff = $this->actingAsAdministrator();
+        WpUserMeta::where('user_id', $staff->ID)->where('meta_key', StaffRoles::META_KEY)->delete();
         WpUserMeta::create(['user_id' => $staff->ID, 'meta_key' => StaffRoles::META_KEY, 'meta_value' => 'content']);
 
         Livewire::test(UnifiedSystemSettings::class)->assertForbidden();
