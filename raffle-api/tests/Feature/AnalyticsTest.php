@@ -148,7 +148,7 @@ class AnalyticsTest extends TestCase
         $this->switchOn();
         Http::fake([
             'api.paystack.co/transaction/initialize' => Http::response(['status' => true, 'data' => ['authorization_url' => 'https://paystack.test/pay/abc']]),
-            'api.paystack.co/transaction/verify/*' => Http::response(['status' => true, 'data' => ['status' => 'success', 'amount' => 500000, 'id' => 99]]),
+            'api.paystack.co/transaction/verify/*' => Http::response(['status' => true, 'data' => ['status' => 'success', 'amount' => 500000, 'currency' => 'NGN', 'id' => 99]]),
             'us.i.posthog.com/*' => Http::response([]),
         ]);
         $user = $this->actingAsWordPressUser();

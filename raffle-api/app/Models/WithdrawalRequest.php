@@ -7,6 +7,11 @@ use Illuminate\Database\Eloquent\Model;
 
 class WithdrawalRequest extends Model
 {
+    use \App\Models\Concerns\ChecksStatusFlow;
+
+    /** Waiting → paid or turned down. Once decided, it stays decided. */
+    public const STATUS_FLOW = ['pending' => ['paid', 'rejected'], 'paid' => [], 'rejected' => []];
+
     protected $fillable = [
         'user_id',
         'bank_account_id',
