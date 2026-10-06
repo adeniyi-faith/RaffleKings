@@ -139,8 +139,22 @@ class DepositService
                 throw new RuntimeException("Deposit {$reference} was started with {$deposit->gateway}, not {$gatewayName}.");
             }
 
+            if (! $verification->successful && ! $verification->isFinalFailure()) {
+                // Still processing at the gateway (pending, ongoing, queued…):
+                // the customer may well have paid. Not a failure; look again
+                // later (recheckPending runs every few minutes).
+                $deposit->update([
+                    'last_checked_at' => now(),
+                    'check_count' => ((int) $deposit->check_count) + 1,
+                ]);
+
+                return $deposit;
+            }
+
             if (! $verification->successful) {
                 $deposit->update([
+                    'last_checked_at' => now(),
+                    'check_count' => ((int) $deposit->check_count) + 1,
                     'status' => 'failed',
                     'gateway_transaction_id' => $verification->gatewayTransactionId,
                     'failure_reason' => "Gateway reported status: {$verification->rawStatus}",
@@ -230,6 +244,53 @@ class DepositService
         }
 
         return $deposit;
+    }
+
+    /** Top-ups still waiting are looked at again for this many days. */
+    public const RECHECK_DAYS = 2;
+
+    /**
+     * Every few minutes (routes/console.php): asks the gateway again about
+     * top-ups that were started but never confirmed, so a missed webhook or
+     * a customer who closed the tab never leaves paid money unclaimed.
+     * Anything still unconfirmed after RECHECK_DAYS is reported to staff.
+     *
+     * @return int how many were looked at
+     */
+    public function recheckPending(): int
+    {
+        $looked = 0;
+
+        Deposit::query()
+            ->whereIn('status', ['pending', 'failed'])
+            ->whereNotNull('gateway')
+            ->where('created_at', '>=', now()->subDays(self::RECHECK_DAYS))
+            ->where('created_at', '<=', now()->subMinutes(5))
+            ->where(fn ($q) => $q->whereNull('last_checked_at')->orWhere('last_checked_at', '<=', now()->subMinutes(9)))
+            ->orderBy('id')
+            ->limit(100)
+            ->get()
+            ->each(function (Deposit $deposit) use (&$looked) {
+                $looked++;
+
+                try {
+                    $this->confirm($deposit->gateway, $deposit->reference);
+                } catch (\Throwable $e) {
+                    $deposit->forceFill(['last_checked_at' => now(), 'check_count' => ((int) $deposit->check_count) + 1])->save();
+                    report($e);
+                }
+            });
+
+        $old = Deposit::query()->where('status', 'pending')->whereNotNull('gateway')
+            ->where('created_at', '<', now()->subDays(self::RECHECK_DAYS))
+            ->where('created_at', '>=', now()->subDays(self::RECHECK_DAYS + 5))
+            ->count();
+
+        if ($old > 0) {
+            \App\Services\Monitoring\StaffAlerts::send("{$old} top-up(s) have been waiting more than ".self::RECHECK_DAYS.' days without the gateway confirming them. Check Money → Top-ups.', 'old-pending-deposits', 1440);
+        }
+
+        return $looked;
     }
 
     public function gatewayFor(string $name): PaymentGateway

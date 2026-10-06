@@ -42,7 +42,7 @@ class PaystackGateway implements PaymentGateway
             ]);
 
         if ($response->failed() || ! $response->json('status')) {
-            throw new PaymentGatewayException('Paystack initialization failed: '.($response->json('message') ?? $response->body()));
+            throw new PaymentGatewayException('Paystack initialization failed: '.mb_substr((string) ($response->json('message') ?? 'HTTP '.$response->status()), 0, 160));
         }
 
         $authorizationUrl = $response->json('data.authorization_url');
@@ -66,16 +66,24 @@ class PaystackGateway implements PaymentGateway
             ->get('/transaction/verify/'.urlencode($reference));
 
         if ($response->failed()) {
-            throw new PaymentGatewayException('Paystack verification failed: '.$response->body());
+            // Only the status code and Paystack's own short message: never the
+            // whole reply, which can carry customer details (audit K1).
+            throw new PaymentGatewayException('Paystack verification failed (HTTP '.$response->status().'): '.mb_substr((string) $response->json('message'), 0, 120), unclear: true);
         }
 
         $data = $response->json('data', []);
         $status = $data['status'] ?? 'unknown';
 
+        // A "success" with no amount or currency can't be credited: treat it as
+        // an error to look at again, never as ₦0 or as naira by default.
+        if ($status === 'success' && (! isset($data['amount']) || ! is_numeric($data['amount']) || empty($data['currency']))) {
+            throw new PaymentGatewayException('Paystack said success but left out the amount or currency.', unclear: true);
+        }
+
         return new PaymentVerificationResult(
             successful: $status === 'success',
             amount: ((float) ($data['amount'] ?? 0)) / 100,
-            currency: $data['currency'] ?? 'NGN',
+            currency: (string) ($data['currency'] ?? ''),
             gatewayTransactionId: isset($data['id']) ? (string) $data['id'] : null,
             rawStatus: $status,
             // With "customer pays the fees" on in Paystack, `amount` includes

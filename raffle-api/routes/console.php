@@ -78,6 +78,13 @@ Schedule::call(function () {
     ->name('payout-status-check')
     ->withoutOverlapping(10);
 
+// Top-ups that were started but never confirmed (missed webhook, closed
+// tab): ask the gateway again, for up to two days.
+Schedule::call(fn () => app(\App\Services\DepositService::class)->recheckPending())
+    ->everyTenMinutes()
+    ->name('deposit-recheck')
+    ->withoutOverlapping(15);
+
 // Reminders ("raffle ends soon", "you left tickets in checkout").
 // Does nothing while switched off in Settings → On / off → New features.
 Schedule::command('reminders:send')->everyFiveMinutes()->withoutOverlapping(10);

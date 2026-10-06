@@ -52,7 +52,7 @@ class FlutterwaveGateway implements PaymentGateway
             ]);
 
         if ($response->failed() || $response->json('status') !== 'success') {
-            throw new PaymentGatewayException('Flutterwave initialization failed: '.($response->json('message') ?? $response->body()));
+            throw new PaymentGatewayException('Flutterwave initialization failed: '.mb_substr((string) ($response->json('message') ?? 'HTTP '.$response->status()), 0, 160));
         }
 
         $authorizationUrl = $response->json('data.link');
@@ -76,16 +76,20 @@ class FlutterwaveGateway implements PaymentGateway
             ->get('/transactions/verify_by_reference', ['tx_ref' => $reference]);
 
         if ($response->failed()) {
-            throw new PaymentGatewayException('Flutterwave verification failed: '.$response->body());
+            throw new PaymentGatewayException('Flutterwave verification failed (HTTP '.$response->status().'): '.mb_substr((string) $response->json('message'), 0, 120), unclear: true);
         }
 
         $data = $response->json('data', []);
         $status = $data['status'] ?? 'unknown';
 
+        if ($status === 'successful' && (! isset($data['amount']) || ! is_numeric($data['amount']) || empty($data['currency']))) {
+            throw new PaymentGatewayException('Flutterwave said successful but left out the amount or currency.', unclear: true);
+        }
+
         return new PaymentVerificationResult(
             successful: $status === 'successful',
             amount: (float) ($data['amount'] ?? 0),
-            currency: $data['currency'] ?? 'NGN',
+            currency: (string) ($data['currency'] ?? ''),
             gatewayTransactionId: isset($data['id']) ? (string) $data['id'] : null,
             rawStatus: $status,
         );
