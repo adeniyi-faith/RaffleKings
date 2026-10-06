@@ -54,4 +54,28 @@ class HallOfFameControllerTest extends TestCase
         $this->assertEquals(7000, $data['featured'][0]['prize_amount']);
         $this->assertCount(7, $data['recent']);
     }
+
+    public function test_the_list_is_kept_briefly_but_hiding_or_adding_a_winner_shows_at_once(): void
+    {
+        $user = WpUser::create(['user_login' => 'hofcache', 'user_pass' => 'x', 'user_email' => 'hofc@example.com']);
+        $win = fn (int $ticket) => RaffleWinner::create([
+            'raffle_id' => 901, 'user_id' => $user->ID, 'ticket_number' => $ticket,
+            'prize_name' => 'Cash', 'prize_rank' => 1, 'prize_cash_value' => 1000,
+            'is_credited' => false, 'is_visible' => true,
+        ]);
+
+        $first = $win(1);
+        $this->getJson('/api/hall-of-fame')->assertJsonCount(1, 'recent');
+
+        // A change that bypasses the model is not seen until the copy expires...
+        \DB::table($first->getTable())->where('id', $first->id)->update(['is_visible' => false]);
+        $this->getJson('/api/hall-of-fame')->assertJsonCount(1, 'recent');
+
+        // ...but a new winner, or hiding one through the admin, shows straight away.
+        $win(2);
+        $this->getJson('/api/hall-of-fame')->assertJsonCount(1, 'recent')->assertJsonFragment(['ticket' => 2]);
+
+        RaffleWinner::query()->where('ticket_number', 2)->first()->update(['is_visible' => false]);
+        $this->getJson('/api/hall-of-fame')->assertJsonCount(0, 'recent');
+    }
 }

@@ -14,11 +14,15 @@ use Illuminate\Support\Str;
  */
 class Tutorial extends Model
 {
-    public const CATEGORIES = ['Guide', 'How to play', 'Payments', 'Withdrawals', 'Account', 'Strategy', 'News'];
+    public const CATEGORIES = [
+        'Getting started', 'Account & security', 'Deposits', 'Withdrawals', 'Buying tickets',
+        'Draws & winning', 'Points & rewards', 'Referrals & community', 'Help & troubleshooting',
+        'Guide', 'How to play', 'Payments', 'Account', 'Strategy', 'News',
+    ];
 
     protected $fillable = [
         'title', 'category', 'read_time', 'video_url', 'excerpt', 'content',
-        'is_featured', 'is_published', 'helpful_count', 'published_at', 'legacy_post_id',
+        'is_featured', 'is_published', 'helpful_count', 'published_at', 'legacy_post_id', 'guide_key', 'image_url',
     ];
 
     protected $casts = [

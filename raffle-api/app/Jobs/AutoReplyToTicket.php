@@ -2,6 +2,7 @@
 
 namespace App\Jobs;
 
+use App\Models\AiRequest;
 use App\Models\SupportTicket;
 use App\Services\Ai\SupportAi;
 use App\Services\SupportTicketService;
@@ -51,6 +52,7 @@ class AutoReplyToTicket implements ShouldQueue
             $result = $ai->answer($ticket);
         } catch (\Throwable $e) {
             Log::info('AutoReplyToTicket: left for a person', ['ticket' => $ticket->id, 'why' => $e->getMessage()]);
+            $this->noteHeldBack($ticket, $e->getMessage());
 
             return;
         }
@@ -67,9 +69,24 @@ class AutoReplyToTicket implements ShouldQueue
         }
 
         if (! $result['answerable']) {
+            $this->noteHeldBack($ticket, $result['reason'] !== '' ? $result['reason'] : 'The assistant was not sure it had the answer.');
+
             return;
         }
 
         $tickets->replyAutomated($ticket, $result['reply']);
+    }
+
+    /** Leaves a trace of why the assistant stayed quiet, so staff can see it on the ticket. */
+    private function noteHeldBack(SupportTicket $ticket, string $why): void
+    {
+        AiRequest::create([
+            'purpose' => 'support:held-back',
+            'model' => '',
+            'support_ticket_id' => $ticket->id,
+            'succeeded' => false,
+            'error' => mb_substr($why, 0, 250),
+            'created_at' => now(),
+        ]);
     }
 }

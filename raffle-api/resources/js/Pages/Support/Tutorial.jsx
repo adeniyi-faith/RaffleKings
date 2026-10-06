@@ -30,7 +30,7 @@ export default function Tutorial({ tutorial, more = [] }) {
                     </span>
                     <h1 className="mt-3 text-2xl font-bold leading-tight text-gray-900 sm:text-3xl dark:text-white">{tutorial.title}</h1>
                     <div className="mt-3 flex flex-wrap items-center gap-x-4 gap-y-1 border-b border-gray-100 pb-5 text-xs text-gray-400 dark:border-gray-800">
-                        <span>{tutorial.date_ago}</span>
+                        {tutorial.date_ago && <span>{tutorial.date_ago}</span>}
                         <span className="inline-flex items-center gap-1">
                             <Clock className="h-3.5 w-3.5" /> {tutorial.read_time} read
                         </span>
@@ -70,8 +70,12 @@ export default function Tutorial({ tutorial, more = [] }) {
                                     href={item.url}
                                     className="flex gap-3 rounded-2xl border border-gray-100 bg-white p-3 shadow-sm transition-transform active:scale-[0.99] dark:border-gray-800 dark:bg-dark-card"
                                 >
-                                    <div className="flex h-14 w-14 flex-shrink-0 items-center justify-center rounded-xl bg-gray-100 dark:bg-gray-800">
-                                        <BookOpen className="h-6 w-6 text-gray-300 dark:text-gray-600" />
+                                    <div className="flex h-14 w-14 flex-shrink-0 items-center justify-center overflow-hidden rounded-xl bg-gray-100 dark:bg-gray-800">
+                                        {item.image_url ? (
+                                            <img src={item.image_url} alt="" loading="lazy" className="h-full w-full object-cover object-top" />
+                                        ) : (
+                                            <BookOpen className="h-6 w-6 text-gray-300 dark:text-gray-600" />
+                                        )}
                                     </div>
                                     <div className="min-w-0 flex-1">
                                         <h3 className="line-clamp-2 text-sm font-bold leading-tight text-gray-800 dark:text-gray-100">{item.title}</h3>

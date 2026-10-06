@@ -69,6 +69,10 @@ class TutorialResource extends Resource
                 Forms\Components\Toggle::make('is_featured')->label('Featured')
                     ->helperText('Shown big at the top of the Learning Hub. Only one can be featured, so this switches it off on the others.'),
                 Forms\Components\TextInput::make('category')->datalist(Tutorial::CATEGORIES)->default('Guide')->required()->maxLength(40),
+                Forms\Components\TextInput::make('image_url')->label('Picture (optional)')->maxLength(255)
+                    ->helperText('A picture address such as /guides/wallet-topup.jpg. It is shown beside the guide on the Learning Hub.')
+                    ->rule('regex:#^(/|https://)#')
+                    ->validationMessages(['regex' => 'Start with / or https://.']),
                 Forms\Components\TextInput::make('read_time')->label('Reading time')->default('3 min')->maxLength(20),
                 Forms\Components\TextInput::make('video_url')->label('Video link (optional)')->url()
                     ->rule('regex:#^https://(www\.|m\.)?(youtube\.com|youtu\.be|vimeo\.com)/#i')

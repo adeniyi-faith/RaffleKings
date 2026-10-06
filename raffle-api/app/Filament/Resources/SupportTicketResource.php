@@ -154,6 +154,15 @@ class SupportTicketResource extends Resource
                         ->formatStateUsing(fn (string $state) => static::STATUS_LABELS[$state] ?? $state)
                         ->color(fn (string $state) => static::statusColor($state)),
                     Infolists\Components\TextEntry::make('created_at')->label('Opened')->since(),
+                    Infolists\Components\TextEntry::make('ai_held_back')
+                        ->label('AI assistant')
+                        ->state(fn (SupportTicket $record) => \App\Models\AiRequest::query()
+                            ->where('support_ticket_id', $record->id)->where('purpose', 'support:held-back')
+                            ->latest('id')->value('error'))
+                        ->prefix('Left for your team: ')
+                        ->visible(fn (SupportTicket $record) => \App\Models\AiRequest::query()
+                            ->where('support_ticket_id', $record->id)->where('purpose', 'support:held-back')->exists())
+                        ->columnSpanFull(),
                 ]),
             Infolists\Components\Section::make('Conversation')
                 ->schema([

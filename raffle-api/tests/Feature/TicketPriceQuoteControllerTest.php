@@ -57,4 +57,29 @@ class TicketPriceQuoteControllerTest extends TestCase
         $this->getJson("/api/raffles/{$raffle->public_id}/price-quote?quantity=0")->assertStatus(422);
         $this->getJson("/api/raffles/{$raffle->public_id}/price-quote?quantity=-1")->assertStatus(422);
     }
+
+    public function test_several_quantities_come_back_in_one_request_matching_the_single_quotes(): void
+    {
+        $raffle = $this->makeRaffle('500');
+
+        $batch = $this->getJson("/api/raffles/{$raffle->public_id}/price-quotes?quantities[]=2&quantities[]=3&quantities[]=10")
+            ->assertOk()->json('quotes');
+
+        $this->assertSame([2, 3, 10], array_map('intval', array_keys($batch)));
+
+        foreach ([2, 3, 10] as $qty) {
+            $this->assertEquals(
+                $this->getJson("/api/raffles/{$raffle->public_id}/price-quote?quantity={$qty}")->json(),
+                $batch[$qty],
+            );
+        }
+    }
+
+    public function test_the_batch_needs_quantities_and_an_unknown_raffle_is_404(): void
+    {
+        $raffle = $this->makeRaffle('500');
+
+        $this->getJson("/api/raffles/{$raffle->public_id}/price-quotes")->assertStatus(422);
+        $this->getJson('/api/raffles/999999/price-quotes?quantities[]=1')->assertNotFound();
+    }
 }
