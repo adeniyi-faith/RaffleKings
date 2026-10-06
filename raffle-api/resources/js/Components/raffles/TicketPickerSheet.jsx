@@ -202,14 +202,18 @@ export default function TicketPickerSheet({
 
             <RaffleOdds raffleId={raffleId} quantity={selectedQty} />
 
-            <button
-                type="button"
-                onClick={onProceed}
-                disabled={disabled}
-                className="rk-shine relative flex w-full items-center justify-center gap-2 overflow-hidden rounded-2xl bg-gradient-to-r from-amber-400 via-orange-500 to-rose-500 py-4 text-base font-black text-white shadow-lg shadow-orange-500/40 transition-transform active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-50"
-            >
-                Select numbers {total !== null && <span className="tabular-nums">· {formatNaira(total)}</span>} <ArrowRight className="h-5 w-5" />
-            </button>
+            {/* Always visible at the bottom of the sheet, so nobody has to scroll to find the next step. */}
+            <div className="sticky bottom-0 z-10 -mx-5 -mb-1 bg-gradient-to-t from-white via-white to-white/90 px-5 pb-1 pt-3 dark:from-dark-card dark:via-dark-card dark:to-dark-card/90">
+                <p className="mb-2 text-center text-[11px] font-semibold text-gray-500 dark:text-gray-400">Step 1 of 2: choose how many tickets. Next you pick your numbers.</p>
+                <button
+                    type="button"
+                    onClick={onProceed}
+                    disabled={disabled}
+                    className="rk-shine relative flex w-full items-center justify-center gap-2 overflow-hidden rounded-2xl bg-gradient-to-r from-amber-400 via-orange-500 to-rose-500 py-4 text-base font-black text-white shadow-lg shadow-orange-500/40 transition-transform active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-50"
+                >
+                    Choose numbers {total !== null && <span className="tabular-nums">· {formatNaira(total)}</span>} <ArrowRight className="h-5 w-5" />
+                </button>
+            </div>
         </div>
     );
 }
