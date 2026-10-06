@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { Head, Link, router } from '@inertiajs/react';
-import { AlertCircle, ArrowLeft, ArrowRight, Shuffle, X } from 'lucide-react';
+import { AlertCircle, ArrowLeft, ArrowRight, Search, Shuffle, X } from 'lucide-react';
 import { useTicketPriceQuote } from '../../hooks/useTicketPriceQuote';
 import { formatNaira } from '../../lib/format';
 import { echoOrNull } from '../../lib/echo';
@@ -15,6 +15,7 @@ export default function SelectNumbers({ raffle, qty, takenNumbers, heldNumbers =
     const [held, setHeld] = useState(heldNumbers);
     const [confirming, setConfirming] = useState(false);
     const [notice, setNotice] = useState(null);
+    const [jump, setJump] = useState('');
     const noticeTimer = useRef(null);
     const takenSet = useMemo(() => new Set(taken), [taken]);
     const heldSet = useMemo(() => new Set(held), [held]);
@@ -145,6 +146,22 @@ export default function SelectNumbers({ raffle, qty, takenNumbers, heldNumbers =
         setSelected(available.slice(0, qty));
     }
 
+    // "Go to number": scrolls to it and flashes it, so nobody has to scroll through hundreds.
+    function jumpTo(event) {
+        event.preventDefault();
+        const n = Number(jump);
+
+        if (! Number.isInteger(n) || n < 1 || n > maxTickets) {
+            flash(`Enter a number from 1 to ${maxTickets}.`);
+            return;
+        }
+
+        const tile = document.getElementById(`number-${n}`);
+        tile?.scrollIntoView({ block: 'center', behavior: 'smooth' });
+        tile?.focus({ preventScroll: true });
+        setJump('');
+    }
+
     function clearAll() {
         setSelected([]);
     }
@@ -190,20 +207,20 @@ export default function SelectNumbers({ raffle, qty, takenNumbers, heldNumbers =
     return (
         <>
             <Head title={`Pick your numbers: ${raffle.title}`} />
-            <div className="min-h-screen bg-app-bg pb-32 dark:bg-dark-bg">
-                <div className="sticky top-0 z-40 flex items-center gap-3 border-b border-gray-100 bg-white/95 px-5 py-4 backdrop-blur-md dark:border-dark-border dark:bg-dark-bg/95">
+            <div className="min-h-screen overflow-x-hidden bg-app-bg pb-32 dark:bg-dark-bg">
+                <div className="sticky top-0 z-40 flex items-center gap-2 border-b border-gray-100 bg-white/95 px-4 py-3 backdrop-blur-md dark:border-dark-border dark:bg-dark-bg/95">
                     <Link href={`/raffles/${raffle.id}`} className="-ml-1 p-1 text-gray-400 hover:text-gray-600 dark:hover:text-white">
                         <ArrowLeft className="h-5 w-5" />
                     </Link>
-                    <div className="flex-1">
-                        <h2 className="truncate text-lg font-bold text-gray-900 dark:text-white">{raffle.title}</h2>
+                    <div className="min-w-0 flex-1">
+                        <h2 className="truncate text-base font-bold text-gray-900 dark:text-white">{raffle.title}</h2>
                         <p className="text-xs text-gray-500 dark:text-gray-400">
                             {remaining > 0 ? `Pick ${remaining} more number${remaining === 1 ? '' : 's'}` : 'All numbers picked!'}
                         </p>
                     </div>
                     <button
                         onClick={quickPick}
-                        className="flex items-center gap-1.5 rounded-lg border border-gray-200 bg-gray-50 px-3 py-2 text-xs font-bold text-gray-700 shadow-sm active:scale-95 dark:border-dark-border dark:bg-dark-card dark:text-gray-200"
+                        className="flex flex-shrink-0 items-center gap-1.5 whitespace-nowrap rounded-lg border border-gray-200 bg-gray-50 px-3 py-2 text-xs font-bold text-gray-700 shadow-sm active:scale-95 dark:border-dark-border dark:bg-dark-card dark:text-gray-200"
                     >
                         <Shuffle className="h-3.5 w-3.5 text-yellow-500" /> Quick Pick
                     </button>
@@ -212,12 +229,31 @@ export default function SelectNumbers({ raffle, qty, takenNumbers, heldNumbers =
                 {notice && (
                     <div
                         role="status"
-                        className="sticky top-[73px] z-30 mx-4 mt-2 flex items-start gap-2 rounded-xl border border-orange-200 bg-orange-50 px-3 py-2 text-xs font-medium text-orange-800 shadow-sm dark:border-orange-900/40 dark:bg-orange-900/30 dark:text-orange-200"
+                        className="sticky top-[64px] z-30 mx-4 mt-2 flex items-start gap-2 rounded-xl border border-orange-200 bg-orange-50 px-3 py-2 text-xs font-medium text-orange-800 shadow-sm dark:border-orange-900/40 dark:bg-orange-900/30 dark:text-orange-200"
                     >
                         <AlertCircle className="mt-0.5 h-4 w-4 flex-shrink-0" />
                         <span>{notice}</span>
                     </div>
                 )}
+
+                <form onSubmit={jumpTo} className="flex items-center gap-2 px-4 pt-3">
+                    <label className="relative flex-1">
+                        <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-400" />
+                        <input
+                            type="number"
+                            inputMode="numeric"
+                            min="1"
+                            max={maxTickets}
+                            value={jump}
+                            onChange={(e) => setJump(e.target.value)}
+                            placeholder={`Go to a number (1 to ${maxTickets})`}
+                            className="w-full rounded-xl border border-gray-200 bg-gray-50 py-2.5 pl-9 pr-3 text-sm text-gray-700 dark:border-dark-border dark:bg-dark-card dark:text-gray-200"
+                        />
+                    </label>
+                    <button type="submit" className="flex-shrink-0 rounded-xl border border-gray-200 bg-gray-50 px-4 py-2.5 text-sm font-bold text-gray-700 active:scale-95 dark:border-dark-border dark:bg-dark-card dark:text-gray-200">
+                        Go
+                    </button>
+                </form>
 
                 {selected.length > 0 && (
                     <div className="flex justify-end px-5 pt-2">
@@ -230,7 +266,7 @@ export default function SelectNumbers({ raffle, qty, takenNumbers, heldNumbers =
                     </div>
                 )}
 
-                <div className="flex items-center justify-center gap-4 px-5 py-3 text-[11px] text-gray-500 dark:text-gray-400">
+                <div className="flex flex-wrap items-center justify-center gap-x-4 gap-y-1 px-4 py-3 text-[11px] text-gray-500 dark:text-gray-400">
                     <span className="flex items-center gap-1.5">
                         <span className="h-3 w-3 rounded border border-gray-300 bg-white dark:border-gray-600 dark:bg-dark-card" /> Available
                     </span>
@@ -254,10 +290,11 @@ export default function SelectNumbers({ raffle, qty, takenNumbers, heldNumbers =
                         return (
                             <button
                                 key={n}
+                                id={`number-${n}`}
                                 onClick={() => toggle(n)}
                                 disabled={isTaken || isHeld}
                                 className={[
-                                    'relative flex h-12 w-full select-none items-center justify-center rounded-xl text-sm font-bold transition-all active:scale-90',
+                                    'relative flex h-11 w-full select-none items-center justify-center rounded-xl text-sm font-bold transition-all active:scale-90',
                                     isTaken
                                         ? 'cursor-not-allowed border border-red-200 bg-red-50 text-red-400 dark:border-red-900 dark:bg-red-900/20 dark:text-red-400'
                                         : isHeld
@@ -284,21 +321,21 @@ export default function SelectNumbers({ raffle, qty, takenNumbers, heldNumbers =
                 </div>
             </div>
 
-            {remaining === 0 && (
-                <div className="fixed bottom-0 left-0 w-full px-5 pb-6">
-                    <div className="mx-auto flex max-w-md items-center gap-4 rounded-2xl border border-gray-800 bg-gray-900 p-4 text-white shadow-2xl dark:border-dark-border dark:bg-dark-card">
-                        <div className="flex-1">
+            {selected.length > 0 && (
+                <div className="fixed inset-x-0 bottom-0 px-4 pb-4" style={{ paddingBottom: 'max(1rem, env(safe-area-inset-bottom))' }}>
+                    <div className="mx-auto flex w-full max-w-md items-center gap-3 rounded-2xl border border-gray-800 bg-gray-900 p-4 text-white shadow-2xl dark:border-dark-border dark:bg-dark-card">
+                        <div className="min-w-0 flex-1">
                             <p className="text-[10px] font-bold uppercase tracking-wide text-gray-400 dark:text-gray-500">
-                                Total Pay
+                                {remaining === 0 ? 'Total Pay' : `${selected.length} of ${qty} picked`}
                             </p>
                             <p className="text-xl font-bold leading-none text-white">
-                                {quote ? formatNaira(quote.discounted) : '…'}
+                                {remaining > 0 ? `Pick ${remaining} more` : quote ? formatNaira(quote.discounted) : '…'}
                             </p>
                         </div>
                         <button
                             onClick={confirm}
-                            disabled={confirming}
-                            className="flex items-center gap-2 rounded-xl bg-white px-6 py-3 text-sm font-bold text-gray-900 shadow-lg transition-transform active:scale-95 disabled:opacity-60 dark:bg-app-primary dark:text-white"
+                            disabled={confirming || remaining > 0}
+                            className="flex flex-shrink-0 items-center gap-2 whitespace-nowrap rounded-xl bg-white px-5 py-3 text-sm font-bold text-gray-900 shadow-lg transition-transform active:scale-95 disabled:opacity-40 dark:bg-app-primary dark:text-white"
                         >
                             {confirming ? 'Holding your numbers…' : <>Checkout Now <ArrowRight className="h-4 w-4" /></>}
                         </button>
