@@ -31,3 +31,6 @@ error_log
 /vendor/
 composer.lock
 .phpunit.result.cache
+
+# Server security-scanner credentials: never in the repo
+wp/wp-content/imunify-security/auth.php

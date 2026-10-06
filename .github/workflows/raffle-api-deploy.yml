@@ -142,11 +142,12 @@ jobs:
         # _wordpress-legacy-backup/ next to it. Once that move has
         # happened, wp-config.php is no longer at the top level, so this
         # does nothing on every future run.
-        uses: appleboy/ssh-action@master
+        uses: appleboy/ssh-action@v1.2.0
         with:
           host: ${{ secrets.CPANEL_HOST }}
           username: ${{ secrets.CPANEL_USERNAME }}
           password: ${{ secrets.CPANEL_PASSWORD }}
+          fingerprint: ${{ secrets.CPANEL_HOST_FINGERPRINT }}
           port: 22
           script: |
             set -e
@@ -173,6 +174,7 @@ jobs:
           CPANEL_HOST: ${{ secrets.CPANEL_HOST }}
           CPANEL_USERNAME: ${{ secrets.CPANEL_USERNAME }}
           CPANEL_PASSWORD: ${{ secrets.CPANEL_PASSWORD }}
+          CPANEL_HOST_KEY: ${{ secrets.CPANEL_HOST_KEY }}
         run: |
           sudo apt-get update -qq && sudo apt-get install -qq -y sshpass
           # Secrets can carry an invisible trailing space/newline from how
@@ -180,7 +182,17 @@ jobs:
           # scp doesn't. Strip it.
           SSH_HOST=$(printf '%s' "$CPANEL_HOST" | tr -d '[:space:]')
           SSH_USER=$(printf '%s' "$CPANEL_USERNAME" | tr -d '[:space:]')
-          sshpass -p "$CPANEL_PASSWORD" scp -P 22 -o StrictHostKeyChecking=no \
+          # With CPANEL_HOST_KEY set (the server's line from `ssh-keyscan`), the
+          # server's identity is checked; without it the old trust-anything
+          # behaviour stays and a warning is shown.
+          if [ -n "$CPANEL_HOST_KEY" ]; then
+            mkdir -p ~/.ssh && printf '%s\n' "$CPANEL_HOST_KEY" > ~/.ssh/known_hosts
+            HOST_CHECK="-o StrictHostKeyChecking=yes"
+          else
+            echo "::warning::CPANEL_HOST_KEY is not set, so the server's identity is not checked during the copy."
+            HOST_CHECK="-o StrictHostKeyChecking=no"
+          fi
+          sshpass -p "$CPANEL_PASSWORD" scp -P 22 $HOST_CHECK \
             /tmp/raffle-api-build.tar.gz "$SSH_USER@$SSH_HOST:${{ env.DEPLOY_PATH }}/deploy.tar.gz"
 
       - name: Extract the build on the server
@@ -191,11 +203,12 @@ jobs:
         # -- this workflow has no copy of those, they exist only on the
         # server. _wordpress-legacy-backup, sitting next to this folder,
         # is untouched too.
-        uses: appleboy/ssh-action@master
+        uses: appleboy/ssh-action@v1.2.0
         with:
           host: ${{ secrets.CPANEL_HOST }}
           username: ${{ secrets.CPANEL_USERNAME }}
           password: ${{ secrets.CPANEL_PASSWORD }}
+          fingerprint: ${{ secrets.CPANEL_HOST_FINGERPRINT }}
           port: 22
           script: |
             set -e
@@ -252,11 +265,12 @@ jobs:
         #              GEMINI_API_KEY
         # Any that are missing are listed by the "Health check" step at
         # the end of the deploy log.
-        uses: appleboy/ssh-action@master
+        uses: appleboy/ssh-action@v1.2.0
         with:
           host: ${{ secrets.CPANEL_HOST }}
           username: ${{ secrets.CPANEL_USERNAME }}
           password: ${{ secrets.CPANEL_PASSWORD }}
+          fingerprint: ${{ secrets.CPANEL_HOST_FINGERPRINT }}
           port: 22
           script: |
             set -e
@@ -369,11 +383,12 @@ jobs:
             ENVEOF
 
       - name: Run post-deploy Laravel commands
-        uses: appleboy/ssh-action@master
+        uses: appleboy/ssh-action@v1.2.0
         with:
           host: ${{ secrets.CPANEL_HOST }}
           username: ${{ secrets.CPANEL_USERNAME }}
           password: ${{ secrets.CPANEL_PASSWORD }}
+          fingerprint: ${{ secrets.CPANEL_HOST_FINGERPRINT }}
           port: 22
           script: |
             set -e
@@ -409,11 +424,12 @@ jobs:
         # it never removes or edits anything else in the crontab. If this
         # host doesn't allow `crontab` over SSH, it prints the exact line
         # to paste into cPanel -> Cron Jobs instead.
-        uses: appleboy/ssh-action@master
+        uses: appleboy/ssh-action@v1.2.0
         with:
           host: ${{ secrets.CPANEL_HOST }}
           username: ${{ secrets.CPANEL_USERNAME }}
           password: ${{ secrets.CPANEL_PASSWORD }}
+          fingerprint: ${{ secrets.CPANEL_HOST_FINGERPRINT }}
           port: 22
           script: |
             set -e
@@ -436,11 +452,12 @@ jobs:
         # whether the scheduler/queue are actually running, plus how many
         # customers' old-site balances haven't been carried into the new
         # tables yet. Read this section of the log after every deploy.
-        uses: appleboy/ssh-action@master
+        uses: appleboy/ssh-action@v1.2.0
         with:
           host: ${{ secrets.CPANEL_HOST }}
           username: ${{ secrets.CPANEL_USERNAME }}
           password: ${{ secrets.CPANEL_PASSWORD }}
+          fingerprint: ${{ secrets.CPANEL_HOST_FINGERPRINT }}
           port: 22
           script: |
             cd ${{ env.DEPLOY_PATH }}
@@ -451,11 +468,12 @@ jobs:
         # Runs even if an earlier step failed, so a failed deploy can never
         # leave the site stuck on the "back in a moment" page.
         if: always()
-        uses: appleboy/ssh-action@master
+        uses: appleboy/ssh-action@v1.2.0
         with:
           host: ${{ secrets.CPANEL_HOST }}
           username: ${{ secrets.CPANEL_USERNAME }}
           password: ${{ secrets.CPANEL_PASSWORD }}
+          fingerprint: ${{ secrets.CPANEL_HOST_FINGERPRINT }}
           port: 22
           script: |
             cd ${{ env.DEPLOY_PATH }}
