@@ -67,6 +67,7 @@ final class StaffRoles
         Filament\Pages\GamingTax::class => 'money.view',
         Filament\Pages\BusinessInsights::class => 'reports',
         Filament\Resources\Legacy\WpUserResource::class => 'customers.view',
+        Filament\Resources\ComplianceCaseResource::class => 'customers.view',
         Filament\Resources\TicketResource::class => 'customers.view',
         Filament\Pages\FraudWatch::class => 'customers.view',
         Filament\Resources\SupportTicketResource::class => 'support',

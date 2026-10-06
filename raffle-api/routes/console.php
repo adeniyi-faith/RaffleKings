@@ -90,6 +90,7 @@ Schedule::call(fn () => app(DepositService::class)->recheckPending())
 // movement add up, and do our payments and payouts match Paystack's and
 // Flutterwave's own lists? Anything off goes on the Needs checking list.
 Schedule::command('ledger:check')->dailyAt('02:10')->timezone(config('raffles.timezone'))->withoutOverlapping(60);
+Schedule::command('risk:score')->dailyAt('03:30')->timezone(config('raffles.timezone'))->withoutOverlapping(60);
 Schedule::command('providers:reconcile')->dailyAt('02:40')->timezone(config('raffles.timezone'))->withoutOverlapping(60);
 
 // Reminders ("raffle ends soon", "you left tickets in checkout").
