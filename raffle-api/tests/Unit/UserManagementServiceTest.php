@@ -50,7 +50,12 @@ class UserManagementServiceTest extends TestCase
         $target = $this->makeUser();
         $this->users->ban($admin, $target);
 
-        $this->users->unban($admin, $target);
+        // Lifting a ban takes two staff: one asks, a different one approves.
+        $this->users->unban($admin, $target, 'Banned by mistake');
+        $this->assertTrue($target->fresh()->isBanned());
+
+        $second = $this->makeUser();
+        app(\App\Services\AccountRestrictions::class)->approveLift($second, \App\Models\AccountRestriction::where('user_id', $target->ID)->firstOrFail());
 
         $this->assertFalse($target->fresh()->isBanned());
         $this->assertSame(1, AdminAuditLog::where('action', 'user.unbanned')->where('subject_id', $target->ID)->count());
@@ -72,7 +77,7 @@ class UserManagementServiceTest extends TestCase
         $admin = $this->makeUser();
         $target = $this->makeUser();
 
-        $this->users->adjustBalance($admin, $target, 'wallet', 1000, 'add');
+        $this->users->adjustBalance($admin, $target, 'wallet', 1000, 'add', 'Test correction');
 
         $this->assertEquals(1000, (float) Wallet::where('user_id', $target->ID)->value('wallet_balance'));
         $this->assertNull(WpUserMeta::where('user_id', $target->ID)->where('meta_key', 'wallet_balance')->first());
@@ -85,7 +90,7 @@ class UserManagementServiceTest extends TestCase
         $admin = $this->makeUser();
         $target = $this->makeUser();
 
-        $this->users->adjustBalance($admin, $target, 'earnings', 2500, 'add');
+        $this->users->adjustBalance($admin, $target, 'earnings', 2500, 'add', 'Test correction');
 
         $this->assertEquals(2500, (float) Wallet::where('user_id', $target->ID)->value('earnings_balance'));
     }
@@ -94,9 +99,9 @@ class UserManagementServiceTest extends TestCase
     {
         $admin = $this->makeUser();
         $target = $this->makeUser();
-        $this->users->adjustBalance($admin, $target, 'wallet', 500, 'add');
+        $this->users->adjustBalance($admin, $target, 'wallet', 500, 'add', 'Test correction');
 
-        $this->users->adjustBalance($admin, $target, 'wallet', 2000, 'subtract');
+        $this->users->adjustBalance($admin, $target, 'wallet', 2000, 'subtract', 'Test correction');
 
         $this->assertEquals(0, (float) Wallet::where('user_id', $target->ID)->value('wallet_balance'));
         // The ledger must agree with the balance, or Financial
@@ -109,7 +114,7 @@ class UserManagementServiceTest extends TestCase
         $admin = $this->makeUser();
         $target = $this->makeUser();
 
-        $this->users->adjustBalance($admin, $target, 'wallet', 750, 'add');
+        $this->users->adjustBalance($admin, $target, 'wallet', 750, 'add', 'Test correction');
 
         $txn = RaffleTransaction::where('user_id', $target->ID)->where('type', 'admin_adjustment')->first();
         $this->assertNotNull($txn);
@@ -123,7 +128,7 @@ class UserManagementServiceTest extends TestCase
         $admin = $this->makeUser();
         $target = $this->makeUser();
 
-        $this->users->adjustBalance($admin, $target, 'points', 100, 'add');
+        $this->users->adjustBalance($admin, $target, 'points', 100, 'add', 'Test correction');
 
         $this->assertSame(100, UserPoints::where('user_id', $target->ID)->first()->balance);
         $this->assertNull(WpUserMeta::where('user_id', $target->ID)->where('meta_key', 'rk_points')->first());
@@ -133,9 +138,9 @@ class UserManagementServiceTest extends TestCase
     {
         $admin = $this->makeUser();
         $target = $this->makeUser();
-        $this->users->adjustBalance($admin, $target, 'points', 50, 'add');
+        $this->users->adjustBalance($admin, $target, 'points', 50, 'add', 'Test correction');
 
-        $this->users->adjustBalance($admin, $target, 'points', 80, 'subtract');
+        $this->users->adjustBalance($admin, $target, 'points', 80, 'subtract', 'Test correction');
 
         $this->assertSame(0, UserPoints::where('user_id', $target->ID)->first()->balance);
         $this->assertSame(0, app(PointsLedgerService::class)->reconstructBalance($target->ID));
@@ -147,7 +152,7 @@ class UserManagementServiceTest extends TestCase
         $target = $this->makeUser();
 
         $this->expectException(InvalidArgumentException::class);
-        $this->users->adjustBalance($admin, $target, 'wallet', 0, 'add');
+        $this->users->adjustBalance($admin, $target, 'wallet', 0, 'add', 'Test correction');
     }
 
     public function test_updating_restrictions_sets_every_flag_and_logs_it(): void
@@ -155,7 +160,7 @@ class UserManagementServiceTest extends TestCase
         $admin = $this->makeUser();
         $target = $this->makeUser();
 
-        $this->users->updateRestrictions($admin, $target, true, true, false, '2026-12-31');
+        $this->users->updateRestrictions($admin, $target, true, true, false, '2026-12-31', 'Test reason');
 
         $this->assertTrue($target->fresh()->isBanned());
         $this->assertSame('1', WpUserMeta::where('user_id', $target->ID)->where('meta_key', 'rk_ban_withdraw')->value('meta_value'));
@@ -169,10 +174,11 @@ class UserManagementServiceTest extends TestCase
         $admin = $this->makeUser();
         $target = $this->makeUser();
 
-        $this->users->updateRestrictions($admin, $target, true, false, false, null);
-        $this->users->updateRestrictions($admin, $target, false, false, false, null);
+        $this->users->updateRestrictions($admin, $target, true, false, false, null, 'Test reason');
+        $this->users->updateRestrictions($admin, $target, false, false, false, null, 'Test reason');
 
         $this->assertSame(1, WpUserMeta::where('user_id', $target->ID)->where('meta_key', 'rk_is_banned')->count());
-        $this->assertFalse($target->fresh()->isBanned());
+        // Switching a ban off only asks for it to be lifted; a second staff member approves.
+        $this->assertTrue($target->fresh()->isBanned());
     }
 }

@@ -12,11 +12,12 @@ use App\Services\UserManagementService;
 use App\Services\WithdrawalService;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Tests\Support\AuthenticatesWithWordPressCookie;
+use Tests\Support\MakesBankAccounts;
 use Tests\TestCase;
 
 class AdminControllersTest extends TestCase
 {
-    use AuthenticatesWithWordPressCookie, RefreshDatabase;
+    use AuthenticatesWithWordPressCookie, MakesBankAccounts, RefreshDatabase;
 
     private function actingAsAdministrator(): WpUser
     {
@@ -69,7 +70,7 @@ class AdminControllersTest extends TestCase
         $this->actingAsAdministrator();
         $user = WpUser::create(['user_login' => 'payee', 'user_pass' => 'x', 'user_email' => 'payee@example.com']);
         Wallet::create(['user_id' => $user->ID, 'wallet_balance' => 0, 'earnings_balance' => 10000]);
-        $account = BankAccount::create(['user_id' => $user->ID, 'bank_name' => 'GTBank', 'account_number' => '0123456789', 'account_name' => 'Payee', 'is_primary' => true]);
+        $account = $this->oldBankAccount(['user_id' => $user->ID, 'bank_name' => 'GTBank', 'account_number' => '0123456789', 'account_name' => 'Payee', 'is_primary' => true]);
         app(WithdrawalService::class)->request($user, 3000, $account->id, authorizeVerificationFee: true);
 
         $list = $this->getJson('/api/admin/withdrawals');

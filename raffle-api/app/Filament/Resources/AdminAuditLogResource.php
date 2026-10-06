@@ -72,6 +72,7 @@ class AdminAuditLogResource extends Resource
         'draw.seed_locked' => 'Draw seed locked',
         'draw.winners_generated' => 'Draw winners generated',
         'draw.live_reveal_started' => 'Live reveal started',
+        'restriction.lift_requested' => 'Asked to lift a ban or restriction',
         'user.banned' => 'User banned',
         'user.unbanned' => 'User unbanned',
         'user.balance_add' => 'Balance added',

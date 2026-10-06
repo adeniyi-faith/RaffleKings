@@ -42,7 +42,7 @@ class CustomerTimelineAndNotesTest extends TestCase
         $this->travelTo(now()->subDay());
         LoginEvent::record($user->ID, 'ada', false, 'site', 'wrong_password');
         $this->travelBack();
-        Wallet::create(['user_id' => $user->ID, 'wallet_balance' => 0, 'earnings_balance' => 0]);
+        Wallet::firstOrCreate(['user_id' => $user->ID], ['wallet_balance' => 0, 'earnings_balance' => 0]);
         $account = \App\Models\BankAccount::create(['user_id' => $user->ID, 'bank_name' => 'UBA', 'account_number' => '2114907747', 'account_name' => 'ADA']);
         WithdrawalRequest::create(['user_id' => $user->ID, 'bank_account_id' => $account->id, 'requested_amount' => 3000, 'fee_amount' => 0, 'amount_to_send' => 3000, 'status' => 'pending']);
 

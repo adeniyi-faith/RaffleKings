@@ -171,6 +171,14 @@ class BalanceAdjustments
             ]);
 
             $adjustment->update(['status' => 'applied', 'decided_by' => $decidedBy, 'decision_note' => $note, 'decided_at' => now()]);
+
+            // Same name the audit log has always used for a balance change.
+            $this->audit->record(WpUser::query()->findOrFail($decidedBy ?? $adjustment->proposed_by), "user.balance_{$adjustment->direction}", WpUser::class, $userId, [
+                'balance_type' => $adjustment->balance_type,
+                'amount' => $amount,
+                'reason' => $adjustment->reason,
+                'adjustment_id' => $adjustment->id,
+            ]);
         });
     }
 

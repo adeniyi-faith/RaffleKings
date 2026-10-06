@@ -66,6 +66,9 @@ class AccountRestrictions
         $endsAt = $expiry !== '' && strtotime($expiry) ? Carbon::parse(date('Y-m-d 23:59:59', strtotime($expiry))) : null;
 
         if ($endsAt !== null && $endsAt->isPast()) {
+            // The old timed ban has run out: tidy the old flags away, as the old code did.
+            WpUserMeta::query()->where('user_id', $userId)->whereIn('meta_key', ['rk_is_banned', 'rk_ban_withdraw', 'rk_ban_transfer', 'rk_ban_expiry'])->delete();
+
             return;
         }
 
@@ -94,6 +97,12 @@ class AccountRestrictions
     {
         $this->adoptLegacyFlags($userId);
 
+        return $this->activeRecords($userId);
+    }
+
+    /** The records in force, without looking at the old flags (used when writing them). */
+    private function activeRecords(int $userId): Collection
+    {
         return AccountRestriction::query()->active()->where('user_id', $userId)->get();
     }
 
@@ -172,7 +181,7 @@ class AccountRestrictions
             $this->sessions->everywhere($target);
         }
 
-        $this->audit->record($admin, 'restriction.imposed', WpUser::class, $target->ID, [
+        $this->audit->record($admin, $type === 'full_ban' ? 'user.banned' : 'user.restrictions_updated', WpUser::class, $target->ID, [
             'restriction_id' => $restriction->id,
             'type' => $type,
             'reason' => $reason,
@@ -238,7 +247,7 @@ class AccountRestrictions
 
         $this->syncMeta((int) $restriction->user_id);
 
-        $this->audit->record($admin, 'restriction.lifted', WpUser::class, (int) $restriction->user_id, [
+        $this->audit->record($admin, $restriction->type === 'full_ban' ? 'user.unbanned' : 'user.restrictions_updated', WpUser::class, (int) $restriction->user_id, [
             'restriction_id' => $restriction->id,
             'requested_by' => $restriction->lift_requested_by,
             'reason' => $restriction->lift_reason,
@@ -250,7 +259,7 @@ class AccountRestrictions
     /** Keeps the old usermeta flags matching the records. */
     public function syncMeta(int $userId): void
     {
-        $active = $this->active($userId);
+        $active = $this->activeRecords($userId);
         $ends = $active->pluck('ends_at')->filter();
 
         $values = [
