@@ -12,6 +12,7 @@ use App\Models\Legacy\RaffleEntry;
 use App\Models\Legacy\WpUser;
 use App\Models\Legacy\WpUserMeta;
 use App\Models\Wallet;
+use App\Services\AccountRestrictions;
 use App\Services\Admin\CustomerBulkActions;
 use App\Services\AdminAuditLogService;
 use App\Services\Reports\ReportExporter;
@@ -26,6 +27,7 @@ use Filament\Tables\Contracts\HasTable;
 use Filament\Tables\Enums\ActionsPosition;
 use Filament\Tables\Table;
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Support\Carbon;
 use InvalidArgumentException;
 
 /**
@@ -180,8 +182,8 @@ class WpUserResource extends Resource
                     Forms\Components\DatePicker::make('until')->label('Joined until'),
                 ])->columns(2)
                 ->query(fn ($query, array $data) => $query
-                    ->when($data['from'] ?? null, fn ($q, $d) => $q->where('user_registered', '>=', \Illuminate\Support\Carbon::parse($d, config('raffles.timezone'))->startOfDay()->utc()))
-                    ->when($data['until'] ?? null, fn ($q, $d) => $q->where('user_registered', '<=', \Illuminate\Support\Carbon::parse($d, config('raffles.timezone'))->endOfDay()->utc())))
+                    ->when($data['from'] ?? null, fn ($q, $d) => $q->where('user_registered', '>=', Carbon::parse($d, config('raffles.timezone'))->startOfDay()->utc()))
+                    ->when($data['until'] ?? null, fn ($q, $d) => $q->where('user_registered', '<=', Carbon::parse($d, config('raffles.timezone'))->endOfDay()->utc())))
                 ->indicateUsing(fn (array $data) => array_values(array_filter([
                     ($data['from'] ?? null) ? 'Joined from '.$data['from'] : null,
                     ($data['until'] ?? null) ? 'Joined until '.$data['until'] : null,
@@ -331,6 +333,7 @@ class WpUserResource extends Resource
 
         $adjust = $action::make('adjustBalance')
             ->label('Adjust balance')
+            ->visible(fn () => static::staffCan('money.pay'))
             ->color('warning')
             ->icon('heroicon-o-banknotes')
             ->modalDescription('Adds or takes away money or points. It shows in the customer\'s history as an admin adjustment and in the audit log.')
@@ -387,13 +390,13 @@ class WpUserResource extends Resource
             ->label('Unban')
             ->color('success')
             ->icon('heroicon-o-check-circle')
-            ->label(fn (WpUser $record) => app(\App\Services\AccountRestrictions::class)->active($record->ID)->contains(fn ($r) => $r->lift_requested_by !== null && (int) $r->lift_requested_by !== (int) auth('wordpress')->id()) ? 'Approve unban' : 'Ask to unban')
+            ->label(fn (WpUser $record) => app(AccountRestrictions::class)->active($record->ID)->contains(fn ($r) => $r->lift_requested_by !== null && (int) $r->lift_requested_by !== (int) auth('wordpress')->id()) ? 'Approve unban' : 'Ask to unban')
             ->visible(fn (WpUser $record) => $record->isBanned())
-            ->form(fn (WpUser $record) => app(\App\Services\AccountRestrictions::class)->active($record->ID)->contains(fn ($r) => $r->lift_requested_by !== null && (int) $r->lift_requested_by !== (int) auth('wordpress')->id())
+            ->form(fn (WpUser $record) => app(AccountRestrictions::class)->active($record->ID)->contains(fn ($r) => $r->lift_requested_by !== null && (int) $r->lift_requested_by !== (int) auth('wordpress')->id())
                 ? []
                 : [Forms\Components\Textarea::make('reason')->label('Why they should be unbanned')->required()->minLength(5)])
             ->action(function (WpUser $record, array $data) {
-                $restrictions = app(\App\Services\AccountRestrictions::class);
+                $restrictions = app(AccountRestrictions::class);
                 $me = auth('wordpress')->user();
 
                 try {

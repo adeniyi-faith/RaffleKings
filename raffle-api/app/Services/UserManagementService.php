@@ -3,13 +3,9 @@
 namespace App\Services;
 
 use App\Models\BalanceAdjustment;
-use App\Models\Legacy\RaffleTransaction;
 use App\Models\Legacy\WpUser;
 use App\Models\Legacy\WpUserMeta;
-use App\Models\UserPoints;
-use App\Models\Wallet;
 use Illuminate\Support\Carbon;
-use Illuminate\Support\Facades\DB;
 use InvalidArgumentException;
 
 /**
@@ -87,6 +83,10 @@ class UserManagementService
      */
     public function adjustBalance(WpUser $admin, WpUser $target, string $type, float $amount, string $direction, string $reason = ''): BalanceAdjustment
     {
+        if (! $admin->staffCan('money.pay')) {
+            throw new InvalidArgumentException('Only staff who can pay out money may change a balance.');
+        }
+
         return app(BalanceAdjustments::class)->propose($admin, $target, $type, $direction, $amount, $reason);
     }
 
