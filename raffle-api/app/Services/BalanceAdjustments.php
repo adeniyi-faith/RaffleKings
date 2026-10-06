@@ -104,6 +104,10 @@ class BalanceAdjustments
                 throw new RuntimeException('This adjustment was already decided.');
             }
 
+            if (! $admin->staffCan('money.pay')) {
+                throw new RuntimeException('Only staff who can pay out money may approve a balance change.');
+            }
+
             if ((int) $locked->proposed_by === (int) $admin->ID) {
                 throw new RuntimeException('A different staff member has to approve your adjustment.');
             }

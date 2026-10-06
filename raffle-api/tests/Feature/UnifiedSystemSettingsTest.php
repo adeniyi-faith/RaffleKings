@@ -33,6 +33,8 @@ class UnifiedSystemSettingsTest extends TestCase
             'meta_value' => serialize(['administrator' => true]),
         ]);
 
+        WpUserMeta::create(['user_id' => $admin->ID, 'meta_key' => StaffRoles::META_KEY, 'meta_value' => 'owner']);
+
         Livewire::withCookies($this->unencryptedCookies);
 
         return $admin;

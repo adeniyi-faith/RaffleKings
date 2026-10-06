@@ -3,7 +3,6 @@
 namespace Tests\Feature;
 
 use App\Auth\StaffRoles;
-use App\Models\BankAccount;
 use App\Models\Legacy\RaffleWinner;
 use App\Models\Legacy\WpUser;
 use App\Models\Legacy\WpUserMeta;
@@ -29,6 +28,8 @@ class AdminControllersTest extends TestCase
             'meta_value' => serialize(['administrator' => true]),
         ]);
 
+        WpUserMeta::create(['user_id' => $user->ID, 'meta_key' => StaffRoles::META_KEY, 'meta_value' => 'owner']);
+
         return $user;
     }
 
@@ -44,6 +45,7 @@ class AdminControllersTest extends TestCase
     {
         foreach (['support', 'content', 'finance', StaffRoles::NO_ACCESS] as $role) {
             $admin = $this->actingAsAdministrator();
+            WpUserMeta::where('user_id', $admin->ID)->where('meta_key', StaffRoles::META_KEY)->delete();
             WpUserMeta::create(['user_id' => $admin->ID, 'meta_key' => StaffRoles::META_KEY, 'meta_value' => $role]);
 
             $this->getJson('/api/admin/withdrawals')->assertStatus(403);

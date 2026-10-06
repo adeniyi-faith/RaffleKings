@@ -315,6 +315,7 @@ class Phase5bTest extends TestCase
         $owner = $this->actingAsAdministrator();
         $other = $this->customer('other');
         WpUserMeta::create(['user_id' => $other->ID, 'meta_key' => config('legacy.wp_prefix').'capabilities', 'meta_value' => serialize(['administrator' => true])]);
+        WpUserMeta::create(['user_id' => $other->ID, 'meta_key' => StaffRoles::META_KEY, 'meta_value' => 'owner']);
         $this->assertSame('owner', WpUser::find($other->ID)->staffRole());
 
         StaffResource::setRole($other, StaffRoles::NO_ACCESS, $owner);

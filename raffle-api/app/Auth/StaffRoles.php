@@ -54,6 +54,7 @@ final class StaffRoles
         Filament\Resources\BankTransferResource::class => 'money.view',
         Filament\Resources\PaymentMismatchResource::class => 'money.view',
         Filament\Resources\MoneyReviewItemResource::class => 'money.view',
+        Filament\Resources\BalanceAdjustmentResource::class => 'money.view',
         Filament\Resources\TransactionResource::class => 'money.view',
         Filament\Resources\RaffleWinnerResource::class => 'money.view',
         Filament\Resources\ReferralCommissionResource::class => 'money.view',

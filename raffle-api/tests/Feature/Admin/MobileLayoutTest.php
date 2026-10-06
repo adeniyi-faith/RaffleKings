@@ -45,7 +45,7 @@ class MobileLayoutTest extends TestCase
         $this->get('/admin/withdrawals')
             ->assertOk()
             ->assertSee('rk-card', false)
-            ->assertSeeInOrder(['Ada Obi', '₦4,000', 'GTBank · Ada Obi', '0123456789', 'Waiting to be paid'])
+            ->assertSeeInOrder(['Ada Obi', '₦4,000', '••••••6789', 'GTBank · Ada Obi', 'Waiting to be paid'])
             // Tab bar badge: one withdrawal waiting.
             ->assertSee('<span class="rk-tab-badge">1</span>', false);
     }
