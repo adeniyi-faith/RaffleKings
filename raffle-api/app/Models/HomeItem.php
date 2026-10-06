@@ -9,6 +9,14 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
 /** One slide or card inside a HomeSection. */
 class HomeItem extends Model
 {
+    protected static function booted(): void
+    {
+        // Any save or delete changes what the homepage shows, so the saved copy is dropped.
+        $forget = fn () => \App\Services\HomeLayoutService::forgetCache();
+        static::saved($forget);
+        static::deleted($forget);
+    }
+
     public const THEMES = [
         'blue' => 'Blue', 'green' => 'Green', 'red' => 'Red', 'purple' => 'Purple',
         'orange' => 'Orange', 'gold' => 'Black & gold', 'gray' => 'Grey',

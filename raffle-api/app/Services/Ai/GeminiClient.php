@@ -68,15 +68,33 @@ class GeminiClient
                 + ($schema ? ['responseJsonSchema' => $schema] : []),
         ];
 
-        try {
-            // Long answers (the Raffle advisor, written in the background) get longer to arrive.
-            $response = Http::timeout($maxTokens > 4096 ? 240 : 45)
-                ->withHeaders(['x-goog-api-key' => $apiKey])
-                ->post('https://generativelanguage.googleapis.com/v1beta/models/'.rawurlencode($model).':generateContent', $body);
-        } catch (\Throwable $e) {
-            $this->log($purpose, $model, $ticketId, false, 'unreachable');
+        // Google sometimes answers "busy" (503) for a moment. Try the chosen model twice, then a
+        // cheaper backup model once, before giving up, so a short hiccup doesn't leave a customer unanswered.
+        $backup = $model === 'gemini-3.5-flash-lite' ? 'gemini-3.1-flash-lite' : 'gemini-3.5-flash-lite';
+        $response = null;
 
-            throw new AiUnavailableException('Could not reach Gemini. Try again in a moment.', previous: $e);
+        foreach ([$model, $model, $backup] as $attempt => $tryModel) {
+            $model = $tryModel;
+
+            try {
+                // Long answers (the Raffle advisor, written in the background) get longer to arrive.
+                $response = Http::timeout($maxTokens > 4096 ? 240 : 45)
+                    ->withHeaders(['x-goog-api-key' => $apiKey])
+                    ->post('https://generativelanguage.googleapis.com/v1beta/models/'.rawurlencode($tryModel).':generateContent', $body);
+            } catch (\Throwable $e) {
+                $this->log($purpose, $tryModel, $ticketId, false, 'unreachable');
+
+                throw new AiUnavailableException('Could not reach Gemini. Try again in a moment.', previous: $e);
+            }
+
+            if (! in_array($response->status(), [429, 500, 502, 503, 504], true)) {
+                break;
+            }
+
+            if ($attempt < 2) {
+                $this->log($purpose, $tryModel, $ticketId, false, 'HTTP '.$response->status().' (trying again)');
+                usleep(($attempt + 1) * 700_000);
+            }
         }
 
         if ($response->failed()) {
@@ -86,6 +104,7 @@ class GeminiClient
                 400, 404 => "Gemini did not accept the model \"{$model}\". Choose another model in Settings → AI.",
                 401, 403 => 'Gemini rejected the key. Check it in Settings → AI.',
                 429 => 'Gemini is busy or the quota is used up. Try again shortly.',
+                500, 502, 503, 504 => 'Gemini is busy right now, even after trying again. Please try again in a minute.',
                 default => 'Gemini returned an error (HTTP '.$response->status().').',
             });
         }

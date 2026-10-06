@@ -82,4 +82,40 @@ class HomeLayoutTest extends TestCase
         $this->assertSame(4, HomeSection::count());
         $this->assertSame(7, HomeItem::count());
     }
+
+    public function test_the_layout_is_kept_between_visits_but_an_admin_edit_shows_at_once(): void
+    {
+        $section = HomeSection::create(['type' => 'cards', 'title' => 'Before', 'sort_order' => 0]);
+        $item = $section->items()->create(['title' => 'Card', 'sort_order' => 0]);
+
+        $this->assertSame('Before', app(HomeLayoutService::class)->forVisitor(false)[0]['title']);
+
+        // A change that bypasses the models (so nothing clears the saved copy) is not seen yet...
+        \DB::table('home_sections')->update(['title' => 'Sneaky']);
+        $this->assertSame('Before', app(HomeLayoutService::class)->forVisitor(false)[0]['title']);
+
+        // ...but saving, hiding or deleting through the admin shows straight away.
+        $section->update(['title' => 'After']);
+        $this->assertSame('After', app(HomeLayoutService::class)->forVisitor(false)[0]['title']);
+
+        $item->delete();
+        $this->assertSame([], app(HomeLayoutService::class)->forVisitor(false));
+    }
+
+    public function test_a_saved_copy_still_unlocks_and_expires_cards_on_time(): void
+    {
+        $section = HomeSection::create(['type' => 'cards', 'sort_order' => 0]);
+        $section->items()->create(['title' => 'Opens', 'link_url' => '/raffles', 'is_locked' => true, 'unlock_at' => now()->addHour(), 'sort_order' => 0]);
+        $section->items()->create(['title' => 'Ends', 'ends_at' => now()->addHour(), 'sort_order' => 1]);
+
+        $items = collect(app(HomeLayoutService::class)->forVisitor(false)[0]['items'])->keyBy('title');
+        $this->assertTrue($items['Opens']['locked']);
+        $this->assertArrayHasKey('Ends', $items->all());
+
+        $this->travel(2)->hours();
+
+        $items = collect(app(HomeLayoutService::class)->forVisitor(false)[0]['items'] ?? [])->keyBy('title');
+        $this->assertFalse($items['Opens']['locked']);
+        $this->assertArrayNotHasKey('Ends', $items->all());
+    }
 }

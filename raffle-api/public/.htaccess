@@ -26,6 +26,13 @@
     RewriteCond %{REQUEST_FILENAME} -f
     RewriteRule ^storage/avatars/ - [E=RK_AVATAR_CACHE:1,L]
 
+    # The site's own program and style files: Vite gives each one a name that
+    # changes whenever its contents change (app-3f9a1c.js), so a given address
+    # never changes and can be kept by the browser for a year. A new release
+    # has new names, so visitors still pick it up straight away.
+    RewriteCond %{REQUEST_FILENAME} -f
+    RewriteRule ^build/assets/ - [E=RK_BUILD_CACHE:1,L]
+
     # Redirect Trailing Slashes If Not A Folder...
     RewriteCond %{REQUEST_FILENAME} !-d
     RewriteCond %{REQUEST_URI} (.+)/$
@@ -39,4 +46,5 @@
 
 <IfModule mod_headers.c>
     Header set Cache-Control "public, max-age=31536000, immutable" env=RK_AVATAR_CACHE
+    Header set Cache-Control "public, max-age=31536000, immutable" env=RK_BUILD_CACHE
 </IfModule>

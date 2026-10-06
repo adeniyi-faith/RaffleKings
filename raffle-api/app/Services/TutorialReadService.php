@@ -4,6 +4,7 @@ namespace App\Services;
 
 use App\Models\Tutorial;
 use App\Models\TutorialLike;
+use App\Support\GuideTokens;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
 
@@ -18,7 +19,8 @@ use Illuminate\Support\Str;
  */
 class TutorialReadService
 {
-    private const PER_PAGE = 20;
+    /** The Learning Hub has well over a hundred guides now, so the list is no longer capped at the newest 20. */
+    private const LIST_LIMIT = 500;
 
     /**
      * @param  string|null  $voter  who is asking ("u:12" / "d:abc…"), to say which hearts are theirs
@@ -30,11 +32,12 @@ class TutorialReadService
             ->orderByDesc('is_featured')
             ->orderByDesc('published_at')
             ->orderByDesc('id')
-            ->limit(self::PER_PAGE)
+            ->limit(self::LIST_LIMIT)
             ->get();
 
         $liked = $this->likedIds($voter, $tutorials->modelKeys());
-        $tutorials = $tutorials->map(fn (Tutorial $t) => $this->present($t, in_array($t->id, $liked, true)));
+        // The list never carries the full text of every guide: the page opens one when it is tapped.
+        $tutorials = $tutorials->map(fn (Tutorial $t) => $this->present($t, in_array($t->id, $liked, true), withContent: false));
 
         $featured = $tutorials->firstWhere('is_featured', true);
         $list = $featured ? $tutorials->reject(fn ($t) => $t['id'] === $featured['id'])->values() : $tutorials;
@@ -109,15 +112,18 @@ class TutorialReadService
 
     private function present(Tutorial $t, bool $liked = false, bool $withContent = true): array
     {
-        $content = $t->safeContent();
+        // Cleaning the text is the slow part, so the list (which only shows the excerpt) skips it.
+        $content = $withContent || ! $t->excerpt ? GuideTokens::fill($t->safeContent()) : '';
 
         return [
             'id' => $t->id,
             'url' => '/support/tutorials/'.$t->id.'-'.(Str::slug($t->title) ?: 'guide'),
             'title' => $t->title,
-            'excerpt' => $t->excerpt ?: Str::limit(trim(strip_tags($content)), 160),
+            'excerpt' => GuideTokens::fill($t->excerpt) ?: Str::limit(trim(strip_tags($content)), 160),
             'content' => $withContent ? $content : null,
-            'date_ago' => ($t->published_at ?? $t->created_at)?->diffForHumans(),
+            // The built-in guides are evergreen, so they carry no "3 weeks ago".
+            'date_ago' => $t->guide_key ? null : ($t->published_at ?? $t->created_at)?->diffForHumans(),
+            'image_url' => $t->image_url,
             'is_featured' => $t->is_featured,
             'video_url' => $t->safeVideoUrl(),
             'category' => $t->category ?: 'Guide',
