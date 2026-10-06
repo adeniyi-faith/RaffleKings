@@ -16,6 +16,16 @@ final class PaymentVerificationResult
     ) {}
 
     /**
+     * True only when the gateway says the payment definitely did not and will
+     * not happen. "pending", "ongoing", "processing" and the like are NOT a
+     * failure: the customer may have paid and the bank is still confirming.
+     */
+    public function isFinalFailure(): bool
+    {
+        return in_array(strtolower($this->rawStatus), ['failed', 'reversed', 'cancelled', 'canceled', 'rejected', 'error'], true);
+    }
+
+    /**
      * The money that is actually ours to credit: the amount asked for
      * when the gateway added its fee on top, otherwise what was paid.
      */
