@@ -167,7 +167,7 @@ final class CustomerTimeline
     {
         return WithdrawalRequest::query()->with('bankAccount')->where('user_id', $userId)->latest('id')->limit(self::SOURCE_LIMIT)->get()
             ->flatMap(function (WithdrawalRequest $w) {
-                $to = $w->bankAccount ? "{$w->bankAccount->bank_name} {$w->bankAccount->account_number}" : 'no bank account';
+                $to = $w->bankAccount ? "{$w->bankAccount->bank_name} {$w->bankAccount->masked()}" : 'no bank account';
                 $rows = [$this->event($w->created_at, 'withdrawals', 'heroicon-m-arrow-up-tray', 'warning', 'Asked to withdraw', "To {$to}", Formats::naira($w->amount_to_send))];
 
                 if ($w->status !== 'pending') {

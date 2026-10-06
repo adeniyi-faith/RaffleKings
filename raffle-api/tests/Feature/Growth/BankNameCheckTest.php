@@ -6,11 +6,12 @@ use App\Models\BankAccount;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Http;
 use Tests\Support\AuthenticatesWithWordPressCookie;
+use Tests\Support\ConfirmsBankAccountCode;
 use Tests\TestCase;
 
 class BankNameCheckTest extends TestCase
 {
-    use AuthenticatesWithWordPressCookie, RefreshDatabase;
+    use AuthenticatesWithWordPressCookie, ConfirmsBankAccountCode, RefreshDatabase;
 
     private bool $paystackDown = false;
 
@@ -44,7 +45,7 @@ class BankNameCheckTest extends TestCase
         $this->postJson('/api/bank-accounts/look-up', ['bank_code' => '058', 'account_number' => '0123456789'])->assertNotFound();
         $this->getJson('/api/bank-accounts')->assertJson(['name_check' => false]);
 
-        $this->postJson('/api/bank-accounts', ['bank_name' => 'GTBank', 'account_number' => '0123456789', 'account_name' => 'Jane Doe'])
+        $this->addBankAccount(['bank_name' => 'GTBank', 'account_number' => '0123456789', 'account_name' => 'Jane Doe'])
             ->assertCreated();
         $this->assertNull(BankAccount::first()->name_verified_at);
     }
@@ -76,7 +77,7 @@ class BankNameCheckTest extends TestCase
     {
         $this->actingAsWordPressUser();
 
-        $this->postJson('/api/bank-accounts', ['bank_code' => '058', 'account_number' => '0123456789', 'account_name' => 'SOMEONE ELSE'])
+        $this->addBankAccount(['bank_code' => '058', 'account_number' => '0123456789', 'account_name' => 'SOMEONE ELSE'])
             ->assertCreated()
             ->assertJson(['bank_name' => 'Guaranty Trust Bank', 'account_name' => 'JANE ADA DOE', 'bank_code' => '058'])
             ->assertJsonMissingPath('paystack_recipient_code');
@@ -88,10 +89,10 @@ class BankNameCheckTest extends TestCase
     {
         $this->actingAsWordPressUser();
 
-        $this->postJson('/api/bank-accounts', ['bank_code' => '058', 'account_number' => '1111111111'])->assertStatus(422);
-        $this->postJson('/api/bank-accounts', ['bank_code' => '000', 'account_number' => '0123456789'])
+        $this->addBankAccount(['bank_code' => '058', 'account_number' => '1111111111'])->assertStatus(422);
+        $this->addBankAccount(['bank_code' => '000', 'account_number' => '0123456789'])
             ->assertStatus(422)->assertJson(['message' => 'Choose your bank from the list.']);
-        $this->postJson('/api/bank-accounts', ['account_number' => '0123456789'])->assertStatus(422);
+        $this->addBankAccount(['account_number' => '0123456789'])->assertStatus(422);
 
         $this->assertSame(0, BankAccount::count());
     }
@@ -101,7 +102,7 @@ class BankNameCheckTest extends TestCase
         $this->paystackDown = true;
         $this->actingAsWordPressUser();
 
-        $this->postJson('/api/bank-accounts', ['bank_code' => '058', 'account_number' => '0123456789'])
+        $this->addBankAccount(['bank_code' => '058', 'account_number' => '0123456789'])
             ->assertStatus(503)
             ->assertJson(['message' => 'We can\'t check bank accounts right now. Please try again in a few minutes.']);
 
@@ -112,8 +113,8 @@ class BankNameCheckTest extends TestCase
     {
         $this->actingAsWordPressUser();
 
-        $this->postJson('/api/bank-accounts', ['bank_code' => '058', 'account_number' => '0123456789'])->assertCreated();
-        $this->postJson('/api/bank-accounts', ['bank_code' => '058', 'account_number' => '0123456789'])
+        $this->addBankAccount(['bank_code' => '058', 'account_number' => '0123456789'])->assertCreated();
+        $this->addBankAccount(['bank_code' => '058', 'account_number' => '0123456789'])
             ->assertStatus(409)->assertJson(['message' => 'This account is already saved.']);
     }
 }

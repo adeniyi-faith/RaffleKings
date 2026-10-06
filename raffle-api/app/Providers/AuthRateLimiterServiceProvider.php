@@ -35,6 +35,9 @@ class AuthRateLimiterServiceProvider extends ServiceProvider
         RateLimiter::for('auth-login', fn ($request) => [
             Limit::perMinute(5)->by($request->ip().'|'.$request->input('username')),
             Limit::perMinute(30)->by('ip|'.$request->ip()),
+            // Per account from ANY address: guessing one person's password from
+            // many different addresses is stopped too (money-safety audit H4).
+            Limit::perMinutes(15, 10)->by('acct|'.mb_strtolower(trim((string) $request->input('username')))),
         ]);
 
         // Support tickets and replies get sent to the admins, so cap how fast one

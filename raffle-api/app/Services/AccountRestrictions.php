@@ -46,19 +46,68 @@ class AccountRestrictions
         private readonly SessionRevoker $sessions,
     ) {}
 
+    /**
+     * The old WordPress admin can still set the rk_* flags directly. A flag
+     * that says "restricted" with no matching record in force is adopted as
+     * a record (reason says where it came from), so nothing set the old way
+     * is ever ignored. An expired timed flag is not adopted.
+     */
+    private function adoptLegacyFlags(int $userId): void
+    {
+        $flags = WpUserMeta::query()->where('user_id', $userId)
+            ->whereIn('meta_key', ['rk_is_banned', 'rk_ban_withdraw', 'rk_ban_transfer', 'rk_ban_expiry'])
+            ->pluck('meta_value', 'meta_key');
+
+        if ($flags->isEmpty()) {
+            return;
+        }
+
+        $expiry = (string) ($flags['rk_ban_expiry'] ?? '');
+        $endsAt = $expiry !== '' && strtotime($expiry) ? Carbon::parse(date('Y-m-d 23:59:59', strtotime($expiry))) : null;
+
+        if ($endsAt !== null && $endsAt->isPast()) {
+            return;
+        }
+
+        foreach (['rk_is_banned' => 'full_ban', 'rk_ban_withdraw' => 'no_withdraw', 'rk_ban_transfer' => 'no_transfer'] as $key => $type) {
+            if (($flags[$key] ?? '0') !== '1') {
+                continue;
+            }
+
+            if (AccountRestriction::query()->active()->where('user_id', $userId)->where('type', $type)->exists()) {
+                continue;
+            }
+
+            AccountRestriction::create([
+                'user_id' => $userId,
+                'type' => $type,
+                'reason' => 'Set outside the new admin (old flag), so it was copied into a record.',
+                'source' => 'import',
+                'starts_at' => now()->subSecond(),
+                'ends_at' => $endsAt,
+            ]);
+        }
+    }
+
     /** @return Collection<int, AccountRestriction> */
     public function active(int $userId): Collection
     {
+        $this->adoptLegacyFlags($userId);
+
         return AccountRestriction::query()->active()->where('user_id', $userId)->get();
     }
 
     public function isBanned(int $userId): bool
     {
+        $this->adoptLegacyFlags($userId);
+
         return AccountRestriction::query()->active()->where('user_id', $userId)->where('type', 'full_ban')->exists();
     }
 
     public function has(int $userId, string $type): bool
     {
+        $this->adoptLegacyFlags($userId);
+
         return AccountRestriction::query()->active()->where('user_id', $userId)->where('type', $type)->exists();
     }
 
@@ -67,6 +116,7 @@ class AccountRestrictions
      */
     public function assertCanMoveMoney(int $userId, string $action): void
     {
+        $this->adoptLegacyFlags($userId);
         $blocking = self::BLOCKS[$action] ?? ['full_ban'];
         $found = AccountRestriction::query()->active()->where('user_id', $userId)->whereIn('type', $blocking)->pluck('type');
 

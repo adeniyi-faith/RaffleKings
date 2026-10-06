@@ -146,11 +146,11 @@ class WithdrawalRequestResource extends Resource
                     'title' => $record->user?->display_name ?: $record->user?->user_login,
                     'amount' => static::naira($record->amount_to_send),
                     'lines' => [
-                        $record->bankAccount ? "{$record->bankAccount->bank_name} · {$record->bankAccount->account_name}" : 'No bank account on file',
+                        $record->bankAccount ? "{$record->bankAccount->bank_name} · {$record->bankAccount->masked()} · {$record->bankAccount->account_name}" : 'No bank account on file',
                         (float) $record->fee_amount > 0 ? 'Requested '.static::naira($record->requested_amount).' · fee '.static::naira($record->fee_amount) : null,
                         static::payoutNote($record),
                     ],
-                    'copy' => $record->bankAccount ? ['value' => $record->bankAccount->account_number] : null,
+                    'copy' => null,
                     'body' => static::warning($record),
                     'badges' => [
                         match ($record->status) {
@@ -161,6 +161,7 @@ class WithdrawalRequestResource extends Resource
                         static::warning($record) ? ['Check before paying', 'danger'] : null,
                         static::payoutBadge($record),
                         $record->bankAccount?->isVerified() ? ['Name checked', 'success'] : null,
+                        $record->bankAccount?->name_mismatch ? ['Name does not match', 'danger'] : null,
                     ],
                     'meta' => $record->created_at?->diffForHumans(),
                 ]),
@@ -181,8 +182,7 @@ class WithdrawalRequestResource extends Resource
                             : null),
                     Tables\Columns\TextColumn::make('bankAccount.account_number')
                         ->label('Send to')
-                        ->copyable()
-                        ->copyMessage('Account number copied')
+                        ->formatStateUsing(fn ($state, WithdrawalRequest $record) => $record->bankAccount?->masked())
                         ->description(fn (WithdrawalRequest $record) => ($record->bankAccount
                             ? "{$record->bankAccount->bank_name} · {$record->bankAccount->account_name}".($record->bankAccount->isVerified() ? ' ✓ name checked by the bank' : '')
                             : 'No bank account on file').(static::payoutNote($record) ? ' · '.static::payoutNote($record) : '')),
@@ -207,6 +207,34 @@ class WithdrawalRequestResource extends Resource
             ->actionsPosition(ActionsPosition::BeforeColumns)
             ->actionsColumnLabel('Action')
             ->actions([
+                Tables\Actions\Action::make('revealAccount')
+                    ->hidden(fn () => ! static::staffCan('money.pay'))
+                    ->label('Show full number')
+                    ->icon('heroicon-o-eye')
+                    ->color('gray')
+                    ->visible(fn (WithdrawalRequest $record) => $record->bankAccount !== null)
+                    ->modalHeading('Show the full account number?')
+                    ->modalDescription('Account numbers are hidden by default. Showing one is written to the activity log with your reason.')
+                    ->form([
+                        Forms\Components\TextInput::make('why')->label('Why do you need it?')->required()->maxLength(200)
+                            ->placeholder('e.g. Paying this withdrawal by hand'),
+                    ])
+                    ->modalSubmitActionLabel('Show it')
+                    ->action(function (WithdrawalRequest $record, array $data) {
+                        $account = $record->bankAccount;
+
+                        app(\App\Services\AdminAuditLogService::class)->record(static::admin(), 'bank_account.revealed', \App\Models\BankAccount::class, $account->id, [
+                            'withdrawal_id' => $record->id,
+                            'user_id' => $record->user_id,
+                            'why' => $data['why'],
+                        ]);
+
+                        Notification::make()
+                            ->title("{$account->account_name} · {$account->bank_name}")
+                            ->body($account->account_number)
+                            ->persistent()
+                            ->send();
+                    }),
                 Tables\Actions\Action::make('sendWithPaystack')
                     ->hidden(fn () => ! static::staffCan('money.pay') || ! Features::on('auto_payouts'))
                     ->label('Send with Paystack')
@@ -219,7 +247,7 @@ class WithdrawalRequestResource extends Resource
                     ->modalHeading('Send this withdrawal with Paystack?')
                     ->modalDescription(fn (WithdrawalRequest $record) => (static::warning($record) ? '⚠ '.static::warning($record).' ' : '')
                         .'Paystack sends '.static::naira($record->amount_to_send)
-                        .($record->bankAccount ? " to {$record->bankAccount->account_name}, {$record->bankAccount->bank_name} {$record->bankAccount->account_number}" : '')
+                        .($record->bankAccount ? " to {$record->bankAccount->account_name}, {$record->bankAccount->bank_name} {$record->bankAccount->masked()}" : '')
                         .' from your Paystack balance'.(($balance = static::paystackBalance()) !== null ? ' ('.static::naira($balance).' now)' : '')
                         .'. It is marked paid, and the customer told, only when the bank confirms.')
                     ->modalSubmitActionLabel('Yes, send it')
@@ -251,7 +279,7 @@ class WithdrawalRequestResource extends Resource
                     ->requiresConfirmation()
                     ->modalHeading('Mark this withdrawal as paid?')
                     ->modalDescription(fn (WithdrawalRequest $record) => (static::warning($record) ? '⚠ '.static::warning($record).' ' : '').'Only confirm AFTER you have sent '.static::naira($record->amount_to_send)
-                        .($record->bankAccount ? " to {$record->bankAccount->account_name}, {$record->bankAccount->bank_name} {$record->bankAccount->account_number}" : '')
+                        .($record->bankAccount ? " to {$record->bankAccount->account_name}, {$record->bankAccount->bank_name} {$record->bankAccount->masked()}" : '')
                         .'. The customer is told their money is on the way.')
                     ->modalSubmitActionLabel('Yes, I have sent it')
                     ->action(fn (WithdrawalRequest $record) => static::attempt(
@@ -265,15 +293,21 @@ class WithdrawalRequestResource extends Resource
                     ->icon('heroicon-o-x-circle')
                     ->color('danger')
                     ->visible(fn (WithdrawalRequest $record) => $record->status === 'pending' && $record->payout_status !== 'sending')
-                    ->modalDescription(fn (WithdrawalRequest $record) => 'Refunds '.static::naira((float) $record->amount_to_send + (float) $record->fee_amount).' to the customer\'s winnings. They see the reason below.')
+                    ->modalDescription(fn (WithdrawalRequest $record) => 'Returns '.static::naira($record->amount_to_send).' to the customer\'s winnings'.((float) $record->fee_amount > 0 ? ', and takes the '.static::naira($record->fee_amount).' verification fee back out of their spending wallet (as much as is still there)' : '').'.')
                     ->form([
+                        Forms\Components\Textarea::make('customer_message')
+                            ->label('Message to the customer')
+                            ->helperText('The customer sees exactly this. Keep it kind and free of anything about our checks.')
+                            ->required()
+                            ->maxLength(500),
                         Forms\Components\Textarea::make('reason')
-                            ->label('Reason (shown to the customer)')
+                            ->label('Internal note (staff only)')
+                            ->helperText('Why you rejected it. The customer never sees this.')
                             ->required()
                             ->maxLength(500),
                     ])
                     ->action(fn (WithdrawalRequest $record, array $data) => static::attempt(
-                        fn () => app(WithdrawalService::class)->reject(static::admin(), $record, $data['reason']),
+                        fn () => app(WithdrawalService::class)->reject(static::admin(), $record, $data['reason'], $data['customer_message']),
                         "Withdrawal #{$record->id} rejected and refunded.",
                     )),
             ])

@@ -53,7 +53,7 @@ class WithdrawalProcessed extends Notification implements ShouldQueue
         $message = (new MailMessage)
             ->subject('Withdrawal request declined')
             ->greeting('Your withdrawal request was declined.')
-            ->line('₦'.number_format((float) $this->withdrawal->requested_amount).' has been refunded to your earnings balance.');
+            ->line('Your money has been returned to your earnings balance, so you can try again or use it on a raffle.');
 
         if ($this->reason) {
             $message->line("Reason: {$this->reason}");

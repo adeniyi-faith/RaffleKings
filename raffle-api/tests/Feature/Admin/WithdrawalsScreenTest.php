@@ -12,12 +12,13 @@ use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Notification;
 use Livewire\Livewire;
 use Tests\Support\ActsAsAdministrator;
+use Tests\Support\HoldsWithdrawalMoney;
 use Tests\TestCase;
 
 /** OVERHAUL_CHECKLIST.md item 44 — the withdrawals queue screen. */
 class WithdrawalsScreenTest extends TestCase
 {
-    use ActsAsAdministrator, RefreshDatabase;
+    use ActsAsAdministrator, HoldsWithdrawalMoney, RefreshDatabase;
 
     private function pendingWithdrawal(): WithdrawalRequest
     {
@@ -25,7 +26,7 @@ class WithdrawalsScreenTest extends TestCase
         Wallet::create(['user_id' => $user->ID, 'wallet_balance' => 0, 'earnings_balance' => 0]);
         $account = BankAccount::create(['user_id' => $user->ID, 'bank_name' => 'GTBank', 'account_number' => '0123456789', 'account_name' => 'Ada Obi', 'is_primary' => true]);
 
-        return WithdrawalRequest::create(['user_id' => $user->ID, 'bank_account_id' => $account->id, 'requested_amount' => 3000, 'fee_amount' => 0, 'amount_to_send' => 3000, 'status' => 'pending']);
+        return $this->holdMoneyFor(WithdrawalRequest::create(['user_id' => $user->ID, 'bank_account_id' => $account->id, 'requested_amount' => 3000, 'fee_amount' => 0, 'amount_to_send' => 3000, 'status' => 'pending']));
     }
 
     public function test_it_lists_pending_withdrawals_by_default(): void
@@ -59,14 +60,33 @@ class WithdrawalsScreenTest extends TestCase
         $withdrawal = $this->pendingWithdrawal();
 
         Livewire::test(ListWithdrawalRequests::class)
-            ->callTableAction('reject', $withdrawal, data: ['reason' => ''])
-            ->assertHasTableActionErrors(['reason' => 'required']);
+            ->callTableAction('reject', $withdrawal, data: ['reason' => '', 'customer_message' => ''])
+            ->assertHasTableActionErrors(['reason' => 'required', 'customer_message' => 'required']);
 
         Livewire::test(ListWithdrawalRequests::class)
-            ->callTableAction('reject', $withdrawal, data: ['reason' => 'Account name does not match']);
+            ->callTableAction('reject', $withdrawal, data: ['reason' => 'Account name does not match', 'customer_message' => 'We could not match the account name to yours.']);
 
         $this->assertSame('rejected', $withdrawal->fresh()->status);
         $this->assertEquals(3000, (float) Wallet::where('user_id', $withdrawal->user_id)->value('earnings_balance'));
+    }
+
+    public function test_the_account_number_is_hidden_until_staff_give_a_reason_and_it_is_logged(): void
+    {
+        $this->actingAsAdministrator();
+        $withdrawal = $this->pendingWithdrawal();
+
+        Livewire::test(ListWithdrawalRequests::class)
+            ->assertSee('••••••6789')
+            ->assertDontSee('0123456789')
+            ->callTableAction('revealAccount', $withdrawal, data: ['why' => ''])
+            ->assertHasTableActionErrors(['why' => 'required']);
+
+        Livewire::test(ListWithdrawalRequests::class)
+            ->callTableAction('revealAccount', $withdrawal, data: ['why' => 'Paying by hand']);
+
+        $log = AdminAuditLog::where('action', 'bank_account.revealed')->first();
+        $this->assertNotNull($log);
+        $this->assertStringContainsString('Paying by hand', json_encode($log->details ?? $log->toArray()));
     }
 
     public function test_actions_are_hidden_once_handled(): void

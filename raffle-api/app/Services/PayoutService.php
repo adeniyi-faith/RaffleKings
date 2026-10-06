@@ -65,6 +65,7 @@ class PayoutService
             $withdrawal->status !== 'pending' => 'This withdrawal is not waiting to be paid.',
             $withdrawal->payout_status === 'sending' => 'Paystack is already sending this.',
             ! $account => 'No bank account on file.',
+            $account->name_mismatch => 'The bank\'s name for this account does not match the customer\'s name, so check it and pay by hand.',
             ! $account->isVerified() => 'The bank account was saved before the bank-name check, so pay by hand.',
             $max > 0 && (float) $withdrawal->amount_to_send > $max => 'Above the automatic limit of ₦'.number_format($max).' (Settings → Withdrawals), so pay by hand.',
             default => null,
