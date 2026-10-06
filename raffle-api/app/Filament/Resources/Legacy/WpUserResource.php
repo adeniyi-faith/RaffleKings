@@ -283,14 +283,15 @@ class WpUserResource extends Resource
             ->action(fn (Tables\Actions\BulkAction $action, array $data) => static::runBan($service()->ban(...), $ids($action)->all(), $data['reason'], 'banned'));
 
         $unban = Tables\Actions\BulkAction::make('unban')
-            ->label('Unban')
+            ->label('Ask to unban')
             ->icon('heroicon-o-check-circle')
             ->color('success')
             ->visible($manage)
             ->requiresConfirmation()
             ->fetchSelectedRecords(false)
-            ->modalHeading(fn (HasTable $livewire) => 'Unban '.$count($livewire).' customers?')
-            ->action(fn (Tables\Actions\BulkAction $action) => static::runBan(fn ($admin, $picked) => $service()->unban($admin, $picked), $ids($action)->all(), null, 'unbanned'));
+            ->modalHeading(fn (HasTable $livewire) => 'Ask to unban '.$count($livewire).' customers?')
+            ->modalDescription('Lifting a ban takes two staff members. This asks; a different staff member then approves it on each customer\'s page.')
+            ->action(fn (Tables\Actions\BulkAction $action) => static::runBan(fn ($admin, $picked) => $service()->unban($admin, $picked), $ids($action)->all(), null, 'asked to be unbanned'));
 
         return [
             Tables\Actions\BulkActionGroup::make([$message, $addTags, $removeTags, $export, $ban, $unban])
@@ -312,7 +313,7 @@ class WpUserResource extends Resource
 
         $extra = array_filter([
             $result['staff'] > 0 ? "{$result['staff']} left alone (staff or you)" : null,
-            $result['already'] > 0 ? "{$result['already']} already ".($word === 'banned' ? 'banned' : 'not banned') : null,
+            $result['already'] > 0 ? "{$result['already']} already ".($word === 'banned' ? 'banned' : 'unbanned or already asked') : null,
         ]);
 
         Notification::make()->title("{$result['banned']} customer".($result['banned'] === 1 ? '' : 's')." {$word}")

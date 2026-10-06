@@ -71,6 +71,7 @@ class TransactionMonitorServiceTest extends TestCase
     public function test_revoking_deletes_associated_ticket_entries(): void
     {
         $user = $this->makeUser();
+        app(\App\Services\WalletLedgerService::class)->credit($user->ID, 'wallet', 1000, 'deposit', 'seed-'.$user->ID, 'gateway_clearing');
         $txn = RaffleTransaction::create(['user_id' => $user->ID, 'claimed_amount' => 1000, 'status' => 'verified_final', 'type' => 'wallet_payment', 'created_at' => now()]);
         RaffleEntry::create(['user_id' => $user->ID, 'raffle_id' => 1, 'ticket_number' => 7, 'txn_id' => $txn->id]);
         RaffleEntry::create(['user_id' => $user->ID, 'raffle_id' => 1, 'ticket_number' => 8, 'txn_id' => $txn->id]);
@@ -78,6 +79,19 @@ class TransactionMonitorServiceTest extends TestCase
         $this->transactions->revoke($this->admin, $txn);
 
         $this->assertSame(0, RaffleEntry::where('txn_id', $txn->id)->count());
+    }
+
+    public function test_revoking_a_deposit_the_customer_already_spent_is_refused_and_nothing_changes(): void
+    {
+        $user = $this->makeUser();
+        $txn = RaffleTransaction::create(['user_id' => $user->ID, 'claimed_amount' => 1000, 'status' => 'verified_final', 'type' => 'wallet_deposit', 'created_at' => now()]);
+
+        try {
+            $this->transactions->revoke($this->admin, $txn);
+            $this->fail('the balance was pushed below zero');
+        } catch (\App\Exceptions\InsufficientBalanceException) {
+            $this->assertSame('verified_final', $txn->fresh()->status);
+        }
     }
 
     public function test_revoking_reverses_a_linked_cashback_bonus(): void

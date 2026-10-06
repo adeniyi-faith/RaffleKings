@@ -57,8 +57,8 @@ class GamingTaxServiceTest extends TestCase
 
     private function refund(float $amount, string $lagosTime): void
     {
-        $entry = WalletLedgerEntry::create(['user_id' => 1, 'balance_type' => 'wallet', 'direction' => 'credit', 'amount' => $amount, 'reason' => 'ticket_purchase_refunded']);
-        $entry->forceFill(['created_at' => Carbon::parse($lagosTime, 'Africa/Lagos')->utc()])->save();
+        // Written straight to the table with its date: ledger rows can't be edited afterwards.
+        \Illuminate\Support\Facades\DB::table('wallet_ledger_entries')->insert(['user_id' => 1, 'balance_type' => 'wallet', 'direction' => 'credit', 'amount' => $amount, 'reason' => 'ticket_purchase_refunded', 'created_at' => Carbon::parse($lagosTime, 'Africa/Lagos')->utc()]);
     }
 
     private function admin(): \App\Models\Legacy\WpUser

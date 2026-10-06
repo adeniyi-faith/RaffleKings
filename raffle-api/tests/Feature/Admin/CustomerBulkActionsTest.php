@@ -127,7 +127,13 @@ class CustomerBulkActionsTest extends TestCase
 
         $result = app(CustomerBulkActions::class)->unban($admin, [$ada->ID, $bola->ID]);
 
+        // Lifting a ban takes two staff: this only asks. Still banned until a different staff member approves.
         $this->assertSame(['banned' => 1, 'staff' => 0, 'already' => 1], $result);
+        $this->assertTrue($ada->fresh()->isBanned());
+
+        $second = $this->customer('second-admin');
+        $restriction = \App\Models\AccountRestriction::where('user_id', $ada->ID)->where('type', 'full_ban')->firstOrFail();
+        app(\App\Services\AccountRestrictions::class)->approveLift($second, $restriction);
         $this->assertFalse($ada->fresh()->isBanned());
     }
 
@@ -152,8 +158,10 @@ class CustomerBulkActionsTest extends TestCase
         $this->assertTrue($ada->fresh()->isBanned());
         $this->assertFalse($cee->fresh()->isBanned());
 
+        // Asking to unban only asks: lifting needs a second staff member.
         $page->callTableBulkAction('unban', $picked);
-        $this->assertFalse($ada->fresh()->isBanned());
+        $this->assertTrue($ada->fresh()->isBanned());
+        $this->assertNotNull(\App\Models\AccountRestriction::where('user_id', $ada->ID)->value('lift_requested_by'));
     }
 
     public function test_messaging_the_ticked_customers_hands_the_exact_list_to_the_message_form(): void
