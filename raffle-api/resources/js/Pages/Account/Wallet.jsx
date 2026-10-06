@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { Head, Link } from '@inertiajs/react';
 import {
     ArrowLeft,
@@ -17,7 +17,7 @@ import {
     Zap,
 } from 'lucide-react';
 import { formatNaira } from '../../lib/format';
-import { apiPost } from '../../lib/api';
+import { apiPost, topUpKey } from '../../lib/api';
 import { refreshBalances, setBalances, useBalanceHidden, useBalances } from '../../lib/balances';
 import PausedNotice from '../../Components/layout/PausedNotice';
 import TransferWinningsModal from '../../Components/wallet/TransferWinningsModal';
@@ -42,6 +42,7 @@ export default function AccountWallet({ minimumDeposit = 100, recentTopups = [] 
     const balances = useBalances();
     const [hidden, toggleHidden] = useBalanceHidden();
     const [amount, setAmount] = useState('');
+    const topUpHolder = useRef({});
     const [status, setStatus] = useState('idle'); // idle | submitting
     const [error, setError] = useState(null);
     const [returned, setReturned] = useState(null); // the top-up we came back from, if any
@@ -93,7 +94,7 @@ export default function AccountWallet({ minimumDeposit = 100, recentTopups = [] 
         setStatus('submitting');
 
         try {
-            const data = await apiPost('/api/deposits', { amount: numeric });
+            const data = await apiPost('/api/deposits', { amount: numeric, idempotency_key: topUpKey(topUpHolder.current, numeric) });
             window.location.href = data.authorization_url;
         } catch (err) {
             setError(err.message);
