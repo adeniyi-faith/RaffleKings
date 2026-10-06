@@ -46,6 +46,13 @@ jobs:
       DB_USERNAME: rk
       DB_PASSWORD: rk
     steps:
+      - name: Let the test database user create triggers
+        # The money tables are locked against edits with database triggers. MySQL
+        # only lets a normal user create them when this switch is on (the live
+        # server's host has to allow the same).
+        run: mysql -h127.0.0.1 -uroot -proot -e "SET GLOBAL log_bin_trust_function_creators = 1"
+        working-directory: .
+
       - uses: actions/checkout@v4
 
       - uses: shivammathur/setup-php@v2

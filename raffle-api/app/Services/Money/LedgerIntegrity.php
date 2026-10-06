@@ -24,7 +24,7 @@ use Illuminate\Support\Facades\DB;
 class LedgerIntegrity
 {
     /**
-     * @return array{wallets: int, drifts: int, unbalanced: int, negative: int, no_history: int}
+     * @return array{wallets: int, drifts: int, unbalanced: int, negative: int, no_history: int, unprotected?: int}
      */
     public function run(): array
     {
@@ -93,6 +93,14 @@ class LedgerIntegrity
             }
         }
 
+        // 4: the database's own lock on the books (refuses edits and deletes) is still in place.
+        $missing = $this->unprotectedTables();
+
+        if ($missing !== []) {
+            $result['unprotected'] = count($missing);
+            MoneyReviewItem::raise('books_unprotected', 'triggers', 'The database is not locking the ledger and audit log against edits', 'Missing on: '.implode(', ', $missing).'. The database user may lack the right to create triggers (on MySQL with binary logging, log_bin_trust_function_creators must be on). Ask the host to allow it; the triggers are created by the 2026_10_24_000005 migration.');
+        }
+
         // Anything that was open before and is fine now closes by itself.
         $this->closeFixed($result);
 
@@ -105,12 +113,35 @@ class LedgerIntegrity
         return $result;
     }
 
+    /** @return list<string> the protected tables that have no "refuse edits" trigger */
+    private function unprotectedTables(): array
+    {
+        $tables = ['wallet_ledger_entries', 'ledger_system_entries', 'ledger_journals', 'admin_audit_logs'];
+        $driver = DB::getDriverName();
+
+        try {
+            $names = match (true) {
+                $driver === 'sqlite' => DB::table('sqlite_master')->where('type', 'trigger')->pluck('name')->all(),
+                in_array($driver, ['mysql', 'mariadb'], true) => DB::table('information_schema.TRIGGERS')->whereRaw('TRIGGER_SCHEMA = DATABASE()')->pluck('TRIGGER_NAME')->all(),
+                default => null,
+            };
+        } catch (\Throwable) {
+            return [];
+        }
+
+        if ($names === null) {
+            return [];
+        }
+
+        return array_values(array_filter($tables, fn ($t) => ! in_array("{$t}_no_update", $names, true)));
+    }
+
     /** An open ledger item the check no longer finds is resolved by the system. */
     private function closeFixed(array $result): void
     {
         $seen = fn (string $kind) => MoneyReviewItem::query()->where('kind', $kind)->where('status', 'open')->where('updated_at', '<', now()->subMinutes(30))->get();
 
-        foreach (['ledger_drift', 'ledger_no_history', 'negative_balance', 'unbalanced_journal'] as $kind) {
+        foreach (['ledger_drift', 'ledger_no_history', 'negative_balance', 'unbalanced_journal', 'books_unprotected'] as $kind) {
             foreach ($seen($kind) as $item) {
                 $item->update(['status' => 'resolved', 'resolved_at' => now(), 'resolution_note' => 'The nightly check no longer finds this.']);
             }
