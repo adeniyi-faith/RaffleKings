@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers\Api;
 
+use App\Exceptions\IdempotencyConflictException;
 use App\Exceptions\PaymentGatewayException;
 use App\Http\Controllers\Controller;
 use App\Http\Requests\InitializeDepositRequest;
@@ -30,7 +31,10 @@ class DepositController extends Controller
                 (float) $request->float('amount'),
                 url('/api/deposits/callback'),
                 $request->validated('return_to'),
+                $request->validated('idempotency_key') ?? $request->header('Idempotency-Key'),
             );
+        } catch (IdempotencyConflictException $e) {
+            return response()->json(['message' => $e->getMessage()], 409);
         } catch (PaymentGatewayException $e) {
             // The gateway's own error text is technical (it can name
             // missing settings, e.g. "missing PAYSTACK_SECRET_KEY") — it
