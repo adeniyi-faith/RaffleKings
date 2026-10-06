@@ -7,6 +7,7 @@ use App\Services\Admin\StaffTodo;
 use App\Services\Advisor\RaffleAdvisor;
 use App\Services\Ai\GeminiClient;
 use App\Services\Auth\StaffTwoStep;
+use App\Services\DepositService;
 use App\Services\Engagement\DailyDrops;
 use App\Services\Engagement\LuckyMeter;
 use App\Services\Engagement\RedEnvelopes;
@@ -80,10 +81,16 @@ Schedule::call(function () {
 
 // Top-ups that were started but never confirmed (missed webhook, closed
 // tab): ask the gateway again, for up to two days.
-Schedule::call(fn () => app(\App\Services\DepositService::class)->recheckPending())
+Schedule::call(fn () => app(DepositService::class)->recheckPending())
     ->everyTenMinutes()
     ->name('deposit-recheck')
     ->withoutOverlapping(15);
+
+// Every night: do the wallets agree with the ledger, does every money
+// movement add up, and do our payments and payouts match Paystack's and
+// Flutterwave's own lists? Anything off goes on the Needs checking list.
+Schedule::command('ledger:check')->dailyAt('02:10')->timezone(config('raffles.timezone'))->withoutOverlapping(60);
+Schedule::command('providers:reconcile')->dailyAt('02:40')->timezone(config('raffles.timezone'))->withoutOverlapping(60);
 
 // Reminders ("raffle ends soon", "you left tickets in checkout").
 // Does nothing while switched off in Settings → On / off → New features.

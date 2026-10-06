@@ -107,7 +107,7 @@ class OperationsScreensTest extends TestCase
         $customer = $this->customer();
         $deposit = Deposit::create(['user_id' => $customer->ID, 'reference' => 'dep_x1', 'gateway' => 'paystack', 'amount' => 5000, 'currency' => 'NGN', 'status' => 'amount_mismatch', 'failure_reason' => 'Paid 4,000']);
         config(['services.paystack.secret_key' => 'sk_test']);
-        Http::fake(['api.paystack.co/*' => Http::response(['status' => true, 'data' => ['status' => 'success', 'amount' => 400000, 'id' => 9]])]);
+        Http::fake(['api.paystack.co/*' => Http::response(['status' => true, 'data' => ['status' => 'success', 'amount' => 400000, 'currency' => 'NGN', 'id' => 9]])]);
 
         Livewire::test(ListPaymentMismatches::class)->callTableAction('credit', $deposit);
 
