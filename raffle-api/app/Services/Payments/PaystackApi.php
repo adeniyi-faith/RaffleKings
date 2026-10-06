@@ -216,6 +216,6 @@ class PaystackApi
             $response->status() === 429 => 'Paystack is busy (too many requests). Try again in a minute.',
             $response->serverError() => 'Paystack is having problems right now. Try again in a few minutes.',
             default => "Paystack: {$message}",
-        });
+        }, unclear: $response->status() === 429 || $response->serverError());
     }
 }
