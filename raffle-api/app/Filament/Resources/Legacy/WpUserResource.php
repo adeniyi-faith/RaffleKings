@@ -345,16 +345,23 @@ class WpUserResource extends Resource
                     ->numeric()
                     ->minValue(0.01)
                     ->required(),
+                Forms\Components\Textarea::make('reason')
+                    ->label('Why')
+                    ->helperText('Kept with the adjustment and in the audit log. Changes above ₦'.number_format((float) config('ledger.adjustment_approval_over')).' wait for a second staff member to approve.')
+                    ->required()
+                    ->minLength(5),
             ])
             ->action(function (WpUser $record, array $data) {
                 try {
-                    app(UserManagementService::class)->adjustBalance(auth('wordpress')->user(), $record, $data['type'], (float) $data['amount'], $data['direction']);
+                    $adjustment = app(UserManagementService::class)->adjustBalance(auth('wordpress')->user(), $record, $data['type'], (float) $data['amount'], $data['direction'], $data['reason']);
                 } catch (InvalidArgumentException $e) {
                     Notification::make()->title($e->getMessage())->danger()->send();
 
                     return;
                 }
-                Notification::make()->title("#{$record->ID}'s balance updated.")->success()->send();
+                Notification::make()
+                    ->title($adjustment->status === 'applied' ? "#{$record->ID}'s balance updated." : "Saved. A second staff member has to approve this before #{$record->ID}'s balance changes.")
+                    ->success()->send();
             });
 
         $ban = $action::make('ban')
@@ -362,10 +369,16 @@ class WpUserResource extends Resource
             ->color('danger')
             ->icon('heroicon-o-no-symbol')
             ->visible(fn (WpUser $record) => ! $record->isBanned())
-            ->requiresConfirmation()
-            ->modalDescription('They are logged out and can\'t log in until unbanned.')
-            ->action(function (WpUser $record) {
-                app(UserManagementService::class)->ban(auth('wordpress')->user(), $record);
+            ->modalDescription('They are logged out everywhere and can\'t sign in or spend until the ban is lifted. Lifting takes two staff members.')
+            ->form([Forms\Components\Textarea::make('reason')->label('Why')->required()->minLength(5)])
+            ->action(function (WpUser $record, array $data) {
+                try {
+                    app(UserManagementService::class)->ban(auth('wordpress')->user(), $record, $data['reason']);
+                } catch (\RuntimeException $e) {
+                    Notification::make()->title($e->getMessage())->danger()->send();
+
+                    return;
+                }
                 Notification::make()->title("#{$record->ID} banned.")->success()->send();
             });
 
@@ -373,11 +386,34 @@ class WpUserResource extends Resource
             ->label('Unban')
             ->color('success')
             ->icon('heroicon-o-check-circle')
+            ->label(fn (WpUser $record) => app(\App\Services\AccountRestrictions::class)->active($record->ID)->contains(fn ($r) => $r->lift_requested_by !== null && (int) $r->lift_requested_by !== (int) auth('wordpress')->id()) ? 'Approve unban' : 'Ask to unban')
             ->visible(fn (WpUser $record) => $record->isBanned())
-            ->requiresConfirmation()
-            ->action(function (WpUser $record) {
-                app(UserManagementService::class)->unban(auth('wordpress')->user(), $record);
-                Notification::make()->title("#{$record->ID} unbanned.")->success()->send();
+            ->form(fn (WpUser $record) => app(\App\Services\AccountRestrictions::class)->active($record->ID)->contains(fn ($r) => $r->lift_requested_by !== null && (int) $r->lift_requested_by !== (int) auth('wordpress')->id())
+                ? []
+                : [Forms\Components\Textarea::make('reason')->label('Why they should be unbanned')->required()->minLength(5)])
+            ->action(function (WpUser $record, array $data) {
+                $restrictions = app(\App\Services\AccountRestrictions::class);
+                $me = auth('wordpress')->user();
+
+                try {
+                    $waiting = $restrictions->active($record->ID)->first(fn ($r) => $r->lift_requested_by !== null && (int) $r->lift_requested_by !== (int) $me->ID);
+
+                    if ($waiting) {
+                        foreach ($restrictions->active($record->ID)->whereNotNull('lift_requested_by') as $r) {
+                            $restrictions->approveLift($me, $r);
+                        }
+                        Notification::make()->title("#{$record->ID} unbanned.")->success()->send();
+
+                        return;
+                    }
+
+                    app(UserManagementService::class)->unban($me, $record, $data['reason'] ?? null);
+                } catch (\RuntimeException $e) {
+                    Notification::make()->title($e->getMessage())->danger()->send();
+
+                    return;
+                }
+                Notification::make()->title('Asked. A different staff member has to approve lifting the ban.')->success()->send();
             });
 
         $restrictions = $action::make('restrictions')
@@ -399,6 +435,8 @@ class WpUserResource extends Resource
                     ->label('Block transfers')
                     ->helperText('Kept from the old site. The new site has no customer-to-customer transfers, so this has no effect today.'),
                 Forms\Components\DatePicker::make('ban_expiry')->label('Restriction expiry (optional)'),
+                Forms\Components\Textarea::make('reason')->label('Why')->required()->minLength(5)
+                    ->helperText('Turning one off only asks for it to be lifted; a different staff member approves that.'),
             ])
             ->action(function (WpUser $record, array $data) {
                 app(UserManagementService::class)->updateRestrictions(
@@ -408,6 +446,7 @@ class WpUserResource extends Resource
                     (bool) ($data['ban_withdraw'] ?? false),
                     (bool) ($data['ban_transfer'] ?? false),
                     $data['ban_expiry'] ?? null,
+                    $data['reason'],
                 );
                 Notification::make()->title("#{$record->ID}'s restrictions updated.")->success()->send();
             });

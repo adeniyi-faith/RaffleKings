@@ -36,7 +36,7 @@ class ReconcileWalletLedgerTest extends TestCase
     {
         Wallet::create(['user_id' => 3, 'wallet_balance' => 1000, 'earnings_balance' => 0]);
 
-        app(WalletLedgerService::class)->recordCredit(3, 'wallet', 1000, 'deposit');
+        app(WalletLedgerService::class)->credit(3, 'wallet', 1000, 'deposit', 'deposit:t3', 'gateway_clearing');
 
         $this->artisan('legacy:reconcile-wallet-ledger')->assertSuccessful();
 

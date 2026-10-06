@@ -8,6 +8,10 @@ use Illuminate\Database\Eloquent\Model;
 class Deposit extends Model
 {
     protected $fillable = [
+        'idempotency_key',
+        'request_hash',
+        'last_checked_at',
+        'check_count',
         'user_id',
         'reference',
         'gateway',

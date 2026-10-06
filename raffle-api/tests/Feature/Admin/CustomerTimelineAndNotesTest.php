@@ -33,7 +33,7 @@ class CustomerTimelineAndNotesTest extends TestCase
         $raffle = $this->createRaffle(['title' => 'iPhone 17']);
 
         $this->travelTo(now()->subDays(3));
-        app(WalletLedgerService::class)->recordCredit($user->ID, 'wallet', 5000, 'deposit', description: 'Deposit via paystack');
+        app(WalletLedgerService::class)->credit($user->ID, 'wallet', 5000, 'deposit', 'deposit:t'.$user->ID, 'gateway_clearing', description: 'Deposit via paystack');
         $this->travelBack();
         $this->travelTo(now()->subDays(2));
         RaffleEntry::create(['user_id' => $user->ID, 'raffle_id' => $raffle->public_id, 'ticket_number' => 7, 'txn_id' => 0]);

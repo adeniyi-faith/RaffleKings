@@ -107,12 +107,17 @@ class PromoCodeService
                 }
 
                 if ($promo->kind === 'welcome_bonus') {
-                    $wallet = Wallet::query()->where('user_id', $user->ID)->lockForUpdate()->first()
-                        ?? Wallet::create(['user_id' => $user->ID, 'wallet_balance' => 0, 'earnings_balance' => 0]);
-                    $wallet->wallet_balance = (float) $wallet->wallet_balance + $amount;
-                    $wallet->save();
-
-                    $this->ledger->recordCredit($user->ID, 'wallet', $amount, 'promo_bonus', 'promo_code', $promo->id, "Promo code {$promo->code}");
+                    $this->ledger->credit(
+                        userId: $user->ID,
+                        balanceType: 'wallet',
+                        amount: $amount,
+                        reason: 'promo_bonus',
+                        key: "promo_bonus:{$promo->id}:user:{$user->ID}",
+                        from: 'promotions',
+                        referenceType: 'promo_code',
+                        referenceId: $promo->id,
+                        description: "Promo code {$promo->code}",
+                    );
                 } else {
                     $this->points->credit($user, (int) $amount, 'promo_bonus', 'promo_code', $promo->id, "Promo code {$promo->code}");
                 }

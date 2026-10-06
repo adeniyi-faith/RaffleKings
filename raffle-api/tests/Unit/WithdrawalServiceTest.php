@@ -37,7 +37,7 @@ class WithdrawalServiceTest extends TestCase
         $user = WpUser::create(['user_login' => 'u'.uniqid(), 'user_pass' => 'x', 'user_email' => uniqid().'@example.com']);
         Wallet::create(['user_id' => $user->ID, 'wallet_balance' => 0, 'earnings_balance' => $earnings]);
         // A user with >= the threshold in lifetime deposits skips the verification fee.
-        app(WalletLedgerService::class)->recordCredit($user->ID, 'wallet', 5000, 'deposit');
+        app(WalletLedgerService::class)->credit($user->ID, 'wallet', 5000, 'deposit', 'deposit:t'.$user->ID, 'gateway_clearing');
         $account = BankAccount::create(['user_id' => $user->ID, 'bank_name' => 'GTBank', 'account_number' => '0123456789', 'account_name' => 'Test User', 'is_primary' => true]);
 
         return [$user, $account];

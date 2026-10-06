@@ -92,17 +92,13 @@ class ReferralCommissionService
         }
 
         return DB::transaction(function () use ($referrer, $referee, $depositAmount, $commission, $rate, $depositTransactionId) {
-            $wallet = Wallet::query()->where('user_id', $referrer->ID)->lockForUpdate()->first()
-                ?? Wallet::create(['user_id' => $referrer->ID, 'wallet_balance' => 0, 'earnings_balance' => 0]);
-
-            $wallet->earnings_balance = (float) $wallet->earnings_balance + $commission;
-            $wallet->save();
-
-            $this->ledger->recordCredit(
+            $this->ledger->credit(
                 userId: $referrer->ID,
                 balanceType: 'earnings',
                 amount: $commission,
                 reason: 'referral_commission',
+                key: "referral_commission:referee:{$referee->ID}",
+                from: 'referral_expense',
                 referenceType: 'raffle_transaction',
                 referenceId: $depositTransactionId,
                 description: "Referral commission for user #{$referee->ID}'s first deposit.",
@@ -159,17 +155,13 @@ class ReferralCommissionService
                 return false;
             }
 
-            $wallet = Wallet::query()->where('user_id', $locked->referrer_user_id)->lockForUpdate()->first()
-                ?? Wallet::create(['user_id' => $locked->referrer_user_id, 'wallet_balance' => 0, 'earnings_balance' => 0]);
-
-            $wallet->earnings_balance = (float) $wallet->earnings_balance + (float) $locked->commission_amount;
-            $wallet->save();
-
-            $this->ledger->recordCredit(
+            $this->ledger->credit(
                 userId: $locked->referrer_user_id,
                 balanceType: 'earnings',
                 amount: (float) $locked->commission_amount,
                 reason: 'referral_commission',
+                key: "referral_commission:referee:{$locked->referee_user_id}",
+                from: 'referral_expense',
                 referenceType: 'raffle_transaction',
                 referenceId: $locked->deposit_transaction_id,
                 description: "Referral commission for user #{$locked->referee_user_id}'s first deposit (checked by staff).",

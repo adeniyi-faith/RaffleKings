@@ -14,6 +14,7 @@ class WithdrawalRequest extends Model
         'fee_amount',
         'amount_to_send',
         'status',
+        'idempotency_key',
         'legacy_transaction_id',
         // Automatic payouts (App\Services\PayoutService).
         'payout_status',

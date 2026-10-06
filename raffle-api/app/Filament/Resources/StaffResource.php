@@ -141,6 +141,10 @@ class StaffResource extends Resource
         WpUserMeta::query()->updateOrCreate(['user_id' => $user->ID, 'meta_key' => StaffRoles::META_KEY], ['meta_value' => $role]);
         $user->forgetStaffRole();
 
+        if ($role === StaffRoles::NO_ACCESS) {
+            app(\App\Services\Auth\SessionRevoker::class)->everywhere($user);
+        }
+
         app(AdminAuditLogService::class)->record($admin, 'staff.role_changed', WpUser::class, $user->ID, [
             'from' => $was ?? 'customer',
             'to' => $role === StaffRoles::NO_ACCESS ? 'no access' : $role,

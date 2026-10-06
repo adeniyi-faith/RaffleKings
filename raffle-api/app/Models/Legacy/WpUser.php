@@ -156,10 +156,10 @@ class WpUser extends LegacyModel implements Authenticatable, FilamentUser, HasAv
      * here respects exactly who's actually an admin today, not a new,
      * separate notion of one.
      */
-    /** Reads the same rk_is_banned usermeta flag the legacy site sets. */
+    /** True while a full account ban is in force (not lifted, not past its end date). */
     public function isBanned(): bool
     {
-        return $this->metaValue('rk_is_banned') === '1';
+        return \App\Models\AccountRestriction::query()->active()->where('user_id', $this->ID)->where('type', 'full_ban')->exists();
     }
 
     public function isAdministrator(): bool

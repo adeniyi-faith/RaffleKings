@@ -56,7 +56,7 @@ class CheckoutAndWalletFlowsTest extends TestCase
         $user = $this->actingAsWordPressUser();
         Wallet::create(['user_id' => $user->ID, 'wallet_balance' => 200, 'earnings_balance' => 1500]);
 
-        $this->postJson('/api/wallet/transfer', ['amount' => 1000])
+        $this->postJson('/api/wallet/transfer', ['amount' => 1000, 'idempotency_key' => 'transfer-test-'.uniqid()])
             ->assertOk()
             ->assertJson(['moved' => 1000, 'wallet_balance' => 1200, 'earnings_balance' => 500]);
 
@@ -76,7 +76,7 @@ class CheckoutAndWalletFlowsTest extends TestCase
         $user = $this->actingAsWordPressUser();
         Wallet::create(['user_id' => $user->ID, 'wallet_balance' => 0, 'earnings_balance' => 300]);
 
-        $this->postJson('/api/wallet/transfer', ['amount' => 300])->assertOk();
+        $this->postJson('/api/wallet/transfer', ['amount' => 300, 'idempotency_key' => 'transfer-test-'.uniqid()])->assertOk();
 
         $rows = collect($this->getJson('/api/account/transactions')->assertOk()->json())
             ->flatten(1)
@@ -90,8 +90,8 @@ class CheckoutAndWalletFlowsTest extends TestCase
         $user = $this->actingAsWordPressUser();
         Wallet::create(['user_id' => $user->ID, 'wallet_balance' => 50, 'earnings_balance' => 100]);
 
-        $this->postJson('/api/wallet/transfer', ['amount' => 100.01])->assertStatus(422);
-        $this->postJson('/api/wallet/transfer', ['amount' => 0])->assertStatus(422);
+        $this->postJson('/api/wallet/transfer', ['amount' => 100.01, 'idempotency_key' => 'transfer-test-'.uniqid()])->assertStatus(422);
+        $this->postJson('/api/wallet/transfer', ['amount' => 0, 'idempotency_key' => 'transfer-test-'.uniqid()])->assertStatus(422);
 
         $this->assertEquals(50, Wallet::where('user_id', $user->ID)->value('wallet_balance'));
         $this->assertEquals(100, Wallet::where('user_id', $user->ID)->value('earnings_balance'));
@@ -102,14 +102,14 @@ class CheckoutAndWalletFlowsTest extends TestCase
     {
         $this->actingAsWordPressUser();
 
-        $this->postJson('/api/wallet/transfer', ['amount' => 10])
+        $this->postJson('/api/wallet/transfer', ['amount' => 10, 'idempotency_key' => 'transfer-test-'.uniqid()])
             ->assertStatus(422)
             ->assertJson(['message' => "You don't have that much in your winnings."]);
     }
 
     public function test_a_guest_cannot_transfer(): void
     {
-        $this->postJson('/api/wallet/transfer', ['amount' => 10])->assertUnauthorized();
+        $this->postJson('/api/wallet/transfer', ['amount' => 10, 'idempotency_key' => 'transfer-test-'.uniqid()])->assertUnauthorized();
     }
 
     public function test_the_transfer_keeps_the_ledger_and_the_stored_balances_in_step(): void
@@ -117,10 +117,9 @@ class CheckoutAndWalletFlowsTest extends TestCase
         $user = $this->actingAsWordPressUser();
         Wallet::create(['user_id' => $user->ID, 'wallet_balance' => 0, 'earnings_balance' => 0]);
         $ledger = app(WalletLedgerService::class);
-        $ledger->recordCredit($user->ID, 'earnings', 800, 'prize_payout');
-        Wallet::where('user_id', $user->ID)->update(['earnings_balance' => 800]);
+        $ledger->credit($user->ID, 'earnings', 800, 'prize_payout', 'prize:t'.$user->ID, 'prizes');
 
-        $this->postJson('/api/wallet/transfer', ['amount' => 350])->assertOk();
+        $this->postJson('/api/wallet/transfer', ['amount' => 350, 'idempotency_key' => 'transfer-test-0001'])->assertOk();
 
         $wallet = Wallet::where('user_id', $user->ID)->first();
         $this->assertEquals((float) $wallet->earnings_balance, $ledger->reconstructBalance($user->ID, 'earnings'));

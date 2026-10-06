@@ -188,13 +188,17 @@ class AffiliateService
             }
 
             $userId = $earning->affiliate->user_id;
-            $wallet = Wallet::query()->where('user_id', $userId)->lockForUpdate()->first()
-                ?? Wallet::create(['user_id' => $userId, 'wallet_balance' => 0, 'earnings_balance' => 0]);
-
-            $wallet->earnings_balance = (float) $wallet->earnings_balance + $earning->commission;
-            $wallet->save();
-
-            $this->ledger->recordCredit($userId, 'earnings', $earning->commission, 'affiliate_commission', 'affiliate_earning', $earning->id, 'Affiliate commission');
+            $this->ledger->credit(
+                userId: $userId,
+                balanceType: 'earnings',
+                amount: $earning->commission,
+                reason: 'affiliate_commission',
+                key: "affiliate_commission:{$earning->id}",
+                from: 'affiliate_expense',
+                referenceType: 'affiliate_earning',
+                referenceId: $earning->id,
+                description: 'Affiliate commission',
+            );
 
             $earning->update(['status' => 'paid', 'paid_at' => now()]);
 
