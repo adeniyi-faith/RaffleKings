@@ -4,6 +4,7 @@ namespace App\Http\Middleware;
 
 use App\Services\Admin\Impersonation;
 use App\Services\Retention\MemberSegments;
+use App\Support\AdminPath;
 use Closure;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
@@ -20,7 +21,7 @@ class RememberVisit
     {
         $response = $next($request);
 
-        if (! $request->isMethod('GET') || $request->is('admin', 'admin/*', 'livewire/*', 'm/*')) {
+        if (! $request->isMethod('GET') || $request->is(...AdminPath::patterns(), ...['livewire/*', 'm/*'])) {
             return $response;
         }
 

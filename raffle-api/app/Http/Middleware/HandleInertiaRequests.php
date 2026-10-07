@@ -8,16 +8,18 @@ use App\Models\Legacy\WpUser;
 use App\Models\Retention\RetentionOffer;
 use App\Models\UserPoints;
 use App\Models\Wallet;
-use App\Services\Auth\TurnstileVerifier;
 use App\Services\Admin\Impersonation;
 use App\Services\Analytics\EventCatalog;
+use App\Services\Auth\TurnstileVerifier;
 use App\Services\DailyClaimService;
 use App\Services\Maintenance;
 use App\Services\Monitoring\StatusBoard;
 use App\Services\PointsBoost;
 use App\Services\TicketPricingService;
+use App\Support\AdminPath;
 use App\Support\Features;
 use Illuminate\Http\Request;
+use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\Auth;
 use Inertia\Middleware;
 
@@ -86,7 +88,7 @@ class HandleInertiaRequests extends Middleware
             // the banner with the Stop button. Null for everyone else.
             'impersonating' => fn () => ($view = Impersonation::current($request)) && $user ? [
                 'name' => $user->display_name ?: $user->user_login,
-                'expires_at' => \Illuminate\Support\Carbon::createFromTimestamp($view['expires_at'])->toIso8601String(),
+                'expires_at' => Carbon::createFromTimestamp($view['expires_at'])->toIso8601String(),
                 'seconds_left' => max(0, $view['expires_at'] - now()->getTimestamp()),
             ] : null,
             // Product analytics (Settings → Analytics). No key = the browser
@@ -137,6 +139,8 @@ class HandleInertiaRequests extends Middleware
                 // the maintenance page); "upcoming" warns everyone ahead.
                 'maintenance' => [
                     'active' => app(Maintenance::class)->active(),
+                    // The staff address is only ever sent to staff.
+                    'admin_url' => $user?->staffRole() !== null ? AdminPath::url('settings') : null,
                     'upcoming' => app(Maintenance::class)->upcoming(),
                     'is_staff' => $user?->staffRole() !== null,
                 ],

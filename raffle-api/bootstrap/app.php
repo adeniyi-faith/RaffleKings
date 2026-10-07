@@ -15,11 +15,13 @@ use App\Http\Middleware\SecurityHeaders;
 use App\Http\Middleware\TrackApiActions;
 use App\Http\Middleware\VerifyApiOrigin;
 use App\Services\Monitoring\ErrorAlerter;
+use App\Support\AdminPath;
 use Illuminate\Foundation\Application;
 use Illuminate\Foundation\Configuration\Exceptions;
 use Illuminate\Foundation\Configuration\Middleware;
 use Illuminate\Http\Request;
 use Inertia\Inertia;
+use Sentry\Laravel\Integration;
 use Symfony\Component\HttpFoundation\Response;
 
 return Application::configure(basePath: dirname(__DIR__))
@@ -82,7 +84,7 @@ return Application::configure(basePath: dirname(__DIR__))
     ->withExceptions(function (Exceptions $exceptions): void {
         // Phase 10 monitoring: Sentry error tracking. Does nothing until
         // SENTRY_LARAVEL_DSN is set.
-        \Sentry\Laravel\Integration::handles($exceptions);
+        Integration::handles($exceptions);
 
         $exceptions->shouldRenderJsonWhen(
             fn (Request $request) => $request->is('api/*') || $request->expectsJson(),
@@ -111,7 +113,7 @@ return Application::configure(basePath: dirname(__DIR__))
             }
 
             // The admin gets its own self-contained page (see the view).
-            if ($request->is('admin', 'admin/*')) {
+            if ($request->is(...AdminPath::patterns())) {
                 [$emoji, $title, $message] = match ($status) {
                     403 => ['🔒', 'Not allowed', 'Your staff role can\'t open this page. Ask the owner if you need it.'],
                     404 => ['🚧', 'Page not found', 'This admin page doesn\'t exist or has moved.'],

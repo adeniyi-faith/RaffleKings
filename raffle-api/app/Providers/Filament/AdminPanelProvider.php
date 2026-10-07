@@ -8,6 +8,7 @@ use App\Http\Middleware\AttachExtraCookies;
 use App\Http\Middleware\RequireStaffTwoStep;
 use App\Livewire\AdminBell;
 use App\Services\Maintenance;
+use App\Support\AdminPath;
 use App\Support\Formats;
 use Filament\Http\Middleware\Authenticate;
 use Filament\Http\Middleware\DisableBladeIconComponents;
@@ -78,7 +79,7 @@ class AdminPanelProvider extends PanelProvider
         return $panel
             ->default()
             ->id('admin')
-            ->path('admin')
+            ->path(AdminPath::segment())
             ->authGuard('wordpress')
             // The admin's own sign-in page: same accounts and password check
             // as the site, staff only (App\Filament\Pages\Auth\AdminLogin).

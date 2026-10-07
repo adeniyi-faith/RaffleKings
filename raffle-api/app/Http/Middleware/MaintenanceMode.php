@@ -4,6 +4,7 @@ namespace App\Http\Middleware;
 
 use App\Models\Legacy\WpUser;
 use App\Services\Maintenance;
+use App\Support\AdminPath;
 use Closure;
 use Illuminate\Http\Request;
 use Inertia\Inertia;
@@ -21,7 +22,7 @@ use Symfony\Component\HttpFoundation\Response;
 class MaintenanceMode
 {
     private const ALWAYS_OPEN = [
-        'admin', 'admin/*', 'livewire/*', 'filament/*',
+        'livewire/*', 'filament/*',
         'api/webhooks/*', 'api/deposits/callback',
         'login', 'api/auth/login', 'api/auth/logout', 'api/me',
         'up',
@@ -33,7 +34,7 @@ class MaintenanceMode
     {
         $maintenance = app(Maintenance::class);
 
-        if (! $maintenance->active() || $request->is(...self::ALWAYS_OPEN) || $this->isStaff()) {
+        if (! $maintenance->active() || $request->is(...self::ALWAYS_OPEN, ...AdminPath::patterns()) || $this->isStaff()) {
             return $next($request);
         }
 
