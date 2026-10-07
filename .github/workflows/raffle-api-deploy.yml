@@ -283,6 +283,9 @@ jobs:
             APP_URL=https://rafflekings.com.ng
             # Changes every deploy so browsers/Cloudflare fetch fresh admin CSS/JS.
             ASSET_VERSION=${{ github.sha }}
+            # Private staff address (GitHub secret ADMIN_PATH, letters/numbers/-/_).
+            # Unset = the usual /admin.
+            ADMIN_PATH=${{ secrets.ADMIN_PATH || 'admin' }}
 
             APP_LOCALE=en
             APP_FALLBACK_LOCALE=en

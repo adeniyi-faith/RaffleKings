@@ -41,7 +41,7 @@
             <p class="rk-err-text">Error code: <strong>{{ $reference }}</strong> (search for it on System → Health or in the log)</p>
         @endif
         <button type="button" class="rk-err-btn rk-err-primary" onclick="window.location.reload()">↻ Try again</button>
-        <a href="{{ url('/admin') }}" class="rk-err-btn rk-err-secondary">← Admin dashboard</a>
+        <a href="{{ \App\Support\AdminPath::url() }}" class="rk-err-btn rk-err-secondary">← Admin dashboard</a>
     </main>
 </body>
 </html>
