@@ -30,9 +30,9 @@ export default function ImpersonationBanner() {
 
         try {
             const data = await apiPost('/api/impersonation/stop', {});
-            window.location.href = data.redirect || '/admin';
+            window.location.href = data.redirect || '/';
         } catch {
-            window.location.href = '/admin';
+            window.location.href = '/';
         }
     }
 
