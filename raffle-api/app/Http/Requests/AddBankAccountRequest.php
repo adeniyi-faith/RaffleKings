@@ -16,7 +16,7 @@ class AddBankAccountRequest extends FormRequest
     {
         // With the bank-name check on, the customer only picks the bank and
         // types the number; the name comes from Paystack, never the form.
-        if (Features::on('bank_name_check')) {
+        if (Features::bankNameCheck()) {
             return [
                 'bank_code' => ['required', 'string', 'max:20'],
                 'account_number' => ['required', 'string', 'regex:/^[0-9]{10}$/'],

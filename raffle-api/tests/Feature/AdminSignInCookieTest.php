@@ -2,6 +2,7 @@
 
 namespace Tests\Feature;
 
+use App\Auth\StaffRoles;
 use App\Filament\Pages\Auth\AdminLogin;
 use App\Models\Legacy\WpUser;
 use App\Models\Legacy\WpUserMeta;
@@ -25,6 +26,7 @@ class AdminSignInCookieTest extends TestCase
     {
         $staff = WpUser::create(['user_login' => 'boss', 'user_pass' => app(WordPressPasswordHasher::class)->make('secret123'), 'user_email' => 'boss@example.com', 'display_name' => 'Boss']);
         WpUserMeta::create(['user_id' => $staff->ID, 'meta_key' => config('legacy.wp_prefix').'capabilities', 'meta_value' => serialize(['administrator' => true])]);
+        WpUserMeta::create(['user_id' => $staff->ID, 'meta_key' => StaffRoles::META_KEY, 'meta_value' => 'owner']);
         Filament::setCurrentPanel(Filament::getPanel('admin'));
 
         Livewire::test(AdminLogin::class)

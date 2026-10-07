@@ -18,11 +18,12 @@ use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Notifications\AnonymousNotifiable;
 use Illuminate\Support\Facades\Notification;
 use RuntimeException;
+use Tests\Support\MakesBankAccounts;
 use Tests\TestCase;
 
 class WithdrawalServiceTest extends TestCase
 {
-    use RefreshDatabase;
+    use MakesBankAccounts, RefreshDatabase;
 
     private WithdrawalService $withdrawals;
 
@@ -37,8 +38,8 @@ class WithdrawalServiceTest extends TestCase
         $user = WpUser::create(['user_login' => 'u'.uniqid(), 'user_pass' => 'x', 'user_email' => uniqid().'@example.com']);
         Wallet::create(['user_id' => $user->ID, 'wallet_balance' => 0, 'earnings_balance' => $earnings]);
         // A user with >= the threshold in lifetime deposits skips the verification fee.
-        app(WalletLedgerService::class)->recordCredit($user->ID, 'wallet', 5000, 'deposit');
-        $account = BankAccount::create(['user_id' => $user->ID, 'bank_name' => 'GTBank', 'account_number' => '0123456789', 'account_name' => 'Test User', 'is_primary' => true]);
+        app(WalletLedgerService::class)->credit($user->ID, 'wallet', 5000, 'deposit', 'deposit:t'.$user->ID, 'gateway_clearing');
+        $account = $this->oldBankAccount(['user_id' => $user->ID, 'bank_name' => 'GTBank', 'account_number' => '0123456789', 'account_name' => 'Test User', 'is_primary' => true]);
 
         return [$user, $account];
     }
@@ -98,7 +99,7 @@ class WithdrawalServiceTest extends TestCase
     {
         $user = WpUser::create(['user_login' => 'new2'.uniqid(), 'user_pass' => 'x', 'user_email' => uniqid().'@example.com']);
         Wallet::create(['user_id' => $user->ID, 'wallet_balance' => 0, 'earnings_balance' => 10000]);
-        $account = BankAccount::create(['user_id' => $user->ID, 'bank_name' => 'GTBank', 'account_number' => '0123456789', 'account_name' => 'New User', 'is_primary' => true]);
+        $account = $this->oldBankAccount(['user_id' => $user->ID, 'bank_name' => 'GTBank', 'account_number' => '0123456789', 'account_name' => 'New User', 'is_primary' => true]);
 
         try {
             $this->withdrawals->request($user, 3000, $account->id, authorizeVerificationFee: false);
@@ -114,7 +115,7 @@ class WithdrawalServiceTest extends TestCase
     {
         $user = WpUser::create(['user_login' => 'new3'.uniqid(), 'user_pass' => 'x', 'user_email' => uniqid().'@example.com']);
         Wallet::create(['user_id' => $user->ID, 'wallet_balance' => 0, 'earnings_balance' => 10000]);
-        $account = BankAccount::create(['user_id' => $user->ID, 'bank_name' => 'GTBank', 'account_number' => '0123456789', 'account_name' => 'New User', 'is_primary' => true]);
+        $account = $this->oldBankAccount(['user_id' => $user->ID, 'bank_name' => 'GTBank', 'account_number' => '0123456789', 'account_name' => 'New User', 'is_primary' => true]);
 
         $withdrawal = $this->withdrawals->request($user, 3000, $account->id, authorizeVerificationFee: true);
 
@@ -133,7 +134,7 @@ class WithdrawalServiceTest extends TestCase
     {
         $user = WpUser::create(['user_login' => 'new4'.uniqid(), 'user_pass' => 'x', 'user_email' => uniqid().'@example.com']);
         Wallet::create(['user_id' => $user->ID, 'wallet_balance' => 0, 'earnings_balance' => 3000]);
-        $account = BankAccount::create(['user_id' => $user->ID, 'bank_name' => 'GTBank', 'account_number' => '0123456789', 'account_name' => 'New User', 'is_primary' => true]);
+        $account = $this->oldBankAccount(['user_id' => $user->ID, 'bank_name' => 'GTBank', 'account_number' => '0123456789', 'account_name' => 'New User', 'is_primary' => true]);
 
         $withdrawal = $this->withdrawals->request($user, 3000, $account->id, authorizeVerificationFee: true);
 

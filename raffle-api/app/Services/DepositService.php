@@ -3,14 +3,18 @@
 namespace App\Services;
 
 use App\Contracts\PaymentGateway;
+use App\Exceptions\IdempotencyConflictException;
 use App\Exceptions\PaymentGatewayException;
 use App\Models\Deposit;
 use App\Models\Legacy\WpUser;
-use App\Models\Wallet;
 use App\Notifications\DepositConfirmed;
 use App\Notifications\ReferralCommissionEarned;
+use App\Services\Analytics\Analytics;
+use App\Services\Growth\AffiliateService;
+use App\Services\Monitoring\StaffAlerts;
 use App\Services\Payments\FlutterwaveGateway;
 use App\Services\Payments\PaystackGateway;
+use Illuminate\Database\UniqueConstraintViolationException;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Str;
@@ -52,22 +56,40 @@ class DepositService
         ];
     }
 
-    public function initialize(WpUser $user, float $amount, string $callbackUrl, ?string $returnTo = null): Deposit
+    public function initialize(WpUser $user, float $amount, string $callbackUrl, ?string $returnTo = null, ?string $idempotencyKey = null): Deposit
     {
         if ($amount < config('payments.minimum_deposit')) {
             throw new InvalidArgumentException(sprintf('Minimum deposit is ₦%.2f.', config('payments.minimum_deposit')));
         }
 
         $reference = 'dep_'.Str::uuid();
+        $hash = hash('sha256', number_format($amount, 2, '.', '').'|'.$returnTo);
 
-        $deposit = Deposit::create([
-            'user_id' => $user->ID,
-            'reference' => $reference,
-            'amount' => $amount,
-            'currency' => 'NGN',
-            'status' => 'pending',
-            'return_to' => $returnTo,
-        ]);
+        // The same tap sent twice (a double click, a retry after a slow
+        // network) gets the first top-up back, not a second one. The same key
+        // with a different amount is a mistake in the caller, not a repeat.
+        if ($idempotencyKey !== null && ($existing = $this->earlierTopUp($user, $idempotencyKey, $hash))) {
+            return $existing;
+        }
+
+        try {
+            $deposit = Deposit::create([
+                'user_id' => $user->ID,
+                'reference' => $reference,
+                'amount' => $amount,
+                'currency' => 'NGN',
+                'status' => 'pending',
+                'return_to' => $returnTo,
+                'idempotency_key' => $idempotencyKey,
+                'request_hash' => $idempotencyKey !== null ? $hash : null,
+            ]);
+        } catch (UniqueConstraintViolationException $e) {
+            if ($idempotencyKey !== null && ($existing = $this->earlierTopUp($user, $idempotencyKey, $hash))) {
+                return $existing;
+            }
+
+            throw $e;
+        }
 
         $errors = [];
 
@@ -100,9 +122,25 @@ class DepositService
 
         $deposit->update(['status' => 'failed', 'failure_reason' => implode(' | ', $errors)]);
 
-        app(\App\Services\Analytics\Analytics::class)->capture($user->ID, 'topup_failed', ['amount' => $amount, 'reason' => 'no_gateway_available']);
+        app(Analytics::class)->capture($user->ID, 'topup_failed', ['amount' => $amount, 'reason' => 'no_gateway_available']);
 
         throw new PaymentGatewayException('All payment gateways are currently unavailable: '.implode(' | ', $errors));
+    }
+
+    /** @throws IdempotencyConflictException */
+    private function earlierTopUp(WpUser $user, string $key, string $hash): ?Deposit
+    {
+        $existing = Deposit::query()->where('user_id', $user->ID)->where('idempotency_key', $key)->first();
+
+        if (! $existing) {
+            return null;
+        }
+
+        if ($existing->request_hash !== $hash) {
+            throw new IdempotencyConflictException('That request key was already used for a different top-up. Please start again.');
+        }
+
+        return $existing;
     }
 
     /**
@@ -140,8 +178,22 @@ class DepositService
                 throw new RuntimeException("Deposit {$reference} was started with {$deposit->gateway}, not {$gatewayName}.");
             }
 
+            if (! $verification->successful && ! $verification->isFinalFailure()) {
+                // Still processing at the gateway (pending, ongoing, queued…):
+                // the customer may well have paid. Not a failure; look again
+                // later (recheckPending runs every few minutes).
+                $deposit->update([
+                    'last_checked_at' => now(),
+                    'check_count' => ((int) $deposit->check_count) + 1,
+                ]);
+
+                return $deposit;
+            }
+
             if (! $verification->successful) {
                 $deposit->update([
+                    'last_checked_at' => now(),
+                    'check_count' => ((int) $deposit->check_count) + 1,
                     'status' => 'failed',
                     'gateway_transaction_id' => $verification->gatewayTransactionId,
                     'failure_reason' => "Gateway reported status: {$verification->rawStatus}",
@@ -182,17 +234,13 @@ class DepositService
                 'verified_at' => now(),
             ]);
 
-            $wallet = Wallet::query()->where('user_id', $deposit->user_id)->lockForUpdate()->first()
-                ?? Wallet::create(['user_id' => $deposit->user_id, 'wallet_balance' => 0, 'earnings_balance' => 0]);
-
-            $wallet->wallet_balance = (float) $wallet->wallet_balance + (float) $deposit->amount;
-            $wallet->save();
-
-            $this->ledger->recordCredit(
+            $this->ledger->credit(
                 userId: $deposit->user_id,
                 balanceType: 'wallet',
-                amount: (float) $deposit->amount,
+                amount: (string) $deposit->amount,
                 reason: 'deposit',
+                key: "deposit:{$deposit->id}",
+                from: 'gateway_clearing',
                 referenceType: Deposit::class,
                 referenceId: $deposit->id,
                 description: "Deposit via {$gatewayName}",
@@ -205,7 +253,7 @@ class DepositService
         });
 
         if ($outcome !== null) {
-            app(\App\Services\Analytics\Analytics::class)->capture($deposit->user_id, $outcome, [
+            app(Analytics::class)->capture($deposit->user_id, $outcome, [
                 'amount' => (float) $deposit->amount,
                 'gateway' => $gatewayName,
             ]);
@@ -220,7 +268,7 @@ class DepositService
 
             // Affiliates: commission for whoever brought this customer (held a few days).
             if ($outcome === 'topup_completed') {
-                app(\App\Services\Growth\AffiliateService::class)->recordDeposit($deposit);
+                app(AffiliateService::class)->recordDeposit($deposit);
             }
 
             // A commission held for a multi-account check isn't announced yet.
@@ -228,13 +276,60 @@ class DepositService
                 $referrer = WpUser::find($referralCommission->referrer_user_id);
                 $referrer?->notify(new ReferralCommissionEarned($referralCommission));
 
-                app(\App\Services\Analytics\Analytics::class)->capture($referralCommission->referrer_user_id, 'referral_commission_earned', [
+                app(Analytics::class)->capture($referralCommission->referrer_user_id, 'referral_commission_earned', [
                     'amount' => (float) $referralCommission->commission_amount,
                 ]);
             }
         }
 
         return $deposit;
+    }
+
+    /** Top-ups still waiting are looked at again for this many days. */
+    public const RECHECK_DAYS = 2;
+
+    /**
+     * Every few minutes (routes/console.php): asks the gateway again about
+     * top-ups that were started but never confirmed, so a missed webhook or
+     * a customer who closed the tab never leaves paid money unclaimed.
+     * Anything still unconfirmed after RECHECK_DAYS is reported to staff.
+     *
+     * @return int how many were looked at
+     */
+    public function recheckPending(): int
+    {
+        $looked = 0;
+
+        Deposit::query()
+            ->whereIn('status', ['pending', 'failed'])
+            ->whereNotNull('gateway')
+            ->where('created_at', '>=', now()->subDays(self::RECHECK_DAYS))
+            ->where('created_at', '<=', now()->subMinutes(5))
+            ->where(fn ($q) => $q->whereNull('last_checked_at')->orWhere('last_checked_at', '<=', now()->subMinutes(9)))
+            ->orderBy('id')
+            ->limit(100)
+            ->get()
+            ->each(function (Deposit $deposit) use (&$looked) {
+                $looked++;
+
+                try {
+                    $this->confirm($deposit->gateway, $deposit->reference);
+                } catch (\Throwable $e) {
+                    $deposit->forceFill(['last_checked_at' => now(), 'check_count' => ((int) $deposit->check_count) + 1])->save();
+                    report($e);
+                }
+            });
+
+        $old = Deposit::query()->where('status', 'pending')->whereNotNull('gateway')
+            ->where('created_at', '<', now()->subDays(self::RECHECK_DAYS))
+            ->where('created_at', '>=', now()->subDays(self::RECHECK_DAYS + 5))
+            ->count();
+
+        if ($old > 0) {
+            StaffAlerts::send("{$old} top-up(s) have been waiting more than ".self::RECHECK_DAYS.' days without the gateway confirming them. Check Money → Top-ups.', 'old-pending-deposits', 1440);
+        }
+
+        return $looked;
     }
 
     public function gatewayFor(string $name): PaymentGateway

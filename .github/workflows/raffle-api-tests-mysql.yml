@@ -1,0 +1,93 @@
+name: Raffle API tests (MySQL)
+
+# The everyday tests run on a quick in-memory database, where "lock this
+# row while I change it" does nothing. Money safety depends on those locks,
+# so the same tests run here against a real MySQL database, including the
+# ones that fire several requests at the same moment from separate processes.
+on:
+  pull_request:
+    paths:
+      - 'raffle-api/**'
+      - '.github/workflows/raffle-api-tests-mysql.yml'
+  push:
+    branches: [main]
+    paths:
+      - 'raffle-api/**'
+
+permissions:
+  contents: read
+
+jobs:
+  mysql:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: raffle-api
+    services:
+      mysql:
+        image: mysql:8.0
+        env:
+          MYSQL_DATABASE: rk_test
+          MYSQL_USER: rk
+          MYSQL_PASSWORD: rk
+          MYSQL_ROOT_PASSWORD: root
+        ports:
+          - 3306:3306
+        options: >-
+          --health-cmd="mysqladmin ping -h 127.0.0.1 -prk"
+          --health-interval=5s
+          --health-timeout=5s
+          --health-retries=20
+    env:
+      DB_CONNECTION: mysql
+      DB_HOST: 127.0.0.1
+      DB_PORT: 3306
+      DB_DATABASE: rk_test
+      DB_USERNAME: rk
+      DB_PASSWORD: rk
+    steps:
+      - name: Let the test database user create triggers
+        # The money tables are locked against edits with database triggers. MySQL
+        # only lets a normal user create them when this switch is on (the live
+        # server's host has to allow the same).
+        run: mysql -h127.0.0.1 -uroot -proot -e "SET GLOBAL log_bin_trust_function_creators = 1"
+        working-directory: .
+
+      - uses: actions/checkout@v4
+
+      - uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.4'
+          tools: composer:v2
+          extensions: dom, curl, libxml, mbstring, zip, pcntl, pdo, pdo_mysql, sodium
+          coverage: none
+
+      - run: composer install --no-interaction --no-progress --prefer-dist
+
+      - name: Set up a throwaway test environment
+        run: |
+          cp .env.example .env
+          php artisan key:generate
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - run: npm ci
+
+      - name: Build frontend assets
+        run: npm run build
+
+      - name: Run the tests, one file at a time
+        # Running the whole suite in one PHP process dies partway ("Premature
+        # end of PHP process"), so each test file gets its own process.
+        run: |
+          failed=0
+          for f in $(find tests -name '*Test.php' | sort); do
+            if ! vendor/bin/phpunit --do-not-fail-on-warning "$f" > /tmp/out.txt 2>&1; then
+              if grep -qE "FAILURES!|ERRORS!|Fatal error" /tmp/out.txt; then
+                echo "::error::$f failed"; tail -n 40 /tmp/out.txt; failed=1
+              fi
+            fi
+          done
+          exit $failed

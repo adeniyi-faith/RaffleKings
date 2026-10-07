@@ -12,8 +12,10 @@ use App\Models\Legacy\RaffleEntry;
 use App\Models\Legacy\WpUser;
 use App\Models\Legacy\WpUserMeta;
 use App\Models\Wallet;
+use App\Services\AccountRestrictions;
 use App\Services\Admin\CustomerBulkActions;
 use App\Services\AdminAuditLogService;
+use App\Services\Compliance\ComplianceCases;
 use App\Services\Reports\ReportExporter;
 use App\Services\UserManagementService;
 use Filament\Actions;
@@ -26,6 +28,7 @@ use Filament\Tables\Contracts\HasTable;
 use Filament\Tables\Enums\ActionsPosition;
 use Filament\Tables\Table;
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Support\Carbon;
 use InvalidArgumentException;
 
 /**
@@ -180,8 +183,8 @@ class WpUserResource extends Resource
                     Forms\Components\DatePicker::make('until')->label('Joined until'),
                 ])->columns(2)
                 ->query(fn ($query, array $data) => $query
-                    ->when($data['from'] ?? null, fn ($q, $d) => $q->where('user_registered', '>=', \Illuminate\Support\Carbon::parse($d, config('raffles.timezone'))->startOfDay()->utc()))
-                    ->when($data['until'] ?? null, fn ($q, $d) => $q->where('user_registered', '<=', \Illuminate\Support\Carbon::parse($d, config('raffles.timezone'))->endOfDay()->utc())))
+                    ->when($data['from'] ?? null, fn ($q, $d) => $q->where('user_registered', '>=', Carbon::parse($d, config('raffles.timezone'))->startOfDay()->utc()))
+                    ->when($data['until'] ?? null, fn ($q, $d) => $q->where('user_registered', '<=', Carbon::parse($d, config('raffles.timezone'))->endOfDay()->utc())))
                 ->indicateUsing(fn (array $data) => array_values(array_filter([
                     ($data['from'] ?? null) ? 'Joined from '.$data['from'] : null,
                     ($data['until'] ?? null) ? 'Joined until '.$data['until'] : null,
@@ -283,14 +286,15 @@ class WpUserResource extends Resource
             ->action(fn (Tables\Actions\BulkAction $action, array $data) => static::runBan($service()->ban(...), $ids($action)->all(), $data['reason'], 'banned'));
 
         $unban = Tables\Actions\BulkAction::make('unban')
-            ->label('Unban')
+            ->label('Ask to unban')
             ->icon('heroicon-o-check-circle')
             ->color('success')
             ->visible($manage)
             ->requiresConfirmation()
             ->fetchSelectedRecords(false)
-            ->modalHeading(fn (HasTable $livewire) => 'Unban '.$count($livewire).' customers?')
-            ->action(fn (Tables\Actions\BulkAction $action) => static::runBan(fn ($admin, $picked) => $service()->unban($admin, $picked), $ids($action)->all(), null, 'unbanned'));
+            ->modalHeading(fn (HasTable $livewire) => 'Ask to unban '.$count($livewire).' customers?')
+            ->modalDescription('Lifting a ban takes two staff members. This asks; a different staff member then approves it on each customer\'s page.')
+            ->action(fn (Tables\Actions\BulkAction $action) => static::runBan(fn ($admin, $picked) => $service()->unban($admin, $picked), $ids($action)->all(), null, 'asked to be unbanned'));
 
         return [
             Tables\Actions\BulkActionGroup::make([$message, $addTags, $removeTags, $export, $ban, $unban])
@@ -312,7 +316,7 @@ class WpUserResource extends Resource
 
         $extra = array_filter([
             $result['staff'] > 0 ? "{$result['staff']} left alone (staff or you)" : null,
-            $result['already'] > 0 ? "{$result['already']} already ".($word === 'banned' ? 'banned' : 'not banned') : null,
+            $result['already'] > 0 ? "{$result['already']} already ".($word === 'banned' ? 'banned' : 'unbanned or already asked') : null,
         ]);
 
         Notification::make()->title("{$result['banned']} customer".($result['banned'] === 1 ? '' : 's')." {$word}")
@@ -330,6 +334,7 @@ class WpUserResource extends Resource
 
         $adjust = $action::make('adjustBalance')
             ->label('Adjust balance')
+            ->visible(fn () => static::staffCan('money.pay'))
             ->color('warning')
             ->icon('heroicon-o-banknotes')
             ->modalDescription('Adds or takes away money or points. It shows in the customer\'s history as an admin adjustment and in the audit log.')
@@ -345,16 +350,44 @@ class WpUserResource extends Resource
                     ->numeric()
                     ->minValue(0.01)
                     ->required(),
+                Forms\Components\Textarea::make('reason')
+                    ->label('Why')
+                    ->helperText('Kept with the adjustment and in the audit log. Changes above ₦'.number_format((float) config('ledger.adjustment_approval_over')).' wait for a second staff member to approve.')
+                    ->required()
+                    ->minLength(5),
             ])
             ->action(function (WpUser $record, array $data) {
                 try {
-                    app(UserManagementService::class)->adjustBalance(auth('wordpress')->user(), $record, $data['type'], (float) $data['amount'], $data['direction']);
+                    $adjustment = app(UserManagementService::class)->adjustBalance(auth('wordpress')->user(), $record, $data['type'], (float) $data['amount'], $data['direction'], $data['reason']);
                 } catch (InvalidArgumentException $e) {
                     Notification::make()->title($e->getMessage())->danger()->send();
 
                     return;
                 }
-                Notification::make()->title("#{$record->ID}'s balance updated.")->success()->send();
+                Notification::make()
+                    ->title($adjustment->status === 'applied' ? "#{$record->ID}'s balance updated." : "Saved. A second staff member has to approve this before #{$record->ID}'s balance changes.")
+                    ->success()->send();
+            });
+
+        $openCase = $action::make('openCase')
+            ->label('Open a case')
+            ->color('gray')
+            ->icon('heroicon-o-folder-plus')
+            ->visible(fn () => static::staffCan('customers.manage'))
+            ->modalDescription('Starts a case to look into this customer. Notes on it can\'t be changed afterwards, and a different staff member has to close it.')
+            ->form([
+                Forms\Components\TextInput::make('title')->label('What needs looking into?')->required()->maxLength(200),
+                Forms\Components\Textarea::make('details')->label('Details')->maxLength(4000),
+            ])
+            ->action(function (WpUser $record, array $data) {
+                try {
+                    app(ComplianceCases::class)->open(auth('wordpress')->user(), $record, $data['title'], $data['details'] ?? null);
+                } catch (\RuntimeException $e) {
+                    Notification::make()->title($e->getMessage())->danger()->send();
+
+                    return;
+                }
+                Notification::make()->title('Case opened. Find it under Customers → Cases.')->success()->send();
             });
 
         $ban = $action::make('ban')
@@ -362,10 +395,16 @@ class WpUserResource extends Resource
             ->color('danger')
             ->icon('heroicon-o-no-symbol')
             ->visible(fn (WpUser $record) => ! $record->isBanned())
-            ->requiresConfirmation()
-            ->modalDescription('They are logged out and can\'t log in until unbanned.')
-            ->action(function (WpUser $record) {
-                app(UserManagementService::class)->ban(auth('wordpress')->user(), $record);
+            ->modalDescription('They are logged out everywhere and can\'t sign in or spend until the ban is lifted. Lifting takes two staff members.')
+            ->form([Forms\Components\Textarea::make('reason')->label('Why')->required()->minLength(5)])
+            ->action(function (WpUser $record, array $data) {
+                try {
+                    app(UserManagementService::class)->ban(auth('wordpress')->user(), $record, $data['reason']);
+                } catch (\RuntimeException $e) {
+                    Notification::make()->title($e->getMessage())->danger()->send();
+
+                    return;
+                }
                 Notification::make()->title("#{$record->ID} banned.")->success()->send();
             });
 
@@ -373,11 +412,34 @@ class WpUserResource extends Resource
             ->label('Unban')
             ->color('success')
             ->icon('heroicon-o-check-circle')
+            ->label(fn (WpUser $record) => app(AccountRestrictions::class)->active($record->ID)->contains(fn ($r) => $r->lift_requested_by !== null && (int) $r->lift_requested_by !== (int) auth('wordpress')->id()) ? 'Approve unban' : 'Ask to unban')
             ->visible(fn (WpUser $record) => $record->isBanned())
-            ->requiresConfirmation()
-            ->action(function (WpUser $record) {
-                app(UserManagementService::class)->unban(auth('wordpress')->user(), $record);
-                Notification::make()->title("#{$record->ID} unbanned.")->success()->send();
+            ->form(fn (WpUser $record) => app(AccountRestrictions::class)->active($record->ID)->contains(fn ($r) => $r->lift_requested_by !== null && (int) $r->lift_requested_by !== (int) auth('wordpress')->id())
+                ? []
+                : [Forms\Components\Textarea::make('reason')->label('Why they should be unbanned')->required()->minLength(5)])
+            ->action(function (WpUser $record, array $data) {
+                $restrictions = app(AccountRestrictions::class);
+                $me = auth('wordpress')->user();
+
+                try {
+                    $waiting = $restrictions->active($record->ID)->first(fn ($r) => $r->lift_requested_by !== null && (int) $r->lift_requested_by !== (int) $me->ID);
+
+                    if ($waiting) {
+                        foreach ($restrictions->active($record->ID)->whereNotNull('lift_requested_by') as $r) {
+                            $restrictions->approveLift($me, $r);
+                        }
+                        Notification::make()->title("#{$record->ID} unbanned.")->success()->send();
+
+                        return;
+                    }
+
+                    app(UserManagementService::class)->unban($me, $record, $data['reason'] ?? null);
+                } catch (\RuntimeException $e) {
+                    Notification::make()->title($e->getMessage())->danger()->send();
+
+                    return;
+                }
+                Notification::make()->title('Asked. A different staff member has to approve lifting the ban.')->success()->send();
             });
 
         $restrictions = $action::make('restrictions')
@@ -399,6 +461,8 @@ class WpUserResource extends Resource
                     ->label('Block transfers')
                     ->helperText('Kept from the old site. The new site has no customer-to-customer transfers, so this has no effect today.'),
                 Forms\Components\DatePicker::make('ban_expiry')->label('Restriction expiry (optional)'),
+                Forms\Components\Textarea::make('reason')->label('Why')->required()->minLength(5)
+                    ->helperText('Turning one off only asks for it to be lifted; a different staff member approves that.'),
             ])
             ->action(function (WpUser $record, array $data) {
                 app(UserManagementService::class)->updateRestrictions(
@@ -408,13 +472,14 @@ class WpUserResource extends Resource
                     (bool) ($data['ban_withdraw'] ?? false),
                     (bool) ($data['ban_transfer'] ?? false),
                     $data['ban_expiry'] ?? null,
+                    $data['reason'],
                 );
                 Notification::make()->title("#{$record->ID}'s restrictions updated.")->success()->send();
             });
 
         // Look-only staff (e.g. Support) don't get these buttons at all.
         $manage = fn () => ! static::staffCan('customers.manage');
-        foreach ([$adjust, $ban, $unban, $restrictions] as $button) {
+        foreach ([$adjust, $ban, $unban, $restrictions, $openCase] as $button) {
             $button->hidden($manage);
         }
 
@@ -422,7 +487,7 @@ class WpUserResource extends Resource
             $adjust,
             // Less frequent, and ban is drastic: tucked behind "More" so
             // the row stays one line of buttons on a phone.
-            $group::make([$ban, $unban, $restrictions])->label('More')->icon('heroicon-m-ellipsis-vertical')->button()->color('gray'),
+            $group::make([$openCase, $ban, $unban, $restrictions])->label('More')->icon('heroicon-m-ellipsis-vertical')->button()->color('gray'),
         ];
     }
 

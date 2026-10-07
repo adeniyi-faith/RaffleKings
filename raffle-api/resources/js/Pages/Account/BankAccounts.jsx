@@ -24,6 +24,12 @@ export default function AccountBankAccounts() {
     const [formError, setFormError] = useState('');
     const [saving, setSaving] = useState(false);
 
+    // A 6-digit code emailed to the customer is needed to add an account,
+    // so a stolen password alone can't add a thief's bank account.
+    const [code, setCode] = useState('');
+    const [codeNote, setCodeNote] = useState('');
+    const [sendingCode, setSendingCode] = useState(false);
+
     // Phase 9: a failed load says so, instead of "no bank accounts yet".
     const [loadFailed, setLoadFailed] = useState(false);
 
@@ -100,7 +106,29 @@ export default function AccountBankAccounts() {
         };
     }, [nameCheck, form.bank_code, form.account_number]);
 
+    async function sendCode() {
+        setSendingCode(true);
+        setCodeNote('');
+
+        try {
+            const response = await fetch('/api/bank-accounts/code', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
+                credentials: 'same-origin',
+                body: '{}',
+            });
+            const data = await response.json().catch(() => ({}));
+            setCodeNote(data.message || (response.ok ? 'Code sent.' : 'Could not send the code.'));
+        } catch {
+            setCodeNote('Could not send the code. Check your connection and try again.');
+        } finally {
+            setSendingCode(false);
+        }
+    }
+
     function resetForm() {
+        setCode('');
+        setCodeNote('');
         setForm({ bank_name: '', bank_code: '', account_number: '', account_name: '' });
         setBankSearch('');
         setLookUp({ state: 'idle', name: '' });
@@ -121,7 +149,7 @@ export default function AccountBankAccounts() {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
                 credentials: 'same-origin',
-                body: JSON.stringify({ bank_code: form.bank_code, account_number: form.account_number.trim() }),
+                body: JSON.stringify({ bank_code: form.bank_code, account_number: form.account_number.trim(), code: code.trim() }),
             });
             const data = await response.json().catch(() => ({}));
             if (! response.ok) throw new Error(data.message || 'Failed to save.');
@@ -164,7 +192,7 @@ export default function AccountBankAccounts() {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
                 credentials: 'same-origin',
-                body: JSON.stringify({ bank_name: bankName, account_number: accNum, account_name: accName }),
+                body: JSON.stringify({ bank_name: bankName, account_number: accNum, account_name: accName, code: code.trim() }),
             });
 
             const data = await response.json().catch(() => ({}));
@@ -467,6 +495,34 @@ export default function AccountBankAccounts() {
                             </div>
                             )}
 
+                            <div className="mt-5 rounded-xl border border-gray-200 bg-gray-50 p-4 dark:border-gray-700 dark:bg-gray-800">
+                                <label className="mb-2 block text-xs font-bold uppercase tracking-wide text-gray-500 dark:text-gray-400">
+                                    Code from your email
+                                </label>
+                                <div className="flex gap-2">
+                                    <input
+                                        type="tel"
+                                        inputMode="numeric"
+                                        maxLength={6}
+                                        value={code}
+                                        onChange={(e) => setCode(e.target.value.replace(/\D/g, ''))}
+                                        placeholder="6-digit code"
+                                        className="w-full rounded-xl border border-gray-200 bg-white px-4 py-3 font-mono text-lg tracking-widest text-gray-900 outline-none focus:border-app-primary focus:ring-2 focus:ring-app-primary/20 dark:border-gray-700 dark:bg-gray-900 dark:text-white"
+                                    />
+                                    <button
+                                        type="button"
+                                        onClick={sendCode}
+                                        disabled={sendingCode}
+                                        className="flex-shrink-0 rounded-xl bg-gray-900 px-4 text-sm font-bold text-white disabled:opacity-60 dark:bg-white dark:text-gray-900"
+                                    >
+                                        {sendingCode ? 'Sending…' : 'Email me a code'}
+                                    </button>
+                                </div>
+                                <p className="mt-2 text-xs text-gray-500 dark:text-gray-400">
+                                    {codeNote || 'For your safety we confirm it is you before a new bank account is added.'}
+                                </p>
+                            </div>
+
                             <p className="mt-5 text-xs text-gray-500 dark:text-gray-400">
                                 {nameCheck
                                     ? 'Your bank confirms the name, so your winnings can only go to the right account. Check it is yours before saving.'
@@ -481,7 +537,7 @@ export default function AccountBankAccounts() {
 
                             <button
                                 onClick={nameCheck ? saveVerifiedAccount : saveAccount}
-                                disabled={saving || (nameCheck && lookUp.state !== 'found')}
+                                disabled={saving || code.length !== 6 || (nameCheck && lookUp.state !== 'found')}
                                 className="mt-8 flex w-full items-center justify-center gap-2 rounded-xl bg-app-primary py-3.5 font-bold text-white shadow-lg shadow-blue-500/30 transition-all active:scale-[0.98] disabled:opacity-60"
                             >
                                 {saving ? 'Saving…' : 'Save Account'}

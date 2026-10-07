@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { Head, Link, router } from '@inertiajs/react';
 import { AlertTriangle, ArrowLeft, ArrowRight, Check, Info, Lock, ThumbsUp } from 'lucide-react';
 import { formatNaira } from '../../lib/format';
@@ -6,6 +6,7 @@ import PausedNotice from '../../Components/layout/PausedNotice';
 import { refreshBalances, useBalances } from '../../lib/balances';
 import LoadError from '../../Components/ui/LoadError';
 import { goBack } from '../../lib/nav';
+import { newIdempotencyKey } from '../../lib/api';
 import BottomNav from '../../Components/layout/BottomNav';
 
 // Faithful rebuild of withdraw.php + components/financials/withdraw-modals.php
@@ -60,6 +61,8 @@ export default function AccountWithdraw() {
         setAmount(String(Math.floor(earnings || 0)));
     }
 
+    const tapKey = useRef(newIdempotencyKey());
+
     async function submit(authorizeVerificationFee) {
         setErrorMessage('');
         const numeric = Number(amount);
@@ -84,6 +87,7 @@ export default function AccountWithdraw() {
                 body: JSON.stringify({
                     amount: numeric,
                     bank_account_id: primaryAccount.id,
+                    idempotency_key: tapKey.current,
                     authorize_verification_fee: authorizeVerificationFee,
                 }),
             });
@@ -101,6 +105,7 @@ export default function AccountWithdraw() {
                 throw new Error(data.message || 'Something went wrong. Please try again.');
             }
 
+            tapKey.current = newIdempotencyKey();
             setSuccessMessage('Your withdrawal is being processed. Funds usually arrive within 24 hours.');
             setModal('success');
             refreshBalances(true);

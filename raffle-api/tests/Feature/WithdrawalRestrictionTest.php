@@ -7,6 +7,7 @@ use App\Models\Legacy\WpUserMeta;
 use App\Models\Wallet;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Tests\Support\AuthenticatesWithWordPressCookie;
+use Tests\Support\MakesBankAccounts;
 use Tests\TestCase;
 
 /**
@@ -18,13 +19,13 @@ use Tests\TestCase;
  */
 class WithdrawalRestrictionTest extends TestCase
 {
-    use AuthenticatesWithWordPressCookie, RefreshDatabase;
+    use AuthenticatesWithWordPressCookie, MakesBankAccounts, RefreshDatabase;
 
     private function fundedUserWithBankAccount(): array
     {
         $user = $this->actingAsWordPressUser();
         Wallet::create(['user_id' => $user->ID, 'wallet_balance' => 0, 'earnings_balance' => 10000]);
-        $account = BankAccount::create(['user_id' => $user->ID, 'bank_name' => 'GTBank', 'account_number' => '0123456789', 'account_name' => 'Test User', 'is_primary' => true]);
+        $account = $this->oldBankAccount(['user_id' => $user->ID, 'bank_name' => 'GTBank', 'account_number' => '0123456789', 'account_name' => 'Test User', 'is_primary' => true]);
 
         return [$user, $account];
     }
@@ -38,8 +39,9 @@ class WithdrawalRestrictionTest extends TestCase
             'amount' => 3000, 'bank_account_id' => $account->id, 'authorize_verification_fee' => true,
         ]);
 
-        $response->assertStatus(403);
-        $response->assertJsonFragment(['message' => 'Account suspended. Contact support.']);
+        // A banned customer is signed out of everything: the money endpoints
+        // don't even see them as signed in any more.
+        $response->assertStatus(401);
     }
 
     public function test_a_user_with_withdrawals_specifically_blocked_cannot_withdraw(): void

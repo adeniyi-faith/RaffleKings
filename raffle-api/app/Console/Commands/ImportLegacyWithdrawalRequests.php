@@ -159,7 +159,7 @@ class ImportLegacyWithdrawalRequests extends Command
 
         $existing = BankAccount::query()
             ->where('user_id', $userId)
-            ->where('account_number', $chosen['account_number'])
+            ->where('account_number_hash', BankAccount::hashNumber((string) $chosen['account_number']))
             ->first();
 
         if ($existing) {

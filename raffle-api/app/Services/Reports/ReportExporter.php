@@ -107,7 +107,7 @@ final class ReportExporter
                 $query = WithdrawalRequest::query()->with(['user', 'bankAccount'])->where('status', 'paid')
                     ->whereBetween('updated_at', [$from, $to])->orderBy('id');
                 foreach ($query->lazyById(500) as $w) {
-                    yield [$local($w->updated_at), $name($w->user), $w->user?->user_email, $w->bankAccount?->bank_name, $w->bankAccount?->account_number,
+                    yield [$local($w->updated_at), $name($w->user), $w->user?->user_email, $w->bankAccount?->bank_name, $w->bankAccount?->masked(),
                         $w->bankAccount?->account_name, (float) $w->amount_to_send, (float) $w->fee_amount, (float) $w->requested_amount];
                 }
                 break;

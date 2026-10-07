@@ -26,12 +26,12 @@ class UserManagementController extends Controller
         $admin = $request->user();
 
         try {
-            $this->users->adjustBalance($admin, $user, $request->string('type')->toString(), (float) $request->float('amount'), $request->string('direction')->toString());
+            $this->users->adjustBalance($admin, $user, $request->string('type')->toString(), (float) $request->float('amount'), $request->string('direction')->toString(), $request->string('reason')->toString());
         } catch (InvalidArgumentException $e) {
             return response()->json(['message' => $e->getMessage()], 422);
         }
 
-        return response()->json(['message' => 'Balance updated.']);
+        return response()->json(['message' => 'Adjustment recorded. Big ones wait for a second staff member to approve.']);
     }
 
     public function updateRestrictions(UpdateUserRestrictionsRequest $request, WpUser $user): JsonResponse
@@ -39,15 +39,20 @@ class UserManagementController extends Controller
         /** @var WpUser $admin */
         $admin = $request->user();
 
-        $this->users->updateRestrictions(
-            $admin,
-            $user,
-            $request->boolean('is_banned'),
-            $request->boolean('ban_withdraw'),
-            $request->boolean('ban_transfer'),
-            $request->string('ban_expiry')->toString() ?: null,
-        );
+        try {
+            $this->users->updateRestrictions(
+                $admin,
+                $user,
+                $request->boolean('is_banned'),
+                $request->boolean('ban_withdraw'),
+                $request->boolean('ban_transfer'),
+                $request->string('ban_expiry')->toString() ?: null,
+                $request->string('reason')->toString(),
+            );
+        } catch (\RuntimeException $e) {
+            return response()->json(['message' => $e->getMessage()], 422);
+        }
 
-        return response()->json(['message' => 'Restrictions updated.']);
+        return response()->json(['message' => 'Restrictions updated. Lifting one needs a second staff member to approve.']);
     }
 }

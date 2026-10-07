@@ -71,11 +71,11 @@ class AbuseDetector
         }
 
         $sharedBank = BankAccount::query()->where('user_id', $a)
-            ->whereIn('account_number', BankAccount::query()->where('user_id', $b)->select('account_number'))
-            ->value('account_number');
+            ->whereIn('account_number_hash', BankAccount::query()->where('user_id', $b)->select('account_number_hash'))
+            ->first();
 
         if ($sharedBank) {
-            return "Both accounts saved bank account {$sharedBank}.";
+            return "Both accounts saved bank account {$sharedBank->masked()}.";
         }
 
         $phoneA = self::phoneKey(WpUserMeta::query()->where('user_id', $a)->where('meta_key', 'phone')->value('meta_value'));

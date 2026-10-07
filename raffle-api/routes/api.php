@@ -185,6 +185,7 @@ Route::middleware('auth:wordpress')->group(function () {
     Route::get('/deposits/{deposit}', [DepositController::class, 'show']);
 
     Route::get('/bank-accounts', [BankAccountController::class, 'index']);
+    Route::post('/bank-accounts/code', [BankAccountController::class, 'sendCode'])->middleware('throttle:5,10');
     Route::post('/bank-accounts', [BankAccountController::class, 'store'])->middleware('throttle:money');
     // Bank-name check (Settings → On / off → New features).
     Route::get('/banks', [BankAccountController::class, 'banks'])->middleware('growth:bank_name_check');

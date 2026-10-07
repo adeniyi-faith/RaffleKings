@@ -2,6 +2,7 @@
 
 namespace Tests\Feature;
 
+use App\Auth\StaffRoles;
 use App\Events\LiveDrawCommentPosted;
 use App\Events\LiveDrawReactionPosted;
 use App\Events\LiveDrawStateChanged;
@@ -50,6 +51,8 @@ class LiveDrawControllerTest extends TestCase
             'meta_key' => config('legacy.wp_prefix').'capabilities',
             'meta_value' => serialize(['administrator' => true]),
         ]);
+
+        WpUserMeta::create(['user_id' => $user->ID, 'meta_key' => StaffRoles::META_KEY, 'meta_value' => 'owner']);
 
         return $user;
     }

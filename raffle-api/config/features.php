@@ -18,7 +18,8 @@
 
 return [
     // Paystack confirms the account name when a customer saves a bank account.
-    'bank_name_check' => (bool) env('FEATURE_BANK_NAME_CHECK', false),
+    // Starts ON (a safety measure); it only takes effect once a Paystack key is set.
+    'bank_name_check' => (bool) env('FEATURE_BANK_NAME_CHECK', true),
 
     // "Send with Paystack" on the withdrawals queue.
     'auto_payouts' => (bool) env('FEATURE_AUTO_PAYOUTS', false),

@@ -11,7 +11,6 @@ use App\Models\Growth\AffiliateEarning;
 use App\Models\Growth\CustomerSource;
 use App\Models\Legacy\WpUser;
 use App\Models\Legacy\WpUserMeta;
-use App\Models\ReferralCommission;
 use App\Models\UserDevice;
 use App\Models\Wallet;
 use App\Services\Growth\AffiliateService;
@@ -124,7 +123,7 @@ class AffiliatesAndAbuseTest extends TestCase
 
         BankAccount::create(['user_id' => $a->ID, 'bank_name' => 'GTB', 'account_number' => '0123456789', 'account_name' => 'A']);
         BankAccount::create(['user_id' => $b->ID, 'bank_name' => 'GTB', 'account_number' => '0123456789', 'account_name' => 'A']);
-        $this->assertStringContainsString('bank account 0123456789', $detector->linkBetween($a->ID, $b->ID));
+        $this->assertStringContainsString('bank account ••••••6789', $detector->linkBetween($a->ID, $b->ID));
 
         WpUserMeta::create(['user_id' => $a->ID, 'meta_key' => 'phone', 'meta_value' => '0801 234 5678']);
         WpUserMeta::create(['user_id' => $c->ID, 'meta_key' => 'phone', 'meta_value' => '+2348012345678']);

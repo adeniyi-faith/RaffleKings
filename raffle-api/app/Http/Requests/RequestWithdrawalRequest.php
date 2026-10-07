@@ -2,6 +2,7 @@
 
 namespace App\Http\Requests;
 
+use App\Support\MoneyRules;
 use Illuminate\Foundation\Http\FormRequest;
 
 class RequestWithdrawalRequest extends FormRequest
@@ -16,6 +17,7 @@ class RequestWithdrawalRequest extends FormRequest
         return [
             'amount' => ['required', 'numeric', 'min:0.01'],
             'bank_account_id' => ['required', 'integer', 'min:1'],
+            'idempotency_key' => ['sometimes', ...MoneyRules::idempotencyKey()],
             'authorize_verification_fee' => ['sometimes', 'boolean'],
         ];
     }

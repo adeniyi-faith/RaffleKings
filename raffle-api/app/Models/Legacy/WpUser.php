@@ -12,6 +12,7 @@ use App\Models\UserPoints;
 use App\Models\Wallet;
 use App\Models\WalletLedgerEntry;
 use App\Models\WithdrawalRequest;
+use App\Services\AccountRestrictions;
 use Filament\Models\Contracts\FilamentUser;
 use Filament\Models\Contracts\HasAvatar;
 use Filament\Models\Contracts\HasName;
@@ -156,10 +157,10 @@ class WpUser extends LegacyModel implements Authenticatable, FilamentUser, HasAv
      * here respects exactly who's actually an admin today, not a new,
      * separate notion of one.
      */
-    /** Reads the same rk_is_banned usermeta flag the legacy site sets. */
+    /** True while a full account ban is in force (not lifted, not past its end date). */
     public function isBanned(): bool
     {
-        return $this->metaValue('rk_is_banned') === '1';
+        return app(AccountRestrictions::class)->isBanned((int) $this->ID);
     }
 
     public function isAdministrator(): bool
@@ -256,7 +257,10 @@ class WpUser extends LegacyModel implements Authenticatable, FilamentUser, HasAv
             $this->resolvedStaffRole = match (true) {
                 $stored === StaffRoles::NO_ACCESS => null,
                 isset(StaffRoles::ROLES[$stored]) => $stored,
-                default => $this->isAdministrator() ? 'owner' : null,
+                // No role set means no access. Existing WordPress administrators were
+                // given 'owner' once by a migration; a new admin account gets nothing
+                // until an owner assigns a role (money-safety audit B2).
+                default => null,
             };
             $this->staffRoleResolved = true;
         }

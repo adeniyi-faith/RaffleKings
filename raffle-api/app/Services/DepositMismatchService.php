@@ -5,7 +5,6 @@ namespace App\Services;
 use App\Exceptions\PaymentGatewayException;
 use App\Models\Deposit;
 use App\Models\Legacy\WpUser;
-use App\Models\Wallet;
 use App\Notifications\DepositConfirmed;
 use Illuminate\Database\Eloquent\Collection;
 use Illuminate\Support\Facades\DB;
@@ -62,6 +61,7 @@ class DepositMismatchService
     public function creditConfirmedAmount(WpUser $admin, Deposit $deposit): Deposit
     {
         $this->guardMismatch($deposit);
+        $this->guardNotOwn($admin, $deposit);
 
         $gateway = $this->deposits->gatewayFor($deposit->gateway);
         $verification = $gateway->verify($deposit->reference);
@@ -82,25 +82,22 @@ class DepositMismatchService
         $confirmedAmount = round($verification->creditableAmount(), 2);
         $expectedAmount = (float) $deposit->amount;
 
-        DB::transaction(function () use ($deposit, $confirmedAmount, $verification) {
+        DB::transaction(function () use ($admin, $deposit, $confirmedAmount, $verification) {
             // Re-checked under a lock (item 44): two admins resolving the
             // same mismatch at once used to be able to credit it twice.
             $this->guardMismatch(Deposit::query()->whereKey($deposit->id)->lockForUpdate()->firstOrFail());
 
-            $wallet = Wallet::query()->where('user_id', $deposit->user_id)->lockForUpdate()->first()
-                ?? Wallet::create(['user_id' => $deposit->user_id, 'wallet_balance' => 0, 'earnings_balance' => 0]);
-
-            $wallet->wallet_balance = (float) $wallet->wallet_balance + $confirmedAmount;
-            $wallet->save();
-
-            $this->ledger->recordCredit(
+            $this->ledger->credit(
                 userId: $deposit->user_id,
                 balanceType: 'wallet',
                 amount: $confirmedAmount,
                 reason: 'deposit',
+                key: "deposit:{$deposit->id}",
+                from: 'gateway_clearing',
                 referenceType: Deposit::class,
                 referenceId: $deposit->id,
                 description: "Deposit via {$deposit->gateway} (admin-resolved amount mismatch: credited the gateway-confirmed amount, not the originally expected one)",
+                createdBy: $admin->ID,
             );
 
             $deposit->update([
@@ -158,6 +155,14 @@ class DepositMismatchService
     {
         if ($deposit->status !== 'amount_mismatch') {
             throw new RuntimeException("Deposit #{$deposit->id} is not flagged amount_mismatch (status: {$deposit->status}).");
+        }
+    }
+
+    /** Staff never settle their own money (money-safety audit I2). */
+    private function guardNotOwn(WpUser $admin, Deposit $deposit): void
+    {
+        if ((int) $admin->ID === (int) $deposit->user_id) {
+            throw new RuntimeException('You can\'t resolve your own top-up. Ask another staff member.');
         }
     }
 }

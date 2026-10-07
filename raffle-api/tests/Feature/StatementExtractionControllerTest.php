@@ -2,6 +2,7 @@
 
 namespace Tests\Feature;
 
+use App\Auth\StaffRoles;
 use App\Models\Legacy\WpUser;
 use App\Models\Legacy\WpUserMeta;
 use Illuminate\Foundation\Testing\RefreshDatabase;
@@ -28,6 +29,8 @@ class StatementExtractionControllerTest extends TestCase
             'meta_key' => config('legacy.wp_prefix').'capabilities',
             'meta_value' => serialize(['administrator' => true]),
         ]);
+
+        WpUserMeta::create(['user_id' => $admin->ID, 'meta_key' => StaffRoles::META_KEY, 'meta_value' => 'owner']);
 
         return $admin;
     }

@@ -16,6 +16,9 @@ use Illuminate\Validation\ValidationException;
  */
 class LoginService
 {
+    /** A real bcrypt hash of a random password, only ever compared against. */
+    private const DUMMY_HASH = '$2y$10$baflbEczQTxohgEC9/tMxeSivGOVGmnvGvuAhUXB9HhLV5VGWnsim';
+
     public function __construct(
         private readonly WordPressPasswordHasher $hasher,
         private readonly WordPressAuthCookieIssuer $cookieIssuer,
@@ -33,7 +36,11 @@ class LoginService
     {
         $user = WpUser::where('user_login', $identifier)->orWhere('user_email', $identifier)->first();
 
-        if (! $user || ! $this->hasher->check($password, $user->getAuthPassword())) {
+        // An unknown name does the same amount of work as a wrong password, so
+        // how long the answer takes doesn't tell anyone which accounts exist.
+        $passwordOk = $this->hasher->check($password, $user?->getAuthPassword() ?? self::DUMMY_HASH);
+
+        if (! $user || ! $passwordOk) {
             LoginEvent::record($user?->ID, $identifier, false, $place, 'wrong_password');
 
             throw ValidationException::withMessages(['password' => 'Incorrect username or password.']);

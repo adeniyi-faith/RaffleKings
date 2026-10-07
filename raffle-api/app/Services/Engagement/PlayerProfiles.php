@@ -2,6 +2,7 @@
 
 namespace App\Services\Engagement;
 
+use App\Http\Controllers\Api\HallOfFameController;
 use App\Models\Legacy\RaffleEntry;
 use App\Models\Legacy\RaffleWinner;
 use App\Models\Legacy\WpUser;
@@ -100,6 +101,8 @@ class PlayerProfiles
         }
 
         Cache::forget(self::cacheKey($userId));
+        // Going private must take the player off the (cached) Hall of Fame links straight away.
+        Cache::forget(HallOfFameController::CACHE_KEY);
         $row = UserEngagement::for($userId);
         $row->update(array_filter([
             'profile_visibility' => $values['visibility'] ?? null,

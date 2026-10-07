@@ -15,11 +15,12 @@ use Illuminate\Support\Facades\Http;
 use Livewire\Livewire;
 use RuntimeException;
 use Tests\Support\ActsAsAdministrator;
+use Tests\Support\HoldsWithdrawalMoney;
 use Tests\TestCase;
 
 class AutoPayoutTest extends TestCase
 {
-    use ActsAsAdministrator, RefreshDatabase;
+    use ActsAsAdministrator, HoldsWithdrawalMoney, RefreshDatabase;
 
     /** What Paystack answers to POST /transfer. */
     private array $transferReply = ['status' => true, 'message' => 'Transfer has been queued', 'data' => ['status' => 'pending', 'transfer_code' => 'TRF_1']];
@@ -61,10 +62,10 @@ class AutoPayoutTest extends TestCase
             'account_name' => 'JANE DOE', 'is_primary' => true, 'name_verified_at' => now(),
         ]);
 
-        return WithdrawalRequest::create([
+        return $this->holdMoneyFor(WithdrawalRequest::create([
             'user_id' => $user->ID, 'bank_account_id' => $bank->id, 'requested_amount' => $amount,
             'fee_amount' => 0, 'amount_to_send' => $amount, 'status' => 'pending',
-        ]);
+        ]));
     }
 
     public function test_sending_asks_paystack_and_waits_for_the_bank_before_marking_paid(): void

@@ -176,21 +176,22 @@ class DailyDrops
                 'created_at' => now(),
             ]);
 
+            // Lock every winner's wallet in one fixed order first, so two
+            // payouts running at once can never wait on each other forever.
+            $this->ledger->lockWallets(array_values(array_unique(array_map(fn ($w) => (int) $w['user_id'], $winners))));
+
             foreach ($winners as $w) {
                 if ($w['amount'] <= 0) {
                     continue;
                 }
 
-                $wallet = Wallet::query()->where('user_id', $w['user_id'])->lockForUpdate()->first()
-                    ?? Wallet::create(['user_id' => $w['user_id'], 'wallet_balance' => 0, 'earnings_balance' => 0]);
-                $wallet->earnings_balance = (float) $wallet->earnings_balance + $w['amount'];
-                $wallet->save();
-
-                $this->ledger->recordCredit(
-                    userId: $w['user_id'],
+                $this->ledger->credit(
+                    userId: (int) $w['user_id'],
                     balanceType: 'earnings',
                     amount: (float) $w['amount'],
                     reason: 'daily_drop',
+                    key: "daily_drop:run:{$run->id}:ticket:{$w['ticket_number']}",
+                    from: 'prizes',
                     referenceType: 'daily_drop_run',
                     referenceId: $run->id,
                     description: "Daily Drop on {$raffle->title}, ticket #{$w['ticket_number']}",

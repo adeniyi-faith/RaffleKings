@@ -22,7 +22,7 @@ import { useTicketPriceQuote } from '../../hooks/useTicketPriceQuote';
 import { useTimeLeft } from '../../hooks/useTimeLeft';
 import { formatNaira } from '../../lib/format';
 import BoostPanel from '../../Components/social/BoostPanel';
-import { apiPost } from '../../lib/api';
+import { apiPost, topUpKey } from '../../lib/api';
 import { track } from '../../lib/analytics';
 import { refreshBalances, useBalances } from '../../lib/balances';
 import PausedNotice from '../../Components/layout/PausedNotice';
@@ -72,6 +72,7 @@ export default function CheckoutIndex({ raffle, ticketNumbers, qty, minimumDepos
     const [purchase, setPurchase] = useState(paid?.purchase ?? null);
     const [deposit, setDeposit] = useState(null); // a top-up we just came back from
     const idempotencyKey = useRef(generateIdempotencyKey());
+    const topUpHolder = useRef({});
 
     // The numbers are held for a few minutes while the customer pays. This also
     // takes over a hold started as a guest, and catches numbers taken in the
@@ -221,7 +222,7 @@ export default function CheckoutIndex({ raffle, ticketNumbers, qty, minimumDepos
         setStatus('topping-up');
 
         try {
-            const data = await apiPost('/api/deposits', { amount: topUpAmount, return_to: checkoutPath() });
+            const data = await apiPost('/api/deposits', { amount: topUpAmount, return_to: checkoutPath(), idempotency_key: topUpKey(topUpHolder.current, topUpAmount) });
             window.location.href = data.authorization_url;
         } catch (err) {
             setError(err.message);

@@ -2,6 +2,7 @@
 
 namespace App\Services;
 
+use App\Exceptions\DuplicatePostingException;
 use App\Jobs\RefundCancelledRaffle;
 use App\Models\Legacy\RaffleEntry;
 use App\Models\Legacy\RaffleTransaction;
@@ -150,8 +151,7 @@ class RaffleCancellationService
     private function refundCustomer(Raffle $raffle, int $userId): array
     {
         return DB::transaction(function () use ($raffle, $userId) {
-            $wallet = Wallet::query()->where('user_id', $userId)->lockForUpdate()->first()
-                ?? Wallet::create(['user_id' => $userId, 'wallet_balance' => 0, 'earnings_balance' => 0]);
+            $this->ledger->lockWallet($userId);
 
             $entries = RaffleEntry::query()->where('raffle_id', $raffle->public_id)->where('user_id', $userId)->lockForUpdate()->get();
             $back = ['wallet' => 0.0, 'earnings' => 0.0];
@@ -176,22 +176,28 @@ class RaffleCancellationService
                     continue;
                 }
 
-                $column = $to === 'wallet' ? 'wallet_balance' : 'earnings_balance';
-                $wallet->{$column} = (float) $wallet->{$column} + $amount;
+                $key = $transaction
+                    ? "ticket_refund:raffle_transaction:{$transaction->id}"
+                    : "ticket_refund:raffle:{$raffle->public_id}:user:{$userId}";
+
+                try {
+                    $this->ledger->credit(
+                        userId: $userId,
+                        balanceType: $to,
+                        amount: $amount,
+                        reason: 'ticket_purchase_refunded',
+                        key: $key,
+                        from: 'ticket_sales',
+                        referenceType: RaffleTransaction::class,
+                        referenceId: $transaction?->id,
+                        description: "Raffle #{$raffle->public_id} ({$raffle->title}) was cancelled",
+                    );
+                } catch (DuplicatePostingException) {
+                    continue; // already refunded once; never twice
+                }
+
                 $back[$to] += $amount;
-
-                $this->ledger->recordCredit(
-                    userId: $userId,
-                    balanceType: $to,
-                    amount: $amount,
-                    reason: 'ticket_purchase_refunded',
-                    referenceType: RaffleTransaction::class,
-                    referenceId: $transaction?->id,
-                    description: "Raffle #{$raffle->public_id} ({$raffle->title}) was cancelled",
-                );
             }
-
-            $wallet->save();
 
             RaffleEntry::query()->where('raffle_id', $raffle->public_id)->where('user_id', $userId)->delete();
             RaffleBonusEntry::query()->where('raffle_id', $raffle->public_id)->where('user_id', $userId)->delete();

@@ -307,7 +307,7 @@ class CustomerSupportTools
 
     private function signOutEverywhereQuietly(WpUser $target): void
     {
-        WpUserMeta::query()->where('user_id', $target->ID)->where('meta_key', 'session_tokens')->delete();
+        app(\App\Services\Auth\SessionRevoker::class)->everywhere($target);
     }
 
     private function clearResetCodes(WpUser $target): void

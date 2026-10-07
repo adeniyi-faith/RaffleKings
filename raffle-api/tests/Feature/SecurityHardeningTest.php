@@ -7,12 +7,13 @@ use App\Services\Payments\PaystackGateway;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Http\Request;
 use Tests\Support\AuthenticatesWithWordPressCookie;
+use Tests\Support\ConfirmsBankAccountCode;
 use Tests\TestCase;
 
 /** Phase 10 security pass (OVERHAUL_CHECKLIST.md item 39). */
 class SecurityHardeningTest extends TestCase
 {
-    use AuthenticatesWithWordPressCookie, RefreshDatabase;
+    use AuthenticatesWithWordPressCookie, ConfirmsBankAccountCode, RefreshDatabase;
 
     public function test_a_change_sent_from_another_website_is_blocked(): void
     {

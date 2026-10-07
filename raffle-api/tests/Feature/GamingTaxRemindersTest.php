@@ -2,6 +2,8 @@
 
 namespace Tests\Feature;
 
+use App\Auth\StaffRoles;
+use App\Filament\Pages\GamingTax;
 use App\Models\GamingTaxReminder;
 use App\Models\Legacy\RaffleTransaction;
 use App\Models\Legacy\RaffleWinner;
@@ -15,6 +17,7 @@ use Illuminate\Notifications\AnonymousNotifiable;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Notification;
+use Livewire\Livewire;
 use Tests\TestCase;
 
 /** Reminders that a month's gaming tax needs locking, filing or paying. */
@@ -225,6 +228,7 @@ class GamingTaxRemindersTest extends TestCase
         $this->staff('none', 'n@example.com');
         $admin = WpUser::create(['user_login' => 'wpadmin', 'user_pass' => 'x', 'user_email' => 'admin@example.com']);
         WpUserMeta::create(['user_id' => $admin->ID, 'meta_key' => config('legacy.wp_prefix').'capabilities', 'meta_value' => serialize(['administrator' => true])]);
+        WpUserMeta::create(['user_id' => $admin->ID, 'meta_key' => StaffRoles::META_KEY, 'meta_value' => 'owner']);
 
         $ids = $this->reminders()->recipients()->pluck('ID')->sort()->values()->all();
 
@@ -266,7 +270,7 @@ class GamingTaxRemindersTest extends TestCase
         // sign in as that finance user for the Livewire page
         $this->actingAsWordPressUserFor($user);
 
-        \Livewire\Livewire::test(\App\Filament\Pages\GamingTax::class)
+        Livewire::test(GamingTax::class)
             ->assertSee('September 2026: overdue by 4 days')
             ->assertSee('Lock the month, then file and pay');
     }
@@ -281,6 +285,6 @@ class GamingTaxRemindersTest extends TestCase
         $hmac = hash_hmac('sha256', "{$user->user_login}|{$expiration}|{$token}", $key);
         $cookies = [('wordpress_logged_in_'.config('legacy.wp_cookiehash')) => "{$user->user_login}|{$expiration}|{$token}|{$hmac}"];
         $this->withUnencryptedCookies($cookies);
-        \Livewire\Livewire::withCookies($cookies);
+        Livewire::withCookies($cookies);
     }
 }
