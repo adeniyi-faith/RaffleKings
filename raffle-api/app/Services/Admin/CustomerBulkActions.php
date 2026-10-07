@@ -147,7 +147,15 @@ final class CustomerBulkActions
                     continue;
                 }
 
-                $banned ? $users->ban($admin, $user, $reason ?? 'Bulk ban from the Customers list') : $users->unban($admin, $user);
+                if ($banned) {
+                    $users->ban($admin, $user, $reason ?? 'Bulk ban from the Customers list');
+                } elseif ($users->unban($admin, $user, 'Bulk unban from the Customers list') === 0) {
+                    // A lift was already asked for: nothing more for this person to do.
+                    $result['already']++;
+
+                    continue;
+                }
+
                 $result['banned']++;
             }
         }

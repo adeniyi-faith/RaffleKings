@@ -160,13 +160,20 @@ class RegistrationService
                 return;
             }
 
-            $wallet = Wallet::query()->where('user_id', $user->getKey())->lockForUpdate()->first()
-                ?? Wallet::create(['user_id' => $user->getKey(), 'wallet_balance' => 0, 'earnings_balance' => 0]);
-
-            $wallet->wallet_balance = (float) $wallet->wallet_balance + 300;
-            $wallet->save();
-
-            $this->ledger->recordCredit($user->getKey(), 'wallet', 300, 'signup_bonus');
+            // The unique key means a second grant is impossible even if two
+            // requests get past the check above at the same moment.
+            try {
+                $this->ledger->credit(
+                    userId: (int) $user->getKey(),
+                    balanceType: 'wallet',
+                    amount: 300,
+                    reason: 'signup_bonus',
+                    key: 'signup_bonus:'.$user->getKey(),
+                    from: 'promotions',
+                );
+            } catch (\App\Exceptions\DuplicatePostingException) {
+                // already granted
+            }
         });
     }
 

@@ -9,7 +9,7 @@ use App\Exceptions\TicketUnavailableException;
 use App\Models\Legacy\RaffleEntry;
 use App\Models\Legacy\RaffleTransaction;
 use App\Models\Legacy\WpUser;
-use App\Models\Wallet;
+use App\Support\Money;
 use App\Notifications\TicketPurchaseReceipt;
 use App\Services\Engagement\Perks;
 use App\Services\Engagement\Progress;
@@ -201,74 +201,68 @@ class TicketPurchaseService
             );
         }
 
+        // Always charge the price the server worked out, never the figure
+        // the browser sent (which only has to agree with it to the kobo).
+        $chargeAmount = $promo
+            ? round($this->pricing->calculate(count($ticketNumbers), $unitPrice, $isGoldenBox) - $promoDiscount, 2)
+            : $this->pricing->calculate(count($ticketNumbers), $unitPrice, $isGoldenBox);
+
         $balanceColumn = $fundingSource === 'wallet' ? 'wallet_balance' : 'earnings_balance';
         $transactionType = $fundingSource === 'wallet' ? 'ticket_purchase_wallet' : 'ticket_purchase_earnings';
 
         try {
             $transaction = DB::transaction(function () use (
-                $user, $raffleId, $ticketNumbers, $submittedAmount,
+                $user, $raffleId, $ticketNumbers, $chargeAmount,
                 $balanceColumn, $transactionType, $idempotencyKey, $fundingSource,
                 $coverShortfallFromWinnings, $goldenOffer, $promo, $promoDiscount
             ) {
                 // Lock this user's wallet row for the duration of the
                 // transaction — a concurrent purchase or transfer by the
                 // same user has to wait, not read a stale balance.
-                $wallet = Wallet::query()
-                    ->where('user_id', $user->ID)
-                    ->lockForUpdate()
-                    ->first();
+                $this->ledger->lockWallet($user->ID);
 
-                // Responsible play (item 38): the customer's own break and
-                // spending limits. Checked under the wallet lock, so two
-                // purchases at once can't both slip past a limit.
-                $this->play->assertCanSpend($user->ID, (float) $submittedAmount);
+                $this->play->assertCanSpend($user->ID, (float) $chargeAmount);
 
-                $currentBalance = (float) ($wallet->{$balanceColumn} ?? 0);
+                $cost = Money::kobo(round($chargeAmount, 2));
+                $balances = $this->ledger->balances($user->ID);
+                $currentBalance = $balances[$fundingSource];
 
-                if ($currentBalance < $submittedAmount && $fundingSource === 'wallet' && $coverShortfallFromWinnings) {
-                    $shortfall = round($submittedAmount - $currentBalance, 2);
-                    $earnings = (float) ($wallet->earnings_balance ?? 0);
+                if ($currentBalance < $cost && $fundingSource === 'wallet' && $coverShortfallFromWinnings) {
+                    $shortfall = $cost - $currentBalance;
 
-                    if ($earnings + 0.001 < $shortfall) {
-                        throw new InsufficientBalanceException(round($shortfall - $earnings, 2));
+                    if ($balances['earnings'] < $shortfall) {
+                        throw new InsufficientBalanceException(Money::toFloat($shortfall - $balances['earnings']));
                     }
 
-                    $this->winnings->moveWithinLockedWallet($wallet, $shortfall, $user->ID);
-                    $currentBalance = (float) $wallet->wallet_balance;
+                    $this->winnings->moveWithinLockedWallet($user->ID, Money::toFloat($shortfall), "ticket_shortfall:{$user->ID}:{$idempotencyKey}");
+                    $currentBalance += $shortfall;
                 }
 
-                if ($currentBalance < $submittedAmount) {
-                    throw new InsufficientBalanceException($submittedAmount - $currentBalance);
+                if ($currentBalance < $cost) {
+                    throw new InsufficientBalanceException(Money::toFloat($cost - $currentBalance));
                 }
-
-                $wallet->{$balanceColumn} = $currentBalance - $submittedAmount;
-                $wallet->save();
 
                 $transaction = RaffleTransaction::create([
                     'user_id' => $user->ID,
-                    'claimed_amount' => $submittedAmount,
+                    'claimed_amount' => Money::naira($cost),
                     'status' => 'verified_final',
                     'type' => $transactionType,
                     'proof_url' => $balanceColumn === 'wallet_balance' ? 'wallet_debit' : 'earnings_debit',
                     'idempotency_key' => $idempotencyKey,
                 ]);
 
-                // Every balance mutation gets a permanent ledger entry,
-                // in the same transaction as the mutation itself — see
-                // WalletLedgerService.
-                $this->ledger->recordDebit(
+                $this->ledger->debit(
                     userId: $user->ID,
                     balanceType: $fundingSource,
-                    amount: $submittedAmount,
+                    amount: Money::naira($cost),
                     reason: 'ticket_purchase',
+                    key: "ticket_purchase:{$transaction->id}",
+                    to: 'ticket_sales',
                     referenceType: 'raffle_transaction',
                     referenceId: $transaction->id,
+                    customerAction: 'spend',
                 );
 
-                // Ticket allocation happens INSIDE the same transaction as
-                // the debit above. If this throws, the debit and the
-                // transaction row created a moment ago are rolled back too
-                // — the fix for TD-06.
                 $this->allocateEntries($raffleId, $user->ID, $ticketNumbers, $transaction->id);
 
                 // Uses the discount up in this same transaction; if it ran

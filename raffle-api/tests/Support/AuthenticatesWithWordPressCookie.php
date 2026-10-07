@@ -45,6 +45,11 @@ trait AuthenticatesWithWordPressCookie
 
         $this->withCredentials()->withUnencryptedCookies([$cookieName => $cookie]);
 
+        $this->lastActingUserId = (int) $user->getKey();
+
         return $user;
     }
+
+    /** The customer the test most recently signed in as. */
+    protected ?int $lastActingUserId = null;
 }

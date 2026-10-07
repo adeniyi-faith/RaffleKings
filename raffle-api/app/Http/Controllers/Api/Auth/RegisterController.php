@@ -69,7 +69,12 @@ class RegisterController extends Controller
         $cookie = $this->cookies->make($cookieName, $result['cookie']['value'], $result['cookie']['expiration']);
 
         // Phase 3 item 34 — same dual issuance as LoginController.
-        $token = $result['user']->createToken('login', ['*'], now()->addDays(30))->plainTextToken;
+        // An app token is only made when a client asks for one (`issue_token`):
+        // the website uses the cookie and never stores a token, and an unused
+        // token that lasts weeks is just something to steal (money-safety audit H5).
+        $token = $request->boolean('issue_token')
+            ? $result['user']->createToken('login', ['*'], now()->addDays(7))->plainTextToken
+            : null;
 
         return response()->json([
             'user' => [

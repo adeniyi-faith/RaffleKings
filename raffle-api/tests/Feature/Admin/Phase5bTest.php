@@ -89,7 +89,8 @@ class Phase5bTest extends TestCase
             ->assertSee('₦2,500')
             ->assertSee('₦700')
             ->assertSee('₦5,000')
-            ->assertSee('0123456789');
+            ->assertSee('••••••6789')
+            ->assertDontSee('0123456789');
 
         Livewire::test(AdminActionsRelationManager::class, ['ownerRecord' => $ada, 'pageClass' => ViewWpUser::class])
             ->assertSee('Withdrawal marked paid');
@@ -314,6 +315,7 @@ class Phase5bTest extends TestCase
         $owner = $this->actingAsAdministrator();
         $other = $this->customer('other');
         WpUserMeta::create(['user_id' => $other->ID, 'meta_key' => config('legacy.wp_prefix').'capabilities', 'meta_value' => serialize(['administrator' => true])]);
+        WpUserMeta::create(['user_id' => $other->ID, 'meta_key' => StaffRoles::META_KEY, 'meta_value' => 'owner']);
         $this->assertSame('owner', WpUser::find($other->ID)->staffRole());
 
         StaffResource::setRole($other, StaffRoles::NO_ACCESS, $owner);
@@ -381,6 +383,6 @@ class Phase5bTest extends TestCase
         $this->assertArrayHasKey($withdrawal->id, app(FraudWatchService::class)->pendingWithdrawalWarnings());
 
         $this->actingAsAdministrator();
-        $this->get('/admin/fraud-watch')->assertOk()->assertSee('5555555555');
+        $this->get('/admin/fraud-watch')->assertOk()->assertSee('••••••5555')->assertDontSee('5555555555');
     }
 }

@@ -33,7 +33,7 @@ class CustomerTimelineAndNotesTest extends TestCase
         $raffle = $this->createRaffle(['title' => 'iPhone 17']);
 
         $this->travelTo(now()->subDays(3));
-        app(WalletLedgerService::class)->recordCredit($user->ID, 'wallet', 5000, 'deposit', description: 'Deposit via paystack');
+        app(WalletLedgerService::class)->credit($user->ID, 'wallet', 5000, 'deposit', 'deposit:t'.$user->ID, 'gateway_clearing', description: 'Deposit via paystack');
         $this->travelBack();
         $this->travelTo(now()->subDays(2));
         RaffleEntry::create(['user_id' => $user->ID, 'raffle_id' => $raffle->public_id, 'ticket_number' => 7, 'txn_id' => 0]);
@@ -42,7 +42,7 @@ class CustomerTimelineAndNotesTest extends TestCase
         $this->travelTo(now()->subDay());
         LoginEvent::record($user->ID, 'ada', false, 'site', 'wrong_password');
         $this->travelBack();
-        Wallet::create(['user_id' => $user->ID, 'wallet_balance' => 0, 'earnings_balance' => 0]);
+        Wallet::firstOrCreate(['user_id' => $user->ID], ['wallet_balance' => 0, 'earnings_balance' => 0]);
         $account = \App\Models\BankAccount::create(['user_id' => $user->ID, 'bank_name' => 'UBA', 'account_number' => '2114907747', 'account_name' => 'ADA']);
         WithdrawalRequest::create(['user_id' => $user->ID, 'bank_account_id' => $account->id, 'requested_amount' => 3000, 'fee_amount' => 0, 'amount_to_send' => 3000, 'status' => 'pending']);
 

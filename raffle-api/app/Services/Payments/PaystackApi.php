@@ -171,6 +171,62 @@ class PaystackApi
         ];
     }
 
+    /**
+     * Every successful payment Paystack took between two moments (for the
+     * nightly comparison with our own records).
+     *
+     * @return list<array{reference: string, amount: float, currency: string}>
+     */
+    public function successfulTransactions(\DateTimeInterface $from, \DateTimeInterface $to): array
+    {
+        return $this->listAll('/transaction', ['status' => 'success'], $from, $to, fn ($row) => [
+            'reference' => (string) ($row['reference'] ?? ''),
+            'amount' => ((float) ($row['amount'] ?? 0)) / 100,
+            'currency' => (string) ($row['currency'] ?? ''),
+        ]);
+    }
+
+    /**
+     * Every transfer (payout) Paystack knows about between two moments.
+     *
+     * @return list<array{reference: string, amount: float, status: string}>
+     */
+    public function transfersBetween(\DateTimeInterface $from, \DateTimeInterface $to): array
+    {
+        return $this->listAll('/transfer', [], $from, $to, fn ($row) => [
+            'reference' => (string) ($row['reference'] ?? ''),
+            'amount' => ((float) ($row['amount'] ?? 0)) / 100,
+            'status' => strtolower((string) ($row['status'] ?? '')),
+        ]);
+    }
+
+    /** @param  callable(array): array  $shape */
+    private function listAll(string $path, array $query, \DateTimeInterface $from, \DateTimeInterface $to, callable $shape): array
+    {
+        $rows = [];
+
+        for ($page = 1; $page <= 100; $page++) {
+            $response = $this->send(fn (PendingRequest $http) => $http->get($path, $query + [
+                'perPage' => 100,
+                'page' => $page,
+                'from' => $from->format('Y-m-d\TH:i:s.000\Z'),
+                'to' => $to->format('Y-m-d\TH:i:s.000\Z'),
+            ]));
+
+            $data = $response->json('data', []);
+
+            foreach ($data as $row) {
+                $rows[] = $shape($row);
+            }
+
+            if (count($data) < 100) {
+                break;
+            }
+        }
+
+        return $rows;
+    }
+
     /** The naira in the Paystack balance that payouts are sent from. Cached a minute. */
     public function balance(): ?float
     {
@@ -216,6 +272,6 @@ class PaystackApi
             $response->status() === 429 => 'Paystack is busy (too many requests). Try again in a minute.',
             $response->serverError() => 'Paystack is having problems right now. Try again in a few minutes.',
             default => "Paystack: {$message}",
-        });
+        }, unclear: $response->status() === 429 || $response->serverError());
     }
 }

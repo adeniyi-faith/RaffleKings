@@ -5,12 +5,13 @@ namespace App\Services;
 use App\Exceptions\PaymentGatewayException;
 use App\Models\BankAccount;
 use App\Models\Legacy\WpUser;
+use App\Models\PayoutAttempt;
 use App\Models\WithdrawalRequest;
 use App\Notifications\PayoutProblemAdminAlert;
 use App\Services\Payments\PaystackApi;
 use App\Support\Features;
-use Illuminate\Http\Client\ConnectionException;
 use Illuminate\Notifications\AnonymousNotifiable;
+use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Notification;
 use Illuminate\Support\Str;
@@ -64,6 +65,7 @@ class PayoutService
             $withdrawal->status !== 'pending' => 'This withdrawal is not waiting to be paid.',
             $withdrawal->payout_status === 'sending' => 'Paystack is already sending this.',
             ! $account => 'No bank account on file.',
+            $account->name_mismatch => 'The bank\'s name for this account does not match the customer\'s name, so check it and pay by hand.',
             ! $account->isVerified() => 'The bank account was saved before the bank-name check, so pay by hand.',
             $max > 0 && (float) $withdrawal->amount_to_send > $max => 'Above the automatic limit of ₦'.number_format($max).' (Settings → Withdrawals), so pay by hand.',
             default => null,
@@ -79,6 +81,14 @@ class PayoutService
      */
     public function send(WpUser $admin, WithdrawalRequest $withdrawal): string
     {
+        $fresh = WithdrawalRequest::query()->with('bankAccount')->findOrFail($withdrawal->id);
+
+        if ($reason = $this->blocker($fresh)) {
+            throw new RuntimeException($reason);
+        }
+
+        $this->assertEarlierAttemptsAreDead($fresh);
+
         $withdrawal = DB::transaction(function () use ($withdrawal, $admin) {
             $locked = WithdrawalRequest::query()->with('bankAccount')->whereKey($withdrawal->id)->lockForUpdate()->firstOrFail();
 
@@ -87,9 +97,18 @@ class PayoutService
             }
 
             $attempt = $locked->payout_attempts + 1;
+            $reference = sprintf('rkwd-%d-%d-%s', $locked->id, $attempt, Str::lower(Str::random(6)));
+            PayoutAttempt::create([
+                'withdrawal_request_id' => $locked->id,
+                'attempt' => $attempt,
+                'reference' => $reference,
+                'status' => 'sending',
+                'started_by' => $admin->ID,
+                'started_at' => now(),
+            ]);
             $locked->update([
                 'payout_status' => 'sending',
-                'payout_reference' => sprintf('rkwd-%d-%d-%s', $locked->id, $attempt, Str::lower(Str::random(6))),
+                'payout_reference' => $reference,
                 'payout_transfer_code' => null,
                 'payout_error' => null,
                 'payout_attempts' => $attempt,
@@ -123,9 +142,13 @@ class PayoutService
                 config('app.name').' withdrawal #'.$withdrawal->id,
             );
         } catch (PaymentGatewayException $e) {
-            if ($e->getPrevious() instanceof ConnectionException) {
-                // We can't know whether Paystack got it. checkStuck() asks
-                // Paystack in a few minutes; until then it stays "sending".
+            if ($e->isUnclear()) {
+                // No answer, "too busy" or a Paystack error: we can't know
+                // whether Paystack got it. checkStuck() asks Paystack in a
+                // few minutes; until then it stays "sending" and can't be
+                // sent again, paid by hand or rejected.
+                $this->markAttempt($withdrawal->payout_reference, 'checking', $e->getMessage());
+
                 return 'No answer from Paystack yet. The site will check with Paystack in a few minutes; don\'t pay this by hand meanwhile.';
             }
 
@@ -135,6 +158,7 @@ class PayoutService
         }
 
         $withdrawal->update(['payout_transfer_code' => $result['transfer_code']]);
+        PayoutAttempt::query()->where('reference', $withdrawal->payout_reference)->update(['transfer_code' => $result['transfer_code']]);
 
         return $this->apply($withdrawal->refresh(), $result['status'], $result['message']) ?? 'Paystack is sending ₦'.number_format((float) $withdrawal->amount_to_send).'. It is marked paid, and the customer told, as soon as the bank confirms.';
     }
@@ -148,11 +172,121 @@ class PayoutService
     {
         $withdrawal = WithdrawalRequest::query()->where('payout_reference', $reference)->first();
 
-        if (! $withdrawal) {
+        if ($withdrawal) {
+            $this->refreshFromPaystack($withdrawal);
+
             return;
         }
 
-        $this->refreshFromPaystack($withdrawal);
+        // An answer about an EARLIER attempt (we sent again after it looked
+        // lost). Ask Paystack, then either finish the withdrawal with it or,
+        // if the money has already gone another way, raise the alarm.
+        $attempt = PayoutAttempt::query()->where('reference', $reference)->first();
+
+        if ($attempt && ($withdrawal = $attempt->withdrawal)) {
+            $this->handleEarlierAttempt($withdrawal, $attempt);
+        }
+    }
+
+    private function handleEarlierAttempt(WithdrawalRequest $withdrawal, PayoutAttempt $attempt): void
+    {
+        $found = $this->paystack->verifyTransfer($attempt->reference);
+
+        if ($found === null) {
+            return;
+        }
+
+        $status = strtolower($found['status']);
+
+        if ($status !== 'success') {
+            if (in_array($status, self::DEAD, true)) {
+                $this->markAttempt($attempt->reference, $status === 'reversed' ? 'reversed' : 'failed', $found['reason']);
+            }
+
+            return;
+        }
+
+        $this->markAttempt($attempt->reference, 'success');
+
+        $alreadyPaidAnotherWay = $withdrawal->status === 'paid' || $withdrawal->payout_status === 'success';
+
+        if ($alreadyPaidAnotherWay) {
+            $this->alert($withdrawal, 'POSSIBLE DOUBLE PAYMENT: Paystack says an earlier attempt ('.$attempt->reference.') also sent ₦'.number_format((float) $withdrawal->amount_to_send).' for this withdrawal, which was already paid. Check Paystack and ask the customer to return the extra.');
+
+            return;
+        }
+
+        // Not paid yet: the earlier attempt is the one that went through.
+        $withdrawal->update(['payout_reference' => $attempt->reference, 'payout_transfer_code' => $attempt->transfer_code]);
+        $this->complete($withdrawal->refresh());
+    }
+
+    /** Paystack statuses that mean the transfer will never arrive. */
+    private const DEAD = ['failed', 'reversed', 'abandoned', 'rejected', 'blocked'];
+
+    /**
+     * Before sending again: every earlier attempt must be confirmed dead by
+     * Paystack (or never to have existed), so a second transfer can't land
+     * on top of a first one that was merely slow.
+     *
+     * @throws RuntimeException
+     */
+    private function assertEarlierAttemptsAreDead(WithdrawalRequest $withdrawal): void
+    {
+        $earlier = PayoutAttempt::query()
+            ->where('withdrawal_request_id', $withdrawal->id)
+            ->whereNotIn('status', ['failed', 'reversed'])
+            ->get();
+
+        foreach ($earlier as $attempt) {
+            try {
+                $found = $this->paystack->verifyTransfer($attempt->reference);
+            } catch (PaymentGatewayException $e) {
+                throw new RuntimeException('Not sent: couldn\'t confirm the earlier attempt with Paystack ('.$e->getMessage().'). Try again in a few minutes.');
+            }
+
+            if ($found === null) {
+                if ($attempt->started_at->gt(now()->subMinutes(self::GIVE_UP_AFTER_MINUTES))) {
+                    throw new RuntimeException('Not sent: the earlier attempt is only minutes old and Paystack has no trace of it yet. Wait a little, then try again.');
+                }
+
+                $this->markAttempt($attempt->reference, 'failed', 'Paystack never received it.');
+
+                continue;
+            }
+
+            $status = strtolower($found['status']);
+
+            if (in_array($status, self::DEAD, true)) {
+                $this->markAttempt($attempt->reference, $status === 'reversed' ? 'reversed' : 'failed', $found['reason']);
+
+                continue;
+            }
+
+            if ($status === 'success') {
+                $this->markAttempt($attempt->reference, 'success');
+                $withdrawal->update(['payout_reference' => $attempt->reference, 'payout_transfer_code' => $attempt->transfer_code]);
+                $this->complete($withdrawal->refresh());
+
+                throw new RuntimeException('Not sent again: Paystack says the earlier attempt actually went through, so the withdrawal is now marked paid.');
+            }
+
+            throw new RuntimeException("Not sent: the earlier attempt is still {$status} at Paystack. Wait for its result before sending again.");
+        }
+    }
+
+    private function markAttempt(?string $reference, string $status, ?string $error = null): void
+    {
+        if (! $reference) {
+            return;
+        }
+
+        PayoutAttempt::query()->where('reference', $reference)->update([
+            'status' => $status,
+            'error' => $error !== null ? mb_substr($error, 0, 300) : null,
+            'resolved_at' => in_array($status, ['success', 'failed', 'reversed'], true) ? now() : null,
+            'updated_at' => now(),
+        ]);
     }
 
     /**
@@ -178,6 +312,13 @@ class PayoutService
                 $this->refreshFromPaystack($withdrawal);
             } catch (Throwable $e) {
                 report($e);
+            }
+
+            // Still no clear answer after two hours: tell staff, once a day.
+            if ($withdrawal->refresh()->payout_status === 'sending'
+                && $withdrawal->payout_started_at?->lte(now()->subHours(2))
+                && Cache::add("payout-stuck-alert:{$withdrawal->id}", 1, now()->addDay())) {
+                $this->alert($withdrawal, 'Still no clear answer from Paystack after two hours. Do not pay this by hand; check it on the Paystack dashboard.');
             }
         }
 
@@ -218,9 +359,10 @@ class PayoutService
             return 'Not sent: Paystack asked for a one-time code. See the note on this withdrawal.';
         }
 
-        if (in_array($status, ['failed', 'reversed', 'abandoned', 'rejected', 'blocked'], true)) {
+        if (in_array($status, self::DEAD, true)) {
             if ($withdrawal->status === 'paid') {
                 // Paystack took back money we had already reported as paid.
+                $this->markAttempt($withdrawal->payout_reference, 'reversed', $detail);
                 $withdrawal->update(['payout_status' => 'reversed', 'payout_error' => mb_substr('Paystack reversed this payout after it was paid'.($detail ? ": {$detail}" : '.'), 0, 300)]);
                 $this->alert($withdrawal, 'Reversed AFTER being marked paid. The customer may not have their money. Check Paystack and the customer.');
 
@@ -245,6 +387,7 @@ class PayoutService
             }
 
             $locked->update(['payout_status' => 'success', 'payout_error' => null]);
+            $this->markAttempt($locked->payout_reference, 'success');
 
             return true;
         });
@@ -262,6 +405,7 @@ class PayoutService
     private function fail(WithdrawalRequest $withdrawal, string $reason, bool $alert = true): void
     {
         $withdrawal->update(['payout_status' => 'failed', 'payout_error' => mb_substr($reason, 0, 300)]);
+        $this->markAttempt($withdrawal->payout_reference, 'failed', $reason);
 
         if ($alert) {
             $this->alert($withdrawal, 'Not sent, back in the queue: '.$reason);

@@ -5,6 +5,7 @@ namespace App\Http\Controllers\Api;
 use App\Auth\WordPressAuthCookieIssuer;
 use App\Http\Controllers\Controller;
 use App\Models\Legacy\WpUser;
+use App\Services\Auth\SessionRevoker;
 use App\Models\Legacy\WpUserMeta;
 use App\Models\UserEngagement;
 use App\Services\Auth\WordPressCookieFactory;
@@ -147,14 +148,15 @@ class ProfileController extends Controller
 
         if ($changingPassword) {
             $user->forceFill(['user_pass' => $this->hasher->make($validated['password'])])->save();
+        }
 
+        if ($changingPassword || $changingEmail) {
             // The sign-in cookie is tied to the password, so the old one
-            // stops working the moment it changes. Every other device is
-            // signed out (that's the point of a new password); this one
-            // gets a fresh cookie so the customer stays signed in here.
-            WpUserMeta::query()->where('user_id', $user->ID)->where('meta_key', 'session_tokens')->delete();
-            $current = $user->currentAccessToken();
-            $user->tokens()->when($current?->getKey(), fn ($q, $id) => $q->whereKeyNot($id))->delete();
+            // stops working the moment it changes. A changed email is just as
+            // sensitive (reset codes go there), so both sign every other
+            // device and app token out; this one gets a fresh cookie so the
+            // customer stays signed in here.
+            app(SessionRevoker::class)->everywhere($user);
 
             $cookie = app(WordPressAuthCookieIssuer::class)->issue($user, ttlSeconds: 14 * 24 * 60 * 60, ip: $request->ip(), userAgent: $request->userAgent());
             $response->withCookie(app(WordPressCookieFactory::class)->make(app('wordpress.auth_cookie_name'), $cookie['value'], $cookie['expiration']));

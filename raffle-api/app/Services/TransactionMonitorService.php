@@ -5,7 +5,6 @@ namespace App\Services;
 use App\Models\Legacy\RaffleEntry;
 use App\Models\Legacy\RaffleTransaction;
 use App\Models\Legacy\WpUser;
-use App\Models\Wallet;
 use Illuminate\Database\Eloquent\Collection;
 use Illuminate\Support\Facades\DB;
 use RuntimeException;
@@ -136,37 +135,31 @@ class TransactionMonitorService
 
     private function creditBalance(int $userId, string $balanceType, float $amount, string $reason, RaffleTransaction $transaction): void
     {
-        $wallet = Wallet::query()->where('user_id', $userId)->lockForUpdate()->first()
-            ?? Wallet::create(['user_id' => $userId, 'wallet_balance' => 0, 'earnings_balance' => 0]);
-
-        $column = $balanceType === 'wallet' ? 'wallet_balance' : 'earnings_balance';
-        $wallet->{$column} = (float) $wallet->{$column} + $amount;
-        $wallet->save();
-
-        $this->ledger->recordCredit(
+        $this->ledger->credit(
             userId: $userId,
             balanceType: $balanceType,
             amount: $amount,
             reason: $reason,
+            key: "{$reason}:raffle_transaction:{$transaction->id}",
+            from: 'ticket_sales',
             referenceType: RaffleTransaction::class,
             referenceId: (int) $transaction->id,
         );
     }
 
+    /**
+     * Takes money back. Unlike before, this refuses (instead of quietly
+     * pushing the balance below zero) when the customer has already spent it.
+     */
     private function debitBalance(int $userId, string $balanceType, float $amount, string $reason, RaffleTransaction $transaction): void
     {
-        $wallet = Wallet::query()->where('user_id', $userId)->lockForUpdate()->first()
-            ?? Wallet::create(['user_id' => $userId, 'wallet_balance' => 0, 'earnings_balance' => 0]);
-
-        $column = $balanceType === 'wallet' ? 'wallet_balance' : 'earnings_balance';
-        $wallet->{$column} = (float) $wallet->{$column} - $amount;
-        $wallet->save();
-
-        $this->ledger->recordDebit(
+        $this->ledger->debit(
             userId: $userId,
             balanceType: $balanceType,
             amount: $amount,
             reason: $reason,
+            key: "{$reason}:raffle_transaction:{$transaction->id}",
+            to: $reason === 'transaction_revoked_bonus' ? 'promotions' : 'gateway_clearing',
             referenceType: RaffleTransaction::class,
             referenceId: (int) $transaction->id,
         );

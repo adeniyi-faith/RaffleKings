@@ -15,7 +15,8 @@ class AdjustUserBalanceRequest extends FormRequest
     {
         return [
             'type' => ['required', 'in:wallet,earnings,points'],
-            'amount' => ['required', 'numeric', 'min:0.01'],
+            'amount' => \App\Support\MoneyRules::amount(),
+            'reason' => ['required', 'string', 'min:5', 'max:2000'],
             'direction' => ['required', 'in:add,subtract'],
         ];
     }

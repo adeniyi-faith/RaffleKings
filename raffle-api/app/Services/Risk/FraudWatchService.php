@@ -44,27 +44,28 @@ final class FraudWatchService
      */
     public function sharedBankAccounts(?int $forUserId = null): Collection
     {
+        // Matched on the keyed fingerprint, never on the number itself.
         $query = BankAccount::query()
-            ->select('account_number')
-            ->groupBy('account_number')
+            ->select('account_number_hash')
+            ->groupBy('account_number_hash')
             ->havingRaw('COUNT(DISTINCT user_id) > 1');
 
         if ($forUserId) {
-            $query->whereIn('account_number', BankAccount::query()->where('user_id', $forUserId)->select('account_number'));
+            $query->whereIn('account_number_hash', BankAccount::query()->where('user_id', $forUserId)->select('account_number_hash'));
         }
 
-        $numbers = $query->pluck('account_number');
+        $hashes = $query->pluck('account_number_hash');
 
-        if ($numbers->isEmpty()) {
+        if ($hashes->isEmpty()) {
             return collect();
         }
 
         return BankAccount::query()
-            ->whereIn('account_number', $numbers)
+            ->whereIn('account_number_hash', $hashes)
             ->get()
-            ->groupBy('account_number')
-            ->map(fn (Collection $rows, string $number) => [
-                'account_number' => $number,
+            ->groupBy('account_number_hash')
+            ->map(fn (Collection $rows, string $hash) => [
+                'account_number' => $rows->first()->masked(),
                 'bank_name' => (string) $rows->first()->bank_name,
                 'user_ids' => $rows->pluck('user_id')->unique()->values()->all(),
             ])

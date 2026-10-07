@@ -5,34 +5,40 @@ namespace App\Filament\Resources\Legacy\WpUserResource\Pages;
 use App\Filament\Resources\Legacy\WpUserResource;
 use App\Models\Admin\CustomerNote;
 use App\Models\Admin\CustomerTag;
-use App\Models\UserEngagement;
-use App\Services\Admin\CustomerSupportTools;
-use App\Services\Admin\Impersonation;
-use App\Services\Admin\CustomerTimeline;
-use App\Services\Engagement\BadgeService;
-use App\Services\Engagement\SeasonPass;
-use App\Services\AdminAuditLogService;
-use Filament\Actions;
-use Filament\Actions\Action;
-use Filament\Forms;
-use Filament\Notifications\Notification;
+use App\Models\CustomerRiskLevel;
 use App\Models\Legacy\RaffleEntry;
 use App\Models\Legacy\WpUser;
-use App\Models\Retention\MemberProfile;
-use App\Services\Retention\MemberSegments;
 use App\Models\Legacy\WpUserMeta;
 use App\Models\PlayLimit;
+use App\Models\Retention\MemberProfile;
+use App\Models\UserBadge;
+use App\Models\UserEngagement;
 use App\Models\UserPoints;
 use App\Models\WalletLedgerEntry;
 use App\Models\WithdrawalRequest;
+use App\Services\Admin\CustomerSupportTools;
+use App\Services\Admin\CustomerTimeline;
+use App\Services\Admin\Impersonation;
+use App\Services\AdminAuditLogService;
 use App\Services\ChatModerationService;
+use App\Services\Engagement\BadgeService;
+use App\Services\Engagement\SeasonPass;
 use App\Services\ResponsiblePlayService;
+use App\Services\Retention\MemberSegments;
 use App\Services\Risk\FraudWatchService;
+use Filament\Actions;
+use Filament\Actions\Action;
+use Filament\Forms;
 use Filament\Infolists\Components;
 use Filament\Infolists\Infolist;
+use Filament\Notifications\Notification;
 use Filament\Resources\Pages\ViewRecord;
 use Filament\Support\Enums\FontWeight;
+use Illuminate\Contracts\Support\Htmlable;
 use Illuminate\Support\Carbon;
+use Illuminate\Support\Facades\Cache;
+use Illuminate\Support\Facades\Cookie;
+use Illuminate\Support\HtmlString;
 
 /**
  * The customer profile (item 45b): everything about one customer on one
@@ -82,7 +88,7 @@ class ViewWpUser extends ViewRecord
         // Only the author, or someone who can manage customers, removes a note.
         abort_unless($note->author_id === auth('wordpress')->id() || WpUserResource::staffCan('customers.manage'), 403);
         $note->delete();
-        app(AdminAuditLogService::class)->record(auth('wordpress')->user(), 'customer.note_deleted', \App\Models\Legacy\WpUser::class, $this->getRecord()->ID, ['note' => mb_strimwidth($note->body, 0, 200, '…')]);
+        app(AdminAuditLogService::class)->record(auth('wordpress')->user(), 'customer.note_deleted', WpUser::class, $this->getRecord()->ID, ['note' => mb_strimwidth($note->body, 0, 200, '…')]);
         Notification::make()->title('Note deleted')->success()->send();
     }
 
@@ -102,17 +108,34 @@ class ViewWpUser extends ViewRecord
         return 'heroicon-m-user-circle';
     }
 
+    /**
+     * Opening a customer's profile is written to the audit log (once an hour
+     * per staff member and customer), so "who looked at this person's details"
+     * has an answer.
+     */
+    public function mount(int|string $record): void
+    {
+        parent::mount($record);
+
+        $staff = auth('wordpress')->user();
+
+        if ($staff instanceof WpUser && (int) $staff->ID !== (int) $this->record->ID
+            && Cache::add("customer-viewed:{$staff->ID}:{$this->record->ID}", 1, now()->addHour())) {
+            app(AdminAuditLogService::class)->record($staff, 'customer.viewed', WpUser::class, (int) $this->record->ID);
+        }
+    }
+
     public function getTitle(): string
     {
         return $this->getRecord()->display_name ?: $this->getRecord()->user_login;
     }
 
     /** The customer's name with their profile picture beside it. */
-    public function getHeading(): string|\Illuminate\Contracts\Support\Htmlable
+    public function getHeading(): string|Htmlable
     {
         $user = $this->getRecord();
 
-        return new \Illuminate\Support\HtmlString(
+        return new HtmlString(
             '<span style="display:flex;align-items:center;gap:14px;min-width:0">'
             .'<img src="'.e($user->avatarOrInitialsUrl()).'" alt="" width="56" height="56"'
             .' onerror="'.e($user->avatarImgAttributes()['onerror']).'"'
@@ -189,7 +212,7 @@ class ViewWpUser extends ViewRecord
             ->action(function (array $data) {
                 $user = $this->getRecord();
                 CustomerNote::create(['user_id' => $user->ID, 'author_id' => auth('wordpress')->id(), 'body' => $data['body'], 'pinned' => (bool) ($data['pinned'] ?? false)]);
-                app(AdminAuditLogService::class)->record(auth('wordpress')->user(), 'customer.note_added', \App\Models\Legacy\WpUser::class, $user->ID, ['note' => mb_strimwidth($data['body'], 0, 200, '…')]);
+                app(AdminAuditLogService::class)->record(auth('wordpress')->user(), 'customer.note_added', WpUser::class, $user->ID, ['note' => mb_strimwidth($data['body'], 0, 200, '…')]);
                 Notification::make()->title('Note saved')->success()->send();
             });
     }
@@ -347,7 +370,7 @@ class ViewWpUser extends ViewRecord
 
                 Notification::make()
                     ->title('Temporary password set. Copy it now.')
-                    ->body(new \Illuminate\Support\HtmlString(
+                    ->body(new HtmlString(
                         'Tell the customer this password, and ask them to change it after signing in. It is not saved anywhere and will not be shown again.'
                         .'<div style="margin-top:8px;font-family:monospace;font-size:1.25rem;font-weight:700;user-select:all;overflow-wrap:anywhere">'.e($password).'</div>'
                     ))
@@ -425,7 +448,7 @@ class ViewWpUser extends ViewRecord
     {
         $manage = fn () => WpUserResource::staffCan('customers.manage');
         $catalog = fn () => collect(app(BadgeService::class)->catalog());
-        $earned = fn () => \App\Models\UserBadge::query()->where('user_id', $this->getRecord()->ID)->pluck('badge')->all();
+        $earned = fn () => UserBadge::query()->where('user_id', $this->getRecord()->ID)->pluck('badge')->all();
 
         $award = Action::make('awardBadge')
             ->label('Give a badge')
@@ -494,7 +517,7 @@ class ViewWpUser extends ViewRecord
                     return;
                 }
 
-                \Illuminate\Support\Facades\Cookie::queue($cookie);
+                Cookie::queue($cookie);
                 $this->redirect('/profile');
             });
     }
@@ -542,6 +565,7 @@ class ViewWpUser extends ViewRecord
                 $mutedUntil ? 'Muted in chat' : null,
             ])),
             'flags' => app(FraudWatchService::class)->flagsFor($user),
+            'risk' => CustomerRiskLevel::query()->where('user_id', $user->ID)->first(),
         ];
     }
 
@@ -562,6 +586,16 @@ class ViewWpUser extends ViewRecord
                         ->state($s('flags'))
                         ->schema([Components\TextEntry::make('text')->hiddenLabel()->color('danger')])
                         ->contained(false),
+                ]),
+
+            Components\Section::make('Risk level')
+                ->icon('heroicon-o-shield-exclamation')
+                ->description('Worked out each night from the warning signs. It points at who to look at first and never blocks anyone by itself.')
+                ->visible(fn () => $this->summary()['risk'] && $this->summary()['risk']->level !== 'low')
+                ->schema([
+                    Components\TextEntry::make('risk_level')->hiddenLabel()
+                        ->state(fn () => ucfirst($this->summary()['risk']->level).' risk: '.implode(' ', (array) $this->summary()['risk']->reasons))
+                        ->color(fn () => $this->summary()['risk']->level === 'high' ? 'danger' : 'warning'),
                 ]),
 
             Components\Section::make('Staff notes & tags')
@@ -676,8 +710,9 @@ class ViewWpUser extends ViewRecord
                         ->columnSpanFull()
                         ->grid(['md' => 2])
                         ->schema([
-                            Components\TextEntry::make('account_number')->hiddenLabel()->copyable()->fontFamily('mono')->weight(FontWeight::Bold)
-                                ->suffix(fn ($record) => $record->is_primary ? '  · primary' : ''),
+                            Components\TextEntry::make('account_number')->hiddenLabel()->fontFamily('mono')->weight(FontWeight::Bold)
+                                ->formatStateUsing(fn ($state, $record) => $record->masked())
+                                ->suffix(fn ($record) => ($record->is_primary ? '  · primary' : '').($record->name_mismatch ? '  · NAME DOES NOT MATCH THE CUSTOMER' : '')),
                             Components\TextEntry::make('bank_name')->hiddenLabel()->formatStateUsing(fn ($state, $record) => "{$state} · {$record->account_name}"),
                         ])
                         ->placeholder('No bank account saved'),

@@ -27,6 +27,16 @@ final class Features
         return (bool) config("features.{$feature}", false);
     }
 
+    /**
+     * The bank-name check is on AND Paystack is set up to answer it. With no
+     * Paystack key, customers can still add an account by hand (it is then
+     * marked unchecked and staff pay it by hand), instead of being locked out.
+     */
+    public static function bankNameCheck(): bool
+    {
+        return self::on('bank_name_check') && filled(config('services.paystack.secret_key'));
+    }
+
     /** @return array<string, bool> every switch, for the customer pages */
     public static function all(): array
     {

@@ -5,10 +5,12 @@ namespace Tests\Feature\Admin;
 use App\Filament\Resources\Legacy\WpUserResource;
 use App\Filament\Resources\Legacy\WpUserResource\Pages\ViewWpUser;
 use App\Models\AdminAuditLog;
+use App\Models\GoldenBoxOffer;
 use App\Models\Legacy\WpUser;
 use App\Models\Legacy\WpUserMeta;
 use App\Models\Wallet;
 use App\Services\Admin\Impersonation;
+use App\Services\Risk\AbuseDetector;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\Cache;
@@ -198,14 +200,14 @@ class ViewAsCustomerTest extends TestCase
         config(['pricing.golden_box_enabled' => true, 'pricing.golden_box_percent_off' => 10]);
         $owner = $this->actingAsAdministrator();
         $customer = $this->customer();
-        \App\Models\GoldenBoxOffer::create(['user_id' => $customer->ID, 'status' => 'open', 'raffle_id' => 1, 'quantity' => 1, 'ticket_numbers' => [1], 'order_total' => 100000]);
+        GoldenBoxOffer::create(['user_id' => $customer->ID, 'status' => 'open', 'raffle_id' => 1, 'quantity' => 1, 'ticket_numbers' => [1], 'order_total' => 100000]);
         $this->startViewing($owner, $customer);
 
         $this->get('/')->assertOk()->assertInertia(fn ($page) => $page->where('goldenBox', null));
         $this->get('/raffles')->assertOk()->assertInertia(fn ($page) => $page->where('goldenBox', null));
         $this->get('/hall-of-fame')->assertOk();
 
-        $this->assertNull(\App\Models\GoldenBoxOffer::query()->first()->offered_until);
+        $this->assertNull(GoldenBoxOffer::query()->first()->offered_until);
     }
 
     public function test_the_account_pages_can_be_looked_at(): void
@@ -224,11 +226,11 @@ class ViewAsCustomerTest extends TestCase
         $owner = $this->actingAsAdministrator();
         $customer = $this->customer();
         $this->startViewing($owner, $customer);
-        $this->withUnencryptedCookie(\App\Services\Risk\AbuseDetector::DEVICE_COOKIE, '0123456789abcdef0123456789abcdef');
+        $this->withUnencryptedCookie(AbuseDetector::DEVICE_COOKIE, '0123456789abcdef0123456789abcdef');
 
-        $detector = \Mockery::mock(\App\Services\Risk\AbuseDetector::class)->makePartial();
+        $detector = \Mockery::mock(AbuseDetector::class)->makePartial();
         $detector->shouldNotReceive('recordDevice');
-        $this->app->instance(\App\Services\Risk\AbuseDetector::class, $detector);
+        $this->app->instance(AbuseDetector::class, $detector);
 
         $this->get('/profile')->assertOk();
     }
@@ -299,6 +301,7 @@ class ViewAsCustomerTest extends TestCase
         $customer = $this->customer();
         $this->startViewing($owner, $customer);
 
+        WpUserMeta::where('user_id', $owner->ID)->where('meta_key', 'rk_staff_role')->delete();
         WpUserMeta::create(['user_id' => $owner->ID, 'meta_key' => 'rk_staff_role', 'meta_value' => 'support']);
 
         $this->getJson('/api/me')->assertJsonPath('id', $owner->ID);

@@ -52,7 +52,7 @@ class FlutterwaveGateway implements PaymentGateway
             ]);
 
         if ($response->failed() || $response->json('status') !== 'success') {
-            throw new PaymentGatewayException('Flutterwave initialization failed: '.($response->json('message') ?? $response->body()));
+            throw new PaymentGatewayException('Flutterwave initialization failed: '.mb_substr((string) ($response->json('message') ?? 'HTTP '.$response->status()), 0, 160));
         }
 
         $authorizationUrl = $response->json('data.link');
@@ -76,19 +76,59 @@ class FlutterwaveGateway implements PaymentGateway
             ->get('/transactions/verify_by_reference', ['tx_ref' => $reference]);
 
         if ($response->failed()) {
-            throw new PaymentGatewayException('Flutterwave verification failed: '.$response->body());
+            throw new PaymentGatewayException('Flutterwave verification failed (HTTP '.$response->status().'): '.mb_substr((string) $response->json('message'), 0, 120), unclear: true);
         }
 
         $data = $response->json('data', []);
         $status = $data['status'] ?? 'unknown';
 
+        if ($status === 'successful' && (! isset($data['amount']) || ! is_numeric($data['amount']) || empty($data['currency']))) {
+            throw new PaymentGatewayException('Flutterwave said successful but left out the amount or currency.', unclear: true);
+        }
+
         return new PaymentVerificationResult(
             successful: $status === 'successful',
             amount: (float) ($data['amount'] ?? 0),
-            currency: $data['currency'] ?? 'NGN',
+            currency: (string) ($data['currency'] ?? ''),
             gatewayTransactionId: isset($data['id']) ? (string) $data['id'] : null,
             rawStatus: $status,
         );
+    }
+
+    /**
+     * Every successful payment Flutterwave took between two dates (for the
+     * nightly comparison with our own records).
+     *
+     * @return list<array{reference: string, amount: float, currency: string}>
+     */
+    public function successfulTransactions(\DateTimeInterface $from, \DateTimeInterface $to): array
+    {
+        if (! $this->secretKey) {
+            throw new PaymentGatewayException('Flutterwave is not configured (missing FLUTTERWAVE_SECRET_KEY).');
+        }
+
+        $rows = [];
+
+        for ($page = 1; $page <= 100; $page++) {
+            $response = Http::withToken($this->secretKey)->baseUrl(self::BASE_URL)->timeout(30)
+                ->get('/transactions', ['from' => $from->format('Y-m-d'), 'to' => $to->format('Y-m-d'), 'status' => 'successful', 'page' => $page]);
+
+            if ($response->failed()) {
+                throw new PaymentGatewayException('Flutterwave listing failed (HTTP '.$response->status().').', unclear: true);
+            }
+
+            $data = $response->json('data', []);
+
+            foreach ($data as $row) {
+                $rows[] = ['reference' => (string) ($row['tx_ref'] ?? ''), 'amount' => (float) ($row['amount'] ?? 0), 'currency' => (string) ($row['currency'] ?? '')];
+            }
+
+            if (count($data) < 20 || $page >= (int) $response->json('meta.page_info.total_pages', $page)) {
+                break;
+            }
+        }
+
+        return $rows;
     }
 
     public function verifyWebhookSignature(Request $request): bool

@@ -5,12 +5,14 @@ namespace Tests\Feature\Admin;
 use App\Auth\StaffRoles;
 use App\Filament\Resources\BroadcastResource;
 use App\Filament\Resources\Legacy\WpUserResource\Pages\ListWpUsers;
+use App\Models\AccountRestriction;
 use App\Models\Admin\CustomerTag;
 use App\Models\AdminAuditLog;
 use App\Models\Legacy\RaffleEntry;
 use App\Models\Legacy\WpUser;
 use App\Models\Legacy\WpUserMeta;
 use App\Models\Wallet;
+use App\Services\AccountRestrictions;
 use App\Services\Admin\CustomerBulkActions;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Cache;
@@ -58,8 +60,8 @@ class CustomerBulkActionsTest extends TestCase
         $result = $service->addTags($admin, [$ada->ID, $bola->ID], ['VIP', '  Watch   closely ', 'vip']);
 
         $this->assertSame(['customers' => 2, 'added' => 3], $result, 'Ada already had vip (any capitals), so she gets only the new one');
-        $this->assertSame(['Watch closely', 'vip'], $this->tagsOf($ada));
-        $this->assertSame(['VIP', 'Watch closely'], $this->tagsOf($bola));
+        $this->assertEqualsCanonicalizing(['Watch closely', 'vip'], $this->tagsOf($ada));
+        $this->assertEqualsCanonicalizing(['VIP', 'Watch closely'], $this->tagsOf($bola));
         $this->assertSame([], $this->tagsOf($cee));
 
         $this->assertSame(['customers' => 0, 'added' => 0], $service->addTags($admin, [$ada->ID, $bola->ID], ['vip']), 'doing it again changes nothing');
@@ -127,7 +129,13 @@ class CustomerBulkActionsTest extends TestCase
 
         $result = app(CustomerBulkActions::class)->unban($admin, [$ada->ID, $bola->ID]);
 
+        // Lifting a ban takes two staff: this only asks. Still banned until a different staff member approves.
         $this->assertSame(['banned' => 1, 'staff' => 0, 'already' => 1], $result);
+        $this->assertTrue($ada->fresh()->isBanned());
+
+        $second = $this->customer('second-admin');
+        $restriction = AccountRestriction::where('user_id', $ada->ID)->where('type', 'full_ban')->firstOrFail();
+        app(AccountRestrictions::class)->approveLift($second, $restriction);
         $this->assertFalse($ada->fresh()->isBanned());
     }
 
@@ -152,8 +160,10 @@ class CustomerBulkActionsTest extends TestCase
         $this->assertTrue($ada->fresh()->isBanned());
         $this->assertFalse($cee->fresh()->isBanned());
 
+        // Asking to unban only asks: lifting needs a second staff member.
         $page->callTableBulkAction('unban', $picked);
-        $this->assertFalse($ada->fresh()->isBanned());
+        $this->assertTrue($ada->fresh()->isBanned());
+        $this->assertNotNull(AccountRestriction::where('user_id', $ada->ID)->value('lift_requested_by'));
     }
 
     public function test_messaging_the_ticked_customers_hands_the_exact_list_to_the_message_form(): void

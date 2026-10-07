@@ -34,11 +34,12 @@ jobs:
     environment: production
     steps:
       - name: Delete the old-site copy, logs and backups
-        uses: appleboy/ssh-action@master
+        uses: appleboy/ssh-action@v1.2.0
         with:
           host: ${{ secrets.CPANEL_HOST }}
           username: ${{ secrets.CPANEL_USERNAME }}
           password: ${{ secrets.CPANEL_PASSWORD }}
+          fingerprint: ${{ secrets.CPANEL_HOST_FINGERPRINT }}
           port: 22
           command_timeout: 30m
           script: |

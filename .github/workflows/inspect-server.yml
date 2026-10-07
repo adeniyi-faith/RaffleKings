@@ -15,11 +15,12 @@ jobs:
     environment: production
     steps:
       - name: Look, don't touch
-        uses: appleboy/ssh-action@master
+        uses: appleboy/ssh-action@v1.2.0
         with:
           host: ${{ secrets.CPANEL_HOST }}
           username: ${{ secrets.CPANEL_USERNAME }}
           password: ${{ secrets.CPANEL_PASSWORD }}
+          fingerprint: ${{ secrets.CPANEL_HOST_FINGERPRINT }}
           port: 22
           script: |
             cd ${{ env.DEPLOY_PATH }}
@@ -60,8 +61,11 @@ jobs:
             echo "=== storage/ and bootstrap/cache/ writable? ==="
             ls -ld storage bootstrap/cache 2>&1 || true
             echo
-            echo "=== Last 100 lines of storage/logs/laravel.log ==="
-            tail -n 100 storage/logs/laravel.log 2>&1 || echo "(no laravel.log)"
+            # The log can hold customers' details, so a public workflow log gets
+            # only counts, never the lines themselves.
+            echo "=== storage/logs/laravel.log: size and number of errors (lines not shown) ==="
+            ls -l storage/logs/laravel.log 2>&1 || echo "(no laravel.log)"
+            echo "errors in the last 200 lines: $(tail -n 200 storage/logs/laravel.log 2>/dev/null | grep -c '\.ERROR' || true)"
             echo
             echo "=== PHP version actually running ==="
             php -v 2>&1 || true
@@ -95,11 +99,12 @@ jobs:
         # a Laravel app on shared hosting without cPanel-level control
         # over the document root. The old .htaccess (the legacy site's
         # own rewrite rules) is backed up first, once, never deleted.
-        uses: appleboy/ssh-action@master
+        uses: appleboy/ssh-action@v1.2.0
         with:
           host: ${{ secrets.CPANEL_HOST }}
           username: ${{ secrets.CPANEL_USERNAME }}
           password: ${{ secrets.CPANEL_PASSWORD }}
+          fingerprint: ${{ secrets.CPANEL_HOST_FINGERPRINT }}
           port: 22
           script: |
             set -e

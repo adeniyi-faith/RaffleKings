@@ -6,8 +6,8 @@ use RuntimeException;
 
 class BankAccountNotFoundException extends RuntimeException
 {
-    public function __construct()
+    public function __construct(string $message = 'Bank account not found.')
     {
-        parent::__construct('Bank account not found.');
+        parent::__construct($message);
     }
 }

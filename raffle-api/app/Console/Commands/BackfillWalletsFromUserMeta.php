@@ -7,6 +7,7 @@ use App\Models\Legacy\WpUserMeta;
 use App\Models\Wallet;
 use App\Models\WalletLedgerEntry;
 use Illuminate\Console\Command;
+use Illuminate\Support\Facades\DB;
 
 /**
  * One-time (repeatable) backfill: copies wallet_balance, earnings_balance,
@@ -50,7 +51,15 @@ class BackfillWalletsFromUserMeta extends Command
     {
         $dryRun = (bool) $this->option('dry-run');
 
-        $this->backfillWallets($dryRun);
+        // Retired for live use (money-safety audit B1): this overwrites whole
+        // balances, outside the ledger. Once the double-entry ledger has any
+        // journal, balances may only move through WalletLedgerService.
+        if (DB::table('ledger_journals')->exists()) {
+            $this->warn('Skipping wallets: the ledger already has history, so balances can only change through the ledger. (Bank accounts are still copied.)');
+        } else {
+            $this->backfillWallets($dryRun);
+        }
+
         $this->backfillBankAccounts($dryRun);
 
         return self::SUCCESS;
@@ -132,14 +141,14 @@ class BackfillWalletsFromUserMeta extends Command
 
                 $exists = BankAccount::query()
                     ->where('user_id', $row->user_id)
-                    ->where('account_number', $accountNumber)
+                    ->where('account_number_hash', BankAccount::hashNumber((string) $accountNumber))
                     ->exists();
 
                 if ($exists) {
                     continue;
                 }
 
-                $this->line("user {$row->user_id}: {$bankName} / {$accountNumber}");
+                $this->line("user {$row->user_id}: {$bankName} / ••••".substr((string) $accountNumber, -4));
 
                 if (! $dryRun) {
                     BankAccount::create([

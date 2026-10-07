@@ -2,6 +2,7 @@
 
 namespace App\Services\Engagement;
 
+use App\Exceptions\DuplicatePostingException;
 use App\Models\Legacy\RaffleEntry;
 use App\Models\Legacy\RaffleTransaction;
 use App\Models\Legacy\RaffleWinner;
@@ -197,20 +198,21 @@ class LuckyMeter
 
     private function payCredit(int $userId, float $amount, Raffle $raffle): void
     {
-        $wallet = Wallet::query()->where('user_id', $userId)->lockForUpdate()->first()
-            ?? Wallet::create(['user_id' => $userId, 'wallet_balance' => 0, 'earnings_balance' => 0]);
-        $wallet->wallet_balance = (float) $wallet->wallet_balance + $amount;
-        $wallet->save();
-
-        $this->ledger->recordCredit(
-            userId: $userId,
-            balanceType: 'wallet',
-            amount: $amount,
-            reason: 'lucky_meter',
-            referenceType: 'raffle',
-            referenceId: $raffle->id,
-            description: "Lucky Meter filled (after {$raffle->title})",
-        );
+        try {
+            $this->ledger->credit(
+                userId: $userId,
+                balanceType: 'wallet',
+                amount: $amount,
+                reason: 'lucky_meter',
+                key: "lucky_meter:raffle:{$raffle->id}:user:{$userId}",
+                from: 'promotions',
+                referenceType: 'raffle',
+                referenceId: $raffle->id,
+                description: "Lucky Meter filled (after {$raffle->title})",
+            );
+        } catch (DuplicatePostingException) {
+            // Already paid for this raffle; never twice.
+        }
     }
 
     /** What the Rewards page shows: the rules, and (signed in) this customer's meter and history. */

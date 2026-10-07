@@ -6,11 +6,12 @@ use App\Models\BankAccount;
 use App\Models\Wallet;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Tests\Support\AuthenticatesWithWordPressCookie;
+use Tests\Support\MakesBankAccounts;
 use Tests\TestCase;
 
 class WithdrawalControllerTest extends TestCase
 {
-    use AuthenticatesWithWordPressCookie, RefreshDatabase;
+    use AuthenticatesWithWordPressCookie, MakesBankAccounts, RefreshDatabase;
 
     public function test_an_authenticated_user_can_see_their_withdrawal_requirements(): void
     {
@@ -32,7 +33,7 @@ class WithdrawalControllerTest extends TestCase
     {
         $user = $this->actingAsWordPressUser();
         Wallet::create(['user_id' => $user->ID, 'wallet_balance' => 0, 'earnings_balance' => 10000]);
-        $account = BankAccount::create(['user_id' => $user->ID, 'bank_name' => 'GTBank', 'account_number' => '0123456789', 'account_name' => 'Test User', 'is_primary' => true]);
+        $account = $this->oldBankAccount(['user_id' => $user->ID, 'bank_name' => 'GTBank', 'account_number' => '0123456789', 'account_name' => 'Test User', 'is_primary' => true]);
 
         $response = $this->postJson('/api/withdrawals', ['amount' => 3000, 'bank_account_id' => $account->id]);
 
@@ -44,7 +45,7 @@ class WithdrawalControllerTest extends TestCase
     {
         $user = $this->actingAsWordPressUser();
         Wallet::create(['user_id' => $user->ID, 'wallet_balance' => 0, 'earnings_balance' => 10000]);
-        $account = BankAccount::create(['user_id' => $user->ID, 'bank_name' => 'GTBank', 'account_number' => '0123456789', 'account_name' => 'Test User', 'is_primary' => true]);
+        $account = $this->oldBankAccount(['user_id' => $user->ID, 'bank_name' => 'GTBank', 'account_number' => '0123456789', 'account_name' => 'Test User', 'is_primary' => true]);
 
         $response = $this->postJson('/api/withdrawals', [
             'amount' => 3000,
@@ -60,7 +61,7 @@ class WithdrawalControllerTest extends TestCase
     {
         $user = $this->actingAsWordPressUser();
         Wallet::create(['user_id' => $user->ID, 'wallet_balance' => 0, 'earnings_balance' => 10000]);
-        $account = BankAccount::create(['user_id' => $user->ID, 'bank_name' => 'GTBank', 'account_number' => '0123456789', 'account_name' => 'Test User', 'is_primary' => true]);
+        $account = $this->oldBankAccount(['user_id' => $user->ID, 'bank_name' => 'GTBank', 'account_number' => '0123456789', 'account_name' => 'Test User', 'is_primary' => true]);
 
         $this->postJson('/api/withdrawals', ['amount' => 500, 'bank_account_id' => $account->id])->assertStatus(422);
     }
