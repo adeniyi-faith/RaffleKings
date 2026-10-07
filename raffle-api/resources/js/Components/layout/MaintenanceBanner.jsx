@@ -18,7 +18,7 @@ export default function MaintenanceBanner() {
                 <Wrench className="h-3.5 w-3.5 flex-shrink-0" />
                 <span>
                     Maintenance mode is ON. Customers see the "back soon" page.{' '}
-                    <a href="/admin/settings" className="underline">Switch it off</a>
+                    <a href={maintenance.admin_url || '/admin/settings'} className="underline">Switch it off</a>
                 </span>
             </div>
         );

@@ -7,6 +7,7 @@ use App\Services\Admin\Impersonation;
 use App\Services\Auth\LoginService;
 use App\Services\Auth\StaffTwoStep;
 use App\Services\Auth\WordPressCookieFactory;
+use App\Support\AdminPath;
 use Illuminate\Contracts\Auth\Authenticatable;
 use Illuminate\Contracts\Auth\Guard;
 use Illuminate\Http\Request;
@@ -97,7 +98,7 @@ class WordPressOrSanctumGuard implements Guard
 
         // An owner viewing the site as a customer (never through an API token,
         // and never on the admin pages, which always see the owner themselves).
-        if ($viaToken === null && $user !== null && $request->cookies->has(Impersonation::COOKIE) && ! $request->is('admin', 'admin/*', 'livewire/*')) {
+        if ($viaToken === null && $user !== null && $request->cookies->has(Impersonation::COOKIE) && ! $request->is(...AdminPath::patterns(), ...['livewire/*'])) {
             $target = app(Impersonation::class)->targetFor($request, $user);
 
             if ($target !== null) {

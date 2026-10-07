@@ -1,5 +1,6 @@
 <?php
 
+use App\Filament\Resources\Legacy\WpUserResource;
 use App\Http\Controllers\Api\AccountController;
 use App\Http\Controllers\Api\Admin\AuditLogController;
 use App\Http\Controllers\Api\Admin\AuditReconciliationController;
@@ -22,13 +23,15 @@ use App\Http\Controllers\Api\GoldenBoxController;
 use App\Http\Controllers\Api\HallOfFameController;
 use App\Http\Controllers\Api\LiveDrawController;
 use App\Http\Controllers\Api\MessageController;
+use App\Http\Controllers\Api\Monitoring\ClientErrorController;
+use App\Http\Controllers\Api\NumberHoldController;
+use App\Http\Controllers\Api\OfferController;
 use App\Http\Controllers\Api\PaymentWebhookController;
 use App\Http\Controllers\Api\ProfileController;
 use App\Http\Controllers\Api\PushDeviceController;
-use App\Http\Controllers\Api\NumberHoldController;
-use App\Http\Controllers\Api\OfferController;
 use App\Http\Controllers\Api\RaffleController;
 use App\Http\Controllers\Api\ReferralController;
+use App\Http\Controllers\Api\ResponsiblePlayController;
 use App\Http\Controllers\Api\RewardsController;
 use App\Http\Controllers\Api\SiteNoticeController;
 use App\Http\Controllers\Api\SupportTicketController;
@@ -37,8 +40,12 @@ use App\Http\Controllers\Api\TicketPurchaseController;
 use App\Http\Controllers\Api\TutorialController;
 use App\Http\Controllers\Api\WalletController;
 use App\Http\Controllers\Api\WithdrawalController;
-use App\Http\Controllers\Api\Monitoring\ClientErrorController;
-use App\Http\Controllers\Api\ResponsiblePlayController;
+use App\Models\Legacy\WpUser;
+use App\Services\Admin\Impersonation;
+use App\Services\Monitoring\StatusBoard;
+use App\Support\AdminPath;
+use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Route;
 
 // Public — no auth, matches the legacy get_raffles/get_raffle actions.
@@ -46,7 +53,7 @@ use Illuminate\Support\Facades\Route;
 Route::post('/client-errors', [ClientErrorController::class, 'store'])->middleware('throttle:10,1');
 
 // Public status (Settings → On / off → New features), e.g. for a status widget.
-Route::get('/status', fn (\App\Services\Monitoring\StatusBoard $status) => response()->json($status->snapshot()))
+Route::get('/status', fn (StatusBoard $status) => response()->json($status->snapshot()))
     ->middleware('growth:status_page');
 
 Route::get('/raffles', [RaffleController::class, 'index']);
@@ -57,15 +64,15 @@ Route::get('/raffles/{raffle}/tickets', [RaffleController::class, 'tickets']);
 
 // Ends an owner's "view as customer" session (see App\Services\Admin\Impersonation).
 // Reachable while viewing (the view-only rule lets exactly this one through).
-Route::post('/impersonation/stop', function (\Illuminate\Http\Request $request, \App\Services\Admin\Impersonation $impersonation) {
-    $real = \Illuminate\Support\Facades\Auth::guard('wordpress')->realUser();
-    $targetId = \App\Services\Admin\Impersonation::current($request)['target_id'] ?? null;
-    $cookie = $impersonation->stop($request, $real instanceof \App\Models\Legacy\WpUser ? $real : null);
+Route::post('/impersonation/stop', function (Request $request, Impersonation $impersonation) {
+    $real = Auth::guard('wordpress')->realUser();
+    $targetId = Impersonation::current($request)['target_id'] ?? null;
+    $cookie = $impersonation->stop($request, $real instanceof WpUser ? $real : null);
 
     return response()->json([
         'redirect' => $targetId
-            ? \App\Filament\Resources\Legacy\WpUserResource::getUrl('view', ['record' => $targetId])
-            : '/admin',
+            ? WpUserResource::getUrl('view', ['record' => $targetId])
+            : AdminPath::url(),
     ])->withCookie($cookie);
 });
 
