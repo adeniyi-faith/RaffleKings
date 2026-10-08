@@ -3,6 +3,13 @@
     $head = 'padding:6px 8px;text-align:right;font-size:11px;text-transform:uppercase;color:#9ca3af';
 @endphp
 <div style="font-size:14px">
+    @if ($ad->winner_picked_at)
+        <p style="margin-bottom:12px;padding:8px 12px;border-radius:10px;background:rgba(22,163,74,.1);color:#16a34a;font-weight:600">
+            Version {{ $ad->variants->firstWhere('id', $ad->winner_variant_id)?->label ?? '?' }} won and was switched on for everyone, {{ $ad->winner_picked_at->setTimezone(config('raffles.timezone'))->format('j M Y, H:i') }}.
+        </p>
+    @elseif ($ad->auto_winner && $ad->variants->where('weight', '>', 0)->count() > 1)
+        <p style="margin-bottom:12px;color:#6b7280">Automatic switching is on: once every version has {{ number_format($ad->auto_winner_min_views) }} views and one is clearly ahead, everyone gets that one.</p>
+    @endif
     <p style="color:#6b7280;margin-bottom:12px">The last {{ $report['days'] }} days. A view is counted only when at least half the ad was on screen for a second.</p>
 
     <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(120px,1fr));gap:8px;margin-bottom:16px">

@@ -244,4 +244,57 @@ class AdsEngineTest extends TestCase
             ->call('create')
             ->assertHasFormErrors(['target']);
     }
+
+    /** Puts views and taps straight into the daily totals. */
+    private function stats(Ad $ad, string $label, int $views, int $clicks): void
+    {
+        AdStat::query()->create(['ad_id' => $ad->id, 'ad_variant_id' => $ad->variants->firstWhere('label', $label)->id, 'placement' => 'rewards', 'day' => now()->toDateString(), 'views' => $views, 'clicks' => $clicks, 'closes' => 0]);
+    }
+
+    public function test_automatic_switching_moves_everyone_to_a_clear_winner(): void
+    {
+        $ad = $this->ad(['auto_winner' => true, 'auto_winner_min_views' => 500], [['label' => 'A', 'title' => 'Version A'], ['label' => 'B', 'title' => 'Version B']]);
+        $this->stats($ad, 'A', 1000, 20);
+        $this->stats($ad, 'B', 1000, 60);
+
+        $this->assertSame(1, app(AdServer::class)->pickWinners());
+
+        $ad->refresh()->load('variants');
+        $this->assertSame($ad->variants->firstWhere('label', 'B')->id, $ad->winner_variant_id);
+        $this->assertSame(0, $ad->variants->firstWhere('label', 'A')->weight);
+        $this->assertNotNull($ad->winner_picked_at);
+
+        $seen = collect(range(1, 20))->map(fn ($i) => $this->pick(['rewards'], client: "browser-{$i}xxxx")['rewards'][0]['title'])->unique()->values()->all();
+        $this->assertSame(['Version B'], $seen);
+    }
+
+    public function test_no_winner_with_too_few_views_a_close_race_or_switching_off(): void
+    {
+        $few = $this->ad(['name' => 'Few', 'auto_winner' => true, 'auto_winner_min_views' => 500], [['label' => 'A', 'title' => 'A'], ['label' => 'B', 'title' => 'B']]);
+        $this->stats($few, 'A', 100, 1);
+        $this->stats($few, 'B', 100, 30);
+
+        $close = $this->ad(['name' => 'Close', 'auto_winner' => true, 'auto_winner_min_views' => 500], [['label' => 'A', 'title' => 'A'], ['label' => 'B', 'title' => 'B']]);
+        $this->stats($close, 'A', 1000, 50);
+        $this->stats($close, 'B', 1000, 55);
+
+        $off = $this->ad(['name' => 'Off', 'auto_winner' => false], [['label' => 'A', 'title' => 'A'], ['label' => 'B', 'title' => 'B']]);
+        $this->stats($off, 'A', 1000, 20);
+        $this->stats($off, 'B', 1000, 60);
+
+        $this->assertSame(0, app(AdServer::class)->pickWinners());
+        $this->assertNull($few->fresh()->winner_variant_id);
+        $this->assertNull($close->fresh()->winner_variant_id);
+        $this->assertNull($off->fresh()->winner_variant_id);
+    }
+
+    public function test_switching_automatic_picking_back_on_starts_a_fresh_test(): void
+    {
+        $ad = $this->ad(['auto_winner' => false, 'winner_variant_id' => 99, 'winner_picked_at' => now()]);
+
+        $ad->update(['auto_winner' => true]);
+
+        $this->assertNull($ad->fresh()->winner_variant_id);
+        $this->assertNull($ad->fresh()->winner_picked_at);
+    }
 }
