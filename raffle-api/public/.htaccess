@@ -44,6 +44,11 @@
     RewriteRule ^ index.php [L]
 </IfModule>
 
+# Shrunk pictures are saved as WebP; make sure older Apache setups label them right.
+<IfModule mod_mime.c>
+    AddType image/webp .webp
+</IfModule>
+
 <IfModule mod_headers.c>
     Header set Cache-Control "public, max-age=31536000, immutable" env=RK_AVATAR_CACHE
     Header set Cache-Control "public, max-age=31536000, immutable" env=RK_BUILD_CACHE
