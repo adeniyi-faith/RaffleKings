@@ -58,6 +58,21 @@ final class ConnectionTester
         );
     }
 
+    /** One tiny search (a fraction of a cent) proves the key works. @return array{0: bool, 1: string} */
+    public function exa(?string $apiKey): array
+    {
+        if (blank($apiKey)) {
+            return [false, 'No Exa API key is saved yet.'];
+        }
+
+        return $this->check(
+            fn () => Http::withHeaders(['x-api-key' => $apiKey])->acceptJson()->timeout(20)
+                ->post('https://api.exa.ai/search', ['query' => 'Nigeria football fixtures', 'numResults' => 1, 'type' => 'auto']),
+            fn (Response $r) => 'Exa accepted the key. Web search is ready for the AI helpers.',
+            'Exa',
+        );
+    }
+
     /** @return array{0: bool, 1: string} */
     public function brevo(?string $apiKey): array
     {

@@ -6,6 +6,16 @@ import GoldenBoxBanner from '../Components/raffles/GoldenBoxBanner';
 import TrendingCard from '../Components/home/TrendingCard';
 import HomeCards from '../Components/home/HomeCards';
 import RaffleCard from '../Components/raffles/RaffleCard';
+import AdSlot from '../Components/ads/AdSlot';
+import { useAds } from '../hooks/useAds';
+
+// An ad (Site → Ads) drawn as one of the top banner's slides.
+function adSlide(ad) {
+    return {
+        title: ad.title, text: ad.text, badge: ad.badge, theme: ad.theme, icon: ad.icon,
+        image_url: ad.image_url, link_url: ad.href, link_label: ad.button_label, ad,
+    };
+}
 
 // The customer homepage. The blocks (slides, cards, trending raffles...) and
 // their order come from `layout`, which staff arrange in the admin under
@@ -15,6 +25,9 @@ export default function Home({ trending, layout = [] }) {
     const activeTrending = trending.filter((r) => !r.is_closed).slice(0, 10);
     // Phase 11: flash raffles get their own strip just above the trending list.
     const flash = activeTrending.filter((r) => r.is_flash);
+    const { ads: slideAds } = useAds('home_slide');
+    // The "card under the top banner" ad spot goes after the first banner block (or first of all).
+    const heroIndex = layout.findIndex((section) => section.type === 'hero');
 
     return (
         <>
@@ -23,10 +36,16 @@ export default function Home({ trending, layout = [] }) {
                 <Header />
 
                 <div className="no-scrollbar relative flex-1 overflow-y-auto bg-gray-50 pb-28 transition-colors duration-200 dark:bg-dark-bg">
+                    {heroIndex === -1 && <AdSlot placement="home_top" className="px-5 pt-4" />}
                     {layout.map((section, i) => {
                         switch (section.type) {
                             case 'hero':
-                                return <HeroCarousel key={i} items={section.items} />;
+                                return (
+                                    <div key={i}>
+                                        <HeroCarousel items={i === heroIndex ? [...section.items, ...slideAds.map(adSlide)] : section.items} />
+                                        {i === heroIndex && <AdSlot placement="home_top" className="px-5" />}
+                                    </div>
+                                );
                             case 'golden_box':
                                 return (
                                     <div key={i} className="px-5 pt-5 empty:hidden">
@@ -78,6 +97,7 @@ export default function Home({ trending, layout = [] }) {
                                 return null;
                         }
                     })}
+                    <AdSlot placement="home_bottom" className="px-5 pb-4" />
                 </div>
 
                 <BottomNav />

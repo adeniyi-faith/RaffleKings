@@ -8,12 +8,13 @@ class AiWriter
     public function __construct(private readonly GeminiClient $gemini) {}
 
     /**
+     * @param  string|null  $webResults  Web pages found by ExaSearch, when staff ticked "Look it up on the web".
      * @param  string  $purpose  What the text is, e.g. "a short announcement shown to every customer".
      * @param  string  $current  What is already in the box (may be empty).
      * @param  string  $instruction  What the staff member asked for (may be empty).
      * @param  bool  $html  True for rich-text boxes (basic HTML), false for plain text.
      */
-    public function write(string $purpose, string $current, string $instruction, bool $html, ?string $context = null): string
+    public function write(string $purpose, string $current, string $instruction, bool $html, ?string $context = null, ?string $webResults = null): string
     {
         $site = config('app.name');
         $rules = trim((string) config('ai.instructions'));
@@ -30,7 +31,8 @@ class AiWriter
         $prompt = "Write {$purpose}.\n"
             .($context ? "Details: {$context}\n" : '')
             .($instruction !== '' ? "What the team wants: {$instruction}\n" : '')
-            .(trim(strip_tags($current)) !== '' ? "The box already contains this (improve or rewrite it, keep its facts):\n{$current}\n" : '');
+            .(trim(strip_tags($current)) !== '' ? "The box already contains this (improve or rewrite it, keep its facts):\n{$current}\n" : '')
+            .($webResults ? "Fresh facts from a web search (use only what is relevant, and only what these pages actually say; never copy whole sentences):\n{$webResults}\n" : '');
 
         return trim($this->gemini->generate('write:'.mb_substr($purpose, 0, 40), $system, $prompt));
     }

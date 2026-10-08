@@ -4,12 +4,14 @@ use App\Console\Commands\HealthCheck;
 use App\Jobs\RefundCancelledRaffle;
 use App\Models\Raffle;
 use App\Services\Admin\StaffTodo;
+use App\Services\Ads\AdServer;
 use App\Services\Advisor\RaffleAdvisor;
 use App\Services\Ai\GeminiClient;
 use App\Services\Auth\StaffTwoStep;
 use App\Services\DepositService;
 use App\Services\Engagement\DailyDrops;
 use App\Services\Engagement\LuckyMeter;
+use App\Services\Engagement\PredictionWriter;
 use App\Services\Engagement\RedEnvelopes;
 use App\Services\GamingTaxReminders;
 use App\Services\Growth\AffiliateService;
@@ -219,3 +221,20 @@ Schedule::call(fn () => app(StaffTodo::class)->sync())
 Schedule::call(fn () => app(StaffTodo::class)->prune())
     ->daily()
     ->name('staff-todo-prune');
+
+// Daily predictions: when switched on (Settings → Community → Daily
+// predictions), the AI writes a few draft questions each morning from real
+// fixtures and news. They stay drafts until staff publish them.
+Schedule::call(fn () => app(PredictionWriter::class)->dailyDrafts())
+    ->dailyAt('07:00')
+    ->timezone(config('raffles.timezone'))
+    ->name('prediction-ai-drafts')
+    ->withoutOverlapping(30);
+
+// On-site ads: per-person view rows older than 120 days are tidied away
+// (the daily totals behind the reports are kept).
+Schedule::call(fn () => app(AdServer::class)->prune())
+    ->dailyAt('04:10')
+    ->timezone(config('raffles.timezone'))
+    ->name('ads-prune')
+    ->withoutOverlapping(30);

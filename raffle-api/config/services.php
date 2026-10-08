@@ -161,4 +161,10 @@ return [
         'assistant_model' => env('GEMINI_ASSISTANT_MODEL', 'gemini-3.8-flash'),
     ],
 
+    // Exa web search (exa.ai): lets the AI helpers look things up on the
+    // internet. Also editable in Settings → AI → Exa web search.
+    'exa' => [
+        'api_key' => env('EXA_API_KEY'),
+    ],
+
 ];

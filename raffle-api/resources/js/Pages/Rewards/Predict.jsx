@@ -7,6 +7,7 @@ import { apiPost } from '../../lib/api';
 import { useApi } from '../../lib/useApi';
 import { goBack } from '../../lib/nav';
 import BottomNav from '../../Components/layout/BottomNav';
+import AdSlot from '../../Components/ads/AdSlot';
 
 // Phase 11: daily predictions — free to answer; a right answer earns points
 // and Season Pass XP once the question is settled.
@@ -62,6 +63,8 @@ export default function Predict({ preview }) {
 
                 <div className="relative z-10 -mt-8 space-y-4 px-5">
                     <PausedNotice feature="predictions" />
+                    {/* Ad spot (admin: Site → Ads → "Daily predictions page"). */}
+                    <AdSlot placement="predictions" />
                     {failed && <LoadError onRetry={reload} />}
                     {error && <p role="alert" className="rounded-xl bg-red-50 px-4 py-2 text-sm text-red-700 dark:bg-red-900/20 dark:text-red-300">{error}</p>}
 

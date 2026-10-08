@@ -7,6 +7,7 @@ import MaintenanceBanner from './Components/layout/MaintenanceBanner';
 import StatusBanner from './Components/layout/StatusBanner';
 import OfferBanner from './Components/layout/OfferBanner';
 import CookieBanner from './Components/layout/CookieBanner';
+import AdPopup from './Components/ads/AdPopup';
 // Starts tracking pages visited, for the Back buttons (lib/nav.js).
 import './lib/nav';
 // Reports JavaScript errors to System → Health (lib/errorReporter.js).
@@ -45,6 +46,8 @@ createInertiaApp({
                             <Component key={key} {...pageProps} />
                             {/* Asks first-time visitors about analytics (Settings → Consent & privacy). */}
                             <CookieBanner />
+                            {/* The pop-up ad, when there is one (admin: Site → Ads). */}
+                            <AdPopup />
                         </>
                     )}
                 </App>
