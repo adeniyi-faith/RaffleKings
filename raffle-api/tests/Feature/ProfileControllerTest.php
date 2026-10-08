@@ -181,7 +181,7 @@ class ProfileControllerTest extends TestCase
         ]);
 
         $response->assertOk();
-        Storage::disk('public')->assertExists('avatars/'.$user->ID.'.jpg');
+        Storage::disk('public')->assertExists('avatars/'.$user->ID.'.webp');
         $this->assertSame($response->json('avatar'), $user->fresh()->metaValue('profile_pic_url'));
     }
 
@@ -193,8 +193,34 @@ class ProfileControllerTest extends TestCase
         $this->postJson('/api/profile/avatar', ['avatar' => UploadedFile::fake()->image('first.jpg')])->assertOk();
         $this->postJson('/api/profile/avatar', ['avatar' => UploadedFile::fake()->image('second.png')])->assertOk();
 
-        Storage::disk('public')->assertMissing('avatars/'.$user->ID.'.jpg');
-        Storage::disk('public')->assertExists('avatars/'.$user->ID.'.png');
+        $this->assertSame(['avatars/'.$user->ID.'.webp'], Storage::disk('public')->files('avatars'));
+    }
+
+    public function test_a_big_photo_is_saved_as_a_small_square_webp(): void
+    {
+        Storage::fake('public');
+        $user = $this->actingAsWordPressUser();
+        $photo = UploadedFile::fake()->image('big.jpg', 3000, 2000);
+
+        $this->postJson('/api/profile/avatar', ['avatar' => $photo])->assertOk();
+
+        $saved = Storage::disk('public')->get('avatars/'.$user->ID.'.webp');
+        $info = getimagesizefromstring($saved);
+        $this->assertSame([320, 320, 'image/webp'], [$info[0], $info[1], $info['mime']]);
+        $this->assertLessThan($photo->getSize(), strlen($saved));
+    }
+
+    public function test_an_animated_gif_is_kept_as_it_is(): void
+    {
+        Storage::fake('public');
+        $user = $this->actingAsWordPressUser();
+        // Two frames: shrinking it would freeze the animation.
+        $gif = base64_decode('R0lGODlhAQABAIAAAP///wAAACH5BAAAAAAALAAAAAABAAEAAAICRAEAIfkEAAAAAAAsAAAAAAEAAQAAAgJEAQA7');
+        $file = UploadedFile::fake()->createWithContent('moving.gif', $gif);
+
+        $this->postJson('/api/profile/avatar', ['avatar' => $file])->assertOk();
+
+        $this->assertSame($gif, Storage::disk('public')->get('avatars/'.$user->ID.'.gif'));
     }
 
     public function test_a_non_image_upload_is_rejected(): void

@@ -1,0 +1,55 @@
+name: Shrink Existing Pictures (manual)
+
+# New profile pictures and winner-story photos are shrunk automatically
+# when they are uploaded. This makes small copies of the ones uploaded
+# BEFORE that change (`php artisan images:shrink`).
+#
+# Run this by hand from GitHub -> Actions -> this workflow -> "Run
+# workflow":
+#   - mode "preview" (the default) changes NOTHING. It lists every picture
+#     and how big it is now vs how big it would be. Run this first.
+#   - mode "apply" saves the small copies and switches the site to them.
+#     Nothing is deleted: the original files stay where they are, and a log
+#     of every change is saved under storage/app/image-shrink-logs/.
+#     Safe to run again; pictures already shrunk are skipped.
+on:
+  workflow_dispatch:
+    inputs:
+      mode:
+        description: 'preview = change nothing, just show what would happen. apply = really shrink.'
+        required: true
+        default: preview
+        type: choice
+        options:
+          - preview
+          - apply
+
+env:
+  DEPLOY_PATH: /home2/worldin6/public_html/rafflekings.com.ng
+
+jobs:
+  shrink:
+    runs-on: ubuntu-latest
+    environment: production
+    steps:
+      - name: Shrink pictures (${{ inputs.mode }})
+        uses: appleboy/ssh-action@v1.2.0
+        with:
+          host: ${{ secrets.CPANEL_HOST }}
+          username: ${{ secrets.CPANEL_USERNAME }}
+          password: ${{ secrets.CPANEL_PASSWORD }}
+          fingerprint: ${{ secrets.CPANEL_HOST_FINGERPRINT }}
+          port: 22
+          command_timeout: 30m
+          script: |
+            set -e
+            cd ${{ env.DEPLOY_PATH }}
+
+            echo "=== Can this server shrink pictures? (needs GD with WebP) ==="
+            php -r 'echo (function_exists("imagewebp") && (imagetypes() & IMG_WEBP)) ? "yes\n" : "NO - new uploads are kept as they are\n";'
+
+            if [ "${{ inputs.mode }}" = "apply" ]; then
+              php artisan images:shrink
+            else
+              php artisan images:shrink --dry-run
+            fi
