@@ -5,13 +5,15 @@ namespace App\Http\Controllers\Api;
 use App\Auth\WordPressAuthCookieIssuer;
 use App\Http\Controllers\Controller;
 use App\Models\Legacy\WpUser;
-use App\Services\Auth\SessionRevoker;
 use App\Models\Legacy\WpUserMeta;
 use App\Models\UserEngagement;
+use App\Services\Auth\SessionRevoker;
 use App\Services\Auth\WordPressCookieFactory;
 use App\Services\Auth\WordPressPasswordHasher;
+use App\Services\Images\ImageOptimizer;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Validation\Rule;
@@ -56,7 +58,7 @@ class ProfileController extends Controller
         ]);
     }
 
-    public function uploadAvatar(Request $request): JsonResponse
+    public function uploadAvatar(Request $request, ImageOptimizer $optimizer): JsonResponse
     {
         $user = $this->user();
 
@@ -73,7 +75,7 @@ class ProfileController extends Controller
             }
         }
 
-        $path = $request->file('avatar')->storeAs('avatars', $user->ID.'.'.$request->file('avatar')->extension(), 'public');
+        $path = $this->storeAvatar($request->file('avatar'), $user->ID, $optimizer);
         // "?v=<time>" makes every upload a brand-new address, so browsers can keep
         // a picture for a year (see public/.htaccess and public/sw.js) and still
         // show the new one the moment it changes.
@@ -171,6 +173,25 @@ class ProfileController extends Controller
         $user = Auth::guard('wordpress')->user();
 
         return $user;
+    }
+
+    /**
+     * Saves the picture shrunk to a 320-pixel WebP square (see ImageOptimizer):
+     * a 4 MB phone photo becomes roughly 15-30 KB and looks the same at the
+     * sizes the site shows it. If it can't be shrunk, the original is kept as before.
+     */
+    private function storeAvatar(UploadedFile $file, int $userId, ImageOptimizer $optimizer): string
+    {
+        $small = $optimizer->square((string) file_get_contents($file->getRealPath()));
+
+        if ($small !== null) {
+            $path = 'avatars/'.$userId.'.webp';
+            Storage::disk('public')->put($path, $small);
+
+            return $path;
+        }
+
+        return $file->storeAs('avatars', $userId.'.'.$file->extension(), 'public');
     }
 
     // Same delete-then-insert pattern UserManagementService's setBanned()

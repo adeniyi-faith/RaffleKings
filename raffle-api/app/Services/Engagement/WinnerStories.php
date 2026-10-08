@@ -8,6 +8,7 @@ use App\Models\Raffle;
 use App\Models\WinnerStory;
 use App\Models\WinnerStoryReaction;
 use App\Notifications\EngagementAlert;
+use App\Services\Images\ImageOptimizer;
 use App\Services\PointsService;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\Storage;
@@ -23,7 +24,11 @@ class WinnerStories
 {
     public const REACTIONS = ['❤️', '🔥', '👏', '🎉'];
 
-    public function __construct(private readonly PointsService $points, private readonly BadgeService $badges) {}
+    public function __construct(
+        private readonly PointsService $points,
+        private readonly BadgeService $badges,
+        private readonly ImageOptimizer $optimizer,
+    ) {}
 
     /** Published wins this customer hasn't posted a story for yet. */
     public function postableWins(int $userId): array
@@ -51,7 +56,7 @@ class WinnerStories
         }
 
         $type = str_starts_with((string) $file->getMimeType(), 'video/') ? 'video' : 'image';
-        $path = $file->storeAs('stories', Str::uuid().'.'.$file->extension(), 'public');
+        $path = $this->storeMedia($file, $type);
 
         return WinnerStory::create([
             'user_id' => $user->ID,
@@ -62,6 +67,27 @@ class WinnerStories
             'media_type' => $type,
             'status' => 'pending',
         ]);
+    }
+
+    /**
+     * Photos are shrunk to at most 1600 pixels on the longest side and saved
+     * as WebP (see ImageOptimizer), which is still sharp full-screen on a
+     * phone. Videos, and any photo that can't be shrunk, are kept as sent.
+     */
+    private function storeMedia(UploadedFile $file, string $type): string
+    {
+        if ($type === 'image') {
+            $small = $this->optimizer->fit((string) file_get_contents($file->getRealPath()));
+
+            if ($small !== null) {
+                $path = 'stories/'.Str::uuid().'.webp';
+                Storage::disk('public')->put($path, $small);
+
+                return $path;
+            }
+        }
+
+        return $file->storeAs('stories', Str::uuid().'.'.$file->extension(), 'public');
     }
 
     public function approve(WinnerStory $story): void
@@ -132,6 +158,7 @@ class WinnerStories
         return [
             'stories' => $stories->map(function (WinnerStory $s) use ($users, $winners, $titles, $mine) {
                 $u = $users->get($s->user_id);
+
                 return [
                     'id' => $s->id,
                     'name' => PlayerProfiles::nameOf($u, 'A winner'),
