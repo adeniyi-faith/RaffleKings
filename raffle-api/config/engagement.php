@@ -77,6 +77,10 @@ return [
     // Daily prediction: points for a correct answer (each question can override).
     'predictions' => [
         'default_points' => 50,
+        // AI writes draft questions every morning (staff publish them).
+        'ai_daily' => false,
+        'ai_daily_count' => 3,
+        'ai_focus' => null,
     ],
 
     // Free spins of the Spin & Win wheel.

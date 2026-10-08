@@ -49,7 +49,8 @@ class GeminiClient
         }
 
         $limit = (int) config('ai.daily_limit');
-        if (AiRequest::query()->where('created_at', '>=', now()->startOfDay())->count() >= $limit) {
+        // Web searches (ExaSearch) have their own cap and don't use up this one.
+        if (AiRequest::query()->where('model', '!=', 'exa')->where('created_at', '>=', now()->startOfDay())->count() >= $limit) {
             throw new AiUnavailableException("Today's AI limit ({$limit} calls) has been reached. It resets tomorrow, or raise it in Settings → AI.");
         }
 

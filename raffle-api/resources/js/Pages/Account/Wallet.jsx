@@ -23,6 +23,7 @@ import PausedNotice from '../../Components/layout/PausedNotice';
 import TransferWinningsModal from '../../Components/wallet/TransferWinningsModal';
 import { goBack } from '../../lib/nav';
 import BottomNav from '../../Components/layout/BottomNav';
+import AdSlot from '../../Components/ads/AdSlot';
 
 // Top up (rebuilt from topup.php, items 26 and 48): enter an amount, pay
 // on Paystack's hosted checkout, come back here to see it land. Item 48
@@ -122,6 +123,8 @@ export default function AccountWallet({ minimumDeposit = 100, recentTopups = [] 
                 <PausedNotice feature="deposits" className="mx-5 mt-4" />
 
                 <div className="mx-auto max-w-lg space-y-5 p-5">
+                    {/* Ad spot (admin: Site → Ads → "Wallet page"). */}
+                    <AdSlot placement="wallet" />
                     {/* Balances */}
                     <section className="relative overflow-hidden rounded-3xl bg-gradient-to-br from-blue-600 to-indigo-700 p-5 text-white shadow-lg shadow-blue-500/25">
                         <div aria-hidden="true" className="pointer-events-none absolute -right-8 -top-8 h-32 w-32 rounded-full bg-white/10 blur-2xl" />

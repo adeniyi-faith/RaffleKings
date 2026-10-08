@@ -37,6 +37,7 @@ import TransferWinningsModal from '../../Components/wallet/TransferWinningsModal
 import { setBalances, useBalanceHidden, useBalances } from '../../lib/balances';
 import { useInstallApp } from '../../hooks/useInstallApp';
 import { useApi } from '../../lib/useApi';
+import AdSlot from '../../Components/ads/AdSlot';
 
 // Faithful rebuild of the legacy profile.php: the blue avatar header,
 // the guest "join now" card (or the two wallet cards when logged in),
@@ -204,6 +205,8 @@ export default function Profile() {
                     </div>
 
                     <div className="mt-8 space-y-6 px-5 pb-6">
+                        {/* Ad spot (admin: Site → Ads → "Profile page"). */}
+                        <AdSlot placement="profile" />
                         <MenuGroup title="Activity">
                             {user && <MenuLink href="/account/badges" icon={Award} iconClass="bg-fuchsia-50 text-fuchsia-600 dark:bg-fuchsia-900/30 dark:text-fuchsia-400" title="My Badges" subtitle="Collect them all and pin your favourites" />}
                             <MenuLink href="/account/tickets" icon={Ticket} iconClass="bg-green-50 text-green-600 dark:bg-green-900/30 dark:text-green-400" title="My Tickets" subtitle="View active & past tickets" />

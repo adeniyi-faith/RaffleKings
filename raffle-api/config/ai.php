@@ -36,4 +36,7 @@ return [
 
     // Raffle advisor: write a fresh report by itself once a week (Monday morning).
     'advisor_weekly' => (bool) env('AI_ADVISOR_WEEKLY', true),
+
+    // Most Exa web searches per day (key: services.exa.api_key).
+    'web_search_daily_limit' => (int) env('AI_WEB_SEARCH_DAILY_LIMIT', 100),
 ];
