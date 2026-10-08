@@ -7,6 +7,7 @@ import Header from '../../Components/layout/Header';
 import BottomNav from '../../Components/layout/BottomNav';
 import GoldenBoxBanner from '../../Components/raffles/GoldenBoxBanner';
 import LoadError from '../../Components/ui/LoadError';
+import AdSlot from '../../Components/ads/AdSlot';
 
 const SORT_OPTIONS = [
     { value: 'newest', label: 'Newest' },
@@ -139,6 +140,9 @@ export default function RafflesIndex({ initial }) {
                         </div>
                     </div>
                 )}
+
+                {/* Ad spot (admin: Site → Ads → "All raffles page"). */}
+                <AdSlot placement="raffles" className="mb-4" />
 
                 <div className="mb-6 space-y-4">
                     <TextInput

@@ -4,6 +4,7 @@ namespace App\Filament\Support;
 
 use App\Exceptions\AiUnavailableException;
 use App\Services\Ai\AiWriter;
+use App\Services\Ai\ExaSearch;
 use App\Services\Ai\GeminiClient;
 use Filament\Forms;
 use Filament\Notifications\Notification;
@@ -38,6 +39,17 @@ final class AiAssist
                     ->rows(3)
                     ->maxLength(500)
                     ->placeholder('e.g. Friendly, short, mention the draw is on Friday'),
+                Forms\Components\Toggle::make('use_web')
+                    ->label('Look it up on the web first')
+                    ->helperText('For fresh facts, e.g. a new phone\'s features or this week\'s match. Uses Exa web search.')
+                    ->live()
+                    ->visible(fn () => app(ExaSearch::class)->available()),
+                Forms\Components\TextInput::make('search')
+                    ->label('What to search for')
+                    ->maxLength(200)
+                    ->placeholder('e.g. iPhone 17 Pro Max price in Nigeria')
+                    ->helperText('Leave empty to search for what you typed above.')
+                    ->visible(fn (Forms\Get $get) => (bool) $get('use_web')),
             ])
             ->action(function (array $data, Forms\Components\Component $component, Forms\Get $get, Forms\Set $set) use ($purpose, $html, $context) {
                 $name = $component->getName();
@@ -49,12 +61,19 @@ final class AiAssist
                 }
 
                 try {
+                    $web = null;
+                    $query = trim((string) ($data['search'] ?? '')) ?: trim((string) ($data['instruction'] ?? ''));
+                    if (! empty($data['use_web']) && $query !== '' && app(ExaSearch::class)->available()) {
+                        $web = ExaSearch::asContext(app(ExaSearch::class)->search('write', $query, 4, ['chars' => 1200])) ?: null;
+                    }
+
                     $text = app(AiWriter::class)->write(
                         $purpose,
                         (string) $get($name),
                         (string) ($data['instruction'] ?? ''),
                         $html,
                         $context ? $context($get) : null,
+                        $web,
                     );
                 } catch (AiUnavailableException $e) {
                     Notification::make()->title('AI could not write this')->body($e->getMessage())->danger()->send();

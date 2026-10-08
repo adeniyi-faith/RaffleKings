@@ -9,11 +9,13 @@ use App\Models\DailyDrop;
 use App\Models\Legacy\WpUser;
 use App\Models\Raffle;
 use App\Services\AdminAuditLogService;
+use App\Services\Ai\ExaSearch;
 use App\Services\Ai\GeminiClient;
 use App\Services\Ai\GeminiModels;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
 use RuntimeException;
+use Throwable;
 
 /**
  * The Raffle advisor: an expert adviser for the raffles team. It reads the
@@ -40,6 +42,7 @@ class RaffleAdvisor
     public function __construct(
         private readonly GeminiClient $gemini,
         private readonly PlatformSnapshot $snapshot,
+        private readonly ExaSearch $exa,
     ) {}
 
     /** Start a new report. It is written in the background (it can take a minute or two). */
@@ -64,7 +67,7 @@ class RaffleAdvisor
         $report->update(['snapshot' => $snapshot, 'model' => config('services.gemini.assistant_model') ?: GeminiModels::DEFAULT]);
 
         try {
-            $text = $this->gemini->generate('raffle-advisor', $this->system(), $this->prompt($snapshot, $report->focus), schema: $this->schema(), maxTokens: 16000);
+            $text = $this->gemini->generate('raffle-advisor', $this->system(), $this->prompt($snapshot, $report->focus, $this->webTrends($report->focus)), schema: $this->schema(), maxTokens: 16000);
             $answer = json_decode(trim(preg_replace('/^```(?:json)?|```$/m', '', $text)), true);
 
             if (! is_array($answer) || ! is_array($answer['recommendations'] ?? null)) {
@@ -229,11 +232,39 @@ class RaffleAdvisor
         TXT.($rules !== '' ? "\n\nHouse rules from the team: {$rules}" : '');
     }
 
-    private function prompt(array $snapshot, ?string $focus): string
+    /**
+     * Fresh news from the web (prize trends, what Nigerians want, promotions
+     * that worked) when Exa web search is set up. Only search words are
+     * sent, never the platform's numbers. A failed search is skipped.
+     */
+    private function webTrends(?string $focus): ?string
+    {
+        if (! $this->exa->available()) {
+            return null;
+        }
+
+        $month = now()->format('F Y');
+
+        try {
+            $results = [
+                ...$this->exa->search('advisor', ($focus ? Str::limit($focus, 150, '').' ' : '')."most wanted prizes gadgets and giveaways in Nigeria {$month}", 4, ['days' => 45, 'chars' => 1000]),
+                ...$this->exa->search('advisor', "raffle and prize promotion trends Nigeria Africa {$month}", 3, ['days' => 60, 'chars' => 1000]),
+            ];
+        } catch (Throwable $e) {
+            report($e);
+
+            return null;
+        }
+
+        return $results !== [] ? ExaSearch::asContext($results) : null;
+    }
+
+    private function prompt(array $snapshot, ?string $focus, ?string $web = null): string
     {
         return "Here are the platform's totals (JSON). Money is in naira. 'past_advice' shows what you suggested before and how anything we acted on actually sold: learn from it.\n\n"
             .json_encode($snapshot, JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES)
             ."\n\n".($focus ? "The team asked specifically: {$focus}\n\n" : '')
+            .($web ? "Fresh news from the web this month (outside facts, not our numbers; use it for prize ideas and timing, and say when an idea comes from it):\n{$web}\n\n" : '')
             ."Give your advice:\n"
             ."- summary: 3 to 6 short sentences. What the numbers say about our players right now, and the one thing that matters most this week.\n"
             ."- recommendations: 3 to 6, most valuable first. Mix safe bets with at least one bolder idea. Each one must be specific (real prices, ticket counts, prizes, days).\n"

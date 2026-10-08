@@ -29,6 +29,7 @@ class Predictions
     public function board(?int $userId): array
     {
         $open = Prediction::query()
+            ->where('is_draft', false)
             ->whereNull('settled_at')
             ->where('closes_at', '>', now())
             ->where(fn ($q) => $q->whereNull('opens_at')->orWhere('opens_at', '<=', now()))

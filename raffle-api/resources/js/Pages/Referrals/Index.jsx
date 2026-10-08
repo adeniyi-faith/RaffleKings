@@ -8,6 +8,7 @@ import { useApi } from '../../lib/useApi';
 import { useSite } from '../../lib/site';
 import { track } from '../../lib/analytics';
 import BottomNav from '../../Components/layout/BottomNav';
+import AdSlot from '../../Components/ads/AdSlot';
 
 // Phase 11: the full referral page — your link, the ladder of rewards for
 // friends who join and play, your commission, and the friends you invited.
@@ -89,6 +90,8 @@ export default function ReferralsIndex({ ladder = [], commissionPercent = 0 }) {
 
                 <div className="relative z-10 -mt-10 space-y-4 px-5">
                     {failed && <LoadError onRetry={reload} />}
+                    {/* Ad spot (admin: Site → Ads → "Refer friends page"). */}
+                    <AdSlot placement="referrals" />
 
                     {data && (
                         <div className="grid grid-cols-3 gap-2 rounded-2xl bg-white p-4 text-center shadow-sm dark:bg-dark-card">

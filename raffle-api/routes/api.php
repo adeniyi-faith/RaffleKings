@@ -2,6 +2,7 @@
 
 use App\Filament\Resources\Legacy\WpUserResource;
 use App\Http\Controllers\Api\AccountController;
+use App\Http\Controllers\Api\AdController;
 use App\Http\Controllers\Api\Admin\AuditLogController;
 use App\Http\Controllers\Api\Admin\AuditReconciliationController;
 use App\Http\Controllers\Api\Admin\DepositApprovalController;
@@ -102,6 +103,11 @@ Route::get('/hall-of-fame', [HallOfFameController::class, 'index']);
 
 // Site announcements (item 45) — public, shown on every page.
 Route::get('/site-notices', [SiteNoticeController::class, 'index']);
+
+// On-site ads (Site → Ads): what to show in a page's ad spots, and counting
+// views / taps / closes. Public, so visitors see ads too.
+Route::get('/ads', [AdController::class, 'index'])->middleware('throttle:60,1');
+Route::post('/ads/event', [AdController::class, 'event'])->middleware('throttle:120,1');
 Route::get('/raffles/{raffle}/live-draw', [LiveDrawController::class, 'show']);
 
 // Public — the Spin & Win odds are meant to be shown to players.

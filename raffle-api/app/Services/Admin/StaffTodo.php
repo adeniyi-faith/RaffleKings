@@ -10,6 +10,7 @@ use App\Filament\Resources\BankTransferResource;
 use App\Filament\Resources\KnowledgeArticleResource;
 use App\Filament\Resources\MoneyReviewItemResource;
 use App\Filament\Resources\PaymentMismatchResource;
+use App\Filament\Resources\PredictionResource;
 use App\Filament\Resources\RaffleWinnerResource;
 use App\Filament\Resources\SupportTicketResource;
 use App\Filament\Resources\WinnerStoryResource;
@@ -22,6 +23,7 @@ use App\Models\Legacy\RaffleTransaction;
 use App\Models\Legacy\RaffleWinner;
 use App\Models\Legacy\WpUser;
 use App\Models\MoneyReviewItem;
+use App\Models\Prediction;
 use App\Models\ReferralCommission;
 use App\Models\SupportTicket;
 use App\Models\WinnerStory;
@@ -81,6 +83,7 @@ class StaffTodo
         'affiliate_hold' => ['label' => 'Fraud watch', 'icon' => 'heroicon-o-shield-exclamation', 'screen' => FraudWatch::class],
         'winner_story' => ['label' => 'Winner stories', 'icon' => 'heroicon-o-camera', 'screen' => WinnerStoryResource::class],
         'help_draft' => ['label' => 'Help articles', 'icon' => 'heroicon-o-light-bulb', 'screen' => KnowledgeArticleResource::class],
+        'prediction_draft' => ['label' => 'Daily predictions', 'icon' => 'heroicon-o-light-bulb', 'screen' => PredictionResource::class],
         'gaming_tax' => ['label' => 'Gaming tax', 'icon' => 'heroicon-o-receipt-percent', 'screen' => GamingTax::class],
         'money_check' => ['label' => 'Needs checking', 'icon' => 'heroicon-o-scale', 'screen' => MoneyReviewItemResource::class],
         'failed_jobs' => ['label' => 'System health', 'icon' => 'heroicon-o-exclamation-triangle', 'screen' => SystemHealth::class],
@@ -334,6 +337,10 @@ class StaffTodo
             'help_draft' => $this->rows(
                 KnowledgeArticle::query()->whereNotNull('suggested_from_ticket_id')->where('is_active', false),
                 fn (KnowledgeArticle $a) => ['title' => 'Review the suggested help article "'.Str::limit($a->title, 80).'"'],
+            ),
+            'prediction_draft' => $this->rows(
+                Prediction::query()->where('is_draft', true)->where('closes_at', '>', now()),
+                fn (Prediction $p) => ['title' => 'Check and publish the AI-written prediction "'.Str::limit($p->question, 80).'"'],
             ),
             'gaming_tax' => $this->listed(fn () => collect(Cache::remember('staff-todo:gaming-tax', 600, fn () => app(GamingTaxReminders::class)->attention()))
                 ->reject(fn ($a) => $a['severity'] === 'info')

@@ -47,6 +47,13 @@ final class SettingsRegistry
                             new Setting('site.links.tiktok', 'TikTok', 'url'),
                         ],
                     ],
+                    'Ads' => [
+                        'description' => 'The ads you make in Site → Ads. Switching this off hides every ad at once; the ads themselves are kept.',
+                        'settings' => [
+                            new Setting('ads.enabled', 'Show ads on the site', 'bool'),
+                            new Setting('ads.popup_gap_hours', 'Hours between pop-up ads for the same person', 'int', 'A pop-up never shows more than once in this many hours on one phone or computer, whatever the ad\'s own limits say.', rules: ['required', 'integer', 'min:1', 'max:168']),
+                        ],
+                    ],
                 ],
             ],
 
@@ -290,6 +297,9 @@ final class SettingsRegistry
                     'Daily predictions' => [
                         'settings' => [
                             new Setting('engagement.predictions.default_points', 'Points for a right answer (default)', 'int', 'Each question can set its own.', rules: ['required', 'integer', 'min:0']),
+                            new Setting('engagement.predictions.ai_daily', 'AI writes fresh draft questions every morning', 'bool', 'At 07:00 the AI looks up real upcoming matches and news (needs the Exa key in the AI tab) and saves a few questions as drafts. Customers only see them after your team presses "Publish".'),
+                            new Setting('engagement.predictions.ai_daily_count', 'How many draft questions each morning', 'int', null, rules: ['required', 'integer', 'min:1', 'max:10']),
+                            new Setting('engagement.predictions.ai_focus', 'What the AI should write about', 'textarea', 'Optional, e.g. "Premier League and Nigerian league matches, and Super Eagles games".', rules: ['nullable', 'max:300']),
                         ],
                     ],
                     'Free spins' => [
@@ -485,6 +495,13 @@ final class SettingsRegistry
                         'settings' => [
                             new Setting('services.gemini.api_key', 'API key', 'secret', placeholder: 'AIza...'),
                             new Setting('services.gemini.model', 'Model', 'select', 'All are Gemini Flash models. Newer ones read messy screenshots better; Flash-Lite is the cheapest.', GeminiModels::OPTIONS),
+                        ],
+                    ],
+                    'Exa web search' => [
+                        'description' => 'Lets the AI look things up on the internet: real fixtures and results for Daily predictions, fresh news for "Write with AI", and prize trends for the Raffle advisor. Get a key at dashboard.exa.ai → API keys. Without a key, the web search options simply stay hidden.',
+                        'settings' => [
+                            new Setting('services.exa.api_key', 'Exa API key', 'secret', 'Stored encrypted.'),
+                            new Setting('ai.web_search_daily_limit', 'Most web searches per day', 'int', 'A safety cap on cost. When it is reached, searches stop until tomorrow.', rules: ['required', 'integer', 'min:0', 'max:2000']),
                         ],
                     ],
                     'AI assistant' => [
