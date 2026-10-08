@@ -198,6 +198,70 @@ class AdServer
         return $views > 0 ? round($clicks / $views * 100, 1) : 0.0;
     }
 
+    /**
+     * Automatic switching for A/B tests. For each live ad with "pick the
+     * winner automatically" on and two or more versions still showing: once
+     * every version has at least the ad's minimum views, and one version's
+     * tap rate beats each of the others with 95% confidence (a standard
+     * two-proportion test, so a lucky streak doesn't count), the others get
+     * a share of 0 and stop showing. The ad remembers which version won and
+     * when (shown in its report). Nothing is deleted: staff can switch a
+     * version back on by giving it a share again. Returns how many ads got a winner.
+     */
+    public function pickWinners(): int
+    {
+        $picked = 0;
+
+        $ads = Ad::query()->with('variants')->where('status', 'live')->where('auto_winner', true)->whereNull('winner_variant_id')->get();
+
+        foreach ($ads as $ad) {
+            $showing = $ad->variants->filter(fn (AdVariant $v) => $v->weight > 0);
+            if ($showing->count() < 2) {
+                continue;
+            }
+
+            $totals = AdStat::query()->where('ad_id', $ad->id)->whereIn('ad_variant_id', $showing->modelKeys())
+                ->groupBy('ad_variant_id')->selectRaw('ad_variant_id, SUM(views) as views, SUM(clicks) as clicks')
+                ->get()->keyBy('ad_variant_id');
+
+            $min = max(50, (int) $ad->auto_winner_min_views);
+            $numbers = $showing->mapWithKeys(fn (AdVariant $v) => [$v->id => [
+                'views' => (int) ($totals[$v->id]->views ?? 0),
+                'clicks' => min((int) ($totals[$v->id]->clicks ?? 0), (int) ($totals[$v->id]->views ?? 0)),
+            ]]);
+
+            if ($numbers->contains(fn ($n) => $n['views'] < $min)) {
+                continue;
+            }
+
+            $bestId = $numbers->sortByDesc(fn ($n) => $n['clicks'] / $n['views'])->keys()->first();
+            $best = $numbers[$bestId];
+            $clearlyBetter = $numbers->except($bestId)->every(fn ($other) => self::zScore($best, $other) >= 1.96);
+
+            if (! $clearlyBetter) {
+                continue;
+            }
+
+            DB::transaction(function () use ($ad, $showing, $bestId) {
+                $showing->where('id', '!=', $bestId)->each(fn (AdVariant $v) => $v->update(['weight' => 0]));
+                $ad->update(['winner_variant_id' => $bestId, 'winner_picked_at' => now()]);
+            });
+
+            $picked++;
+        }
+
+        return $picked;
+    }
+
+    /** How sure we are that A's tap rate is really higher than B's (1.96 = 95% sure). @param array{views: int, clicks: int} $a */
+    public static function zScore(array $a, array $b): float
+    {
+        $pooled = ($a['clicks'] + $b['clicks']) / max(1, $a['views'] + $b['views']);
+        $spread = sqrt($pooled * (1 - $pooled) * (1 / max(1, $a['views']) + 1 / max(1, $b['views'])));
+
+        return $spread > 0 ? ($a['clicks'] / max(1, $a['views']) - $b['clicks'] / max(1, $b['views'])) / $spread : 0.0;
+    }
+
     /** Deletes per-person rows older than KEEP_DAYS (daily totals are kept). */
     public function prune(): int
     {

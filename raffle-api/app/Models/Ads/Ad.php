@@ -69,6 +69,7 @@ class Ad extends Model
         'name', 'status', 'placements', 'look', 'priority', 'target_type', 'target', 'utm_campaign',
         'audience', 'groups', 'starts_at', 'ends_at', 'per_person_daily', 'daily_views_cap', 'total_views_cap',
         'can_close', 'created_by', 'updated_by',
+        'auto_winner', 'auto_winner_min_views', 'winner_variant_id', 'winner_picked_at',
     ];
 
     protected $attributes = [
@@ -85,10 +86,22 @@ class Ad extends Model
         'daily_views_cap' => 'integer',
         'total_views_cap' => 'integer',
         'can_close' => 'boolean',
+        'auto_winner' => 'boolean',
+        'auto_winner_min_views' => 'integer',
+        'winner_variant_id' => 'integer',
+        'winner_picked_at' => 'datetime',
     ];
 
     protected static function booted(): void
     {
+        // Switching automatic winner-picking back on starts a fresh test.
+        static::saving(function (Ad $ad) {
+            if ($ad->isDirty('auto_winner') && $ad->auto_winner) {
+                $ad->winner_variant_id = null;
+                $ad->winner_picked_at = null;
+            }
+        });
+
         $forget = fn () => AdServer::forgetCache();
         static::saved($forget);
         static::deleted($forget);

@@ -120,6 +120,17 @@ class AdResource extends Resource
                 Forms\Components\Section::make('What it says')
                     ->description('Add a second version to test which one people tap more. Each person always sees the same version.')
                     ->schema([
+                        Forms\Components\Fieldset::make('Automatic switching (A/B test)')
+                            ->columns(2)
+                            ->schema([
+                                Forms\Components\Toggle::make('auto_winner')->label('Switch everyone to the winning version by itself')->default(true)->inline(false)->live()
+                                    ->helperText('Checked every hour. When every version has enough views and one is clearly tapped more (95% sure, not luck), the others stop showing.'),
+                                Forms\Components\TextInput::make('auto_winner_min_views')->label('Views each version needs first')->numeric()->minValue(50)->maxValue(1000000)->default(500)
+                                    ->visible(fn (Get $get) => (bool) $get('auto_winner')),
+                                Forms\Components\Placeholder::make('winner_note')->hiddenLabel()->columnSpanFull()
+                                    ->visible(fn (?Ad $record) => $record?->winner_picked_at !== null)
+                                    ->content(fn (?Ad $record) => 'Version '.($record?->variants->firstWhere('id', $record->winner_variant_id)?->label ?? '?').' won on '.$record?->winner_picked_at?->setTimezone(config('raffles.timezone'))->format('j M Y, H:i').'. The other versions were given a share of 0. To test again, give them a share and switch this off and on.'),
+                            ]),
                         Forms\Components\Repeater::make('variants')
                             ->relationship('variants')
                             ->orderColumn('sort_order')

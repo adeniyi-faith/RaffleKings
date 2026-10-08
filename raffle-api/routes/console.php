@@ -231,6 +231,13 @@ Schedule::call(fn () => app(PredictionWriter::class)->dailyDrafts())
     ->name('prediction-ai-drafts')
     ->withoutOverlapping(30);
 
+// On-site ads: A/B tests with automatic switching move everyone to the
+// winning version once it is clearly ahead.
+Schedule::call(fn () => app(AdServer::class)->pickWinners())
+    ->hourly()
+    ->name('ads-pick-winners')
+    ->withoutOverlapping(30);
+
 // On-site ads: per-person view rows older than 120 days are tidied away
 // (the daily totals behind the reports are kept).
 Schedule::call(fn () => app(AdServer::class)->prune())
