@@ -23,6 +23,7 @@ import ResultModal from '../../Components/rewards/ResultModal';
 import LoadError from '../../Components/ui/LoadError';
 import { goBack } from '../../lib/nav';
 import { track } from '../../lib/analytics';
+import AdSlot from '../../Components/ads/AdSlot';
 
 // Rebuild of rewards.php (item 28). What's preserved from the legacy
 // page: the blue hero with a points badge and a 7-day streak row, the
@@ -532,6 +533,9 @@ export default function RewardsIndex({ referralCode, initialState = null, referr
                             See your referral ladder <ArrowRight className="h-3 w-3" />
                         </Link>
                     </div>
+
+                    {/* Ad spot (admin: Site → Ads → "Rewards page"). */}
+                    <AdSlot placement="rewards" />
 
                     <PausedNotice feature="tasks" />
                     {/* Quick Tasks */}

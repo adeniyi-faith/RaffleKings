@@ -314,6 +314,7 @@ class Settings extends Page implements HasForms
             'Paystack' => [$check('checkPaystack', fn () => $tester()->paystack($typed('services.paystack.secret_key')))],
             'Flutterwave' => [$check('checkFlutterwave', fn () => $tester()->flutterwave($typed('services.flutterwave.secret_key')))],
             'Google Gemini' => [$check('checkGemini', fn () => $tester()->gemini($typed('services.gemini.api_key'), $typed('services.gemini.model')))],
+            'Exa web search' => [$check('checkExa', fn () => $tester()->exa($typed('services.exa.api_key')))],
             'Bot protection (Cloudflare Turnstile)' => [$check('checkTurnstile', fn () => $tester()->turnstile($typed('services.turnstile.secret_key'), $typed('services.turnstile.site_key')))],
             'Brevo' => [$check('checkBrevo', fn () => $tester()->brevo($typed('services.brevo.key')))],
             'Live updates (Pusher)' => [$check('checkPusher', fn () => $tester()->pusher(

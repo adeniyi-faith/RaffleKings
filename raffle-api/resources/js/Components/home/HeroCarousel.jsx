@@ -1,9 +1,24 @@
 import { useEffect, useRef, useState } from 'react';
 import { Lock } from 'lucide-react';
 import { ICONS, SmartLink, themeOf } from './homeTheme';
+import { useAdView } from '../../hooks/useAds';
+import { track } from '../../lib/ads';
+
+// Counts a view of an ad slide (Site → Ads → homepage slide) while it is the one showing.
+function AdViewMarker({ ad, active }) {
+    const ref = useRef(null);
+    useAdView(ref, ad, active);
+
+    return (
+        <span ref={ref} className="pointer-events-none absolute inset-0">
+            <span className="absolute bottom-2 right-3 text-[9px] font-semibold uppercase tracking-wider text-white/50">Ad</span>
+        </span>
+    );
+}
 
 // The swiping banner at the top: one slide per item staff set up in the
-// admin (Site → Homepage). Autoplays every 5s; a swipe stops the autoplay.
+// admin (Site → Homepage), plus any ads set to "Homepage: a slide in the top
+// banner" (Site → Ads), which come after them. Autoplays every 5s; a swipe stops the autoplay.
 export default function HeroCarousel({ items }) {
     const trackRef = useRef(null);
     const [active, setActive] = useState(0);
@@ -71,6 +86,7 @@ export default function HeroCarousel({ items }) {
                                     slide.link_url && (
                                         <SmartLink
                                             href={slide.link_url}
+                                            onClick={slide.ad ? () => track(slide.ad, 'click') : undefined}
                                             className={`inline-flex items-center gap-2 rounded-xl bg-white px-6 py-3 text-sm font-bold shadow-lg transition-transform hover:bg-gray-50 hover:shadow-xl active:scale-95 ${theme.button}`}
                                         >
                                             {slide.link_label || 'Open'} {Icon && <Icon className="h-4 w-4" />}
@@ -78,6 +94,7 @@ export default function HeroCarousel({ items }) {
                                     )
                                 )}
                             </div>
+                            {slide.ad && <AdViewMarker ad={slide.ad} active={index === active} />}
                             {Icon && !slide.image_url && (
                                 <div className="absolute -bottom-4 -right-4 opacity-20 transition-transform duration-700 group-hover:scale-110">
                                     <Icon className={`h-32 w-32 fill-current ${theme.watermark}`} />

@@ -30,6 +30,7 @@ import { isOn, useSite } from '../../lib/site';
 import PausedNotice from '../../Components/layout/PausedNotice';
 import BoostPanel from '../../Components/social/BoostPanel';
 import DailyDropPanel from '../../Components/raffles/DailyDropPanel';
+import AdSlot from '../../Components/ads/AdSlot';
 
 const DEFAULT_QUANTITIES = [1, 2, 3, 5, 10];
 // The most a single order can hold when neither the raffle nor the site sets a
@@ -263,6 +264,8 @@ export default function RaffleShow({ raffle, drawInfo = null, odds = null, daily
                     {auth.user && ! isClosed && (
                         <InfoRow icon={Megaphone} tone="hot" title="Boost and share" subtitle="Invite friends, earn free bonus entries" cta="Free" onClick={() => setSheet('boost')} />
                     )}
+                    {/* Ad spot (admin: Site → Ads → "A raffle's own page"). */}
+                    <AdSlot placement="raffle_page" />
                 </main>
             </div>
 
