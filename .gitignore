@@ -1,36 +1,17 @@
-# Ignore WP Core and static folders
-wp/wp-admin/
-wp/wp-includes/
-wp/wp-content/themes/
-wp/wp-content/uploads/
-wp/wp-content/backuply/
-
-# Handle Plugins: Ignore all, but keep 
-Wordfence
-wp/wp-content/plugins/*
-!wp/wp-content/plugins/wordfence/
-
-# Keep your custom logic in mu-plugins
-!wp/wp-content/mu-plugins/
-
-# Ignore WP root system files
-wp/*.php
-wp/*.txt
-wp/*.html
-wp/*.xml
-wp/*.zip
-wp/*.json
-
-# Sensitive and temporary files
+# Secrets and local settings: never commit these
+.env
+.env.*
+!.env.example
 config.php
-wp/wp-config.php
-error_log
+
+# Computer and editor leftovers
 .DS_Store
+Thumbs.db
+.idea/
+.vscode/
+error_log
 
-# Root-level test tooling (Phase 0 item 4) — composer deps are fetched in CI
+# Files that tools download or build on your machine
+node_modules/
 /vendor/
-composer.lock
 .phpunit.result.cache
-
-# Server security-scanner credentials: never in the repo
-wp/wp-content/imunify-security/auth.php
