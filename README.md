@@ -70,4 +70,4 @@ docs/         setup, how it fits together, project history
 
 ## Licence
 
-Copyright (c) 2026 Faith (GitHub: adeniyi-faith). All rights reserved. The code is published to show how the project was built. You may not copy, run or redistribute it without written permission. See [LICENSE](LICENSE).
+Copyright (c) 2026 Rks Digital Innovation. All rights reserved. The code is published to show how the project was built. You may not copy, run or redistribute it without written permission. See [LICENSE](LICENSE).
